@@ -1,0 +1,10 @@
+[package]
+authors = ["ekicyou <dot.station@gmail.com>"]
+name = "dcomp_sample"
+version = "0.1.0"
+
+[dependencies.winapi]
+version = "^0.3"
+git = "https://github.com/ekicyou/winapi-rs"
+branch = "feature/sandbox3"
+features = ["dcomp", "d3d12", "dwrite_3"]
