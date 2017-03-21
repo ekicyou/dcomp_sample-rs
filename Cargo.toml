@@ -3,7 +3,10 @@ authors = ["ekicyou <dot.station@gmail.com>"]
 name = "dcomp_sample"
 version = "0.1.0"
 
+[dependencies]
+winit = "^0.6"
+
 [dependencies.winapi]
-git = "https://github.com/ekicyou/winapi-rs"
 branch = "feature/sandbox3"
 features = ["dcomp", "d3d12", "dwrite_3", "dxgi1_5", "d3dcompiler", "winuser"]
+git = "https://github.com/ekicyou/winapi-rs"
