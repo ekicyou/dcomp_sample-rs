@@ -25,7 +25,7 @@ fn main() {
         .with_title("hello window")
         .with_dimensions(480, 640)
         .with_transparency(true)
-        .with_decorations(false)
+        .with_multitouch()
         .build(&events_loop)
         .unwrap();
     let handle = window.handle();
