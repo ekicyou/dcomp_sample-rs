@@ -3,11 +3,16 @@
 extern crate winapi;
 extern crate winit;
 
-use winit::{Event, EventsLoop, Window, WindowEvent};
+mod dcomp_window;
+
+use winit::{WindowBuilder, Event, EventsLoop, WindowEvent};
+use dcomp_window::DCompWindow;
 
 fn main() {
     let events_loop = EventsLoop::new();
-    let window = winit::Window::new(&events_loop).unwrap();
+    let window = WindowBuilder::new().with_title("hello window").build(&events_loop).unwrap();
+    let handle = window.handle();
+    println!("window handle = {:?}", handle);
     loop {
         let mut closed = false;
         events_loop.poll_events(|event| {
