@@ -3,13 +3,26 @@
 extern crate winapi;
 extern crate winit;
 
-fn main() {
-    let window = winit::Window::new().unwrap();
+use winit::{Event, EventsLoop, Window, WindowEvent};
 
-    for event in window.wait_events() {
-        match event {
-            winit::Event::Closed => break,
-            _ => (),
+fn main() {
+    let events_loop = EventsLoop::new();
+    let window = winit::Window::new(&events_loop).unwrap();
+    loop {
+        let mut closed = false;
+        events_loop.poll_events(|event| {
+            match event {
+                Event::WindowEvent { event: WindowEvent::Resized(w, h), .. } => {
+                    println!("The window was resized to {}x{}", w, h);
+                },
+                Event::WindowEvent{event: WindowEvent::Closed,..} =>{
+                    closed = true;
+                },
+                _ => ()
+            }
+        });
+        if closed {
+            break;
         }
     }
 }
