@@ -5,12 +5,29 @@ extern crate winit;
 
 mod dcomp_window;
 
+use winapi::shared::ntdef::HANDLE;
 use winit::{WindowBuilder, Event, EventsLoop, WindowEvent};
 use dcomp_window::DCompWindow;
 
+impl DCompWindow for winit::Window {
+    fn handle(&self) -> HANDLE {
+        unsafe {
+            #[allow(deprecated)]
+            let p = self.platform_window();
+            p as HANDLE
+        }
+    }
+}
+
 fn main() {
     let events_loop = EventsLoop::new();
-    let window = WindowBuilder::new().with_title("hello window").build(&events_loop).unwrap();
+    let window = WindowBuilder::new()
+        .with_title("hello window")
+        .with_dimensions(480, 640)
+        .with_transparency(true)
+        .with_decorations(false)
+        .build(&events_loop)
+        .unwrap();
     let handle = window.handle();
     println!("window handle = {:?}", handle);
     loop {

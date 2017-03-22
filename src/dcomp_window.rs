@@ -6,27 +6,17 @@ pub trait DCompWindow {
     fn handle(&self) -> HANDLE;
 }
 
-impl DCompWindow for winit::Window {
-    fn handle(&self) -> HANDLE {
-        unsafe {
-            #[allow(deprecated)]
-            let p = self.platform_window();
-            p as HANDLE
-        }
-    }
-}
-
-pub struct WindowHandler {
+pub struct HWndProxy {
     handle: HANDLE,
 }
 
-impl WindowHandler {
-    pub fn new(handle: HANDLE) -> WindowHandler {
-        WindowHandler { handle: handle }
+impl HWndProxy {
+    pub fn new(handle: HANDLE) -> HWndProxy {
+        HWndProxy { handle: handle }
     }
 }
 
-impl DCompWindow for WindowHandler {
+impl DCompWindow for HWndProxy {
     fn handle(&self) -> HANDLE {
         self.handle
     }
