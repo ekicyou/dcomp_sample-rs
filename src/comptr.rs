@@ -1,4 +1,4 @@
-use winapi::_core::ops::Deref;
+use winapi::_core::ops::{Deref, DerefMut};
 use winapi::shared::wtypesbase::ULONG;
 use winapi::shared::winerror::{HRESULT, E_FAIL};
 use winapi::um::unknwnbase::IUnknown;
@@ -45,5 +45,11 @@ impl<T: IUnknownInterface> Deref for ComPtr<T> {
     fn deref(&self) -> &T {
         let com = &self.raw;
         com
+    }
+}
+
+impl<T: IUnknownInterface> DerefMut for ComPtr<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.raw
     }
 }
