@@ -3,6 +3,7 @@
 extern crate winapi;
 extern crate winit;
 
+mod comptr;
 mod dcomp_window;
 
 use winapi::shared::ntdef::HANDLE;
