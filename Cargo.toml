@@ -7,6 +7,6 @@ version = "0.1.0"
 winit = "^0.6"
 
 [dependencies.winapi]
-branch = "feature/sandbox3"
+branch = "feature/dcomp"
 features = ["dcomp", "d3d12", "dwrite_3", "dxgi1_5", "d3dcompiler", "winuser"]
 git = "https://github.com/ekicyou/winapi-rs"

@@ -31,23 +31,18 @@ fn main() {
         .unwrap();
     let handle = window.handle();
     println!("window handle = {:?}", handle);
-    loop {
-        let mut closed = false;
-        events_loop.poll_events(|event| {
-            match event {
-                Event::WindowEvent { event: WindowEvent::Resized(w, h), .. } => {
-                    println!("The window was resized to {}x{}", w, h);
-                },
-                Event::WindowEvent{event: WindowEvent::Closed,..} =>{
-                    closed = true;
-                },
-                _ => ()
+    events_loop.run_forever(|event| {
+        let rc = match event {
+            Event::WindowEvent { event: WindowEvent::Resized(w, h), .. } => {
+                println!("The window was resized to {}x{}", w, h);
             }
-        });
-        if closed {
-            break;
-        }
-    }
+            Event::WindowEvent { event: WindowEvent::Closed, .. } => {
+                events_loop.interrupt();
+            }
+            _ => (),
+        };
+        rc
+    });
 }
 
 #[cfg(test)]
