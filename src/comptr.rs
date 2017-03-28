@@ -2,7 +2,7 @@ use winapi::_core::ops::{Deref, DerefMut};
 use winapi::_core as core;
 use winapi::Interface;
 use winapi::shared::wtypesbase::ULONG;
-use winapi::shared::winerror::{HRESULT, S_OK, E_FAIL};
+use winapi::shared::winerror::{HRESULT, S_OK};
 use winapi::um::unknwnbase::IUnknown;
 
 pub trait IUnknownInterface {
@@ -15,6 +15,7 @@ impl IUnknownInterface for IUnknown {
     unsafe fn query_interface<T: IUnknownInterface + Interface>(&self) -> Result<*mut T, HRESULT> {
         let guid = T::uuidof();
         let mut ptr = core::ptr::null_mut();
+        #[allow(unused_unsafe)]
         unsafe {
             match self.QueryInterface(&guid, &mut ptr) {
                 S_OK => Ok(ptr as *mut T),
@@ -59,5 +60,18 @@ impl<T: IUnknownInterface + Interface> Deref for ComPtr<T> {
 impl<T: IUnknownInterface + Interface> DerefMut for ComPtr<T> {
     fn deref_mut(&mut self) -> &mut T {
         &mut self.raw
+    }
+}
+
+pub trait HresultMapping {
+    fn hr(self) -> Result<(), HRESULT>;
+}
+
+impl HresultMapping for HRESULT {
+    fn hr(self) -> Result<(), HRESULT> {
+        match self {
+            S_OK => Ok(()),
+            _ => Err(self),
+        }
     }
 }
