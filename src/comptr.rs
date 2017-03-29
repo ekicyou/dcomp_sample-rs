@@ -6,40 +6,48 @@ use winapi::shared::winerror::{HRESULT, S_OK};
 use winapi::um::unknwnbase::IUnknown;
 
 pub trait IUnknownInterface {
-    unsafe fn query_interface<T: IUnknownInterface + Interface>(&self) -> Result<*mut T, HRESULT>;
-    unsafe fn add_ref(&mut self) -> ULONG;
-    unsafe fn release(&mut self) -> ULONG;
-}
-
-impl IUnknownInterface for IUnknown {
+    fn unknown(&self) -> &IUnknown;
+    fn unknown_mut(&mut self) -> &IUnknown;
     unsafe fn query_interface<T: IUnknownInterface + Interface>(&self) -> Result<*mut T, HRESULT> {
+        let unknown = self.unknown();
         let guid = T::uuidof();
         let mut ptr = core::ptr::null_mut();
-        #[allow(unused_unsafe)]
         unsafe {
-            match self.QueryInterface(&guid, &mut ptr) {
+            match unknown.QueryInterface(&guid, &mut ptr) {
                 S_OK => Ok(ptr as *mut T),
                 hr => Err(hr),
             }
         }
     }
     unsafe fn add_ref(&mut self) -> ULONG {
-        let count = self.AddRef();
+        let mut unknown = self.unknown_mut();
+        let count = unknown.AddRef();
         count
     }
     unsafe fn release(&mut self) -> ULONG {
-        let count = self.Release();
+        let mut unknown = self.unknown_mut();
+        let count = unknown.Release();
         count
     }
 }
 
 pub struct ComPtr<T: IUnknownInterface + Interface> {
-    raw: T,
+    raw: *const T,
 }
 
+impl<T: IUnknownInterface + Interface> IUnknownInterface for ComPtr<T> {
+    fn unknown(&self) -> &IUnknown {
+        self.raw
+    }
+    fn unknown_mut(&mut self) -> &IUnknown {
+        self.raw
+    }
+}
+
+
 impl<T: IUnknownInterface + Interface> ComPtr<T> {
-    fn new(mut com: T) -> ComPtr<T> {
-        unsafe { com.add_ref() };
+    fn new(com: *const T) -> ComPtr<T> {
+        unsafe { &com.add_ref() };
         ComPtr { raw: com }
     }
 }
