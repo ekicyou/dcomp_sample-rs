@@ -6,6 +6,10 @@ use winapi::shared::wtypesbase::ULONG;
 use winapi::shared::winerror::{HRESULT, S_OK};
 use winapi::um::unknwnbase::IUnknown;
 
+pub trait QueryInterface {
+    fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT>;
+}
+
 pub struct ComRc<T: Interface> {
     raw: *const T,
 }
