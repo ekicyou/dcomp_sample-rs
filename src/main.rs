@@ -3,8 +3,8 @@
 extern crate winapi;
 extern crate winit;
 
-mod raw_com_if_sample;
-mod comptr;
+//mod raw_com_if_sample;
+mod com_rc;
 mod dcomp_window;
 
 use winapi::shared::ntdef::HANDLE;

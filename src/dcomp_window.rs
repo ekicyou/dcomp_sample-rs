@@ -6,7 +6,7 @@ use winapi::_core::ptr;
 use winapi::ctypes::c_void;
 use winapi::shared::winerror::{HRESULT, S_OK};
 
-use super::comptr::*;
+use super::com_rc::*;
 
 pub trait DCompWindow {
     fn handle(&self) -> HANDLE;

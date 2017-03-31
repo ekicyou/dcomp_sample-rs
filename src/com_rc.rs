@@ -1,27 +1,37 @@
 use winapi::_core::ops::{Deref, DerefMut};
 use winapi::_core as core;
+use winapi::ctypes::c_void;
 use winapi::Interface;
 use winapi::shared::wtypesbase::ULONG;
 use winapi::shared::winerror::{HRESULT, S_OK};
 
-//use winapi::um::unknwnbase::IUnknown;
-use super::raw_com_if_sample::IUnknown;
+use winapi::um::unknwnbase::IUnknown;
+//use super::raw_com_if_sample::IUnknown;
 
 
-pub struct ComPtr<T: Interface> {
+pub struct ComRc<T: Interface> {
     raw: *const T,
 }
 
-impl<T: Interface> ComPtr<T> {
+impl<T: Interface> ComRc<T> {
     #[inline]
-    pub fn new(com: *const T) -> ComPtr<T> {
-        let mut rc = ComPtr { raw: com };
+    pub fn new(com: *const T) -> ComRc<T> {
+        let mut rc = ComRc { raw: com };
         rc.add_ref();
         rc
     }
-
-
-
+    #[inline]
+    pub fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT> {
+        let riid = U::uuidof();
+        let mut ppvObject: *mut c_void = core::ptr::null_mut();
+        let p_dst = unsafe {
+            self.unknown()
+                .QueryInterface(&riid, &mut ppvObject)
+                .hr()?;
+            ppvObject as *const U
+        };
+        Ok(ComRc::new(p_dst))
+    }
 
     #[inline]
     fn unknown(&self) -> &IUnknown {
@@ -40,13 +50,13 @@ impl<T: Interface> ComPtr<T> {
     }
 }
 
-impl<T: Interface> Drop for ComPtr<T> {
+impl<T: Interface> Drop for ComRc<T> {
     fn drop(&mut self) {
         self.release();
     }
 }
 
-impl<T: Interface> Deref for ComPtr<T> {
+impl<T: Interface> Deref for ComRc<T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &T {
