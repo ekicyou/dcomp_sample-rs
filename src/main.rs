@@ -3,6 +3,7 @@
 extern crate winapi;
 extern crate winit;
 
+mod raw_com_if_sample;
 mod comptr;
 mod dcomp_window;
 
