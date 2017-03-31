@@ -20,17 +20,18 @@ impl<T: Interface> ComRc<T> {
         rc.add_ref();
         rc
     }
+
     #[inline]
     pub fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT> {
         let riid = U::uuidof();
-        let mut ppvObject: *mut c_void = core::ptr::null_mut();
-        let p_dst = unsafe {
+        let p = unsafe {
+            let mut ppvObject: *mut c_void = core::ptr::null_mut();
             self.unknown()
                 .QueryInterface(&riid, &mut ppvObject)
                 .hr()?;
             ppvObject as *const U
         };
-        Ok(ComRc::new(p_dst))
+        Ok(ComRc::new(p))
     }
 
     #[inline]
