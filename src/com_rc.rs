@@ -4,10 +4,7 @@ use winapi::ctypes::c_void;
 use winapi::Interface;
 use winapi::shared::wtypesbase::ULONG;
 use winapi::shared::winerror::{HRESULT, S_OK};
-
 use winapi::um::unknwnbase::IUnknown;
-//use super::raw_com_if_sample::IUnknown;
-
 
 pub struct ComRc<T: Interface> {
     raw: *const T,
