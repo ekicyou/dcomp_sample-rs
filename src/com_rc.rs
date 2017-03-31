@@ -23,19 +23,6 @@ impl<T: Interface> ComRc<T> {
     }
 
     #[inline]
-    pub fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT> {
-        let riid = U::uuidof();
-        let p = unsafe {
-            let mut ppvObject: *mut c_void = core::ptr::null_mut();
-            self.unknown()
-                .QueryInterface(&riid, &mut ppvObject)
-                .hr()?;
-            ppvObject as *const U
-        };
-        Ok(ComRc::new(p))
-    }
-
-    #[inline]
     fn unknown(&self) -> &IUnknown {
         unsafe {
             let p_unknown = self.raw as *const IUnknown;
@@ -49,6 +36,21 @@ impl<T: Interface> ComRc<T> {
     #[inline]
     fn release(&mut self) -> ULONG {
         unsafe { self.unknown().Release() }
+    }
+}
+
+impl<T: Interface> QueryInterface for ComRc<T> {
+    #[inline]
+    fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT> {
+        let riid = U::uuidof();
+        let p = unsafe {
+            let mut ppvObject: *mut c_void = core::ptr::null_mut();
+            self.unknown()
+                .QueryInterface(&riid, &mut ppvObject)
+                .hr()?;
+            ppvObject as *const U
+        };
+        Ok(ComRc::new(p))
     }
 }
 
@@ -67,6 +69,23 @@ impl<T: Interface> Deref for ComRc<T> {
     }
 }
 
+impl<T: Interface> QueryInterface for T {
+    #[inline]
+    fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT> {
+        let riid = U::uuidof();
+        let unknown = unsafe {
+            let p = self as *const T;
+            let p_unknown = p as *const IUnknown;
+            &*p_unknown
+        };
+        let p = unsafe {
+            let mut ppvObject: *mut c_void = core::ptr::null_mut();
+            unknown.QueryInterface(&riid, &mut ppvObject).hr()?;
+            ppvObject as *const U
+        };
+        Ok(ComRc::new(p))
+    }
+}
 
 pub trait HresultMapping {
     fn hr(self) -> Result<(), HRESULT>;
@@ -168,11 +187,24 @@ mod tests {
                 ComRc::new(obj)
             };
             assert_eq!(1, test.ref_count);
+
             {
                 let com2 = com.query_interface::<IUnknown>().unwrap();
                 assert_eq!(2, test.ref_count);
 
                 let com3 = com.query_interface::<ISequentialStream>().unwrap();
+                assert_eq!(3, test.ref_count);
+            }
+            assert_eq!(1, test.ref_count);
+
+            {
+                let com_ref = &com;
+                assert_eq!(1, test.ref_count);
+
+                let com2 = com_ref.query_interface::<IUnknown>().unwrap();
+                assert_eq!(2, test.ref_count);
+
+                let com3 = com_ref.query_interface::<ISequentialStream>().unwrap();
                 assert_eq!(3, test.ref_count);
             }
             assert_eq!(1, test.ref_count);
@@ -188,6 +220,7 @@ mod tests {
                 assert_eq!(1, com.Release());
                 assert_eq!(1, test.ref_count);
             }
+            assert_eq!(1, test.ref_count);
         }
         assert_eq!(0, test.ref_count);
     }
