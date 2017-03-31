@@ -49,6 +49,7 @@ impl<T: Interface> ComRc<T> {
 }
 
 impl<T: Interface> Drop for ComRc<T> {
+    #[inline]
     fn drop(&mut self) {
         self.release();
     }
@@ -68,10 +69,123 @@ pub trait HresultMapping {
 }
 
 impl HresultMapping for HRESULT {
+    #[inline]
     fn hr(self) -> Result<(), HRESULT> {
         match self {
             S_OK => Ok(()),
             _ => Err(self),
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use winapi::_core as core;
+    use winapi::Interface;
+    use winapi::ctypes::{c_void, c_ulong, c_ushort, c_uchar};
+    use winapi::shared::guiddef::{GUID, REFIID};
+    use winapi::shared::wtypesbase::ULONG;
+    use winapi::shared::winerror::{HRESULT, S_OK, E_FAIL};
+    use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
+    use winapi::um::objidlbase::{ISequentialStream, ISequentialStreamVtbl};
+    use super::*;
+
+    #[repr(C)]
+    struct TestSequentialStream {
+        pub lpVtbl: *const ISequentialStreamVtbl,
+        pub ref_count: ULONG,
+    }
+
+    unsafe extern "system" fn QueryInterface(This: *mut IUnknown,
+                                             riid: REFIID,
+                                             ppvObject: *mut *mut c_void)
+                                             -> HRESULT {
+        let guid = &*(riid);
+        let check = guid.Data4[7];
+        match check {
+            0x46 => (),
+            0x3d => (),
+            _ => {
+                return E_FAIL;
+            }
+        }
+        *ppvObject = This as *mut c_void;
+        S_OK
+    }
+
+    unsafe extern "system" fn AddRef(This: *mut IUnknown) -> ULONG {
+        let mut test = &mut *(This as *mut TestSequentialStream);
+        test.ref_count += 1;
+        test.ref_count
+    }
+
+    unsafe extern "system" fn Release(This: *mut IUnknown) -> ULONG {
+        let mut test = &mut *(This as *mut TestSequentialStream);
+        test.ref_count -= 1;
+        test.ref_count
+    }
+
+    unsafe extern "system" fn Read(This: *mut ISequentialStream,
+                                   pv: *mut c_void,
+                                   cb: ULONG,
+                                   pcbRead: *mut ULONG)
+                                   -> HRESULT {
+        S_OK
+    }
+    unsafe extern "system" fn Write(This: *mut ISequentialStream,
+                                    pv: *const c_void,
+                                    cb: ULONG,
+                                    pcbWritten: *mut ULONG)
+                                    -> HRESULT {
+        E_FAIL
+    }
+
+    #[test]
+    fn com_rc_test() {
+        let vtbl = ISequentialStreamVtbl {
+            parent: IUnknownVtbl {
+                QueryInterface: QueryInterface,
+                AddRef: AddRef,
+                Release: Release,
+            },
+            Read: Read,
+            Write: Write,
+        };
+        let mut test = TestSequentialStream {
+            lpVtbl: &vtbl,
+            ref_count: 0,
+        };
+
+        assert_eq!(0, test.ref_count);
+        {
+            let com = {
+                let p = &test as *const TestSequentialStream;
+                let obj = unsafe { p as *const ISequentialStream };
+                ComRc::new(obj)
+            };
+            assert_eq!(1, test.ref_count);
+            {
+                let com2 = com.query_interface::<IUnknown>().unwrap();
+                assert_eq!(2, test.ref_count);
+
+                let com3 = com.query_interface::<ISequentialStream>().unwrap();
+                assert_eq!(3, test.ref_count);
+            }
+            assert_eq!(1, test.ref_count);
+
+            unsafe {
+                let mut pv: *mut c_void = core::ptr::null_mut();
+                let cb: ULONG = 0;
+                let buf: *mut ULONG = core::ptr::null_mut();
+                com.Read(pv, cb, buf).hr().is_ok();
+                com.Write(pv, cb, buf).hr().is_err();
+                assert_eq!(2, com.AddRef());
+                assert_eq!(2, test.ref_count);
+                assert_eq!(1, com.Release());
+                assert_eq!(1, test.ref_count);
+            }
+        }
+        assert_eq!(0, test.ref_count);
+    }
+
 }
