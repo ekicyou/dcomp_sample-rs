@@ -1,4 +1,4 @@
-use winapi::_core::ops::{Deref, DerefMut};
+use winapi::_core::ops::Deref;
 use winapi::_core as core;
 use winapi::ctypes::c_void;
 use winapi::Interface;
@@ -6,16 +6,22 @@ use winapi::shared::wtypesbase::ULONG;
 use winapi::shared::winerror::{HRESULT, S_OK};
 use winapi::um::unknwnbase::IUnknown;
 
-pub trait QueryInterface {
-    fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT>;
+pub trait HresultMapping {
+    fn hr(self) -> Result<(), HRESULT>;
 }
 
-fn unknown<T: Interface>(src: &T) -> &IUnknown {
-    unsafe {
-        let p = src as *const T;
-        let p_unknown = p as *const IUnknown;
-        &*p_unknown
+impl HresultMapping for HRESULT {
+    #[inline]
+    fn hr(self) -> Result<(), HRESULT> {
+        match self {
+            S_OK => Ok(()),
+            _ => Err(self),
+        }
     }
+}
+
+pub trait QueryInterface {
+    fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT>;
 }
 
 impl<T: Interface> QueryInterface for T {
@@ -28,9 +34,9 @@ impl<T: Interface> QueryInterface for T {
             &*p_unknown
         };
         let p = unsafe {
-            let mut ppvObject: *mut c_void = core::ptr::null_mut();
-            unknown.QueryInterface(&riid, &mut ppvObject).hr()?;
-            ppvObject as *const U
+            let mut ppv: *mut c_void = core::ptr::null_mut();
+            unknown.QueryInterface(&riid, &mut ppv).hr()?;
+            ppv as *const U
         };
         Ok(ComRc::new(p))
     }
@@ -80,19 +86,6 @@ impl<T: Interface> Deref for ComRc<T> {
     }
 }
 
-pub trait HresultMapping {
-    fn hr(self) -> Result<(), HRESULT>;
-}
-
-impl HresultMapping for HRESULT {
-    #[inline]
-    fn hr(self) -> Result<(), HRESULT> {
-        match self {
-            S_OK => Ok(()),
-            _ => Err(self),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -187,6 +180,9 @@ mod tests {
 
                 let com3 = com.query_interface::<ISequentialStream>().unwrap();
                 assert_eq!(3, test.ref_count);
+
+                let com4 = com3.query_interface::<IUnknown>().unwrap();
+                assert_eq!(4, test.ref_count);
             }
             assert_eq!(1, test.ref_count);
 
