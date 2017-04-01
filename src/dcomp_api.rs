@@ -1,5 +1,6 @@
+#![allow(non_snake_case)]
+
 use winapi::Interface;
-use winapi::um::dcomp::*;
 use winapi::shared::windef::HWND;
 use winapi::_core as core;
 use winapi::_core::ptr;
@@ -8,10 +9,11 @@ use winapi::shared::winerror::{HRESULT, S_OK};
 use winapi::um::dcomp;
 use winapi::shared::dxgi::IDXGIDevice;
 use winapi::shared::minwindef::{BOOL, TRUE, FALSE};
+use winapi::um::unknwnbase::IUnknown;
+
+pub use winapi::um::dcomp::*;
 
 use super::com_rc::*;
-
-use winapi::um::unknwnbase::IUnknown;
 
 #[inline]
 fn BOOL(flag: bool) -> BOOL {
@@ -36,22 +38,33 @@ pub fn create_device<U: Interface>(dxgiDevice: Option<&IUnknown>) -> Result<ComR
 }
 
 pub trait IDCompositionDeviceExt {
-    fn CreateTargetForHwnd(&self,
-                           hwnd: HWND,
-                           topmost: bool)
-                           -> Result<ComRc<IDCompositionTarget>, HRESULT>;
+    fn create_target_for_hwnd(&self,
+                              hwnd: HWND,
+                              topmost: bool)
+                              -> Result<ComRc<IDCompositionTarget>, HRESULT>;
+
+    fn create_visual(&self) -> Result<ComRc<IDCompositionVisual>, HRESULT>;
 }
 
 impl IDCompositionDeviceExt for IDCompositionDevice {
     #[inline]
-    fn CreateTargetForHwnd(&self,
-                           hwnd: HWND,
-                           topmost: bool)
-                           -> Result<ComRc<IDCompositionTarget>, HRESULT> {
+    fn create_target_for_hwnd(&self,
+                              hwnd: HWND,
+                              topmost: bool)
+                              -> Result<ComRc<IDCompositionTarget>, HRESULT> {
         unsafe {
             let mut p: *mut IDCompositionTarget = ptr::null_mut();
             self.CreateTargetForHwnd(hwnd, BOOL(topmost), &mut p)
                 .hr()?;
+            Ok(ComRc::new(p))
+        }
+    }
+
+    #[inline]
+    fn create_visual(&self) -> Result<ComRc<IDCompositionVisual>, HRESULT> {
+        unsafe {
+            let mut p: *mut IDCompositionVisual = ptr::null_mut();
+            self.CreateVisual(&mut p).hr()?;
             Ok(ComRc::new(p))
         }
     }

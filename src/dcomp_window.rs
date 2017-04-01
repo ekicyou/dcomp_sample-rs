@@ -1,6 +1,5 @@
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::HRESULT;
-use winapi::um::dcomp::*;
 
 use super::com_rc::*;
 use super::dcomp_api::*;
@@ -10,19 +9,7 @@ use super::dcomp_api::*;
     // Set up DirectComposition
     //------------------------------------------------------------------
     
-    // Create the DirectComposition device
-    ThrowIfFailed(DCompositionCreateDevice(
-        nullptr,
-        IID_PPV_ARGS(m_dcompDevice.ReleaseAndGetAddressOf())));
 
-    // Create a DirectComposition target associated with the window (pass in hWnd here)
-    ThrowIfFailed(m_dcompDevice->CreateTargetForHwnd(
-        Win32Application::GetHwnd(),
-        true,
-        m_dcompTarget.ReleaseAndGetAddressOf()));
-
-    // Create a DirectComposition "visual"
-    ThrowIfFailed(m_dcompDevice->CreateVisual(m_dcompVisual.ReleaseAndGetAddressOf()));
 
     // Associate the visual with the swap chain
     ThrowIfFailed(m_dcompVisual->SetContent(swapChain.Get()));
@@ -42,7 +29,9 @@ pub trait DCompWindow {
     fn hwnd(&self) -> HWND;
     fn create_dev(&self) -> Result<(), HRESULT> {
         let hwnd = self.hwnd();
-        let dev_dcomp = create_device::<IDCompositionDevice>(None)?;
+        let dc_dev = create_device::<IDCompositionDevice>(None)?;
+        let dc_target = dc_dev.create_target_for_hwnd(hwnd, true)?;
+        let dc_visual = dc_dev.create_visual()?;
 
         Ok(())
     }
