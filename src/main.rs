@@ -6,6 +6,7 @@ extern crate winit;
 //mod raw_com_if_sample;
 mod hwnd_window;
 mod com_rc;
+mod unsafe_api;
 mod dx_api;
 mod model;
 

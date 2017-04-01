@@ -6,11 +6,12 @@ use winapi::_core as core;
 use winapi::_core::ptr;
 use winapi::ctypes::c_void;
 use winapi::shared::winerror::HRESULT;
-use winapi::um::dcomp;
 use winapi::shared::minwindef::{BOOL, TRUE, FALSE};
 use winapi::um::unknwnbase::IUnknown;
 
+pub use winapi::um::d3d12sdklayers::*;
 pub use winapi::um::dcomp::*;
+pub use unsafe_api::*;
 pub use com_rc::*;
 
 #[inline]
@@ -21,7 +22,18 @@ fn BOOL(flag: bool) -> BOOL {
     }
 }
 
-pub fn create_device<U: Interface>(dxgiDevice: Option<&IUnknown>) -> Result<ComRc<U>, HRESULT> {
+pub fn d3d12_get_debug_interface<U: Interface>() -> Result<ComRc<U>, HRESULT> {
+    let riid = U::uuidof();
+    let p = unsafe {
+        let mut ppv: *mut c_void = core::ptr::null_mut();
+        D3D12GetDebugInterface(&riid, &mut ppv).hr()?;
+        ppv as *const U
+    };
+    Ok(ComRc::new(p))
+}
+
+pub fn dcomp_create_device<U: Interface>(dxgiDevice: Option<&IUnknown>)
+                                         -> Result<ComRc<U>, HRESULT> {
     let src: *const IUnknown = match dxgiDevice {
         Some(a) => a,
         None => ptr::null(),
@@ -29,7 +41,7 @@ pub fn create_device<U: Interface>(dxgiDevice: Option<&IUnknown>) -> Result<ComR
     let riid = U::uuidof();
     let p = unsafe {
         let mut ppv: *mut c_void = core::ptr::null_mut();
-        dcomp::DCompositionCreateDevice3(src, &riid, &mut ppv).hr()?;
+        DCompositionCreateDevice3(src, &riid, &mut ppv).hr()?;
         ppv as *const U
     };
     Ok(ComRc::new(p))

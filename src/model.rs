@@ -26,12 +26,18 @@ impl DxModel {
     pub fn new(events_loop: EventsLoop, window: Window) -> Result<DxModel, HRESULT> {
         let hwnd = window.hwnd();
 
+        // Enable the D3D12 debug layer.
+        #[cfg(debug)]
+        {
+            let debugController = d3d12_get_debug_interface::<ID3D12Debug>().hr()?;
+            unsafe { debugController.EnableDebugLayer() }
+        }
 
 
         //------------------------------------------------------------------
         // Set up DirectComposition
         //------------------------------------------------------------------
-        let dc_dev = create_device::<IDCompositionDevice>(None)?;
+        let dc_dev = dcomp_create_device::<IDCompositionDevice>(None)?;
         let dc_target = dc_dev.create_target_for_hwnd(hwnd, true)?;
         let dc_visual = dc_dev.create_visual()?;
 
@@ -48,19 +54,7 @@ impl DxModel {
            })
     }
     /*
-// Load the rendering pipeline dependencies.
-void DirectCompositeSample::LoadPipeline()
-{
-#if defined(_DEBUG)
-	// Enable the D3D12 debug layer.
-	{
-		ComPtr<ID3D12Debug> debugController;
-		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-		{
-			debugController->EnableDebugLayer();
-		}
-	}
-#endif
+
 
 	ComPtr<IDXGIFactory4> factory;
 	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&factory)));
