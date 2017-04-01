@@ -24,63 +24,27 @@ pub struct DxModel {
 
 impl DxModel {
     pub fn new(events_loop: EventsLoop, window: Window) -> Result<DxModel, HRESULT> {
-        let hwnd = window.hwnd();
 
         // Enable the D3D12 debug layer.
-        #[cfg(debug)]
+        #[cfg(build = "debug")]
         {
-            let debugController = d3d12_get_debug_interface::<ID3D12Debug>().hr()?;
+            let debugController = d3d12_get_debug_interface::<ID3D12Debug>()?;
             unsafe { debugController.EnableDebugLayer() }
         }
+        let factory = create_dxgi_factory1::<IDXGIFactory4>()?;
+
+        // d3d12デバイスの作成
+        // ハードウェアデバイスが取得できなければ
+        // WARPデバイスを取得する
 
 
-        //------------------------------------------------------------------
-        // Set up DirectComposition
-        //------------------------------------------------------------------
-        let dc_dev = dcomp_create_device::<IDCompositionDevice>(None)?;
-        let dc_target = dc_dev.create_target_for_hwnd(hwnd, true)?;
-        let dc_visual = dc_dev.create_visual()?;
+
+        /*
+
+        let device = d3d12_create_hardware_device(&factory).or(d3d12_create_warp_device(&factory))?;
 
 
-        //------------------------------------------------------------------
-        // result
-        //------------------------------------------------------------------
-        Ok(DxModel {
-               events_loop: events_loop,
-               window: window,
-               dc_dev: dc_dev,
-               dc_target: dc_target,
-               dc_visual: dc_visual,
-           })
-    }
-    /*
 
-
-	ComPtr<IDXGIFactory4> factory;
-	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&factory)));
-
-	if (m_useWarpDevice)
-	{
-		ComPtr<IDXGIAdapter> warpAdapter;
-		ThrowIfFailed(factory->EnumWarpAdapter(IID_PPV_ARGS(&warpAdapter)));
-
-		ThrowIfFailed(D3D12CreateDevice(
-			warpAdapter.Get(),
-			D3D_FEATURE_LEVEL_11_0,
-			IID_PPV_ARGS(&m_device)
-			));
-	}
-	else
-	{
-		ComPtr<IDXGIAdapter1> hardwareAdapter;
-		GetHardwareAdapter(factory.Get(), &hardwareAdapter);
-
-		ThrowIfFailed(D3D12CreateDevice(
-			hardwareAdapter.Get(),
-			D3D_FEATURE_LEVEL_11_0,
-			IID_PPV_ARGS(&m_device)
-			));
-	}
 
 	// Describe and create the command queue.
 	D3D12_COMMAND_QUEUE_DESC queueDesc = {};
@@ -108,23 +72,19 @@ impl DxModel {
 		&swapChain
 		));
 
-    //------------------------------------------------------------------
-    // Set up DirectComposition
-    //------------------------------------------------------------------
-    
-    // Create the DirectComposition device
-    ThrowIfFailed(DCompositionCreateDevice(
-        nullptr,
-        IID_PPV_ARGS(m_dcompDevice.ReleaseAndGetAddressOf())));
+        */
 
-    // Create a DirectComposition target associated with the window (pass in hWnd here)
-    ThrowIfFailed(m_dcompDevice->CreateTargetForHwnd(
-        Win32Application::GetHwnd(),
-        true,
-        m_dcompTarget.ReleaseAndGetAddressOf()));
+        //------------------------------------------------------------------
+        // Set up DirectComposition
+        //------------------------------------------------------------------
+        let hwnd = window.hwnd();
+        let dc_dev = dcomp_create_device::<IDCompositionDevice>(None)?;
+        let dc_target = dc_dev.create_target_for_hwnd(hwnd, true)?;
+        let dc_visual = dc_dev.create_visual()?;
 
-    // Create a DirectComposition "visual"
-    ThrowIfFailed(m_dcompDevice->CreateVisual(m_dcompVisual.ReleaseAndGetAddressOf()));
+
+        /*
+
 
     // Associate the visual with the swap chain
     ThrowIfFailed(m_dcompVisual->SetContent(swapChain.Get()));
@@ -180,6 +140,19 @@ impl DxModel {
 }
     */
 
+
+
+        //------------------------------------------------------------------
+        // result
+        //------------------------------------------------------------------
+        Ok(DxModel {
+               events_loop: events_loop,
+               window: window,
+               dc_dev: dc_dev,
+               dc_target: dc_target,
+               dc_visual: dc_visual,
+           })
+    }
     pub fn events_loop(&self) -> &EventsLoop {
         &self.events_loop
     }

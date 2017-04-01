@@ -9,7 +9,10 @@ use winapi::shared::winerror::HRESULT;
 use winapi::shared::minwindef::{BOOL, TRUE, FALSE};
 use winapi::um::unknwnbase::IUnknown;
 
+pub use winapi::um::d3dcommon::*;
+pub use winapi::shared::dxgi1_4::*;
 pub use winapi::um::d3d12sdklayers::*;
+pub use winapi::um::d3d12::*;
 pub use winapi::um::dcomp::*;
 pub use unsafe_api::*;
 pub use com_rc::*;
@@ -20,6 +23,62 @@ fn BOOL(flag: bool) -> BOOL {
         false => FALSE,
         true => TRUE,
     }
+}
+
+pub fn d3d12_create_device<U: Interface>(pAdapter: &IUnknown,
+                                         MinimumFeatureLevel: D3D_FEATURE_LEVEL)
+                                         -> Result<ComRc<U>, HRESULT> {
+    let riid = U::uuidof();
+    let p = unsafe {
+        let mut ppv: *mut c_void = core::ptr::null_mut();
+        D3D12CreateDevice(pAdapter, MinimumFeatureLevel, &riid, &mut ppv).hr()?;
+        ppv as *const U
+    };
+    Ok(ComRc::new(p))
+}
+
+pub fn d3d12_create_hardware_device(factory: &IDXGIFactory4)
+                                    -> Result<ComRc<ID3D12Device>, HRESULT> {
+    /*
+		ComPtr<IDXGIAdapter1> hardwareAdapter;
+		GetHardwareAdapter(factory.Get(), &hardwareAdapter);
+
+		ThrowIfFailed(D3D12CreateDevice(
+			hardwareAdapter.Get(),
+			D3D_FEATURE_LEVEL_11_0,
+			IID_PPV_ARGS(&m_device)
+			));
+*/
+    unimplemented!()
+}
+
+pub fn d3d12_create_warp_device(factory: &IDXGIFactory4) -> Result<ComRc<ID3D12Device>, HRESULT> {
+    /*
+        // WARPデバイス(ソフトウェアレンダラ)を使う場合
+		ComPtr<IDXGIAdapter> warpAdapter;
+		ThrowIfFailed(factory->EnumWarpAdapter(IID_PPV_ARGS(&warpAdapter)));
+
+		ThrowIfFailed(D3D12CreateDevice(
+			warpAdapter.Get(),
+			D3D_FEATURE_LEVEL_11_0,
+			IID_PPV_ARGS(&m_device)
+			));
+*/
+    unimplemented!()
+}
+
+
+
+
+
+pub fn create_dxgi_factory1<U: Interface>() -> Result<ComRc<U>, HRESULT> {
+    let riid = U::uuidof();
+    let p = unsafe {
+        let mut ppv: *mut c_void = core::ptr::null_mut();
+        CreateDXGIFactory1(&riid, &mut ppv).hr()?;
+        ppv as *const U
+    };
+    Ok(ComRc::new(p))
 }
 
 pub fn d3d12_get_debug_interface<U: Interface>() -> Result<ComRc<U>, HRESULT> {
