@@ -4,6 +4,7 @@ use winapi::ctypes::c_void;
 use winapi::Interface;
 use winapi::shared::wtypesbase::ULONG;
 use winapi::shared::winerror::{HRESULT, S_OK};
+use winapi::shared::guiddef::REFIID;
 use winapi::um::unknwnbase::IUnknown;
 
 pub trait HresultMapping {
@@ -27,12 +28,12 @@ pub trait QueryInterface {
 impl<T: Interface> QueryInterface for T {
     #[inline]
     fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT> {
-        let riid = U::uuidof();
         let unknown = unsafe {
             let p = self as *const T;
             let p_unknown = p as *const IUnknown;
             &*p_unknown
         };
+        let riid = U::uuidof();
         let p = unsafe {
             let mut ppv: *mut c_void = core::ptr::null_mut();
             unknown.QueryInterface(&riid, &mut ppv).hr()?;

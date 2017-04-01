@@ -1,6 +1,8 @@
 #![cfg(windows)]
 
 extern crate winapi;
+#[macro_use]
+extern crate lazy_static;
 extern crate winit;
 
 //mod raw_com_if_sample;
