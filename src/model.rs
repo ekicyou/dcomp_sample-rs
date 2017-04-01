@@ -2,8 +2,7 @@ use winit::{Window, EventsLoop};
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::HRESULT;
 use super::hwnd_window::HwndWindow;
-use com_rc::*;
-use super::dcomp_api::*;
+use super::dx_api::*;
 
 impl HwndWindow for Window {
     fn hwnd(&self) -> HWND {

@@ -11,7 +11,7 @@ use winapi::shared::minwindef::{BOOL, TRUE, FALSE};
 use winapi::um::unknwnbase::IUnknown;
 
 pub use winapi::um::dcomp::*;
-use com_rc::*;
+pub use com_rc::*;
 
 #[inline]
 fn BOOL(flag: bool) -> BOOL {

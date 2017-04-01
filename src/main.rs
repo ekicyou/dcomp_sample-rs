@@ -6,7 +6,7 @@ extern crate winit;
 //mod raw_com_if_sample;
 mod hwnd_window;
 mod com_rc;
-mod dcomp_api;
+mod dx_api;
 mod model;
 
 use winapi::shared::winerror::HRESULT;
