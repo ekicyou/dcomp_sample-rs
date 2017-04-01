@@ -86,7 +86,6 @@ impl<T: Interface> Deref for ComRc<T> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use winapi::_core as core;
