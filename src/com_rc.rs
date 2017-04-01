@@ -87,11 +87,12 @@ impl<T: Interface> Deref for ComRc<T> {
 }
 
 #[cfg(test)]
+#[allow(unused_unsafe)]
+#[allow(non_snake_case)]
 mod tests {
     use winapi::_core as core;
-    use winapi::Interface;
-    use winapi::ctypes::{c_void, c_ulong, c_ushort, c_uchar};
-    use winapi::shared::guiddef::{GUID, REFIID};
+    use winapi::ctypes::c_void;
+    use winapi::shared::guiddef::REFIID;
     use winapi::shared::wtypesbase::ULONG;
     use winapi::shared::winerror::{HRESULT, S_OK, E_FAIL};
     use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
@@ -133,17 +134,17 @@ mod tests {
         test.ref_count
     }
 
-    unsafe extern "system" fn Read(This: *mut ISequentialStream,
-                                   pv: *mut c_void,
-                                   cb: ULONG,
-                                   pcbRead: *mut ULONG)
+    unsafe extern "system" fn Read(_: *mut ISequentialStream,
+                                   _: *mut c_void,
+                                   _: ULONG,
+                                   _: *mut ULONG)
                                    -> HRESULT {
         S_OK
     }
-    unsafe extern "system" fn Write(This: *mut ISequentialStream,
-                                    pv: *const c_void,
-                                    cb: ULONG,
-                                    pcbWritten: *mut ULONG)
+    unsafe extern "system" fn Write(_: *mut ISequentialStream,
+                                    _: *const c_void,
+                                    _: ULONG,
+                                    _: *mut ULONG)
                                     -> HRESULT {
         E_FAIL
     }
@@ -159,7 +160,7 @@ mod tests {
             Read: Read,
             Write: Write,
         };
-        let mut test = TestSequentialStream {
+        let test = TestSequentialStream {
             lpVtbl: &vtbl,
             ref_count: 0,
         };
