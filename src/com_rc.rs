@@ -10,6 +10,14 @@ pub trait QueryInterface {
     fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT>;
 }
 
+fn unknown<T: Interface>(src: &T) -> &IUnknown {
+    unsafe {
+        let p = src as *const T;
+        let p_unknown = p as *const IUnknown;
+        &*p_unknown
+    }
+}
+
 impl<T: Interface> QueryInterface for T {
     #[inline]
     fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT> {
