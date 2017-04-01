@@ -1,24 +1,24 @@
 #![cfg(windows)]
 
 extern crate winapi;
-#[macro_use]
-extern crate lazy_static;
 extern crate winit;
 
 //mod raw_com_if_sample;
 mod com_rc;
+mod dcomp_api;
+
 mod dcomp_window;
 
-use winapi::shared::ntdef::HANDLE;
+use winapi::shared::windef::HWND;
 use winit::{WindowBuilder, Event, EventsLoop, WindowEvent};
 use dcomp_window::DCompWindow;
 
 impl DCompWindow for winit::Window {
-    fn handle(&self) -> HANDLE {
+    fn hwnd(&self) -> HWND {
         unsafe {
             #[allow(deprecated)]
             let p = self.platform_window();
-            p as HANDLE
+            p as HWND
         }
     }
 }
@@ -32,8 +32,8 @@ fn main() {
         .with_multitouch()
         .build(&events_loop)
         .unwrap();
-    let handle = window.handle();
-    println!("window handle = {:?}", handle);
+    let hwnd = window.hwnd();
+    println!("window hwnd = {:?}", hwnd);
     events_loop.run_forever(|event| {
         let rc = match event {
             Event::WindowEvent { event: WindowEvent::Resized(w, h), .. } => {

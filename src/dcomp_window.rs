@@ -1,54 +1,65 @@
-use winapi::Interface;
+use winapi::shared::windef::HWND;
+use winapi::shared::winerror::HRESULT;
 use winapi::um::dcomp::*;
-use winapi::shared::ntdef::HANDLE;
-use winapi::_core as core;
-use winapi::_core::ptr;
-use winapi::ctypes::c_void;
-use winapi::shared::winerror::{HRESULT, S_OK};
-use winapi::um::dcomp;
-use winapi::shared::dxgi::IDXGIDevice;
 
 use super::com_rc::*;
+use super::dcomp_api::*;
 
-use winapi::um::unknwnbase::IUnknown;
+/*
+    //------------------------------------------------------------------
+    // Set up DirectComposition
+    //------------------------------------------------------------------
+    
+    // Create the DirectComposition device
+    ThrowIfFailed(DCompositionCreateDevice(
+        nullptr,
+        IID_PPV_ARGS(m_dcompDevice.ReleaseAndGetAddressOf())));
 
+    // Create a DirectComposition target associated with the window (pass in hWnd here)
+    ThrowIfFailed(m_dcompDevice->CreateTargetForHwnd(
+        Win32Application::GetHwnd(),
+        true,
+        m_dcompTarget.ReleaseAndGetAddressOf()));
 
-fn dcomp_create_device<U: Interface>(dxgiDevice: Option<&IUnknown>) -> Result<ComRc<U>, HRESULT> {
-    let src: *const IUnknown = match dxgiDevice {
-        Some(a) => a,
-        None => ptr::null(),
-    };
-    let riid = U::uuidof();
-    let p = unsafe {
-        let mut ppv: *mut c_void = core::ptr::null_mut();
-        dcomp::DCompositionCreateDevice3(src, &riid, &mut ppv).hr()?;
-        ppv as *const U
-    };
-    Ok(ComRc::new(p))
-}
+    // Create a DirectComposition "visual"
+    ThrowIfFailed(m_dcompDevice->CreateVisual(m_dcompVisual.ReleaseAndGetAddressOf()));
+
+    // Associate the visual with the swap chain
+    ThrowIfFailed(m_dcompVisual->SetContent(swapChain.Get()));
+
+    // Set the visual as the root of the DirectComposition target's composition tree
+    ThrowIfFailed(m_dcompTarget->SetRoot(m_dcompVisual.Get()));
+    ThrowIfFailed(m_dcompDevice->Commit());
+
+    //------------------------------------------------------------------
+    // DirectComposition setup end
+    //------------------------------------------------------------------
+*/
+
 
 
 pub trait DCompWindow {
-    fn handle(&self) -> HANDLE;
+    fn hwnd(&self) -> HWND;
     fn create_dev(&self) -> Result<(), HRESULT> {
-        let hwnd = self.handle();
-        let dc_dev = dcomp_create_device::<IDCompositionDevice>(None)?;
+        let hwnd = self.hwnd();
+        let dev_dcomp = create_device::<IDCompositionDevice>(None)?;
+
         Ok(())
     }
 }
 
 pub struct HWndProxy {
-    handle: HANDLE,
+    hwnd: HWND,
 }
 
 impl HWndProxy {
-    pub fn new(handle: HANDLE) -> HWndProxy {
-        HWndProxy { handle: handle }
+    pub fn new(hwnd: HWND) -> HWndProxy {
+        HWndProxy { hwnd: hwnd }
     }
 }
 
 impl DCompWindow for HWndProxy {
-    fn handle(&self) -> HANDLE {
-        self.handle
+    fn hwnd(&self) -> HWND {
+        self.hwnd
     }
 }
