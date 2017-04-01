@@ -5,15 +5,13 @@ use winapi::shared::windef::HWND;
 use winapi::_core as core;
 use winapi::_core::ptr;
 use winapi::ctypes::c_void;
-use winapi::shared::winerror::{HRESULT, S_OK};
+use winapi::shared::winerror::HRESULT;
 use winapi::um::dcomp;
-use winapi::shared::dxgi::IDXGIDevice;
 use winapi::shared::minwindef::{BOOL, TRUE, FALSE};
 use winapi::um::unknwnbase::IUnknown;
 
 pub use winapi::um::dcomp::*;
-
-use super::com_rc::*;
+use com_rc::*;
 
 #[inline]
 fn BOOL(flag: bool) -> BOOL {

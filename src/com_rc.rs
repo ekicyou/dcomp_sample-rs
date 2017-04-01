@@ -87,9 +87,8 @@ impl<T: Interface> Deref for ComRc<T> {
 }
 
 #[cfg(test)]
-#[allow(unused_unsafe)]
-#[allow(non_snake_case)]
 mod tests {
+    #![allow(unused_unsafe,non_snake_case,unused_variables,unused_mut)]
     use winapi::_core as core;
     use winapi::ctypes::c_void;
     use winapi::shared::guiddef::REFIID;
