@@ -10,6 +10,24 @@ pub trait QueryInterface {
     fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT>;
 }
 
+impl<T: Interface> QueryInterface for T {
+    #[inline]
+    fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT> {
+        let riid = U::uuidof();
+        let unknown = unsafe {
+            let p = self as *const T;
+            let p_unknown = p as *const IUnknown;
+            &*p_unknown
+        };
+        let p = unsafe {
+            let mut ppvObject: *mut c_void = core::ptr::null_mut();
+            unknown.QueryInterface(&riid, &mut ppvObject).hr()?;
+            ppvObject as *const U
+        };
+        Ok(ComRc::new(p))
+    }
+}
+
 pub struct ComRc<T: Interface> {
     raw: *const T,
 }
@@ -39,21 +57,6 @@ impl<T: Interface> ComRc<T> {
     }
 }
 
-impl<T: Interface> QueryInterface for ComRc<T> {
-    #[inline]
-    fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT> {
-        let riid = U::uuidof();
-        let p = unsafe {
-            let mut ppvObject: *mut c_void = core::ptr::null_mut();
-            self.unknown()
-                .QueryInterface(&riid, &mut ppvObject)
-                .hr()?;
-            ppvObject as *const U
-        };
-        Ok(ComRc::new(p))
-    }
-}
-
 impl<T: Interface> Drop for ComRc<T> {
     #[inline]
     fn drop(&mut self) {
@@ -66,24 +69,6 @@ impl<T: Interface> Deref for ComRc<T> {
     #[inline]
     fn deref(&self) -> &T {
         unsafe { &*self.raw }
-    }
-}
-
-impl<T: Interface> QueryInterface for T {
-    #[inline]
-    fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT> {
-        let riid = U::uuidof();
-        let unknown = unsafe {
-            let p = self as *const T;
-            let p_unknown = p as *const IUnknown;
-            &*p_unknown
-        };
-        let p = unsafe {
-            let mut ppvObject: *mut c_void = core::ptr::null_mut();
-            unknown.QueryInterface(&riid, &mut ppvObject).hr()?;
-            ppvObject as *const U
-        };
-        Ok(ComRc::new(p))
     }
 }
 
