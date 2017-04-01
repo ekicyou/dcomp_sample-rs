@@ -4,7 +4,6 @@ use winapi::ctypes::c_void;
 use winapi::Interface;
 use winapi::shared::wtypesbase::ULONG;
 use winapi::shared::winerror::{HRESULT, S_OK};
-use winapi::shared::guiddef::REFIID;
 use winapi::um::unknwnbase::IUnknown;
 
 pub trait HresultMapping {
