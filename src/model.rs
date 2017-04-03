@@ -78,21 +78,12 @@ impl DxModel {
         let dc_dev = dcomp_create_device::<IDCompositionDevice>(None)?;
         let dc_target = dc_dev.create_target_for_hwnd(hwnd, true)?;
         let dc_visual = dc_dev.create_visual()?;
-
+        dc_visual.set_content(&swap_chain)?;
+        dc_target.set_root(&dc_visual)?;
+        dc_dev.commit()?;
 
         /*
 
-
-    // Associate the visual with the swap chain
-    ThrowIfFailed(m_dcompVisual->SetContent(swapChain.Get()));
-
-    // Set the visual as the root of the DirectComposition target's composition tree
-    ThrowIfFailed(m_dcompTarget->SetRoot(m_dcompVisual.Get()));
-    ThrowIfFailed(m_dcompDevice->Commit());
-
-    //------------------------------------------------------------------
-    // DirectComposition setup end
-    //------------------------------------------------------------------
 
 
 	// This sample does not support fullscreen transitions.

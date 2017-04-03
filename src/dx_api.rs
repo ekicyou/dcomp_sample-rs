@@ -81,32 +81,6 @@ pub fn dcomp_create_device<U: Interface>(dxgiDevice: Option<&IUnknown>) -> ComRe
     Ok(ComRc::new(p))
 }
 
-pub trait IDCompositionDeviceExt {
-    fn create_target_for_hwnd(&self, hwnd: HWND, topmost: bool) -> ComResult<IDCompositionTarget>;
-    fn create_visual(&self) -> ComResult<IDCompositionVisual>;
-}
-
-impl IDCompositionDeviceExt for IDCompositionDevice {
-    #[inline]
-    fn create_target_for_hwnd(&self, hwnd: HWND, topmost: bool) -> ComResult<IDCompositionTarget> {
-        unsafe {
-            let mut p: *mut IDCompositionTarget = ptr::null_mut();
-            self.CreateTargetForHwnd(hwnd, BOOL(topmost), &mut p)
-                .hr()?;
-            Ok(ComRc::new(p))
-        }
-    }
-
-    #[inline]
-    fn create_visual(&self) -> ComResult<IDCompositionVisual> {
-        unsafe {
-            let mut p: *mut IDCompositionVisual = ptr::null_mut();
-            self.CreateVisual(&mut p).hr()?;
-            Ok(ComRc::new(p))
-        }
-    }
-}
-
 pub trait IDXGIAdapter1Ext {
     fn get_desc1(&self) -> Result<DXGI_ADAPTER_DESC1, HRESULT>;
 }
@@ -205,5 +179,57 @@ impl ID3D12DeviceExt for ID3D12Device {
             ppv as *const U
         };
         Ok(ComRc::new(p))
+    }
+}
+
+
+pub trait IDCompositionDeviceExt {
+    fn commit(&self) -> Result<(), HRESULT>;
+    fn create_target_for_hwnd(&self, hwnd: HWND, topmost: bool) -> ComResult<IDCompositionTarget>;
+    fn create_visual(&self) -> ComResult<IDCompositionVisual>;
+}
+impl IDCompositionDeviceExt for IDCompositionDevice {
+    #[inline]
+    fn commit(&self) -> Result<(), HRESULT> {
+        unsafe { self.Commit().hr() }
+    }
+    #[inline]
+    fn create_target_for_hwnd(&self, hwnd: HWND, topmost: bool) -> ComResult<IDCompositionTarget> {
+        unsafe {
+            let mut p: *mut IDCompositionTarget = ptr::null_mut();
+            self.CreateTargetForHwnd(hwnd, BOOL(topmost), &mut p)
+                .hr()?;
+            Ok(ComRc::new(p))
+        }
+    }
+    #[inline]
+    fn create_visual(&self) -> ComResult<IDCompositionVisual> {
+        unsafe {
+            let mut p: *mut IDCompositionVisual = ptr::null_mut();
+            self.CreateVisual(&mut p).hr()?;
+            Ok(ComRc::new(p))
+        }
+    }
+}
+
+
+pub trait IDCompositionVisualExt {
+    fn set_content(&self, content: &IUnknown) -> Result<(), HRESULT>;
+}
+impl IDCompositionVisualExt for IDCompositionVisual {
+    #[inline]
+    fn set_content(&self, content: &IUnknown) -> Result<(), HRESULT> {
+        unsafe { self.SetContent(content).hr() }
+    }
+}
+
+
+pub trait IDCompositionTargetExt {
+    fn set_root(&self, visual: &IDCompositionVisual) -> Result<(), HRESULT>;
+}
+impl IDCompositionTargetExt for IDCompositionTarget {
+    #[inline]
+    fn set_root(&self, visual: &IDCompositionVisual) -> Result<(), HRESULT> {
+        unsafe { self.SetRoot(visual).hr() }
     }
 }
