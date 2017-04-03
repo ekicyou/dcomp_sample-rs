@@ -20,6 +20,11 @@ impl HresultMapping for HRESULT {
     }
 }
 
+#[inline]
+pub unsafe fn to_mut_ref<T>(p: *const T) -> *mut T {
+    p as *const _ as *mut _
+}
+
 pub trait QueryInterface {
     fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT>;
 }

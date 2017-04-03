@@ -9,7 +9,10 @@ use winapi::shared::minwindef::{BOOL, TRUE, FALSE, UINT};
 use winapi::um::unknwnbase::IUnknown;
 
 pub use winapi::um::d3dcommon::*;
+pub use winapi::shared::dxgitype::*;
+pub use winapi::shared::dxgiformat::*;
 pub use winapi::shared::dxgi::*;
+pub use winapi::shared::dxgi1_2::*;
 pub use winapi::shared::dxgi1_4::*;
 pub use winapi::um::d3d12sdklayers::*;
 pub use winapi::um::d3d12::*;
@@ -122,6 +125,10 @@ impl IDXGIAdapter1Ext for IDXGIAdapter1 {
 pub trait IDXGIFactory4Ext {
     fn enum_warp_adapter<U: Interface>(&self) -> ComResult<U>;
     fn enum_adapters1(&self, index: UINT) -> ComResult<IDXGIAdapter1>;
+    fn create_swap_chain_for_composition(&self,
+                                         device: &IUnknown,
+                                         desc: &DXGI_SWAP_CHAIN_DESC1)
+                                         -> ComResult<IDXGISwapChain1>;
     fn d3d12_create_hardware_device(&self) -> ComResult<ID3D12Device>;
     fn d3d12_create_warp_device(&self) -> ComResult<ID3D12Device>;
     fn d3d12_create_best_device(&self) -> ComResult<ID3D12Device>;
@@ -142,6 +149,18 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
         unsafe {
             let mut p = ptr::null_mut();
             self.EnumAdapters1(index, &mut p).hr()?;
+            Ok(ComRc::new(p))
+        }
+    }
+    #[inline]
+    fn create_swap_chain_for_composition(&self,
+                                         device: &IUnknown,
+                                         desc: &DXGI_SWAP_CHAIN_DESC1)
+                                         -> ComResult<IDXGISwapChain1> {
+        unsafe {
+            let mut p = ptr::null_mut();
+            self.CreateSwapChainForComposition(to_mut_ref(device), desc, ptr::null_mut(), &mut p)
+                .hr()?;
             Ok(ComRc::new(p))
         }
     }

@@ -4,6 +4,8 @@ use winapi::shared::winerror::HRESULT;
 use super::hwnd_window::HwndWindow;
 use super::dx_api::*;
 
+const FrameCount: u32 = 2;
+
 impl HwndWindow for Window {
     fn hwnd(&self) -> HWND {
         unsafe {
@@ -26,6 +28,10 @@ pub struct DxModel {
 
 impl DxModel {
     pub fn new(events_loop: EventsLoop, window: Window) -> Result<DxModel, HRESULT> {
+        // window params
+        let (width, height) = window.get_inner_size_pixels().unwrap_or_default();
+        println!("width={}, height={}", width, height);
+        let hwnd = window.hwnd();
 
         // Enable the D3D12 debug layer.
         #[cfg(build = "debug")]
@@ -47,38 +53,28 @@ impl DxModel {
             NodeMask: 0,
             Priority: 0,
         };
-        let command_queue = device.create_command_queue::<ID3D12CommandQueue>(&queueDesc)?;
+        let command_queue = device.create_command_queue(&queueDesc)?;
 
-        /*
+        // swap chainの作成
+        let swapChainDesc = DXGI_SWAP_CHAIN_DESC1 {
+            BufferCount: FrameCount,
+            Width: width,
+            Height: height,
+            Format: DXGI_FORMAT_R8G8B8A8_UNORM,
+            BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
+            SwapEffect: DXGI_SWAP_EFFECT_FLIP_DISCARD,
+            SampleDesc: DXGI_SAMPLE_DESC {
+                Count: 1,
+                Quality: 0,
+            },
+            AlphaMode: DXGI_ALPHA_MODE_PREMULTIPLIED,
+            Flags: 0,
+            Scaling: 0,
+            Stereo: 0,
+        };
+        let swap_chain = factory.create_swap_chain_for_composition(&device, &swapChainDesc)?;
 
-	// Describe and create the command queue.
-
-
-	// Describe and create the swap chain.
-	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-	swapChainDesc.BufferCount = FrameCount;
-	swapChainDesc.Width = m_width;
-	swapChainDesc.Height = m_height;
-	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	swapChainDesc.SampleDesc.Count = 1;
-    swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
-
-	ComPtr<IDXGISwapChain1> swapChain;
-	ThrowIfFailed(factory->CreateSwapChainForComposition(
-		m_commandQueue.Get(),		// Swap chain needs the queue so that it can force a flush on it.
-		&swapChainDesc,
-		nullptr,
-		&swapChain
-		));
-
-        */
-
-        //------------------------------------------------------------------
-        // Set up DirectComposition
-        //------------------------------------------------------------------
-        let hwnd = window.hwnd();
+        // DirectComposition 設定
         let dc_dev = dcomp_create_device::<IDCompositionDevice>(None)?;
         let dc_target = dc_dev.create_target_for_hwnd(hwnd, true)?;
         let dc_visual = dc_dev.create_visual()?;
