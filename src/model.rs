@@ -17,6 +17,8 @@ impl HwndWindow for Window {
 pub struct DxModel {
     events_loop: EventsLoop,
     window: Window,
+    device: ComRc<ID3D12Device>,
+    command_queue: ComRc<ID3D12CommandQueue>,
     dc_dev: ComRc<IDCompositionDevice>,
     dc_target: ComRc<IDCompositionTarget>,
     dc_visual: ComRc<IDCompositionVisual>,
@@ -38,20 +40,19 @@ impl DxModel {
         // WARPデバイスを取得する
         let device = factory.d3d12_create_best_device()?;
 
-
+        // コマンドキューの作成
+        let queueDesc = D3D12_COMMAND_QUEUE_DESC {
+            Flags: D3D12_COMMAND_QUEUE_FLAG_NONE,
+            Type: D3D12_COMMAND_LIST_TYPE_DIRECT,
+            NodeMask: 0,
+            Priority: 0,
+        };
+        let command_queue = device.create_command_queue::<ID3D12CommandQueue>(&queueDesc)?;
 
         /*
 
-
-
-
-
 	// Describe and create the command queue.
-	D3D12_COMMAND_QUEUE_DESC queueDesc = {};
-	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-	ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
 
 	// Describe and create the swap chain.
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
@@ -148,6 +149,8 @@ impl DxModel {
         Ok(DxModel {
                events_loop: events_loop,
                window: window,
+               device: device,
+               command_queue: command_queue,
                dc_dev: dc_dev,
                dc_target: dc_target,
                dc_visual: dc_visual,

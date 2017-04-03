@@ -171,3 +171,20 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
             .or_else(|_| self.d3d12_create_warp_device())
     }
 }
+
+
+pub trait ID3D12DeviceExt {
+    fn create_command_queue<U: Interface>(&self, desc: &D3D12_COMMAND_QUEUE_DESC) -> ComResult<U>;
+}
+impl ID3D12DeviceExt for ID3D12Device {
+    #[inline]
+    fn create_command_queue<U: Interface>(&self, desc: &D3D12_COMMAND_QUEUE_DESC) -> ComResult<U> {
+        let riid = U::uuidof();
+        let p = unsafe {
+            let mut ppv: *mut c_void = core::ptr::null_mut();
+            self.CreateCommandQueue(desc, &riid, &mut ppv).hr()?;
+            ppv as *const U
+        };
+        Ok(ComRc::new(p))
+    }
+}
