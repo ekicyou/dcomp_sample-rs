@@ -20,6 +20,12 @@ pub use winapi::um::dcomp::*;
 pub use unsafe_api::*;
 pub use com_rc::*;
 
+pub const DXGI_MWA_NO_WINDOW_CHANGES: UINT = (1 << 0);
+pub const DXGI_MWA_NO_ALT_ENTER: UINT = (1 << 1);
+pub const DXGI_MWA_NO_PRINT_SCREEN: UINT = (1 << 2);
+pub const DXGI_MWA_VALID: UINT = (0x7);
+
+
 pub type ComResult<U> = Result<ComRc<U>, HRESULT>;
 
 #[inline]
@@ -103,6 +109,7 @@ pub trait IDXGIFactory4Ext {
                                          device: &IUnknown,
                                          desc: &DXGI_SWAP_CHAIN_DESC1)
                                          -> ComResult<IDXGISwapChain1>;
+    fn make_window_association(&self, WindowHandle: HWND, Flags: UINT) -> Result<(), HRESULT>;
     fn d3d12_create_hardware_device(&self) -> ComResult<ID3D12Device>;
     fn d3d12_create_warp_device(&self) -> ComResult<ID3D12Device>;
     fn d3d12_create_best_device(&self) -> ComResult<ID3D12Device>;
@@ -137,6 +144,10 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
                 .hr()?;
             Ok(ComRc::new(p))
         }
+    }
+    #[inline]
+    fn make_window_association(&self, WindowHandle: HWND, Flags: UINT) -> Result<(), HRESULT> {
+        unsafe { self.MakeWindowAssociation(WindowHandle, Flags).hr() }
     }
     #[inline]
     fn d3d12_create_hardware_device(&self) -> ComResult<ID3D12Device> {

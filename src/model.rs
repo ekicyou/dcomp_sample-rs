@@ -72,7 +72,8 @@ impl DxModel {
             Scaling: 0,
             Stereo: 0,
         };
-        let swap_chain = factory.create_swap_chain_for_composition(&command_queue, &swapChainDesc)?;
+        let swap_chain = factory.create_swap_chain_for_composition(&command_queue, &swapChainDesc)?
+            .query_interface::<IDXGISwapChain3>()?;
 
         // DirectComposition 設定
         let dc_dev = dcomp_create_device::<IDCompositionDevice>(None)?;
@@ -82,14 +83,14 @@ impl DxModel {
         dc_target.set_root(&dc_visual)?;
         dc_dev.commit()?;
 
+        // This sample does not support fullscreen transitions.
+        factory.make_window_association(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
+
         /*
 
 
 
-	// This sample does not support fullscreen transitions.
-	ThrowIfFailed(factory->MakeWindowAssociation(Win32Application::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
 
-	ThrowIfFailed(swapChain.As(&m_swapChain));
 	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
 	// Create descriptor heaps.
