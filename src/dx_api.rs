@@ -27,6 +27,7 @@ fn BOOL(flag: bool) -> BOOL {
     }
 }
 
+#[inline]
 pub fn d3d12_create_device<U: Interface>(pAdapter: &IUnknown,
                                          MinimumFeatureLevel: D3D_FEATURE_LEVEL)
                                          -> ComResult<U> {
@@ -40,6 +41,7 @@ pub fn d3d12_create_device<U: Interface>(pAdapter: &IUnknown,
 }
 
 
+#[inline]
 pub fn create_dxgi_factory1<U: Interface>() -> ComResult<U> {
     let riid = U::uuidof();
     let p = unsafe {
@@ -50,6 +52,7 @@ pub fn create_dxgi_factory1<U: Interface>() -> ComResult<U> {
     Ok(ComRc::new(p))
 }
 
+#[inline]
 pub fn d3d12_get_debug_interface<U: Interface>() -> ComResult<U> {
     let riid = U::uuidof();
     let p = unsafe {
@@ -60,6 +63,7 @@ pub fn d3d12_get_debug_interface<U: Interface>() -> ComResult<U> {
     Ok(ComRc::new(p))
 }
 
+#[inline]
 pub fn dcomp_create_device<U: Interface>(dxgiDevice: Option<&IUnknown>) -> ComResult<U> {
     let src: *const IUnknown = match dxgiDevice {
         Some(a) => a,
