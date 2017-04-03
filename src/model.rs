@@ -36,12 +36,12 @@ impl DxModel {
         // d3d12デバイスの作成
         // ハードウェアデバイスが取得できなければ
         // WARPデバイスを取得する
+        let device = factory.d3d12_create_best_device()?;
 
 
 
         /*
 
-        let device = d3d12_create_hardware_device(&factory).or(d3d12_create_warp_device(&factory))?;
 
 
 
