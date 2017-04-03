@@ -119,8 +119,6 @@ impl IDXGIAdapter1Ext for IDXGIAdapter1 {
 }
 
 
-
-
 pub trait IDXGIFactory4Ext {
     fn enum_warp_adapter<U: Interface>(&self) -> ComResult<U>;
     fn enum_adapters1(&self, index: UINT) -> ComResult<IDXGIAdapter1>;
