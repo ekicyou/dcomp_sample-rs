@@ -53,7 +53,7 @@ impl DxModel {
             NodeMask: 0,
             Priority: 0,
         };
-        let command_queue = device.create_command_queue(&queueDesc)?;
+        let command_queue = device.create_command_queue::<ID3D12CommandQueue>(&queueDesc)?;
 
         // swap chainの作成
         let swapChainDesc = DXGI_SWAP_CHAIN_DESC1 {
@@ -72,7 +72,7 @@ impl DxModel {
             Scaling: 0,
             Stereo: 0,
         };
-        let swap_chain = factory.create_swap_chain_for_composition(&device, &swapChainDesc)?;
+        let swap_chain = factory.create_swap_chain_for_composition(&command_queue, &swapChainDesc)?;
 
         // DirectComposition 設定
         let dc_dev = dcomp_create_device::<IDCompositionDevice>(None)?;
