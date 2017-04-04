@@ -5,7 +5,7 @@ use winapi::_core::ptr;
 use winapi::_core::mem;
 use winapi::ctypes::c_void;
 use winapi::shared::winerror::{HRESULT, E_FAIL};
-use winapi::shared::minwindef::{BOOL, TRUE, FALSE, UINT};
+use winapi::shared::minwindef::{BOOL, TRUE, FALSE, UINT, INT};
 use winapi::um::unknwnbase::IUnknown;
 
 pub use winapi::um::d3dcommon::*;
@@ -19,6 +19,7 @@ pub use winapi::um::d3d12::*;
 pub use winapi::um::dcomp::*;
 pub use unsafe_api::*;
 pub use com_rc::*;
+pub use unsafe_api::ID3D12DescriptorHeap;
 
 pub const DXGI_MWA_NO_WINDOW_CHANGES: UINT = (1 << 0);
 pub const DXGI_MWA_NO_ALT_ENTER: UINT = (1 << 1);
@@ -182,6 +183,9 @@ pub trait ID3D12DeviceExt {
     fn create_descriptor_heap<U: Interface>(&self,
                                             desc: &D3D12_DESCRIPTOR_HEAP_DESC)
                                             -> ComResult<U>;
+    fn get_descriptor_handle_increment_size(&self,
+                                            descriptor_heap_type: D3D12_DESCRIPTOR_HEAP_TYPE)
+                                            -> UINT;
 }
 impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
@@ -205,6 +209,12 @@ impl ID3D12DeviceExt for ID3D12Device {
             ppv as *const U
         };
         Ok(ComRc::new(p))
+    }
+    #[inline]
+    fn get_descriptor_handle_increment_size(&self,
+                                            descriptor_heap_type: D3D12_DESCRIPTOR_HEAP_TYPE)
+                                            -> UINT {
+        unsafe { self.GetDescriptorHandleIncrementSize(descriptor_heap_type) }
     }
 }
 
@@ -260,7 +270,6 @@ impl IDCompositionTargetExt for IDCompositionTarget {
     }
 }
 
-
 pub trait IDXGISwapChain3Ext {
     fn get_current_back_buffer_index(&self) -> UINT;
 }
@@ -268,5 +277,38 @@ impl IDXGISwapChain3Ext for IDXGISwapChain3 {
     #[inline]
     fn get_current_back_buffer_index(&self) -> UINT {
         unsafe { self.GetCurrentBackBufferIndex() }
+    }
+}
+
+pub trait ID3D12DescriptorHeapExt {
+    fn get_desc(&self) -> D3D12_DESCRIPTOR_HEAP_DESC;
+    fn get_cpu_descriptor_handle_for_heap_start(&self) -> D3D12_CPU_DESCRIPTOR_HANDLE;
+    fn get_gpu_descriptor_handle_for_heap_start(&self) -> D3D12_GPU_DESCRIPTOR_HANDLE;
+}
+impl ID3D12DescriptorHeapExt for ID3D12DescriptorHeap {
+    #[inline]
+    fn get_desc(&self) -> D3D12_DESCRIPTOR_HEAP_DESC {
+        unsafe { self.GetDesc() }
+    }
+    #[inline]
+    fn get_cpu_descriptor_handle_for_heap_start(&self) -> D3D12_CPU_DESCRIPTOR_HANDLE {
+        unsafe { self.GetCPUDescriptorHandleForHeapStart() }
+    }
+    #[inline]
+    fn get_gpu_descriptor_handle_for_heap_start(&self) -> D3D12_GPU_DESCRIPTOR_HANDLE {
+        unsafe { self.GetGPUDescriptorHandleForHeapStart() }
+    }
+}
+
+pub trait CD3DX12_CPU_DESCRIPTOR_HANDLE {
+    fn offset(&mut self, offsetInDescriptors: INT, descriptorIncrementSize: UINT);
+}
+impl CD3DX12_CPU_DESCRIPTOR_HANDLE for D3D12_CPU_DESCRIPTOR_HANDLE {
+    #[inline]
+    fn offset(&mut self, offsetInDescriptors: INT, descriptorIncrementSize: UINT) {
+        unsafe {
+            let offset = ((descriptorIncrementSize as i64) * (offsetInDescriptors as i64)) as usize;
+            self.ptr += offset;
+        }
     }
 }

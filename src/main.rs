@@ -1,5 +1,6 @@
 #![cfg(windows)]
 
+#[macro_use]
 extern crate winapi;
 extern crate winit;
 

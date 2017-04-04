@@ -25,8 +25,10 @@ pub struct DxModel {
     dc_dev: ComRc<IDCompositionDevice>,
     dc_target: ComRc<IDCompositionTarget>,
     dc_visual: ComRc<IDCompositionVisual>,
-    rtvHeap: ComRc<ID3D12DescriptorHeap>,
     frame_index: u32,
+    rtvHeap: ComRc<ID3D12DescriptorHeap>,
+    srvHeap: ComRc<ID3D12DescriptorHeap>,
+    rtvDescriptorSize: u32,
 }
 
 impl DxModel {
@@ -95,8 +97,8 @@ impl DxModel {
         let frame_index = swap_chain.get_current_back_buffer_index();
 
         // Create descriptor heaps.
+        // Describe and create a render target view (RTV) descriptor heap.
         let rtvHeap = {
-            // Describe and create a render target view (RTV) descriptor heap.
             let desc = D3D12_DESCRIPTOR_HEAP_DESC {
                 NumDescriptors: FrameCount,
                 Type: D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
@@ -106,26 +108,26 @@ impl DxModel {
             device.create_descriptor_heap(&desc)?
         };
 
+        // Describe and create a shader resource view (SRV) heap for the texture.
+        let srvHeap = {
+            let desc = D3D12_DESCRIPTOR_HEAP_DESC {
+                NumDescriptors: 1,
+                Type: D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+                Flags: D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
+                NodeMask: 0,
+            };
+            device.create_descriptor_heap(&desc)?
+        };
+        let rtvDescriptorSize =
+            device.get_descriptor_handle_increment_size(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+        // Create frame resources.
+        {
+            let mut rtvHandle = rtvHeap.get_cpu_descriptor_handle_for_heap_start();
+            for n in 0..FrameCount {}
+        }
+
         /*
-
-
-
-
-
-	// Create descriptor heaps.
-	{
-
-		// Describe and create a shader resource view (SRV) heap for the texture.
-		D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-		srvHeapDesc.NumDescriptors = 1;
-		srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		ThrowIfFailed(m_device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_srvHeap)));
-
-		m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	}
-
-	// Create frame resources.
 	{
 		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
 
@@ -158,6 +160,8 @@ impl DxModel {
                dc_visual: dc_visual,
                frame_index: frame_index,
                rtvHeap: rtvHeap,
+               srvHeap: srvHeap,
+               rtvDescriptorSize: rtvDescriptorSize,
            })
     }
     pub fn events_loop(&self) -> &EventsLoop {
