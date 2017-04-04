@@ -25,6 +25,7 @@ pub struct DxModel {
     dc_dev: ComRc<IDCompositionDevice>,
     dc_target: ComRc<IDCompositionTarget>,
     dc_visual: ComRc<IDCompositionVisual>,
+    rtvHeap: ComRc<ID3D12DescriptorHeap>,
     frame_index: u32,
 }
 
@@ -49,33 +50,37 @@ impl DxModel {
         let device = factory.d3d12_create_best_device()?;
 
         // コマンドキューの作成
-        let queueDesc = D3D12_COMMAND_QUEUE_DESC {
-            Flags: D3D12_COMMAND_QUEUE_FLAG_NONE,
-            Type: D3D12_COMMAND_LIST_TYPE_DIRECT,
-            NodeMask: 0,
-            Priority: 0,
+        let command_queue = {
+            let desc = D3D12_COMMAND_QUEUE_DESC {
+                Flags: D3D12_COMMAND_QUEUE_FLAG_NONE,
+                Type: D3D12_COMMAND_LIST_TYPE_DIRECT,
+                NodeMask: 0,
+                Priority: 0,
+            };
+            device.create_command_queue::<ID3D12CommandQueue>(&desc)?
         };
-        let command_queue = device.create_command_queue::<ID3D12CommandQueue>(&queueDesc)?;
 
         // swap chainの作成
-        let swapChainDesc = DXGI_SWAP_CHAIN_DESC1 {
-            BufferCount: FrameCount,
-            Width: width,
-            Height: height,
-            Format: DXGI_FORMAT_R8G8B8A8_UNORM,
-            BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
-            SwapEffect: DXGI_SWAP_EFFECT_FLIP_DISCARD,
-            SampleDesc: DXGI_SAMPLE_DESC {
-                Count: 1,
-                Quality: 0,
-            },
-            AlphaMode: DXGI_ALPHA_MODE_PREMULTIPLIED,
-            Flags: 0,
-            Scaling: 0,
-            Stereo: 0,
+        let swap_chain = {
+            let desc = DXGI_SWAP_CHAIN_DESC1 {
+                BufferCount: FrameCount,
+                Width: width,
+                Height: height,
+                Format: DXGI_FORMAT_R8G8B8A8_UNORM,
+                BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
+                SwapEffect: DXGI_SWAP_EFFECT_FLIP_DISCARD,
+                SampleDesc: DXGI_SAMPLE_DESC {
+                    Count: 1,
+                    Quality: 0,
+                },
+                AlphaMode: DXGI_ALPHA_MODE_PREMULTIPLIED,
+                Flags: 0,
+                Scaling: 0,
+                Stereo: 0,
+            };
+            factory.create_swap_chain_for_composition(&command_queue, &desc)?
+                .query_interface::<IDXGISwapChain3>()?
         };
-        let swap_chain = factory.create_swap_chain_for_composition(&command_queue, &swapChainDesc)?
-            .query_interface::<IDXGISwapChain3>()?;
 
         // DirectComposition 設定
         let dc_dev = dcomp_create_device::<IDCompositionDevice>(None)?;
@@ -90,6 +95,16 @@ impl DxModel {
         let frame_index = swap_chain.get_current_back_buffer_index();
 
         // Create descriptor heaps.
+        let rtvHeap = {
+            // Describe and create a render target view (RTV) descriptor heap.
+            let rtvHeapDesc = D3D12_DESCRIPTOR_HEAP_DESC {
+                NumDescriptors: FrameCount,
+                Type: D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+                Flags: D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
+                NodeMask: 0,
+            };
+            device.create_descriptor_heap(&rtvHeapDesc)?
+        };
 
         /*
 
@@ -99,12 +114,6 @@ impl DxModel {
 
 	// Create descriptor heaps.
 	{
-		// Describe and create a render target view (RTV) descriptor heap.
-		D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-		rtvHeapDesc.NumDescriptors = FrameCount;
-		rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-		rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-		ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
 
 		// Describe and create a shader resource view (SRV) heap for the texture.
 		D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
@@ -148,6 +157,7 @@ impl DxModel {
                dc_target: dc_target,
                dc_visual: dc_visual,
                frame_index: frame_index,
+               rtvHeap: rtvHeap,
            })
     }
     pub fn events_loop(&self) -> &EventsLoop {

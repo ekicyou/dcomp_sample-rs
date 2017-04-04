@@ -179,6 +179,9 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
 
 pub trait ID3D12DeviceExt {
     fn create_command_queue<U: Interface>(&self, desc: &D3D12_COMMAND_QUEUE_DESC) -> ComResult<U>;
+    fn create_descriptor_heap<U: Interface>(&self,
+                                            desc: &D3D12_DESCRIPTOR_HEAP_DESC)
+                                            -> ComResult<U>;
 }
 impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
@@ -187,6 +190,18 @@ impl ID3D12DeviceExt for ID3D12Device {
         let p = unsafe {
             let mut ppv: *mut c_void = core::ptr::null_mut();
             self.CreateCommandQueue(desc, &riid, &mut ppv).hr()?;
+            ppv as *const U
+        };
+        Ok(ComRc::new(p))
+    }
+    #[inline]
+    fn create_descriptor_heap<U: Interface>(&self,
+                                            desc: &D3D12_DESCRIPTOR_HEAP_DESC)
+                                            -> ComResult<U> {
+        let riid = U::uuidof();
+        let p = unsafe {
+            let mut ppv: *mut c_void = core::ptr::null_mut();
+            self.CreateDescriptorHeap(desc, &riid, &mut ppv).hr()?;
             ppv as *const U
         };
         Ok(ComRc::new(p))
