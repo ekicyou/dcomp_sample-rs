@@ -97,13 +97,13 @@ impl DxModel {
         // Create descriptor heaps.
         let rtvHeap = {
             // Describe and create a render target view (RTV) descriptor heap.
-            let rtvHeapDesc = D3D12_DESCRIPTOR_HEAP_DESC {
+            let desc = D3D12_DESCRIPTOR_HEAP_DESC {
                 NumDescriptors: FrameCount,
                 Type: D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
                 Flags: D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
                 NodeMask: 0,
             };
-            device.create_descriptor_heap(&rtvHeapDesc)?
+            device.create_descriptor_heap(&desc)?
         };
 
         /*
