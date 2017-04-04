@@ -244,3 +244,14 @@ impl IDCompositionTargetExt for IDCompositionTarget {
         unsafe { self.SetRoot(visual).hr() }
     }
 }
+
+
+pub trait IDXGISwapChain3Ext {
+    fn get_current_back_buffer_index(&self) -> UINT;
+}
+impl IDXGISwapChain3Ext for IDXGISwapChain3 {
+    #[inline]
+    fn get_current_back_buffer_index(&self) -> UINT {
+        unsafe { self.GetCurrentBackBufferIndex() }
+    }
+}

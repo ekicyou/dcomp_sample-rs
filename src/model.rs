@@ -21,9 +21,11 @@ pub struct DxModel {
     window: Window,
     device: ComRc<ID3D12Device>,
     command_queue: ComRc<ID3D12CommandQueue>,
+    swap_chain: ComRc<IDXGISwapChain3>,
     dc_dev: ComRc<IDCompositionDevice>,
     dc_target: ComRc<IDCompositionTarget>,
     dc_visual: ComRc<IDCompositionVisual>,
+    frame_index: u32,
 }
 
 impl DxModel {
@@ -85,13 +87,15 @@ impl DxModel {
 
         // This sample does not support fullscreen transitions.
         factory.make_window_association(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
+        let frame_index = swap_chain.get_current_back_buffer_index();
+
+        // Create descriptor heaps.
 
         /*
 
 
 
 
-	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
 	// Create descriptor heaps.
 	{
@@ -139,9 +143,11 @@ impl DxModel {
                window: window,
                device: device,
                command_queue: command_queue,
+               swap_chain: swap_chain,
                dc_dev: dc_dev,
                dc_target: dc_target,
                dc_visual: dc_visual,
+               frame_index: frame_index,
            })
     }
     pub fn events_loop(&self) -> &EventsLoop {
