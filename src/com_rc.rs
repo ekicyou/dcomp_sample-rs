@@ -1,4 +1,5 @@
 use winapi::_core::ops::Deref;
+use winapi::_core::ptr;
 use winapi::_core as core;
 use winapi::ctypes::c_void;
 use winapi::Interface;
@@ -58,7 +59,6 @@ impl<T: Interface> ComRc<T> {
         rc.add_ref();
         rc
     }
-
     #[inline]
     fn unknown(&self) -> &IUnknown {
         unsafe {
@@ -67,11 +67,22 @@ impl<T: Interface> ComRc<T> {
         }
     }
     #[inline]
+    fn set(&mut self, com: *const T) -> () {
+        let old = ComRc { raw: self.raw };
+        self.raw = com;
+    }
+    #[inline]
     fn add_ref(&mut self) -> ULONG {
+        if self.raw.is_null() {
+            return 0;
+        }
         unsafe { self.unknown().AddRef() }
     }
     #[inline]
     fn release(&mut self) -> ULONG {
+        if self.raw.is_null() {
+            return 0;
+        }
         unsafe { self.unknown().Release() }
     }
 }
@@ -83,11 +94,25 @@ impl<T: Interface> Drop for ComRc<T> {
     }
 }
 
+impl<T: Interface> Default for ComRc<T> {
+    #[inline]
+    fn default() -> ComRc<T> {
+        ComRc { raw: ptr::null() }
+    }
+}
+
 impl<T: Interface> Deref for ComRc<T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &T {
         unsafe { &*self.raw }
+    }
+}
+
+impl<T: Interface> Clone for ComRc<T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        ComRc::new(self.raw)
     }
 }
 

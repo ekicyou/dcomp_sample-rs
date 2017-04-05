@@ -105,7 +105,7 @@ impl DxModel {
                 Flags: D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
                 NodeMask: 0,
             };
-            device.create_descriptor_heap(&desc)?
+            device.create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
         };
 
         // Describe and create a shader resource view (SRV) heap for the texture.
@@ -116,16 +116,28 @@ impl DxModel {
                 Flags: D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
                 NodeMask: 0,
             };
-            device.create_descriptor_heap(&desc)?
+            device.create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
         };
         let rtvDescriptorSize =
             device.get_descriptor_handle_increment_size(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
         // Create frame resources.
         {
-            let mut rtvHandle = rtvHeap.get_cpu_descriptor_handle_for_heap_start();
-            for n in 0..FrameCount {}
+            let mut targets: [ComRc<ID3D12Resource>; FrameCount as usize];
+            for (n, mut target) in targets.iter_mut().enumerate() {}
         }
+        /*
+        let renderTargets = {
+            let mut rtvHandle = rtvHeap.get_cpu_descriptor_handle_for_heap_start();
+            for n in 0..FrameCount {
+                let target = swap_chain.get_buffer::<ID3D12Resource>(n);
+                device.create_render_target_view(target, None, rtvHandle);
+                rtvHandle.offset(1, rtvDescriptorSize);
+                targets.push(target);
+            }
+            targets
+        };
+        */
 
         /*
 	{

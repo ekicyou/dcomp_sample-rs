@@ -29,6 +29,7 @@ pub const DXGI_MWA_VALID: UINT = (0x7);
 
 pub type ComResult<U> = Result<ComRc<U>, HRESULT>;
 
+#[allow(non_snake_case)]
 #[inline]
 fn BOOL(flag: bool) -> BOOL {
     match flag {
