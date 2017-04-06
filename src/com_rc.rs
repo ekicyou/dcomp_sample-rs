@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use winapi::_core::ops::Deref;
 use winapi::_core::ptr::{self, null_mut};
 use winapi::ctypes::c_void;
@@ -5,6 +6,8 @@ use winapi::Interface;
 use winapi::shared::wtypesbase::ULONG;
 use winapi::shared::winerror::{HRESULT, S_OK};
 use winapi::um::unknwnbase::IUnknown;
+
+pub type ComResult<U> = Result<ComRc<U>, HRESULT>;
 
 pub trait HresultMapping {
     fn hr(self) -> Result<(), HRESULT>;
@@ -26,12 +29,12 @@ pub fn to_mut_ref<T>(p: *const T) -> *mut T {
 }
 
 pub trait QueryInterface {
-    fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT>;
+    fn query_interface<U: Interface>(&self) -> ComResult<U>;
 }
 
 impl<T: Interface> QueryInterface for T {
     #[inline]
-    fn query_interface<U: Interface>(&self) -> Result<ComRc<U>, HRESULT> {
+    fn query_interface<U: Interface>(&self) -> ComResult<U> {
         let unknown = unsafe {
             let p = self as *const T;
             let p_unknown = p as *const IUnknown;
@@ -65,13 +68,13 @@ impl<T: Interface> ComRc<T> {
             &*p_unknown
         }
     }
-    /*
     #[inline]
-    fn set(&mut self, com: *const T) -> () {
-        let old = ComRc { raw: self.raw };
+    fn set(&mut self, com: *const T) -> &mut ComRc<T> {
+        let _ = ComRc { raw: self.raw };
         self.raw = com;
+        self.add_ref();
+        self
     }
-    */
     #[inline]
     fn add_ref(&mut self) -> ULONG {
         if self.raw.is_null() {

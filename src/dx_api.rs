@@ -1,4 +1,5 @@
 #![allow(unused_unsafe)]
+#![allow(dead_code)]
 use winapi::Interface;
 use winapi::shared::windef::HWND;
 use winapi::_core::ptr::{self, null_mut};
@@ -20,17 +21,10 @@ pub use winapi::um::dcomp::*;
 pub use unsafe_api::*;
 pub use com_rc::*;
 
-#[allow(dead_code)]
 pub const DXGI_MWA_NO_WINDOW_CHANGES: UINT = (1 << 0);
-#[allow(dead_code)]
 pub const DXGI_MWA_NO_ALT_ENTER: UINT = (1 << 1);
-#[allow(dead_code)]
 pub const DXGI_MWA_NO_PRINT_SCREEN: UINT = (1 << 2);
-#[allow(dead_code)]
 pub const DXGI_MWA_VALID: UINT = (0x7);
-
-
-pub type ComResult<U> = Result<ComRc<U>, HRESULT>;
 
 #[allow(non_snake_case)]
 #[inline]
