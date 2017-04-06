@@ -122,22 +122,17 @@ impl DxModel {
             device.get_descriptor_handle_increment_size(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
         // Create frame resources.
-        {
-            let mut targets: [ComRc<ID3D12Resource>; FrameCount as usize];
-            for (n, mut target) in targets.iter_mut().enumerate() {}
-        }
-        /*
         let renderTargets = {
             let mut rtvHandle = rtvHeap.get_cpu_descriptor_handle_for_heap_start();
+            let mut targets: Vec<ComRc<ID3D12Resource>> = Vec::with_capacity(FrameCount as usize);
             for n in 0..FrameCount {
-                let target = swap_chain.get_buffer::<ID3D12Resource>(n);
-                device.create_render_target_view(target, None, rtvHandle);
+                let target = swap_chain.get_buffer::<ID3D12Resource>(n)?;
+                device.create_render_target_view(&target, None, rtvHandle);
                 rtvHandle.offset(1, rtvDescriptorSize);
                 targets.push(target);
             }
             targets
         };
-        */
 
         /*
 	{

@@ -1,5 +1,5 @@
 use winapi::_core::ops::Deref;
-use winapi::_core::ptr;
+use winapi::_core::ptr::{self, null_mut};
 use winapi::_core as core;
 use winapi::ctypes::c_void;
 use winapi::Interface;
@@ -40,7 +40,7 @@ impl<T: Interface> QueryInterface for T {
         };
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = core::ptr::null_mut();
+            let mut ppv: *mut c_void = null_mut();
             unknown.QueryInterface(&riid, &mut ppv).hr()?;
             ppv as *const U
         };
@@ -228,9 +228,9 @@ mod tests {
             assert_eq!(1, test.ref_count);
 
             unsafe {
-                let mut pv: *mut c_void = core::ptr::null_mut();
+                let mut pv: *mut c_void = null_mut();
                 let cb: ULONG = 0;
-                let buf: *mut ULONG = core::ptr::null_mut();
+                let buf: *mut ULONG = null_mut();
                 com.Read(pv, cb, buf).hr().is_ok();
                 com.Write(pv, cb, buf).hr().is_err();
                 assert_eq!(2, com.AddRef());

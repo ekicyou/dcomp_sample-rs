@@ -44,11 +44,3 @@ extern "system" {
     pub fn CreateDXGIFactory2(Flags: UINT, riid: REFIID, ppFactory: *mut *mut c_void) -> HRESULT;
     pub fn DXGIGetDebugInterface1(Flags: UINT, riid: REFIID, pDebug: *mut *mut c_void) -> HRESULT;
 }
-
-
-RIDL!(#[uuid(0x8efb471d, 0x616c, 0x4f49, 0x90, 0xf7, 0x12, 0x7b, 0xb7, 0x63, 0xfa, 0x51)]
-interface ID3D12DescriptorHeap(ID3D12DescriptorHeapVtbl): ID3D12Pageable(ID3D12PageableVtbl) {
-     fn GetDesc() -> D3D12_DESCRIPTOR_HEAP_DESC,
-     fn GetCPUDescriptorHandleForHeapStart()-> D3D12_CPU_DESCRIPTOR_HANDLE,
-     fn GetGPUDescriptorHandleForHeapStart()-> D3D12_GPU_DESCRIPTOR_HANDLE,
-});

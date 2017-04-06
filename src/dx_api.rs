@@ -1,7 +1,7 @@
 use winapi::Interface;
 use winapi::shared::windef::HWND;
 use winapi::_core as core;
-use winapi::_core::ptr;
+use winapi::_core::ptr::{self, null_mut};
 use winapi::_core::mem;
 use winapi::ctypes::c_void;
 use winapi::shared::winerror::{HRESULT, E_FAIL};
@@ -19,7 +19,6 @@ pub use winapi::um::d3d12::*;
 pub use winapi::um::dcomp::*;
 pub use unsafe_api::*;
 pub use com_rc::*;
-pub use unsafe_api::ID3D12DescriptorHeap;
 
 pub const DXGI_MWA_NO_WINDOW_CHANGES: UINT = (1 << 0);
 pub const DXGI_MWA_NO_ALT_ENTER: UINT = (1 << 1);
@@ -44,7 +43,7 @@ pub fn d3d12_create_device<U: Interface>(pAdapter: &IUnknown,
                                          -> ComResult<U> {
     let riid = U::uuidof();
     let p = unsafe {
-        let mut ppv: *mut c_void = core::ptr::null_mut();
+        let mut ppv: *mut c_void = null_mut();
         D3D12CreateDevice(pAdapter, MinimumFeatureLevel, &riid, &mut ppv).hr()?;
         ppv as *const U
     };
@@ -56,7 +55,7 @@ pub fn d3d12_create_device<U: Interface>(pAdapter: &IUnknown,
 pub fn create_dxgi_factory1<U: Interface>() -> ComResult<U> {
     let riid = U::uuidof();
     let p = unsafe {
-        let mut ppv: *mut c_void = core::ptr::null_mut();
+        let mut ppv: *mut c_void = null_mut();
         CreateDXGIFactory1(&riid, &mut ppv).hr()?;
         ppv as *const U
     };
@@ -67,7 +66,7 @@ pub fn create_dxgi_factory1<U: Interface>() -> ComResult<U> {
 pub fn d3d12_get_debug_interface<U: Interface>() -> ComResult<U> {
     let riid = U::uuidof();
     let p = unsafe {
-        let mut ppv: *mut c_void = core::ptr::null_mut();
+        let mut ppv: *mut c_void = null_mut();
         D3D12GetDebugInterface(&riid, &mut ppv).hr()?;
         ppv as *const U
     };
@@ -82,7 +81,7 @@ pub fn dcomp_create_device<U: Interface>(dxgiDevice: Option<&IUnknown>) -> ComRe
     };
     let riid = U::uuidof();
     let p = unsafe {
-        let mut ppv: *mut c_void = core::ptr::null_mut();
+        let mut ppv: *mut c_void = null_mut();
         DCompositionCreateDevice3(src, &riid, &mut ppv).hr()?;
         ppv as *const U
     };
@@ -121,7 +120,7 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
     fn enum_warp_adapter<U: Interface>(&self) -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = core::ptr::null_mut();
+            let mut ppv: *mut c_void = null_mut();
             self.EnumWarpAdapter(&riid, &mut ppv).hr()?;
             ppv as *const U
         };
@@ -187,13 +186,18 @@ pub trait ID3D12DeviceExt {
     fn get_descriptor_handle_increment_size(&self,
                                             descriptor_heap_type: D3D12_DESCRIPTOR_HEAP_TYPE)
                                             -> UINT;
+    fn create_render_target_view(&self,
+                                 resource: &ID3D12Resource,
+                                 desc: Option<&D3D12_RENDER_TARGET_VIEW_DESC>,
+                                 dest_descriptor: D3D12_CPU_DESCRIPTOR_HANDLE)
+                                 -> ();
 }
 impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
     fn create_command_queue<U: Interface>(&self, desc: &D3D12_COMMAND_QUEUE_DESC) -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = core::ptr::null_mut();
+            let mut ppv: *mut c_void = null_mut();
             self.CreateCommandQueue(desc, &riid, &mut ppv).hr()?;
             ppv as *const U
         };
@@ -205,7 +209,7 @@ impl ID3D12DeviceExt for ID3D12Device {
                                             -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = core::ptr::null_mut();
+            let mut ppv: *mut c_void = null_mut();
             self.CreateDescriptorHeap(desc, &riid, &mut ppv).hr()?;
             ppv as *const U
         };
@@ -216,6 +220,21 @@ impl ID3D12DeviceExt for ID3D12Device {
                                             descriptor_heap_type: D3D12_DESCRIPTOR_HEAP_TYPE)
                                             -> UINT {
         unsafe { self.GetDescriptorHandleIncrementSize(descriptor_heap_type) }
+    }
+    #[inline]
+    fn create_render_target_view(&self,
+                                 resource: &ID3D12Resource,
+                                 desc: Option<&D3D12_RENDER_TARGET_VIEW_DESC>,
+                                 dest_descriptor: D3D12_CPU_DESCRIPTOR_HANDLE)
+                                 -> () {
+        let p_desc: *const D3D12_RENDER_TARGET_VIEW_DESC = match desc {
+            Some(p) => p,
+            _ => ptr::null(),
+        };
+        unsafe {
+            let p_resource = to_mut_ref(resource);
+            self.CreateRenderTargetView(p_resource, p_desc, dest_descriptor)
+        }
     }
 }
 
@@ -273,11 +292,22 @@ impl IDCompositionTargetExt for IDCompositionTarget {
 
 pub trait IDXGISwapChain3Ext {
     fn get_current_back_buffer_index(&self) -> UINT;
+    fn get_buffer<U: Interface>(&self, buffer: UINT) -> ComResult<U>;
 }
 impl IDXGISwapChain3Ext for IDXGISwapChain3 {
     #[inline]
     fn get_current_back_buffer_index(&self) -> UINT {
         unsafe { self.GetCurrentBackBufferIndex() }
+    }
+    #[inline]
+    fn get_buffer<U: Interface>(&self, buffer: UINT) -> ComResult<U> {
+        let riid = U::uuidof();
+        let p = unsafe {
+            let mut ppv: *mut c_void = null_mut();
+            self.GetBuffer(buffer, &riid, &mut ppv).hr()?;
+            ppv as *const U
+        };
+        Ok(ComRc::new(p))
     }
 }
 
@@ -289,15 +319,27 @@ pub trait ID3D12DescriptorHeapExt {
 impl ID3D12DescriptorHeapExt for ID3D12DescriptorHeap {
     #[inline]
     fn get_desc(&self) -> D3D12_DESCRIPTOR_HEAP_DESC {
-        unsafe { self.GetDesc() }
+        unsafe {
+            let mut rc = mem::uninitialized();
+            self.GetDesc(&mut rc);
+            rc
+        }
     }
     #[inline]
     fn get_cpu_descriptor_handle_for_heap_start(&self) -> D3D12_CPU_DESCRIPTOR_HANDLE {
-        unsafe { self.GetCPUDescriptorHandleForHeapStart() }
+        unsafe {
+            let mut rc = mem::uninitialized();
+            self.GetCPUDescriptorHandleForHeapStart(&mut rc);
+            rc
+        }
     }
     #[inline]
     fn get_gpu_descriptor_handle_for_heap_start(&self) -> D3D12_GPU_DESCRIPTOR_HANDLE {
-        unsafe { self.GetGPUDescriptorHandleForHeapStart() }
+        unsafe {
+            let mut rc = mem::uninitialized();
+            self.GetGPUDescriptorHandleForHeapStart(&mut rc);
+            rc
+        }
     }
 }
 
