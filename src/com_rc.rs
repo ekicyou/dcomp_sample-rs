@@ -22,7 +22,7 @@ impl HresultMapping for HRESULT {
 
 #[inline]
 pub fn to_mut_ref<T>(p: *const T) -> *mut T {
-    p as *const _ as *mut _
+    p as *mut _
 }
 
 pub trait QueryInterface {
