@@ -21,7 +21,7 @@ impl HresultMapping for HRESULT {
 }
 
 #[inline]
-pub unsafe fn to_mut_ref<T>(p: *const T) -> *mut T {
+pub fn to_mut_ref<T>(p: *const T) -> *mut T {
     p as *const _ as *mut _
 }
 

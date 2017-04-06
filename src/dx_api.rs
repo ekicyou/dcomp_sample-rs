@@ -48,7 +48,8 @@ pub fn d3d12_create_device<U: Interface>(adapter: &IUnknown,
     let riid = U::uuidof();
     let p = unsafe {
         let mut ppv: *mut c_void = null_mut();
-        D3D12CreateDevice(adapter, minimum_feature_level, &riid, &mut ppv).hr()?;
+        D3D12CreateDevice(adapter, minimum_feature_level, &riid, &mut ppv)
+            .hr()?;
         ppv as *const U
     };
     Ok(ComRc::new(p))
