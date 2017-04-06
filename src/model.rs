@@ -29,6 +29,8 @@ pub struct DxModel {
     rtvHeap: ComRc<ID3D12DescriptorHeap>,
     srvHeap: ComRc<ID3D12DescriptorHeap>,
     rtvDescriptorSize: u32,
+    renderTargets: Vec<ComRc<ID3D12Resource>>,
+    command_allocator: ComRc<ID3D12CommandAllocator>,
 }
 
 impl DxModel {
@@ -133,25 +135,7 @@ impl DxModel {
             }
             targets
         };
-
-        /*
-	{
-		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
-
-		// Create a RTV for each frame.
-		for (UINT n = 0; n < FrameCount; n++)
-		{
-			ThrowIfFailed(m_swapChain->GetBuffer(n, IID_PPV_ARGS(&m_renderTargets[n])));
-			m_device->CreateRenderTargetView(m_renderTargets[n].Get(), nullptr, rtvHandle);
-			rtvHandle.Offset(1, m_rtvDescriptorSize);
-		}
-	}
-
-	ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator)));
-}
-    */
-
-
+        let command_allocator = device.create_command_allocator(D3D12_COMMAND_LIST_TYPE_DIRECT)?;
 
         //------------------------------------------------------------------
         // result
@@ -169,6 +153,8 @@ impl DxModel {
                rtvHeap: rtvHeap,
                srvHeap: srvHeap,
                rtvDescriptorSize: rtvDescriptorSize,
+               renderTargets: renderTargets,
+               command_allocator: command_allocator,
            })
     }
     pub fn events_loop(&self) -> &EventsLoop {

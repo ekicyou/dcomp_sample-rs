@@ -191,6 +191,9 @@ pub trait ID3D12DeviceExt {
                                  desc: Option<&D3D12_RENDER_TARGET_VIEW_DESC>,
                                  dest_descriptor: D3D12_CPU_DESCRIPTOR_HANDLE)
                                  -> ();
+    fn create_command_allocator<U: Interface>(&self,
+                                              type_: D3D12_COMMAND_LIST_TYPE)
+                                              -> ComResult<U>;
 }
 impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
@@ -235,6 +238,19 @@ impl ID3D12DeviceExt for ID3D12Device {
             let p_resource = to_mut_ref(resource);
             self.CreateRenderTargetView(p_resource, p_desc, dest_descriptor)
         }
+    }
+    #[inline]
+    fn create_command_allocator<U: Interface>(&self,
+                                              type_: D3D12_COMMAND_LIST_TYPE)
+                                              -> ComResult<U> {
+        let riid = U::uuidof();
+        let p = unsafe {
+            let mut ppv: *mut c_void = null_mut();
+            self.CreateCommandAllocator(type_, &riid, &mut ppv)
+                .hr()?;
+            ppv as *const U
+        };
+        Ok(ComRc::new(p))
     }
 }
 
