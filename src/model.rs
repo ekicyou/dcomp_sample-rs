@@ -4,7 +4,7 @@ use winapi::shared::winerror::HRESULT;
 use super::hwnd_window::HwndWindow;
 use super::dx_api::*;
 
-const FrameCount: u32 = 2;
+const FRAME_COUNT: u32 = 2;
 
 impl HwndWindow for Window {
     fn hwnd(&self) -> HWND {
@@ -16,6 +16,7 @@ impl HwndWindow for Window {
     }
 }
 
+#[allow(dead_code)]
 pub struct DxModel {
     events_loop: EventsLoop,
     window: Window,
@@ -26,10 +27,10 @@ pub struct DxModel {
     dc_target: ComRc<IDCompositionTarget>,
     dc_visual: ComRc<IDCompositionVisual>,
     frame_index: u32,
-    rtvHeap: ComRc<ID3D12DescriptorHeap>,
-    srvHeap: ComRc<ID3D12DescriptorHeap>,
-    rtvDescriptorSize: u32,
-    renderTargets: Vec<ComRc<ID3D12Resource>>,
+    rtv_heap: ComRc<ID3D12DescriptorHeap>,
+    srv_heap: ComRc<ID3D12DescriptorHeap>,
+    rtv_descriptor_size: u32,
+    render_targets: Vec<ComRc<ID3D12Resource>>,
     command_allocator: ComRc<ID3D12CommandAllocator>,
 }
 
@@ -67,7 +68,7 @@ impl DxModel {
         // swap chainの作成
         let swap_chain = {
             let desc = DXGI_SWAP_CHAIN_DESC1 {
-                BufferCount: FrameCount,
+                BufferCount: FRAME_COUNT,
                 Width: width,
                 Height: height,
                 Format: DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -94,15 +95,15 @@ impl DxModel {
         dc_target.set_root(&dc_visual)?;
         dc_dev.commit()?;
 
-        // This sample does not support fullscreen transitions.
+        // このサンプルはフルスクリーンへの遷移をサポートしません。
         factory.make_window_association(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
         let frame_index = swap_chain.get_current_back_buffer_index();
 
         // Create descriptor heaps.
         // Describe and create a render target view (RTV) descriptor heap.
-        let rtvHeap = {
+        let rtv_heap = {
             let desc = D3D12_DESCRIPTOR_HEAP_DESC {
-                NumDescriptors: FrameCount,
+                NumDescriptors: FRAME_COUNT,
                 Type: D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
                 Flags: D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
                 NodeMask: 0,
@@ -111,7 +112,7 @@ impl DxModel {
         };
 
         // Describe and create a shader resource view (SRV) heap for the texture.
-        let srvHeap = {
+        let srv_heap = {
             let desc = D3D12_DESCRIPTOR_HEAP_DESC {
                 NumDescriptors: 1,
                 Type: D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
@@ -120,21 +121,22 @@ impl DxModel {
             };
             device.create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
         };
-        let rtvDescriptorSize =
+        let rtv_descriptor_size =
             device.get_descriptor_handle_increment_size(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-        // Create frame resources.
-        let renderTargets = {
-            let mut rtvHandle = rtvHeap.get_cpu_descriptor_handle_for_heap_start();
-            let mut targets: Vec<ComRc<ID3D12Resource>> = Vec::with_capacity(FrameCount as usize);
-            for n in 0..FrameCount {
+        // フレームバッファの作成
+        let render_targets = {
+            let mut rtv_handle = rtv_heap.get_cpu_descriptor_handle_for_heap_start();
+            let mut targets: Vec<ComRc<ID3D12Resource>> = Vec::with_capacity(FRAME_COUNT as usize);
+            for n in 0..FRAME_COUNT {
                 let target = swap_chain.get_buffer::<ID3D12Resource>(n)?;
-                device.create_render_target_view(&target, None, rtvHandle);
-                rtvHandle.offset(1, rtvDescriptorSize);
+                device.create_render_target_view(&target, None, rtv_handle);
+                rtv_handle.offset(1, rtv_descriptor_size);
                 targets.push(target);
             }
             targets
         };
+        // コマンドアロケータ
         let command_allocator = device.create_command_allocator(D3D12_COMMAND_LIST_TYPE_DIRECT)?;
 
         //------------------------------------------------------------------
@@ -150,16 +152,18 @@ impl DxModel {
                dc_target: dc_target,
                dc_visual: dc_visual,
                frame_index: frame_index,
-               rtvHeap: rtvHeap,
-               srvHeap: srvHeap,
-               rtvDescriptorSize: rtvDescriptorSize,
-               renderTargets: renderTargets,
+               rtv_heap: rtv_heap,
+               srv_heap: srv_heap,
+               rtv_descriptor_size: rtv_descriptor_size,
+               render_targets: render_targets,
                command_allocator: command_allocator,
            })
     }
+    #[allow(dead_code)]
     pub fn events_loop(&self) -> &EventsLoop {
         &self.events_loop
     }
+    #[allow(dead_code)]
     pub fn window(&self) -> &Window {
         &self.window
     }

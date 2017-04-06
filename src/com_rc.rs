@@ -1,6 +1,5 @@
 use winapi::_core::ops::Deref;
 use winapi::_core::ptr::{self, null_mut};
-use winapi::_core as core;
 use winapi::ctypes::c_void;
 use winapi::Interface;
 use winapi::shared::wtypesbase::ULONG;
@@ -66,11 +65,13 @@ impl<T: Interface> ComRc<T> {
             &*p_unknown
         }
     }
+    /*
     #[inline]
     fn set(&mut self, com: *const T) -> () {
         let old = ComRc { raw: self.raw };
         self.raw = com;
     }
+    */
     #[inline]
     fn add_ref(&mut self) -> ULONG {
         if self.raw.is_null() {
@@ -119,7 +120,6 @@ impl<T: Interface> Clone for ComRc<T> {
 #[cfg(test)]
 mod tests {
     #![allow(unused_unsafe,non_snake_case,unused_variables,unused_mut)]
-    use winapi::_core as core;
     use winapi::ctypes::c_void;
     use winapi::shared::guiddef::REFIID;
     use winapi::shared::wtypesbase::ULONG;

@@ -1,6 +1,5 @@
 #![cfg(windows)]
 
-#[macro_use]
 extern crate winapi;
 extern crate winit;
 
@@ -27,7 +26,7 @@ fn run() -> Result<(), HRESULT> {
         let events_loop = EventsLoop::new();
         let window = WindowBuilder::new()
             .with_title("hello window")
-            .with_dimensions(480, 640)
+            .with_dimensions(512, 512)
             .with_transparency(true)
             .with_multitouch()
             .build(&events_loop)

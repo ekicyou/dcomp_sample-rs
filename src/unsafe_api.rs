@@ -11,11 +11,6 @@ use winapi::um::unknwnbase::IUnknown;
 use winapi::um::d3dcommon::D3D_FEATURE_LEVEL;
 use winapi::um::d3d12::D3D12_ROOT_SIGNATURE_DESC;
 use winapi::um::d3d12::D3D_ROOT_SIGNATURE_VERSION;
-use winapi::um::d3d12::D3D12_DESCRIPTOR_HEAP_DESC;
-use winapi::um::d3d12::D3D12_CPU_DESCRIPTOR_HANDLE;
-use winapi::um::d3d12::D3D12_GPU_DESCRIPTOR_HANDLE;
-use winapi::um::d3d12::ID3D12Pageable;
-use winapi::um::d3d12::ID3D12PageableVtbl;
 
 #[link(name = "d3d12")]
 extern "system" {

@@ -1,6 +1,6 @@
+#![allow(unused_unsafe)]
 use winapi::Interface;
 use winapi::shared::windef::HWND;
-use winapi::_core as core;
 use winapi::_core::ptr::{self, null_mut};
 use winapi::_core::mem;
 use winapi::ctypes::c_void;
@@ -20,9 +20,13 @@ pub use winapi::um::dcomp::*;
 pub use unsafe_api::*;
 pub use com_rc::*;
 
+#[allow(dead_code)]
 pub const DXGI_MWA_NO_WINDOW_CHANGES: UINT = (1 << 0);
+#[allow(dead_code)]
 pub const DXGI_MWA_NO_ALT_ENTER: UINT = (1 << 1);
+#[allow(dead_code)]
 pub const DXGI_MWA_NO_PRINT_SCREEN: UINT = (1 << 2);
+#[allow(dead_code)]
 pub const DXGI_MWA_VALID: UINT = (0x7);
 
 
@@ -38,13 +42,13 @@ fn BOOL(flag: bool) -> BOOL {
 }
 
 #[inline]
-pub fn d3d12_create_device<U: Interface>(pAdapter: &IUnknown,
-                                         MinimumFeatureLevel: D3D_FEATURE_LEVEL)
+pub fn d3d12_create_device<U: Interface>(adapter: &IUnknown,
+                                         minimum_feature_level: D3D_FEATURE_LEVEL)
                                          -> ComResult<U> {
     let riid = U::uuidof();
     let p = unsafe {
         let mut ppv: *mut c_void = null_mut();
-        D3D12CreateDevice(pAdapter, MinimumFeatureLevel, &riid, &mut ppv).hr()?;
+        D3D12CreateDevice(adapter, minimum_feature_level, &riid, &mut ppv).hr()?;
         ppv as *const U
     };
     Ok(ComRc::new(p))
@@ -62,6 +66,7 @@ pub fn create_dxgi_factory1<U: Interface>() -> ComResult<U> {
     Ok(ComRc::new(p))
 }
 
+#[allow(dead_code)]
 #[inline]
 pub fn d3d12_get_debug_interface<U: Interface>() -> ComResult<U> {
     let riid = U::uuidof();
@@ -74,8 +79,8 @@ pub fn d3d12_get_debug_interface<U: Interface>() -> ComResult<U> {
 }
 
 #[inline]
-pub fn dcomp_create_device<U: Interface>(dxgiDevice: Option<&IUnknown>) -> ComResult<U> {
-    let src: *const IUnknown = match dxgiDevice {
+pub fn dcomp_create_device<U: Interface>(dxgi_device: Option<&IUnknown>) -> ComResult<U> {
+    let src: *const IUnknown = match dxgi_device {
         Some(a) => a,
         None => ptr::null(),
     };
@@ -110,7 +115,7 @@ pub trait IDXGIFactory4Ext {
                                          device: &IUnknown,
                                          desc: &DXGI_SWAP_CHAIN_DESC1)
                                          -> ComResult<IDXGISwapChain1>;
-    fn make_window_association(&self, WindowHandle: HWND, Flags: UINT) -> Result<(), HRESULT>;
+    fn make_window_association(&self, hwnd: HWND, flags: UINT) -> Result<(), HRESULT>;
     fn d3d12_create_hardware_device(&self) -> ComResult<ID3D12Device>;
     fn d3d12_create_warp_device(&self) -> ComResult<ID3D12Device>;
     fn d3d12_create_best_device(&self) -> ComResult<ID3D12Device>;
@@ -147,8 +152,8 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
         }
     }
     #[inline]
-    fn make_window_association(&self, WindowHandle: HWND, Flags: UINT) -> Result<(), HRESULT> {
-        unsafe { self.MakeWindowAssociation(WindowHandle, Flags).hr() }
+    fn make_window_association(&self, hwnd: HWND, flags: UINT) -> Result<(), HRESULT> {
+        unsafe { self.MakeWindowAssociation(hwnd, flags).hr() }
     }
     #[inline]
     fn d3d12_create_hardware_device(&self) -> ComResult<ID3D12Device> {
@@ -359,14 +364,16 @@ impl ID3D12DescriptorHeapExt for ID3D12DescriptorHeap {
     }
 }
 
+#[allow(non_camel_case_types)]
 pub trait CD3DX12_CPU_DESCRIPTOR_HANDLE {
-    fn offset(&mut self, offsetInDescriptors: INT, descriptorIncrementSize: UINT);
+    fn offset(&mut self, offset_in_descriptors: INT, descriptor_increment_size: UINT);
 }
 impl CD3DX12_CPU_DESCRIPTOR_HANDLE for D3D12_CPU_DESCRIPTOR_HANDLE {
     #[inline]
-    fn offset(&mut self, offsetInDescriptors: INT, descriptorIncrementSize: UINT) {
+    fn offset(&mut self, offset_in_descriptors: INT, descriptor_increment_size: UINT) {
         unsafe {
-            let offset = ((descriptorIncrementSize as i64) * (offsetInDescriptors as i64)) as usize;
+            let offset = ((descriptor_increment_size as i64) * (offset_in_descriptors as i64)) as
+                         usize;
             self.ptr += offset;
         }
     }
