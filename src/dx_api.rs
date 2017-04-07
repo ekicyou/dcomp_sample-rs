@@ -472,3 +472,38 @@ impl CD3DX12_ROOT_DESCRIPTOR_TABLE for D3D12_ROOT_DESCRIPTOR_TABLE {
         self.pDescriptorRanges = descriptor_ranges;
     }
 }
+
+#[allow(non_camel_case_types)]
+pub trait CD3DX12_ROOT_SIGNATURE_DESC {
+    fn new(parameters: &[D3D12_ROOT_PARAMETER],
+           static_samplers: &[D3D12_STATIC_SAMPLER_DESC],
+           flags: D3D12_ROOT_SIGNATURE_FLAGS)
+           -> D3D12_ROOT_SIGNATURE_DESC;
+}
+impl CD3DX12_ROOT_SIGNATURE_DESC for D3D12_ROOT_SIGNATURE_DESC {
+    #[inline]
+    fn new(parameters: &[D3D12_ROOT_PARAMETER],
+           static_samplers: &[D3D12_STATIC_SAMPLER_DESC],
+           flags: D3D12_ROOT_SIGNATURE_FLAGS)
+           -> D3D12_ROOT_SIGNATURE_DESC {
+        let (num_parameters, p_parameters) = slice_to_ptr(parameters);
+        let (num_static_samplers, p_static_samplers) = slice_to_ptr(static_samplers);
+        D3D12_ROOT_SIGNATURE_DESC {
+            NumParameters: num_parameters,
+            pParameters: p_parameters,
+            NumStaticSamplers: num_static_samplers,
+            pStaticSamplers: p_static_samplers,
+            Flags: flags,
+        }
+    }
+}
+
+#[inline]
+fn slice_to_ptr<T>(s: &[T]) -> (UINT, *const T) {
+    let len = s.len() as UINT;
+    let p: *const T = match len {
+        0 => ptr::null(),
+        _ => &s[0],
+    };
+    (len, p)
+}
