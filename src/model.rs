@@ -92,7 +92,8 @@ impl DxModel {
                 Scaling: 0,
                 Stereo: 0,
             };
-            factory.create_swap_chain_for_composition(&command_queue, &desc)?
+            factory
+                .create_swap_chain_for_composition(&command_queue, &desc)?
                 .query_interface::<IDXGISwapChain3>()?
         };
 
@@ -105,7 +106,8 @@ impl DxModel {
         dc_dev.commit()?;
 
         // このサンプルはフルスクリーンへの遷移をサポートしません。
-        factory.make_window_association(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
+        factory
+            .make_window_association(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
         let frame_index = swap_chain.get_current_back_buffer_index();
 
         // Create descriptor heaps.
@@ -117,7 +119,8 @@ impl DxModel {
                 Flags: D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
                 NodeMask: 0,
             };
-            device.create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
+            device
+                .create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
         };
 
         // Describe and create a shader resource view (SRV) heap for the texture.
@@ -128,7 +131,8 @@ impl DxModel {
                 Flags: D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
                 NodeMask: 0,
             };
-            device.create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
+            device
+                .create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
         };
         let rtv_descriptor_size =
             device.get_descriptor_handle_increment_size(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -146,22 +150,33 @@ impl DxModel {
             targets
         };
         // コマンドアロケータ
-        let command_allocator = device.create_command_allocator(D3D12_COMMAND_LIST_TYPE_DIRECT)?;
+        let command_allocator = device
+            .create_command_allocator(D3D12_COMMAND_LIST_TYPE_DIRECT)?;
 
 
         //------------------------------------------------------------------
         // LoadAssets(d3d12の描画初期化)
         //------------------------------------------------------------------
+        let ranges = {
+            let range = D3D12_DESCRIPTOR_RANGE::new(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+            [range]
+        };
+        let rootParameters = {
+            let a = D3D12_ROOT_PARAMETER::new_as_constants(1, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
+            let b = D3D12_ROOT_PARAMETER::new_as_descriptor_table(1,
+                                                                  &ranges[0],
+                                                                  D3D12_SHADER_VISIBILITY_PIXEL);
+            [a, b]
+        };
 
 
 
-/*
+
+        /*
 void DirectCompositeSample::LoadAssets()
 {
 	// Create the root signature.
 	{
-		CD3DX12_DESCRIPTOR_RANGE ranges[1];
-        ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
 
 		CD3DX12_ROOT_PARAMETER rootParameters[2];
         rootParameters[0].InitAsConstants(1, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
@@ -449,9 +464,8 @@ void DirectCompositeSample::LoadAssets()
 
 
 
-/*
+    /*
     // Load the rendering pipeline dependencies.
 
 */
-
 }

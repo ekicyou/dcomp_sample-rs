@@ -373,3 +373,102 @@ impl CD3DX12_CPU_DESCRIPTOR_HANDLE for D3D12_CPU_DESCRIPTOR_HANDLE {
         }
     }
 }
+
+#[allow(non_camel_case_types)]
+pub trait CD3DX12_DESCRIPTOR_RANGE {
+    fn new(range_type: D3D12_DESCRIPTOR_RANGE_TYPE,
+           num_descriptors: UINT,
+           base_shader_register: UINT)
+           -> D3D12_DESCRIPTOR_RANGE;
+}
+impl CD3DX12_DESCRIPTOR_RANGE for D3D12_DESCRIPTOR_RANGE {
+    #[inline]
+    fn new(range_type: D3D12_DESCRIPTOR_RANGE_TYPE,
+           num_descriptors: UINT,
+           base_shader_register: UINT)
+           -> D3D12_DESCRIPTOR_RANGE {
+        D3D12_DESCRIPTOR_RANGE {
+            RangeType: range_type,
+            NumDescriptors: num_descriptors,
+            BaseShaderRegister: base_shader_register,
+            RegisterSpace: 0,
+            OffsetInDescriptorsFromTableStart: D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND,
+        }
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub trait CD3DX12_ROOT_PARAMETER {
+    fn new_as_constants(num32_bit_values: UINT,
+                        shader_register: UINT,
+                        register_space: UINT,
+                        visibility: D3D12_SHADER_VISIBILITY)
+                        -> D3D12_ROOT_PARAMETER;
+    fn new_as_descriptor_table(num_descriptor_ranges: UINT,
+                               descriptor_ranges: &D3D12_DESCRIPTOR_RANGE,
+                               visibility: D3D12_SHADER_VISIBILITY)
+                               -> D3D12_ROOT_PARAMETER;
+}
+impl CD3DX12_ROOT_PARAMETER for D3D12_ROOT_PARAMETER {
+    #[inline]
+    fn new_as_constants(num32_bit_values: UINT,
+                        shader_register: UINT,
+                        register_space: UINT,
+                        visibility: D3D12_SHADER_VISIBILITY)
+                        -> D3D12_ROOT_PARAMETER {
+        unsafe {
+            let mut rc = mem::zeroed::<D3D12_ROOT_PARAMETER>();
+            rc.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+            rc.ShaderVisibility = visibility;
+            rc.Constants_mut()
+                .init(num32_bit_values, shader_register, register_space);
+            rc
+        }
+    }
+
+    #[inline]
+    fn new_as_descriptor_table(num_descriptor_ranges: UINT,
+                               descriptor_ranges: &D3D12_DESCRIPTOR_RANGE,
+                               visibility: D3D12_SHADER_VISIBILITY)
+                               -> D3D12_ROOT_PARAMETER {
+        unsafe {
+            let mut rc = mem::zeroed::<D3D12_ROOT_PARAMETER>();
+            rc.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+            rc.ShaderVisibility = visibility;
+            rc.DescriptorTable_mut()
+                .init(num_descriptor_ranges, descriptor_ranges);
+            rc
+        }
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub trait CD3DX12_ROOT_CONSTANTS {
+    fn init(&mut self, num32_bit_value: UINT, shader_register: UINT, register_space: UINT) -> ();
+}
+impl CD3DX12_ROOT_CONSTANTS for D3D12_ROOT_CONSTANTS {
+    #[inline]
+    fn init(&mut self, num32_bit_value: UINT, shader_register: UINT, register_space: UINT) -> () {
+        self.Num32BitValues = num32_bit_value;
+        self.ShaderRegister = shader_register;
+        self.RegisterSpace = register_space;
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub trait CD3DX12_ROOT_DESCRIPTOR_TABLE {
+    fn init(&mut self,
+            num_descriptor_ranges: UINT,
+            descriptor_ranges: &D3D12_DESCRIPTOR_RANGE)
+            -> ();
+}
+impl CD3DX12_ROOT_DESCRIPTOR_TABLE for D3D12_ROOT_DESCRIPTOR_TABLE {
+    #[inline]
+    fn init(&mut self,
+            num_descriptor_ranges: UINT,
+            descriptor_ranges: &D3D12_DESCRIPTOR_RANGE)
+            -> () {
+        self.NumDescriptorRanges = num_descriptor_ranges;
+        self.pDescriptorRanges = descriptor_ranges;
+    }
+}
