@@ -208,8 +208,6 @@ impl DxModel {
 
 
         /*
-void DirectCompositeSample::LoadAssets()
-{
 	// Create the pipeline state, which includes compiling and loading shaders.
 	{
 		ComPtr<ID3DBlob> vertexShader;
