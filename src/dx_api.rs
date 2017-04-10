@@ -5,7 +5,6 @@ use winapi::shared::windef::HWND;
 use winapi::_core::ptr::{self, null_mut};
 use winapi::_core::mem;
 use winapi::ctypes::c_void;
-use winapi::shared::basetsd::SIZE_T;
 use winapi::shared::winerror::{HRESULT, E_FAIL};
 use winapi::shared::minwindef::{BOOL, TRUE, FALSE, UINT, INT};
 use winapi::um::unknwnbase::IUnknown;
@@ -479,22 +478,22 @@ impl CD3DX12_DESCRIPTOR_RANGE for D3D12_DESCRIPTOR_RANGE {
 
 #[allow(non_camel_case_types)]
 pub trait CD3DX12_ROOT_PARAMETER {
-    fn new_as_constants(num32_bit_values: UINT,
-                        shader_register: UINT,
-                        register_space: UINT,
-                        visibility: D3D12_SHADER_VISIBILITY)
-                        -> D3D12_ROOT_PARAMETER;
-    fn new_as_descriptor_table(descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE],
-                               visibility: D3D12_SHADER_VISIBILITY)
-                               -> D3D12_ROOT_PARAMETER;
+    fn new_constants(num32_bit_values: UINT,
+                     shader_register: UINT,
+                     register_space: UINT,
+                     visibility: D3D12_SHADER_VISIBILITY)
+                     -> D3D12_ROOT_PARAMETER;
+    fn new_descriptor_table(descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE],
+                            visibility: D3D12_SHADER_VISIBILITY)
+                            -> D3D12_ROOT_PARAMETER;
 }
 impl CD3DX12_ROOT_PARAMETER for D3D12_ROOT_PARAMETER {
     #[inline]
-    fn new_as_constants(num32_bit_values: UINT,
-                        shader_register: UINT,
-                        register_space: UINT,
-                        visibility: D3D12_SHADER_VISIBILITY)
-                        -> D3D12_ROOT_PARAMETER {
+    fn new_constants(num32_bit_values: UINT,
+                     shader_register: UINT,
+                     register_space: UINT,
+                     visibility: D3D12_SHADER_VISIBILITY)
+                     -> D3D12_ROOT_PARAMETER {
         unsafe {
             let mut rc = mem::zeroed::<D3D12_ROOT_PARAMETER>();
             rc.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
@@ -506,9 +505,9 @@ impl CD3DX12_ROOT_PARAMETER for D3D12_ROOT_PARAMETER {
     }
 
     #[inline]
-    fn new_as_descriptor_table(descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE],
-                               visibility: D3D12_SHADER_VISIBILITY)
-                               -> D3D12_ROOT_PARAMETER {
+    fn new_descriptor_table(descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE],
+                            visibility: D3D12_SHADER_VISIBILITY)
+                            -> D3D12_ROOT_PARAMETER {
         unsafe {
             let mut rc = mem::zeroed::<D3D12_ROOT_PARAMETER>();
             rc.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;

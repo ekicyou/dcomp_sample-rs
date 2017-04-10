@@ -20,8 +20,11 @@ impl HwndWindow for Window {
 
 #[allow(dead_code)]
 pub struct DxModel {
+    // Window
     events_loop: EventsLoop,
     window: Window,
+
+    // Targets
     device: ComRc<ID3D12Device>,
     command_queue: ComRc<ID3D12CommandQueue>,
     swap_chain: ComRc<IDXGISwapChain3>,
@@ -34,6 +37,9 @@ pub struct DxModel {
     rtv_descriptor_size: u32,
     render_targets: Vec<ComRc<ID3D12Resource>>,
     command_allocator: ComRc<ID3D12CommandAllocator>,
+
+    // Assets
+    root_signature: ComRc<ID3D12RootSignature>,
 }
 
 impl DxModel {
@@ -168,10 +174,9 @@ impl DxModel {
             };
             let root_parameters = {
                 let a =
-                    D3D12_ROOT_PARAMETER::new_as_constants(1, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
-                let b =
-                    D3D12_ROOT_PARAMETER::new_as_descriptor_table(&ranges,
-                                                                  D3D12_SHADER_VISIBILITY_PIXEL);
+                    D3D12_ROOT_PARAMETER::new_constants(1, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
+                let b = D3D12_ROOT_PARAMETER::new_descriptor_table(&ranges,
+                                                                   D3D12_SHADER_VISIBILITY_PIXEL);
                 [a, b]
             };
             let samplers = unsafe {
@@ -460,6 +465,7 @@ impl DxModel {
                rtv_descriptor_size: rtv_descriptor_size,
                render_targets: render_targets,
                command_allocator: command_allocator,
+               root_signature: root_signature,
            })
     }
 
