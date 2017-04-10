@@ -24,7 +24,7 @@ pub struct DxModel {
     events_loop: EventsLoop,
     window: Window,
 
-    // Targets
+    // D3D12 Targets
     device: ComRc<ID3D12Device>,
     command_queue: ComRc<ID3D12CommandQueue>,
     swap_chain: ComRc<IDXGISwapChain3>,
@@ -38,7 +38,7 @@ pub struct DxModel {
     render_targets: Vec<ComRc<ID3D12Resource>>,
     command_allocator: ComRc<ID3D12CommandAllocator>,
 
-    // Assets
+    // D3D12 Assets
     root_signature: ComRc<ID3D12RootSignature>,
 }
 
@@ -208,6 +208,34 @@ impl DxModel {
                                                               signature.get_buffer_size())?
         };
 
+        // Create the pipeline state, which includes compiling and loading shaders.
+        {
+            let compileFlags: u32 = {
+                #[cfg(debug)]
+                {
+                    D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION
+                }
+                #[cfg(not(debug))]
+                {
+                    0
+                }
+            };
+            let vertexShader = d3d_compile_from_file("shaders.hlsl",
+                                                     nullptr,
+                                                     nullptr,
+                                                     "VSMain",
+                                                     "vs_5_0",
+                                                     compileFlags,
+                                                     0)?;
+            let pixelShader = d3d_compile_from_file("shaders.hlsl",
+                                                    nullptr,
+                                                    nullptr,
+                                                    "PSMain",
+                                                    "ps_5_0",
+                                                    compileFlags,
+                                                    0)?;
+
+        };
 
 
 

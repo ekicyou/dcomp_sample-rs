@@ -117,6 +117,27 @@ pub fn d3d12_serialize_root_signature(root_signature: &D3D12_ROOT_SIGNATURE_DESC
 }
 
 
+#[inline]
+pub fn d3d_compile_from_file<S: IntoStr>(fileName: LPCWSTR,
+                                         pDefines: *const D3D_SHADER_MACRO,
+                                         pInclude: *mut ID3DInclude,
+                                         pEntrypoint: LPCSTR,
+                                         pTarget: LPCSTR,
+                                         Flags1: UINT,
+                                         Flags2: UINT,
+                                         ppCode: *mut *mut ID3DBlob,
+                                         ppErrorMsgs: *mut *mut ID3DBlob)
+                                         -> Result<(ComRc<ID3DBlob>, ComRc<ID3DBlob>), HRESULT> {
+    unsafe {
+        let mut p1: *mut ID3DBlob = null_mut();
+        let mut p2: *mut ID3DBlob = null_mut();
+        D3D12SerializeRootSignature(root_signature, version, &mut p1, &mut p2)
+            .hr()?;
+        Ok((ComRc::new(p1), ComRc::new(p2)))
+    }
+}
+
+
 //=====================================================================
 // Interface Extensions
 //=====================================================================
