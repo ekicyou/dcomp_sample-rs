@@ -5,6 +5,7 @@ use winapi::shared::windef::HWND;
 use winapi::_core::ptr::{self, null_mut};
 use winapi::_core::mem;
 use winapi::ctypes::c_void;
+use winapi::shared::basetsd::SIZE_T;
 use winapi::shared::winerror::{HRESULT, E_FAIL};
 use winapi::shared::minwindef::{BOOL, TRUE, FALSE, UINT, INT};
 use winapi::um::unknwnbase::IUnknown;
@@ -26,6 +27,10 @@ pub const DXGI_MWA_NO_ALT_ENTER: UINT = (1 << 1);
 pub const DXGI_MWA_NO_PRINT_SCREEN: UINT = (1 << 2);
 pub const DXGI_MWA_VALID: UINT = (0x7);
 
+//=====================================================================
+// fn
+//=====================================================================
+
 #[allow(non_snake_case)]
 #[inline]
 fn BOOL(flag: bool) -> BOOL {
@@ -33,6 +38,17 @@ fn BOOL(flag: bool) -> BOOL {
         false => FALSE,
         true => TRUE,
     }
+}
+
+
+#[inline]
+fn slice_to_ptr<T>(s: &[T]) -> (UINT, *const T) {
+    let len = s.len() as UINT;
+    let p: *const T = match len {
+        0 => ptr::null(),
+        _ => &s[0],
+    };
+    (len, p)
 }
 
 #[inline]
@@ -87,6 +103,24 @@ pub fn dcomp_create_device<U: Interface>(dxgi_device: Option<&IUnknown>) -> ComR
     };
     Ok(ComRc::new(p))
 }
+
+#[inline]
+pub fn d3d12_serialize_root_signature(root_signature: &D3D12_ROOT_SIGNATURE_DESC,
+                                      version: D3D_ROOT_SIGNATURE_VERSION)
+                                      -> Result<(ComRc<ID3DBlob>, ComRc<ID3DBlob>), HRESULT> {
+    unsafe {
+        let mut p1: *mut ID3DBlob = null_mut();
+        let mut p2: *mut ID3DBlob = null_mut();
+        D3D12SerializeRootSignature(root_signature, version, &mut p1, &mut p2)
+            .hr()?;
+        Ok((ComRc::new(p1), ComRc::new(p2)))
+    }
+}
+
+
+//=====================================================================
+// Interface Extensions
+//=====================================================================
 
 pub trait IDXGIAdapter1Ext {
     fn get_desc1(&self) -> Result<DXGI_ADAPTER_DESC1, HRESULT>;
@@ -194,6 +228,11 @@ pub trait ID3D12DeviceExt {
     fn create_command_allocator<U: Interface>(&self,
                                               type_: D3D12_COMMAND_LIST_TYPE)
                                               -> ComResult<U>;
+    fn create_root_signature<U: Interface>(&self,
+                                           node_mask: UINT,
+                                           blob_with_root_signature: *const c_void,
+                                           blob_length_in_bytes: usize)
+                                           -> ComResult<U>;
 }
 impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
@@ -247,6 +286,25 @@ impl ID3D12DeviceExt for ID3D12Device {
         let p = unsafe {
             let mut ppv: *mut c_void = null_mut();
             self.CreateCommandAllocator(type_, &riid, &mut ppv)
+                .hr()?;
+            ppv as *const U
+        };
+        Ok(ComRc::new(p))
+    }
+    #[inline]
+    fn create_root_signature<U: Interface>(&self,
+                                           node_mask: UINT,
+                                           blob_with_root_signature: *const c_void,
+                                           blob_length_in_bytes: usize)
+                                           -> ComResult<U> {
+        let riid = U::uuidof();
+        let p = unsafe {
+            let mut ppv: *mut c_void = null_mut();
+            self.CreateRootSignature(node_mask,
+                                     blob_with_root_signature,
+                                     blob_length_in_bytes,
+                                     &riid,
+                                     &mut ppv)
                 .hr()?;
             ppv as *const U
         };
@@ -358,6 +416,28 @@ impl ID3D12DescriptorHeapExt for ID3D12DescriptorHeap {
         }
     }
 }
+
+pub trait ID3D10BlobExt {
+    fn get_buffer_pointer(&self) -> *const c_void;
+    fn get_buffer_size(&self) -> usize;
+}
+impl ID3D10BlobExt for ID3D10Blob {
+    #[inline]
+    fn get_buffer_pointer(&self) -> *const c_void {
+        unsafe { self.GetBufferPointer() }
+    }
+    #[inline]
+    fn get_buffer_size(&self) -> usize {
+        unsafe { self.GetBufferSize() }
+    }
+}
+
+
+
+//=====================================================================
+// Struct Extensions
+//=====================================================================
+
 
 #[allow(non_camel_case_types)]
 pub trait CD3DX12_CPU_DESCRIPTOR_HANDLE {
@@ -496,14 +576,4 @@ impl CD3DX12_ROOT_SIGNATURE_DESC for D3D12_ROOT_SIGNATURE_DESC {
             Flags: flags,
         }
     }
-}
-
-#[inline]
-fn slice_to_ptr<T>(s: &[T]) -> (UINT, *const T) {
-    let len = s.len() as UINT;
-    let p: *const T = match len {
-        0 => ptr::null(),
-        _ => &s[0],
-    };
-    (len, p)
 }
