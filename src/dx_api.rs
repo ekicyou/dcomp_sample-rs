@@ -484,8 +484,7 @@ pub trait CD3DX12_ROOT_PARAMETER {
                         register_space: UINT,
                         visibility: D3D12_SHADER_VISIBILITY)
                         -> D3D12_ROOT_PARAMETER;
-    fn new_as_descriptor_table(num_descriptor_ranges: UINT,
-                               descriptor_ranges: &D3D12_DESCRIPTOR_RANGE,
+    fn new_as_descriptor_table(descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE],
                                visibility: D3D12_SHADER_VISIBILITY)
                                -> D3D12_ROOT_PARAMETER;
 }
@@ -507,16 +506,14 @@ impl CD3DX12_ROOT_PARAMETER for D3D12_ROOT_PARAMETER {
     }
 
     #[inline]
-    fn new_as_descriptor_table(num_descriptor_ranges: UINT,
-                               descriptor_ranges: &D3D12_DESCRIPTOR_RANGE,
+    fn new_as_descriptor_table(descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE],
                                visibility: D3D12_SHADER_VISIBILITY)
                                -> D3D12_ROOT_PARAMETER {
         unsafe {
             let mut rc = mem::zeroed::<D3D12_ROOT_PARAMETER>();
             rc.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
             rc.ShaderVisibility = visibility;
-            rc.DescriptorTable_mut()
-                .init(num_descriptor_ranges, descriptor_ranges);
+            rc.DescriptorTable_mut().init(descriptor_ranges);
             rc
         }
     }
@@ -537,19 +534,14 @@ impl CD3DX12_ROOT_CONSTANTS for D3D12_ROOT_CONSTANTS {
 
 #[allow(non_camel_case_types)]
 pub trait CD3DX12_ROOT_DESCRIPTOR_TABLE {
-    fn init(&mut self,
-            num_descriptor_ranges: UINT,
-            descriptor_ranges: &D3D12_DESCRIPTOR_RANGE)
-            -> ();
+    fn init(&mut self, descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE]) -> ();
 }
 impl CD3DX12_ROOT_DESCRIPTOR_TABLE for D3D12_ROOT_DESCRIPTOR_TABLE {
     #[inline]
-    fn init(&mut self,
-            num_descriptor_ranges: UINT,
-            descriptor_ranges: &D3D12_DESCRIPTOR_RANGE)
-            -> () {
-        self.NumDescriptorRanges = num_descriptor_ranges;
-        self.pDescriptorRanges = descriptor_ranges;
+    fn init(&mut self, descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE]) -> () {
+        let (num, p) = slice_to_ptr(descriptor_ranges);
+        self.NumDescriptorRanges = num;
+        self.pDescriptorRanges = p;
     }
 }
 

@@ -170,8 +170,7 @@ impl DxModel {
                 let a =
                     D3D12_ROOT_PARAMETER::new_as_constants(1, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
                 let b =
-                    D3D12_ROOT_PARAMETER::new_as_descriptor_table(1,
-                                                                  &ranges[0],
+                    D3D12_ROOT_PARAMETER::new_as_descriptor_table(&ranges,
                                                                   D3D12_SHADER_VISIBILITY_PIXEL);
                 [a, b]
             };
@@ -196,8 +195,8 @@ impl DxModel {
 		        &root_parameters, 
                 &samplers, 
                 D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-            let (signature, error) = d3d12_serialize_root_signature(&desc,
-                                                                    D3D_ROOT_SIGNATURE_VERSION_1)?;
+            let (signature, _error) = d3d12_serialize_root_signature(&desc,
+                                                                     D3D_ROOT_SIGNATURE_VERSION_1)?;
             device
                 .create_root_signature::<ID3D12RootSignature>(0,
                                                               signature.get_buffer_pointer(),
