@@ -1,25 +1,25 @@
 #![allow(unused_unsafe)]
 #![allow(dead_code)]
+pub use com_rc::*;
+pub use unsafe_api::*;
 use winapi::Interface;
-use winapi::shared::windef::HWND;
-use winapi::_core::ptr::{self, null_mut};
 use winapi::_core::mem;
+use winapi::_core::ptr::{self, null_mut};
 use winapi::ctypes::c_void;
-use winapi::shared::winerror::{HRESULT, E_FAIL};
-use winapi::shared::minwindef::{BOOL, TRUE, FALSE, UINT, INT};
-use winapi::um::unknwnbase::IUnknown;
-
-pub use winapi::um::d3dcommon::*;
-pub use winapi::shared::dxgitype::*;
-pub use winapi::shared::dxgiformat::*;
 pub use winapi::shared::dxgi::*;
 pub use winapi::shared::dxgi1_2::*;
 pub use winapi::shared::dxgi1_4::*;
-pub use winapi::um::d3d12sdklayers::*;
+pub use winapi::shared::dxgiformat::*;
+pub use winapi::shared::dxgitype::*;
+use winapi::shared::minwindef::{BOOL, TRUE, FALSE, UINT, INT};
+use winapi::shared::ntdef::{LPCSTR, LPCWSTR};
+use winapi::shared::windef::HWND;
+use winapi::shared::winerror::{HRESULT, E_FAIL};
 pub use winapi::um::d3d12::*;
+pub use winapi::um::d3d12sdklayers::*;
+pub use winapi::um::d3dcommon::*;
 pub use winapi::um::dcomp::*;
-pub use unsafe_api::*;
-pub use com_rc::*;
+use winapi::um::unknwnbase::IUnknown;
 
 pub const DXGI_MWA_NO_WINDOW_CHANGES: UINT = (1 << 0);
 pub const DXGI_MWA_NO_ALT_ENTER: UINT = (1 << 1);
@@ -48,6 +48,31 @@ fn slice_to_ptr<T>(s: &[T]) -> (UINT, *const T) {
         _ => &s[0],
     };
     (len, p)
+}
+
+#[inline]
+fn opt_to_ptr<T>(src: Option<&T>) -> *const T {
+    match src {
+        Some(a) => a,
+        None => ptr::null(),
+    }
+}
+
+#[inline]
+fn to_utf16_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u16> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    OsStr::new(s.into())
+        .encode_wide()
+        .chain(Some(0).into_iter())
+        .collect::<Vec<_>>()
+}
+
+#[inline]
+fn to_utf8_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u8> {
+    let bytes = s.into().as_bytes();
+    let iter = bytes.into_iter();
+    iter.chain(Some(0_u8).into_iter()).collect::<Vec<_>>()
 }
 
 #[inline]
@@ -90,14 +115,11 @@ pub fn d3d12_get_debug_interface<U: Interface>() -> ComResult<U> {
 
 #[inline]
 pub fn dcomp_create_device<U: Interface>(dxgi_device: Option<&IUnknown>) -> ComResult<U> {
-    let src: *const IUnknown = match dxgi_device {
-        Some(a) => a,
-        None => ptr::null(),
-    };
     let riid = U::uuidof();
     let p = unsafe {
         let mut ppv: *mut c_void = null_mut();
-        DCompositionCreateDevice3(src, &riid, &mut ppv).hr()?;
+        DCompositionCreateDevice3(opt_to_ptr(dxgi_device), &riid, &mut ppv)
+            .hr()?;
         ppv as *const U
     };
     Ok(ComRc::new(p))
@@ -116,23 +138,32 @@ pub fn d3d12_serialize_root_signature(root_signature: &D3D12_ROOT_SIGNATURE_DESC
     }
 }
 
-
 #[inline]
-pub fn d3d_compile_from_file<S: IntoStr>(fileName: LPCWSTR,
-                                         pDefines: *const D3D_SHADER_MACRO,
-                                         pInclude: *mut ID3DInclude,
-                                         pEntrypoint: LPCSTR,
-                                         pTarget: LPCSTR,
-                                         Flags1: UINT,
-                                         Flags2: UINT,
-                                         ppCode: *mut *mut ID3DBlob,
-                                         ppErrorMsgs: *mut *mut ID3DBlob)
-                                         -> Result<(ComRc<ID3DBlob>, ComRc<ID3DBlob>), HRESULT> {
+pub fn d3d_compile_from_file<'a, S: Into<&'a str>>
+    (file_name: S,
+     defines: Option<&D3D_SHADER_MACRO>,
+     include: Option<&ID3DInclude>,
+     entrypoint: S,
+     target: S,
+     flags1: UINT,
+     flags2: UINT)
+     -> Result<(ComRc<ID3DBlob>, ComRc<ID3DBlob>), HRESULT> {
+    let file_name = to_utf16_chars(file_name);
+    let entrypoint = to_utf8_chars(entrypoint);
+    let target = to_utf8_chars(target);
     unsafe {
         let mut p1: *mut ID3DBlob = null_mut();
         let mut p2: *mut ID3DBlob = null_mut();
-        D3D12SerializeRootSignature(root_signature, version, &mut p1, &mut p2)
-            .hr()?;
+        D3DCompileFromFile(&file_name[0] as LPCWSTR,
+                           opt_to_ptr(defines),
+                           to_mut_ref(opt_to_ptr(include)),
+                           &entrypoint[0] as *const _ as LPCSTR,
+                           &target[0] as *const _ as LPCSTR,
+                           flags1,
+                           flags2,
+                           &mut p1,
+                           &mut p2)
+                .hr()?;
         Ok((ComRc::new(p1), ComRc::new(p2)))
     }
 }
@@ -289,13 +320,9 @@ impl ID3D12DeviceExt for ID3D12Device {
                                  desc: Option<&D3D12_RENDER_TARGET_VIEW_DESC>,
                                  dest_descriptor: D3D12_CPU_DESCRIPTOR_HANDLE)
                                  -> () {
-        let p_desc: *const D3D12_RENDER_TARGET_VIEW_DESC = match desc {
-            Some(p) => p,
-            _ => ptr::null(),
-        };
         unsafe {
             let p_resource = to_mut_ref(resource);
-            self.CreateRenderTargetView(p_resource, p_desc, dest_descriptor)
+            self.CreateRenderTargetView(p_resource, opt_to_ptr(desc), dest_descriptor)
         }
     }
     #[inline]

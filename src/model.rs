@@ -1,10 +1,10 @@
 #![allow(unused_unsafe)]
-use winit::{Window, EventsLoop};
+use super::dx_api::*;
+use super::hwnd_window::HwndWindow;
+use winapi::_core::mem;
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::HRESULT;
-use winapi::_core::mem;
-use super::hwnd_window::HwndWindow;
-use super::dx_api::*;
+use winit::{Window, EventsLoop};
 
 const FRAME_COUNT: u32 = 2;
 
@@ -221,15 +221,15 @@ impl DxModel {
                 }
             };
             let vertexShader = d3d_compile_from_file("shaders.hlsl",
-                                                     nullptr,
-                                                     nullptr,
+                                                     None,
+                                                     None,
                                                      "VSMain",
                                                      "vs_5_0",
                                                      compileFlags,
                                                      0)?;
             let pixelShader = d3d_compile_from_file("shaders.hlsl",
-                                                    nullptr,
-                                                    nullptr,
+                                                    None,
+                                                    None,
                                                     "PSMain",
                                                     "ps_5_0",
                                                     compileFlags,
