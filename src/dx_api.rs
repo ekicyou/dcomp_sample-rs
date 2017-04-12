@@ -1,7 +1,8 @@
 #![allow(unused_unsafe)]
 #![allow(dead_code)]
 pub use com_rc::*;
-pub use unsafe_api::*;
+use unsafe_api::*;
+use unsafe_util::*;
 use winapi::Interface;
 use winapi::_core::mem;
 use winapi::_core::ptr::{self, null_mut};
@@ -11,10 +12,10 @@ pub use winapi::shared::dxgi1_2::*;
 pub use winapi::shared::dxgi1_4::*;
 pub use winapi::shared::dxgiformat::*;
 pub use winapi::shared::dxgitype::*;
-use winapi::shared::minwindef::{BOOL, TRUE, FALSE, UINT, INT};
+use winapi::shared::minwindef::{BOOL, FALSE, INT, TRUE, UINT};
 use winapi::shared::ntdef::{LPCSTR, LPCWSTR};
 use winapi::shared::windef::HWND;
-use winapi::shared::winerror::{HRESULT, E_FAIL};
+use winapi::shared::winerror::{E_FAIL, HRESULT};
 pub use winapi::um::d3d12::*;
 pub use winapi::um::d3d12sdklayers::*;
 pub use winapi::um::d3dcommon::*;
@@ -29,51 +30,6 @@ pub const DXGI_MWA_VALID: UINT = (0x7);
 //=====================================================================
 // fn
 //=====================================================================
-
-#[allow(non_snake_case)]
-#[inline]
-fn BOOL(flag: bool) -> BOOL {
-    match flag {
-        false => FALSE,
-        true => TRUE,
-    }
-}
-
-
-#[inline]
-fn slice_to_ptr<T>(s: &[T]) -> (UINT, *const T) {
-    let len = s.len() as UINT;
-    let p: *const T = match len {
-        0 => ptr::null(),
-        _ => &s[0],
-    };
-    (len, p)
-}
-
-#[inline]
-fn opt_to_ptr<T>(src: Option<&T>) -> *const T {
-    match src {
-        Some(a) => a,
-        None => ptr::null(),
-    }
-}
-
-#[inline]
-fn to_utf16_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u16> {
-    use std::ffi::OsStr;
-    use std::os::windows::ffi::OsStrExt;
-    OsStr::new(s.into())
-        .encode_wide()
-        .chain(Some(0).into_iter())
-        .collect::<Vec<_>>()
-}
-
-#[inline]
-fn to_utf8_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u8> {
-    let bytes = s.into().as_bytes();
-    let iter = bytes.into_iter();
-    iter.chain(Some(0_u8).into_iter()).collect::<Vec<_>>()
-}
 
 #[inline]
 pub fn d3d12_create_device<U: Interface>(adapter: &IUnknown,

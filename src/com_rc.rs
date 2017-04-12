@@ -1,10 +1,10 @@
 #![allow(dead_code)]
+use winapi::Interface;
 use winapi::_core::ops::Deref;
 use winapi::_core::ptr::{self, null_mut};
 use winapi::ctypes::c_void;
-use winapi::Interface;
-use winapi::shared::wtypesbase::ULONG;
 use winapi::shared::winerror::{HRESULT, S_OK};
+use winapi::shared::wtypesbase::ULONG;
 use winapi::um::unknwnbase::IUnknown;
 
 pub type ComResult<U> = Result<ComRc<U>, HRESULT>;
@@ -122,14 +122,14 @@ impl<T: Interface> Clone for ComRc<T> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(unused_unsafe,non_snake_case,unused_variables,unused_mut)]
+#![allow(unused_unsafe,non_snake_case,unused_variables,unused_mut)]
+    use super::*;
     use winapi::ctypes::c_void;
     use winapi::shared::guiddef::REFIID;
+    use winapi::shared::winerror::{E_FAIL, HRESULT, S_OK};
     use winapi::shared::wtypesbase::ULONG;
-    use winapi::shared::winerror::{HRESULT, S_OK, E_FAIL};
-    use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
     use winapi::um::objidlbase::{ISequentialStream, ISequentialStreamVtbl};
-    use super::*;
+    use winapi::um::unknwnbase::{IUnknown, IUnknownVtbl};
 
     #[repr(C)]
     struct TestSequentialStream {

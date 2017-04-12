@@ -4,7 +4,7 @@ use super::hwnd_window::HwndWindow;
 use winapi::_core::mem;
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::HRESULT;
-use winit::{Window, EventsLoop};
+use winit::{EventsLoop, Window};
 
 const FRAME_COUNT: u32 = 2;
 

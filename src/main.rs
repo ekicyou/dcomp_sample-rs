@@ -3,16 +3,16 @@
 extern crate winapi;
 extern crate winit;
 
-//mod raw_com_if_sample;
 mod hwnd_window;
 mod com_rc;
 mod unsafe_api;
+mod unsafe_util;
 mod dx_api;
 mod model;
 
-use winapi::shared::winerror::HRESULT;
-use winit::{WindowBuilder, Event, EventsLoop, WindowEvent};
 use model::DxModel;
+use winapi::shared::winerror::HRESULT;
+use winit::{Event, EventsLoop, WindowBuilder, WindowEvent};
 
 fn main() {
     match run() {
