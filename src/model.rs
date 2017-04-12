@@ -226,6 +226,13 @@ impl DxModel {
             let pixel_shader =
                 d3d_compile_from_file(file, None, None, "PSMain", "ps_5_0", flags, 0)?;
 
+   		// Define the vertex input layout.
+        	let input_element_descs	=		{
+                let a = 
+			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+		};
+     
         };
 
 
