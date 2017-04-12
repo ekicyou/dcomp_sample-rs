@@ -210,7 +210,7 @@ impl DxModel {
 
         // Create the pipeline state, which includes compiling and loading shaders.
         {
-            let compileFlags: u32 = {
+            let flags: u32 = {
                 #[cfg(debug)]
                 {
                     D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION
@@ -220,20 +220,10 @@ impl DxModel {
                     0
                 }
             };
-            let vertexShader = d3d_compile_from_file("shaders.hlsl",
-                                                     None,
-                                                     None,
-                                                     "VSMain",
-                                                     "vs_5_0",
-                                                     compileFlags,
-                                                     0)?;
-            let pixelShader = d3d_compile_from_file("shaders.hlsl",
-                                                    None,
-                                                    None,
-                                                    "PSMain",
-                                                    "ps_5_0",
-                                                    compileFlags,
-                                                    0)?;
+            let vertex_shader =
+                d3d_compile_from_file("shaders.hlsl", None, None, "VSMain", "vs_5_0", flags, 0)?;
+            let pixel_shader =
+                d3d_compile_from_file("shaders.hlsl", None, None, "PSMain", "ps_5_0", flags, 0)?;
 
         };
 

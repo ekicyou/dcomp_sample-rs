@@ -12,7 +12,7 @@ pub use winapi::shared::dxgi1_2::*;
 pub use winapi::shared::dxgi1_4::*;
 pub use winapi::shared::dxgiformat::*;
 pub use winapi::shared::dxgitype::*;
-use winapi::shared::minwindef::{BOOL, FALSE, INT, TRUE, UINT};
+use winapi::shared::minwindef::{INT, UINT};
 use winapi::shared::ntdef::{LPCSTR, LPCWSTR};
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::{E_FAIL, HRESULT};
@@ -110,11 +110,11 @@ pub fn d3d_compile_from_file<'a, S: Into<&'a str>>
     unsafe {
         let mut p1: *mut ID3DBlob = null_mut();
         let mut p2: *mut ID3DBlob = null_mut();
-        D3DCompileFromFile(&file_name[0] as LPCWSTR,
+        D3DCompileFromFile(file_name.as_ptr() as LPCWSTR,
                            opt_to_ptr(defines),
                            to_mut_ref(opt_to_ptr(include)),
-                           &entrypoint[0] as *const _ as LPCSTR,
-                           &target[0] as *const _ as LPCSTR,
+                           entrypoint.as_ptr() as LPCSTR,
+                           target.as_ptr() as LPCSTR,
                            flags1,
                            flags2,
                            &mut p1,

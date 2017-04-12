@@ -42,7 +42,7 @@ extern "system" {
     pub fn DXGIGetDebugInterface1(Flags: UINT, riid: REFIID, pDebug: *mut *mut c_void) -> HRESULT;
 }
 
-#[link(name = "d3dcompiler_47")]
+#[link(name = "d3dcompiler")]
 extern "system" {
     pub fn D3DCompile(pSrcData: LPCVOID,
                       SrcDataSize: SIZE_T,

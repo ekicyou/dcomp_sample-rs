@@ -1,19 +1,20 @@
 #![allow(unused_unsafe)]
-use winapi::shared::minwindef::BOOL;
-use winapi::shared::minwindef::FALSE;
+use std::ffi::OsStr;
+use std::os::windows::ffi::OsStrExt;
+use winapi::_core::ptr;
+use winapi::shared::minwindef::{BOOL, FALSE, TRUE, UINT};
 
 #[allow(non_snake_case)]
 #[inline]
-fn BOOL(flag: bool) -> BOOL {
+pub fn BOOL(flag: bool) -> BOOL {
     match flag {
         false => FALSE,
         true => TRUE,
     }
 }
 
-
 #[inline]
-fn slice_to_ptr<T>(s: &[T]) -> (UINT, *const T) {
+pub fn slice_to_ptr<T>(s: &[T]) -> (UINT, *const T) {
     let len = s.len() as UINT;
     let p: *const T = match len {
         0 => ptr::null(),
@@ -23,7 +24,7 @@ fn slice_to_ptr<T>(s: &[T]) -> (UINT, *const T) {
 }
 
 #[inline]
-fn opt_to_ptr<T>(src: Option<&T>) -> *const T {
+pub fn opt_to_ptr<T>(src: Option<&T>) -> *const T {
     match src {
         Some(a) => a,
         None => ptr::null(),
@@ -31,9 +32,7 @@ fn opt_to_ptr<T>(src: Option<&T>) -> *const T {
 }
 
 #[inline]
-fn to_utf16_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u16> {
-    use std::ffi::OsStr;
-    use std::os::windows::ffi::OsStrExt;
+pub fn to_utf16_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u16> {
     OsStr::new(s.into())
         .encode_wide()
         .chain(Some(0).into_iter())
@@ -41,8 +40,8 @@ fn to_utf16_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u16> {
 }
 
 #[inline]
-fn to_utf8_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u8> {
-    let bytes = s.into().as_bytes();
-    let iter = bytes.into_iter();
-    iter.chain(Some(0_u8).into_iter()).collect::<Vec<_>>()
+pub fn to_utf8_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u8> {
+    let mut v = s.into().as_bytes().to_vec();
+    v.push(0);
+    v
 }
