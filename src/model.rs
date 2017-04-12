@@ -220,10 +220,11 @@ impl DxModel {
                     0
                 }
             };
+            let file = "resources\\shaders.hlsl";
             let vertex_shader =
-                d3d_compile_from_file("shaders.hlsl", None, None, "VSMain", "vs_5_0", flags, 0)?;
+                d3d_compile_from_file(file, None, None, "VSMain", "vs_5_0", flags, 0)?;
             let pixel_shader =
-                d3d_compile_from_file("shaders.hlsl", None, None, "PSMain", "ps_5_0", flags, 0)?;
+                d3d_compile_from_file(file, None, None, "PSMain", "ps_5_0", flags, 0)?;
 
         };
 
@@ -232,18 +233,6 @@ impl DxModel {
         /*
 	// Create the pipeline state, which includes compiling and loading shaders.
 	{
-		ComPtr<ID3DBlob> vertexShader;
-		ComPtr<ID3DBlob> pixelShader;
-
-#if defined(_DEBUG)
-		// Enable better shader debugging with the graphics debugging tools.
-		UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#else
-		UINT compileFlags = 0;
-#endif
-
-		ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"shaders.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr));
-		ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"shaders.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr));
 
 		// Define the vertex input layout.
 		D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =

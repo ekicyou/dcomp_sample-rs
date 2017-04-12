@@ -33,15 +33,22 @@ pub fn opt_to_ptr<T>(src: Option<&T>) -> *const T {
 
 #[inline]
 pub fn to_utf16_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u16> {
-    OsStr::new(s.into())
+    let s = s.into();
+    println!("to_utf16_chars({})", s);
+    let v = OsStr::new(s)
         .encode_wide()
         .chain(Some(0).into_iter())
-        .collect::<Vec<_>>()
+        .collect::<Vec<_>>();
+    println!(" --> {:?}", v);
+    v
 }
 
 #[inline]
 pub fn to_utf8_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u8> {
-    let mut v = s.into().as_bytes().to_vec();
+    let s = s.into();
+    println!("to_utf8_chars({})", s);
+    let mut v = s.as_bytes().to_vec();
     v.push(0);
+    println!(" --> {:?}", v);
     v
 }
