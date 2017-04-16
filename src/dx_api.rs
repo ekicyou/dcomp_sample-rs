@@ -598,3 +598,18 @@ impl D3D12_INPUT_ELEMENT_DESC_EXT for D3D12_INPUT_ELEMENT_DESC {
         }
     }
 }
+
+#[allow(non_camel_case_types)]
+pub trait D3D12_INPUT_LAYOUT_DESC_EXT {
+    fn layout(&self) -> D3D12_INPUT_LAYOUT_DESC;
+}
+impl D3D12_INPUT_LAYOUT_DESC_EXT for &[D3D12_INPUT_ELEMENT_DESC] {
+    #[inline]
+    fn layout(self) -> D3D12_INPUT_LAYOUT_DESC {
+        let (len, p) = slice_to_ptr(self);
+        D3D12_INPUT_LAYOUT_DESC {
+            pInputElementDescs: p,
+            NumElements: len,
+        }
+    }
+}

@@ -229,7 +229,7 @@ impl DxModel {
                 d3d_compile_from_file(file, None, None, "PSMain", "ps_5_0", flags, 0)?;
 
             // Define the vertex input layout.
-            let inputElementDescs = {
+            let input_element_descs = {
                 let a = D3D12_INPUT_ELEMENT_DESC::new(*POSITION,
                                                       0,
                                                       DXGI_FORMAT_R32G32B32_FLOAT,
@@ -265,6 +265,25 @@ impl DxModel {
                 desc
             };
 
+            // Describe and create the graphics pipeline state object (PSO).
+            let pso_desc = {
+                let mut desc: D3D12_GRAPHICS_PIPELINE_STATE_DESC = unsafe { mem::zeroed() };
+                desc.InputLayout = input_element_descs.layout();
+                desc.pRootSignature = to_mut_ref(root_signature);
+                desc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
+                desc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
+                desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+                desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+                desc.BlendState = AlphaBlend;
+                desc.DepthStencilState.DepthEnable = FALSE;
+                desc.DepthStencilState.StencilEnable = FALSE;
+                desc.SampleMask = UINT_MAX;
+                desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+                desc.NumRenderTargets = 1;
+                desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+                desc.SampleDesc.Count = 1;
+                desc
+            };
 
         };
 
@@ -274,26 +293,6 @@ impl DxModel {
 	// Create the pipeline state, which includes compiling and loading shaders.
 	{
 
-
-
-        const D3D12_BLEND_DESC AlphaBlend =
-        {
-            FALSE, // AlphaToCoverageEnable
-            FALSE, // IndependentBlendEnable
-            {
-                TRUE, // BlendEnable
-                FALSE, // LogicOpEnable
-            D3D12_BLEND_ONE, // SrcBlend
-            D3D12_BLEND_INV_SRC_ALPHA, // DestBlend
-            D3D12_BLEND_OP_ADD, // BlendOp
-            D3D12_BLEND_ONE, // SrcBlendAlpha
-            D3D12_BLEND_INV_SRC_ALPHA, // DestBlendAlpha
-            D3D12_BLEND_OP_ADD, // BlendOpAlpha
-            D3D12_LOGIC_OP_CLEAR, // LogicOp
-            D3D12_COLOR_WRITE_ENABLE_ALL // RenderTargetWriteMask
-            }
-        };
-        
         // Describe and create the graphics pipeline state object (PSO).
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
