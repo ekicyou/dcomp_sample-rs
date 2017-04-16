@@ -4,6 +4,7 @@ use super::hwnd_window::HwndWindow;
 use std;
 use std::ffi::CStr;
 use winapi::_core::mem;
+use winapi::shared::minwindef::{FALSE, TRUE};
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::HRESULT;
 use winit::{EventsLoop, Window};
@@ -245,6 +246,25 @@ impl DxModel {
                                                       0);
                 [a, b]
             };
+            let alpha_blend = {
+                let mut desc: D3D12_BLEND_DESC = unsafe { mem::zeroed() };
+                desc.AlphaToCoverageEnable = FALSE;
+                desc.IndependentBlendEnable = FALSE;
+                desc.RenderTarget[0] = D3D12_RENDER_TARGET_BLEND_DESC {
+                    BlendEnable: TRUE,
+                    LogicOpEnable: FALSE,
+                    SrcBlend: D3D12_BLEND_ONE,
+                    DestBlend: D3D12_BLEND_INV_SRC_ALPHA,
+                    BlendOp: D3D12_BLEND_OP_ADD,
+                    SrcBlendAlpha: D3D12_BLEND_ONE,
+                    DestBlendAlpha: D3D12_BLEND_INV_SRC_ALPHA,
+                    BlendOpAlpha: D3D12_BLEND_OP_ADD,
+                    LogicOp: D3D12_LOGIC_OP_CLEAR,
+                    RenderTargetWriteMask: D3D12_COLOR_WRITE_ENABLE_ALL as u8,
+                };
+                desc
+            };
+
 
         };
 
