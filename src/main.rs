@@ -2,6 +2,10 @@
 
 extern crate winapi;
 extern crate winit;
+#[macro_use]
+extern crate c_string;
+#[macro_use]
+extern crate lazy_static;
 
 mod hwnd_window;
 mod com_rc;
