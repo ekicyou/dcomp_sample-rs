@@ -1,7 +1,6 @@
 #![allow(unused_unsafe)]
 use super::dx_api::*;
 use super::hwnd_window::HwndWindow;
-use std;
 use winapi::_core::mem;
 use winapi::shared::minwindef::{FALSE, TRUE};
 use winapi::shared::windef::HWND;
@@ -52,6 +51,8 @@ pub struct DxModel {
 
     // D3D12 Assets
     root_signature: ComRc<ID3D12RootSignature>,
+    pipeline_state: ComRc<ID3D12PipelineState>,
+    command_list: ComRc<ID3D12GraphicsCommandList>,
 }
 
 impl DxModel {
@@ -221,7 +222,7 @@ impl DxModel {
         };
 
         // Create the pipeline state, which includes compiling and loading shaders.
-        {
+        let pipeline_state = {
             let flags: u32 = {
                 #[cfg(debug)]
                 {
@@ -294,33 +295,17 @@ impl DxModel {
                 desc.SampleDesc.Count = 1;
                 desc
             };
-
+            device.create_graphics_pipeline_state(&pso_desc)?
         };
 
-
+        // Create the command list.
+        let command_list = device
+            .create_command_list(0,
+                                 D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                 &command_allocator,
+                                 &pipeline_state)?;
 
         /*
-	// Create the pipeline state, which includes compiling and loading shaders.
-	{
-
-        // Describe and create the graphics pipeline state object (PSO).
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
-		psoDesc.pRootSignature = m_rootSignature.Get();
-		psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
-		psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
-		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-        psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-        psoDesc.BlendState = AlphaBlend;
-		psoDesc.DepthStencilState.DepthEnable = FALSE;
-		psoDesc.DepthStencilState.StencilEnable = FALSE;
-		psoDesc.SampleMask = UINT_MAX;
-		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		psoDesc.NumRenderTargets = 1;
-		psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-		psoDesc.SampleDesc.Count = 1;
-		ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
-	}
 
 	// Create the command list.
 	ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
@@ -517,6 +502,8 @@ impl DxModel {
                render_targets: render_targets,
                command_allocator: command_allocator,
                root_signature: root_signature,
+               pipeline_state: pipeline_state,
+               command_list: command_list,
            })
     }
 

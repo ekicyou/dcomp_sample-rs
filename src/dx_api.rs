@@ -22,7 +22,6 @@ pub use winapi::um::d3d12sdklayers::*;
 pub use winapi::um::d3dcommon::*;
 pub use winapi::um::dcomp::*;
 use winapi::um::unknwnbase::IUnknown;
-use winapi::vc::limits::UINT_MAX;
 
 pub const DXGI_MWA_NO_WINDOW_CHANGES: UINT = (1 << 0);
 pub const DXGI_MWA_NO_ALT_ENTER: UINT = (1 << 1);
@@ -242,6 +241,15 @@ pub trait ID3D12DeviceExt {
                                            blob_with_root_signature: *const c_void,
                                            blob_length_in_bytes: usize)
                                            -> ComResult<U>;
+    fn create_graphics_pipeline_state<U: Interface>(&self,
+                                                    desc: &D3D12_GRAPHICS_PIPELINE_STATE_DESC)
+                                                    -> ComResult<U>;
+    fn create_command_list<U: Interface>(&self,
+                                         node_mask: UINT,
+                                         list_type: D3D12_COMMAND_LIST_TYPE,
+                                         command_allocator: &ID3D12CommandAllocator,
+                                         initial_state: &ID3D12PipelineState)
+                                         -> ComResult<U>;
 }
 impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
@@ -310,6 +318,40 @@ impl ID3D12DeviceExt for ID3D12Device {
                                      blob_length_in_bytes,
                                      &riid,
                                      &mut ppv)
+                .hr()?;
+            ppv as *const U
+        };
+        Ok(ComRc::new(p))
+    }
+    #[inline]
+    fn create_graphics_pipeline_state<U: Interface>(&self,
+                                                    desc: &D3D12_GRAPHICS_PIPELINE_STATE_DESC)
+                                                    -> ComResult<U> {
+        let riid = U::uuidof();
+        let p = unsafe {
+            let mut ppv: *mut c_void = null_mut();
+            self.CreateGraphicsPipelineState(desc, &riid, &mut ppv)
+                .hr()?;
+            ppv as *const U
+        };
+        Ok(ComRc::new(p))
+    }
+    #[inline]
+    fn create_command_list<U: Interface>(&self,
+                                         node_mask: UINT,
+                                         list_type: D3D12_COMMAND_LIST_TYPE,
+                                         command_allocator: &ID3D12CommandAllocator,
+                                         initial_state: &ID3D12PipelineState)
+                                         -> ComResult<U> {
+        let riid = U::uuidof();
+        let p = unsafe {
+            let mut ppv: *mut c_void = null_mut();
+            self.CreateCommandList(node_mask,
+                                   list_type,
+                                   to_mut_ptr(command_allocator),
+                                   to_mut_ptr(initial_state),
+                                   &riid,
+                                   &mut ppv)
                 .hr()?;
             ppv as *const U
         };
