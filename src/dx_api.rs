@@ -13,7 +13,8 @@ pub use winapi::shared::dxgi1_2::*;
 pub use winapi::shared::dxgi1_4::*;
 pub use winapi::shared::dxgiformat::*;
 pub use winapi::shared::dxgitype::*;
-use winapi::shared::minwindef::{INT, UINT};
+use winapi::vc::limits::UINT_MAX;
+use winapi::shared::minwindef::{INT, UINT,FALSE,TRUE};
 use winapi::shared::ntdef::{LPCSTR, LPCWSTR};
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::{E_FAIL, HRESULT};
@@ -39,7 +40,8 @@ pub fn d3d12_create_device<U: Interface>(adapter: &IUnknown,
     let riid = U::uuidof();
     let p = unsafe {
         let mut ppv: *mut c_void = null_mut();
-        D3D12CreateDevice(adapter, minimum_feature_level, &riid, &mut ppv).hr()?;
+        D3D12CreateDevice(adapter, minimum_feature_level, &riid, &mut ppv)
+            .hr()?;
         ppv as *const U
     };
     Ok(ComRc::new(p))
@@ -74,7 +76,8 @@ pub fn dcomp_create_device<U: Interface>(dxgi_device: Option<&IUnknown>) -> ComR
     let riid = U::uuidof();
     let p = unsafe {
         let mut ppv: *mut c_void = null_mut();
-        DCompositionCreateDevice3(opt_to_ptr(dxgi_device), &riid, &mut ppv).hr()?;
+        DCompositionCreateDevice3(opt_to_ptr(dxgi_device), &riid, &mut ppv)
+            .hr()?;
         ppv as *const U
     };
     Ok(ComRc::new(p))
@@ -87,7 +90,8 @@ pub fn d3d12_serialize_root_signature(root_signature: &D3D12_ROOT_SIGNATURE_DESC
     unsafe {
         let mut p1: *mut ID3DBlob = null_mut();
         let mut p2: *mut ID3DBlob = null_mut();
-        D3D12SerializeRootSignature(root_signature, version, &mut p1, &mut p2).hr()?;
+        D3D12SerializeRootSignature(root_signature, version, &mut p1, &mut p2)
+            .hr()?;
         Ok((ComRc::new(p1), ComRc::new(p2)))
     }
 }
@@ -116,7 +120,8 @@ pub fn d3d_compile_from_file<'a, S: Into<&'a str>>
                            flags1,
                            flags2,
                            &mut p1,
-                           &mut p2).hr()?;
+                           &mut p2)
+                .hr()?;
         Ok((ComRc::new(p1), ComRc::new(p2)))
     }
 }
@@ -210,7 +215,8 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
     }
     #[inline]
     fn d3d12_create_best_device(&self) -> ComResult<ID3D12Device> {
-        self.d3d12_create_hardware_device().or_else(|_| self.d3d12_create_warp_device())
+        self.d3d12_create_hardware_device()
+            .or_else(|_| self.d3d12_create_warp_device())
     }
 }
 
@@ -284,7 +290,8 @@ impl ID3D12DeviceExt for ID3D12Device {
         let riid = U::uuidof();
         let p = unsafe {
             let mut ppv: *mut c_void = null_mut();
-            self.CreateCommandAllocator(type_, &riid, &mut ppv).hr()?;
+            self.CreateCommandAllocator(type_, &riid, &mut ppv)
+                .hr()?;
             ppv as *const U
         };
         Ok(ComRc::new(p))
@@ -325,7 +332,8 @@ impl IDCompositionDeviceExt for IDCompositionDevice {
     fn create_target_for_hwnd(&self, hwnd: HWND, topmost: bool) -> ComResult<IDCompositionTarget> {
         unsafe {
             let mut p: *mut IDCompositionTarget = ptr::null_mut();
-            self.CreateTargetForHwnd(hwnd, BOOL(topmost), &mut p).hr()?;
+            self.CreateTargetForHwnd(hwnd, BOOL(topmost), &mut p)
+                .hr()?;
             Ok(ComRc::new(p))
         }
     }
@@ -496,7 +504,8 @@ impl CD3DX12_ROOT_PARAMETER for D3D12_ROOT_PARAMETER {
             let mut rc = mem::zeroed::<D3D12_ROOT_PARAMETER>();
             rc.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
             rc.ShaderVisibility = visibility;
-            rc.Constants_mut().init(num32_bit_values, shader_register, register_space);
+            rc.Constants_mut()
+                .init(num32_bit_values, shader_register, register_space);
             rc
         }
     }
@@ -603,7 +612,7 @@ impl D3D12_INPUT_ELEMENT_DESC_EXT for D3D12_INPUT_ELEMENT_DESC {
 pub trait D3D12_INPUT_LAYOUT_DESC_EXT {
     fn layout(&self) -> D3D12_INPUT_LAYOUT_DESC;
 }
-impl D3D12_INPUT_LAYOUT_DESC_EXT for &[D3D12_INPUT_ELEMENT_DESC] {
+impl D3D12_INPUT_LAYOUT_DESC_EXT for & [D3D12_INPUT_ELEMENT_DESC] {
     #[inline]
     fn layout(self) -> D3D12_INPUT_LAYOUT_DESC {
         let (len, p) = slice_to_ptr(self);
@@ -613,3 +622,43 @@ impl D3D12_INPUT_LAYOUT_DESC_EXT for &[D3D12_INPUT_ELEMENT_DESC] {
         }
     }
 }
+
+#[allow(non_camel_case_types)]
+pub trait CD3DX12_SHADER_BYTECODE {
+    fn new(blob: &ID3DBlob) -> D3D12_SHADER_BYTECODE;
+}
+impl CD3DX12_SHADER_BYTECODE for D3D12_SHADER_BYTECODE {
+    #[inline]
+    fn new(blob: &ID3DBlob) -> D3D12_SHADER_BYTECODE {
+        unsafe {
+            D3D12_SHADER_BYTECODE {
+                pShaderBytecode: blob.GetBufferPointer(),
+                BytecodeLength: blob.GetBufferSize(),
+            }
+        }
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub trait CD3DX12_RASTERIZER_DESC {
+    fn default() -> D3D12_RASTERIZER_DESC;
+}
+impl CD3DX12_RASTERIZER_DESC for D3D12_RASTERIZER_DESC {
+    #[inline]
+    fn default() -> D3D12_RASTERIZER_DESC{
+            D3D12_RASTERIZER_DESC {
+        FillMode : D3D12_FILL_MODE_SOLID,
+        CullMode : D3D12_CULL_MODE_BACK,
+        FrontCounterClockwise : FALSE,
+        DepthBias : D3D12_DEFAULT_DEPTH_BIAS,
+        DepthBiasClamp : D3D12_DEFAULT_DEPTH_BIAS_CLAMP,
+        SlopeScaledDepthBias : D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS,
+        DepthClipEnable : TRUE,
+        MultisampleEnable : FALSE,
+        AntialiasedLineEnable : FALSE,
+        ForcedSampleCount : 0,
+        ConservativeRaster : D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF,
+        }
+    }
+}
+

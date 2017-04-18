@@ -2,18 +2,22 @@
 use super::dx_api::*;
 use super::hwnd_window::HwndWindow;
 use std;
-use std::ffi::CStr;
 use winapi::_core::mem;
 use winapi::shared::minwindef::{FALSE, TRUE};
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::HRESULT;
+use winapi::vc::limits::UINT_MAX;
 use winit::{EventsLoop, Window};
 
 const FRAME_COUNT: u32 = 2;
 
-lazy_static! {
-    static ref POSITION: &'static CStr = c_str!("POSITION");
-    static ref TEXCOORD: &'static CStr = c_str!("TEXCOORD");
+mod t {
+    use std;
+    use std::ffi::CStr;
+    lazy_static! {
+        pub static ref POSITION: &'static CStr = c_str!("POSITION");
+        pub static ref TEXCOORD: &'static CStr = c_str!("TEXCOORD");
+    }
 }
 
 impl HwndWindow for Window {
@@ -108,7 +112,8 @@ impl DxModel {
                 Scaling: 0,
                 Stereo: 0,
             };
-            factory.create_swap_chain_for_composition(&command_queue, &desc)?
+            factory
+                .create_swap_chain_for_composition(&command_queue, &desc)?
                 .query_interface::<IDXGISwapChain3>()?
         };
 
@@ -121,7 +126,8 @@ impl DxModel {
         dc_dev.commit()?;
 
         // このサンプルはフルスクリーンへの遷移をサポートしません。
-        factory.make_window_association(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
+        factory
+            .make_window_association(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
         let frame_index = swap_chain.get_current_back_buffer_index();
 
         // Create descriptor heaps.
@@ -133,7 +139,8 @@ impl DxModel {
                 Flags: D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
                 NodeMask: 0,
             };
-            device.create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
+            device
+                .create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
         };
 
         // Describe and create a shader resource view (SRV) heap for the texture.
@@ -144,7 +151,8 @@ impl DxModel {
                 Flags: D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
                 NodeMask: 0,
             };
-            device.create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
+            device
+                .create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
         };
         let rtv_descriptor_size =
             device.get_descriptor_handle_increment_size(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -162,7 +170,8 @@ impl DxModel {
             targets
         };
         // コマンドアロケータ
-        let command_allocator = device.create_command_allocator(D3D12_COMMAND_LIST_TYPE_DIRECT)?;
+        let command_allocator = device
+            .create_command_allocator(D3D12_COMMAND_LIST_TYPE_DIRECT)?;
 
 
         //------------------------------------------------------------------
@@ -205,9 +214,10 @@ impl DxModel {
                 D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
             let (signature, _error) = d3d12_serialize_root_signature(&desc,
                                                                      D3D_ROOT_SIGNATURE_VERSION_1)?;
-            device.create_root_signature::<ID3D12RootSignature>(0,
-                                                                signature.get_buffer_pointer(),
-                                                                signature.get_buffer_size())?
+            device
+                .create_root_signature::<ID3D12RootSignature>(0,
+                                                              signature.get_buffer_pointer(),
+                                                              signature.get_buffer_size())?
         };
 
         // Create the pipeline state, which includes compiling and loading shaders.
@@ -230,14 +240,14 @@ impl DxModel {
 
             // Define the vertex input layout.
             let input_element_descs = {
-                let a = D3D12_INPUT_ELEMENT_DESC::new(*POSITION,
+                let a = D3D12_INPUT_ELEMENT_DESC::new(*t::POSITION,
                                                       0,
                                                       DXGI_FORMAT_R32G32B32_FLOAT,
                                                       0,
                                                       0,
                                                       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                                                       0);
-                let b = D3D12_INPUT_ELEMENT_DESC::new(*TEXCOORD,
+                let b = D3D12_INPUT_ELEMENT_DESC::new(*t::TEXCOORD,
                                                       0,
                                                       DXGI_FORMAT_R32G32_FLOAT,
                                                       0,
@@ -270,11 +280,11 @@ impl DxModel {
                 let mut desc: D3D12_GRAPHICS_PIPELINE_STATE_DESC = unsafe { mem::zeroed() };
                 desc.InputLayout = input_element_descs.layout();
                 desc.pRootSignature = to_mut_ref(root_signature);
-                desc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
-                desc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
-                desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+                desc.VS = D3D12_SHADER_BYTECODE::new(vertex_shader);
+                desc.PS = D3D12_SHADER_BYTECODE::new(pixel_shader);
+                desc.RasterizerState = D3D12_RASTERIZER_DESC::default();
                 desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-                desc.BlendState = AlphaBlend;
+                desc.BlendState = alpha_blend;
                 desc.DepthStencilState.DepthEnable = FALSE;
                 desc.DepthStencilState.StencilEnable = FALSE;
                 desc.SampleMask = UINT_MAX;
