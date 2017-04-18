@@ -233,9 +233,9 @@ impl DxModel {
                 }
             };
             let file = "resources\\shaders.hlsl";
-            let vertex_shader =
+            let (vertex_shader, _) =
                 d3d_compile_from_file(file, None, None, "VSMain", "vs_5_0", flags, 0)?;
-            let pixel_shader =
+            let (pixel_shader, _) =
                 d3d_compile_from_file(file, None, None, "PSMain", "ps_5_0", flags, 0)?;
 
             // Define the vertex input layout.
@@ -279,9 +279,9 @@ impl DxModel {
             let pso_desc = {
                 let mut desc: D3D12_GRAPHICS_PIPELINE_STATE_DESC = unsafe { mem::zeroed() };
                 desc.InputLayout = input_element_descs.layout();
-                desc.pRootSignature = to_mut_ref(root_signature);
-                desc.VS = D3D12_SHADER_BYTECODE::new(vertex_shader);
-                desc.PS = D3D12_SHADER_BYTECODE::new(pixel_shader);
+                desc.pRootSignature = to_mut_ptr(root_signature.as_ptr());
+                desc.VS = D3D12_SHADER_BYTECODE::new(&vertex_shader);
+                desc.PS = D3D12_SHADER_BYTECODE::new(&pixel_shader);
                 desc.RasterizerState = D3D12_RASTERIZER_DESC::default();
                 desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
                 desc.BlendState = alpha_blend;

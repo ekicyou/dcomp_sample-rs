@@ -24,7 +24,7 @@ impl HresultMapping for HRESULT {
 }
 
 #[inline]
-pub fn to_mut_ref<T>(p: *const T) -> *mut T {
+pub fn to_mut_ptr<T>(p: *const T) -> *mut T {
     p as *mut _
 }
 
@@ -88,6 +88,10 @@ impl<T: Interface> ComRc<T> {
             return 0;
         }
         unsafe { self.unknown().Release() }
+    }
+    #[inline]
+    pub fn as_ptr(&self) -> *const T {
+        self.raw
     }
 }
 

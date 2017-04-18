@@ -13,8 +13,7 @@ pub use winapi::shared::dxgi1_2::*;
 pub use winapi::shared::dxgi1_4::*;
 pub use winapi::shared::dxgiformat::*;
 pub use winapi::shared::dxgitype::*;
-use winapi::vc::limits::UINT_MAX;
-use winapi::shared::minwindef::{INT, UINT,FALSE,TRUE};
+use winapi::shared::minwindef::{FALSE, INT, TRUE, UINT};
 use winapi::shared::ntdef::{LPCSTR, LPCWSTR};
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::{E_FAIL, HRESULT};
@@ -23,6 +22,7 @@ pub use winapi::um::d3d12sdklayers::*;
 pub use winapi::um::d3dcommon::*;
 pub use winapi::um::dcomp::*;
 use winapi::um::unknwnbase::IUnknown;
+use winapi::vc::limits::UINT_MAX;
 
 pub const DXGI_MWA_NO_WINDOW_CHANGES: UINT = (1 << 0);
 pub const DXGI_MWA_NO_ALT_ENTER: UINT = (1 << 1);
@@ -114,7 +114,7 @@ pub fn d3d_compile_from_file<'a, S: Into<&'a str>>
         let mut p2: *mut ID3DBlob = null_mut();
         D3DCompileFromFile(file_name.as_ptr() as LPCWSTR,
                            opt_to_ptr(defines),
-                           to_mut_ref(opt_to_ptr(include)),
+                           to_mut_ptr(opt_to_ptr(include)),
                            entrypoint.as_ptr() as LPCSTR,
                            target.as_ptr() as LPCSTR,
                            flags1,
@@ -184,7 +184,7 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
                                          -> ComResult<IDXGISwapChain1> {
         unsafe {
             let mut p = ptr::null_mut();
-            self.CreateSwapChainForComposition(to_mut_ref(device), desc, ptr::null_mut(), &mut p)
+            self.CreateSwapChainForComposition(to_mut_ptr(device), desc, ptr::null_mut(), &mut p)
                 .hr()?;
             Ok(ComRc::new(p))
         }
@@ -279,7 +279,7 @@ impl ID3D12DeviceExt for ID3D12Device {
                                  dest_descriptor: D3D12_CPU_DESCRIPTOR_HANDLE)
                                  -> () {
         unsafe {
-            let p_resource = to_mut_ref(resource);
+            let p_resource = to_mut_ptr(resource);
             self.CreateRenderTargetView(p_resource, opt_to_ptr(desc), dest_descriptor)
         }
     }
@@ -612,10 +612,10 @@ impl D3D12_INPUT_ELEMENT_DESC_EXT for D3D12_INPUT_ELEMENT_DESC {
 pub trait D3D12_INPUT_LAYOUT_DESC_EXT {
     fn layout(&self) -> D3D12_INPUT_LAYOUT_DESC;
 }
-impl D3D12_INPUT_LAYOUT_DESC_EXT for & [D3D12_INPUT_ELEMENT_DESC] {
+impl D3D12_INPUT_LAYOUT_DESC_EXT for [D3D12_INPUT_ELEMENT_DESC] {
     #[inline]
-    fn layout(self) -> D3D12_INPUT_LAYOUT_DESC {
-        let (len, p) = slice_to_ptr(self);
+    fn layout(&self) -> D3D12_INPUT_LAYOUT_DESC {
+        let (len, p) = slice_to_ptr(&self);
         D3D12_INPUT_LAYOUT_DESC {
             pInputElementDescs: p,
             NumElements: len,
@@ -645,20 +645,19 @@ pub trait CD3DX12_RASTERIZER_DESC {
 }
 impl CD3DX12_RASTERIZER_DESC for D3D12_RASTERIZER_DESC {
     #[inline]
-    fn default() -> D3D12_RASTERIZER_DESC{
-            D3D12_RASTERIZER_DESC {
-        FillMode : D3D12_FILL_MODE_SOLID,
-        CullMode : D3D12_CULL_MODE_BACK,
-        FrontCounterClockwise : FALSE,
-        DepthBias : D3D12_DEFAULT_DEPTH_BIAS,
-        DepthBiasClamp : D3D12_DEFAULT_DEPTH_BIAS_CLAMP,
-        SlopeScaledDepthBias : D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS,
-        DepthClipEnable : TRUE,
-        MultisampleEnable : FALSE,
-        AntialiasedLineEnable : FALSE,
-        ForcedSampleCount : 0,
-        ConservativeRaster : D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF,
+    fn default() -> D3D12_RASTERIZER_DESC {
+        D3D12_RASTERIZER_DESC {
+            FillMode: D3D12_FILL_MODE_SOLID,
+            CullMode: D3D12_CULL_MODE_BACK,
+            FrontCounterClockwise: FALSE,
+            DepthBias: D3D12_DEFAULT_DEPTH_BIAS as INT,
+            DepthBiasClamp: D3D12_DEFAULT_DEPTH_BIAS_CLAMP,
+            SlopeScaledDepthBias: D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS,
+            DepthClipEnable: TRUE,
+            MultisampleEnable: FALSE,
+            AntialiasedLineEnable: FALSE,
+            ForcedSampleCount: 0,
+            ConservativeRaster: D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF,
         }
     }
 }
-
