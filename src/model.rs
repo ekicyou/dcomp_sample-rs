@@ -322,6 +322,16 @@ impl DxModel {
                          Vertex::new(pos, uv)
                      })
                 .collect::<Vec<_>>();
+            let vertex_buffer_size = mem::size_of::<Vertex>() * triangle_vertices.len();
+            let heap_properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
+            let buffer_desc = CD3DX12_RESOURCE_DESC::buffer(vertex_buffer_size);
+
+            let vertex_buffer = device
+                .create_committed_resource(&heap_properties,
+                                           D3D12_HEAP_FLAG_NONE,
+                                           &buffer_desc,
+                                           D3D12_RESOURCE_STATE_GENERIC_READ,
+                                           None)?;
         };
 
         /*
@@ -329,7 +339,6 @@ impl DxModel {
 	// Create the vertex buffer.
 	{
 
-		const UINT vertexBufferSize = sizeof(triangleVertices);
 
 		// Note: using upload heaps to transfer static data like vert buffers is not 
 		// recommended. Every time the GPU needs it, the upload heap will be marshalled 

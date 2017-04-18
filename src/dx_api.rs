@@ -250,6 +250,13 @@ pub trait ID3D12DeviceExt {
                                          command_allocator: &ID3D12CommandAllocator,
                                          initial_state: &ID3D12PipelineState)
                                          -> ComResult<U>;
+    fn create_committed_resource<U: Interface>(&self,
+                                               heap_properties: &D3D12_HEAP_PROPERTIES,
+                                               heap_flags: D3D12_HEAP_FLAGS,
+                                               resource_desc: &D3D12_RESOURCE_DESC,
+                                               initial_resource_state: D3D12_RESOURCE_STATES,
+                                               optimized_clear_value: Option<&D3D12_CLEAR_VALUE>)
+                                               -> ComResult<U>;
 }
 impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
@@ -352,6 +359,29 @@ impl ID3D12DeviceExt for ID3D12Device {
                                    to_mut_ptr(initial_state),
                                    &riid,
                                    &mut ppv)
+                .hr()?;
+            ppv as *const U
+        };
+        Ok(ComRc::new(p))
+    }
+    #[inline]
+    fn create_committed_resource<U: Interface>(&self,
+                                               heap_properties: &D3D12_HEAP_PROPERTIES,
+                                               heap_flags: D3D12_HEAP_FLAGS,
+                                               resource_desc: &D3D12_RESOURCE_DESC,
+                                               initial_resource_state: D3D12_RESOURCE_STATES,
+                                               optimized_clear_value: Option<&D3D12_CLEAR_VALUE>)
+                                               -> ComResult<U> {
+        let riid = U::uuidof();
+        let p = unsafe {
+            let mut ppv: *mut c_void = null_mut();
+            self.CreateCommittedResource(heap_properties,
+                                         heap_flags,
+                                         resource_desc,
+                                         initial_resource_state,
+                                         opt_to_ptr(optimized_clear_value),
+                                         &riid,
+                                         &mut ppv)
                 .hr()?;
             ppv as *const U
         };
@@ -703,6 +733,88 @@ impl CD3DX12_RASTERIZER_DESC for D3D12_RASTERIZER_DESC {
         }
     }
 }
+
+#[allow(non_camel_case_types)]
+pub trait CD3DX12_HEAP_PROPERTIES {
+    fn new(heap_type: D3D12_HEAP_TYPE) -> D3D12_HEAP_PROPERTIES;
+}
+impl CD3DX12_HEAP_PROPERTIES for D3D12_HEAP_PROPERTIES {
+    #[inline]
+    fn new(heap_type: D3D12_HEAP_TYPE) -> D3D12_HEAP_PROPERTIES {
+        D3D12_HEAP_PROPERTIES {
+            Type: heap_type,
+            CPUPageProperty: D3D12_CPU_PAGE_PROPERTY,
+            MemoryPoolPreference: D3D12_MEMORY_POOL_UNKNOWN,
+            CreationNodeMask: 1,
+            VisibleNodeMask: 1,
+        }
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub trait CD3DX12_RESOURCE_DESC {
+    fn new(dimension: D3D12_RESOURCE_DIMENSION,
+           alignment: UINT64,
+           width: UINT64,
+           height: UINT,
+           depth_or_array_size: UINT16,
+           mip_levels: UINT16,
+           format: DXGI_FORMAT,
+           sample_count: UINT,
+           sample_quality: UINT,
+           layout: D3D12_TEXTURE_LAYOUT,
+           flags: D3D12_RESOURCE_FLAGS)
+           -> D3D12_RESOURCE_DESC;
+    fn buffer(width: UINT64) -> D3D12_RESOURCE_DESC;
+}
+impl CD3DX12_RESOURCE_DESC for D3D12_RESOURCE_DESC {
+    #[inline]
+    fn new(dimension: D3D12_RESOURCE_DIMENSION,
+           alignment: UINT64,
+           width: UINT64,
+           height: UINT,
+           depth_or_array_size: UINT16,
+           mip_levels: UINT16,
+           format: DXGI_FORMAT,
+           sample_count: UINT,
+           sample_quality: UINT,
+           layout: D3D12_TEXTURE_LAYOUT,
+           flags: D3D12_RESOURCE_FLAGS)
+           -> D3D12_RESOURCE_DESC {
+        D3D12_RESOURCE_DESC {
+            Dimension: dimension,
+            Alignment: alignment,
+            Width: width,
+            Height: height,
+            DepthOrArraySize: depth_or_array_size,
+            MipLevels: mip_levels,
+            Format: format,
+            SampleDesc: DXGI_SAMPLE_DESC {
+                Count: sample_count,
+                Quality: sample_quality,
+            },
+            Layout: layout,
+            Flags: flags,
+        }
+    }
+    #[inline]
+    fn buffer(width: UINT64) -> D3D12_RESOURCE_DESC {
+        D3D12_RESOURCE_DESC::new(D3D12_RESOURCE_DIMENSION_BUFFER,
+                                 alignment,
+                                 width,
+                                 1,
+                                 1,
+                                 1,
+                                 DXGI_FORMAT_UNKNOWN,
+                                 1,
+                                 0,
+                                 D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+                                 flags)
+    }
+}
+
+
+
 
 pub struct Vertex {
     pos: [f32; 3],
