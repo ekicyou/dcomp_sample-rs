@@ -703,3 +703,13 @@ impl CD3DX12_RASTERIZER_DESC for D3D12_RASTERIZER_DESC {
         }
     }
 }
+
+pub struct Vertex {
+    pos: [f32; 3],
+    uv: [f32; 2],
+}
+impl Vertex {
+    pub fn new(pos: [f32; 3], uv: [f32; 2]) -> Vertex {
+        Vertex { pos: pos, uv: uv }
+    }
+}

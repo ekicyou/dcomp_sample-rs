@@ -1,6 +1,7 @@
 #![allow(unused_unsafe)]
 use super::dx_api::*;
 use super::hwnd_window::HwndWindow;
+use winapi::_core::f32::consts::PI;
 use winapi::_core::mem;
 use winapi::shared::minwindef::{FALSE, TRUE};
 use winapi::shared::windef::HWND;
@@ -9,6 +10,7 @@ use winapi::vc::limits::UINT_MAX;
 use winit::{EventsLoop, Window};
 
 const FRAME_COUNT: u32 = 2;
+const CIRCLE_SEGMENTS: u32 = 64;
 
 mod t {
     use std;
@@ -34,6 +36,7 @@ pub struct DxModel {
     // Window
     events_loop: EventsLoop,
     window: Window,
+    aspect_ratio: f32,
 
     // D3D12 Targets
     device: ComRc<ID3D12Device>,
@@ -70,6 +73,7 @@ impl DxModel {
         let (width, height) = window.get_inner_size_pixels().unwrap_or_default();
         println!("width={}, height={}", width, height);
         let hwnd = window.hwnd();
+        let aspect_ratio = (width as f32) / (height as f32);
 
         // Enable the D3D12 debug layer.
         #[cfg(build = "debug")]
@@ -305,29 +309,25 @@ impl DxModel {
                                  &command_allocator,
                                  &pipeline_state)?;
 
-        /*
+        // Create the vertex buffer.
+        {
+            // Define the geometry for a circle.
+            let triangle_vertices = (0..CIRCLE_SEGMENTS + 1)
+                .map(|i| {
+                         let theta = PI * 2.0_f32 * (i as f32) / (CIRCLE_SEGMENTS as f32);
+                         let x = theta.sin();
+                         let y = theta.cos();
+                         let pos = [x, y * aspect_ratio, 0.0_f32];
+                         let uv = [x * 0.5_f32 + 0.5_f32, y * 0.5_f32 + 0.5_f32];
+                         Vertex::new(pos, uv)
+                     })
+                .collect::<Vec<_>>();
+        };
 
-	// Create the command list.
-	ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
+        /*
 
 	// Create the vertex buffer.
 	{
-		// Define the geometry for a circle.
-		Vertex triangleVertices[CircleSegments + 1] =
-		{
-			{ { 0.0f, 0.0f, 0.0f }, { 0.5f, 0.5f } }
-		};
-
-        for (UINT i = 0; i < CircleSegments; ++i)
-        {
-            float theta = 2  * DirectX::XM_PI * i / (float)(CircleSegments - 1);
-            float x = sinf(theta);
-            float y = cosf(theta);
-
-            Vertex& v = triangleVertices[i + 1];
-            v.position = DirectX::XMFLOAT3(x, y * m_aspectRatio, 0.0f);
-            v.uv = DirectX::XMFLOAT2(x * 0.5f + 0.5f, y * 0.5f + 0.5f);
-        }
 
 		const UINT vertexBufferSize = sizeof(triangleVertices);
 
@@ -489,6 +489,7 @@ impl DxModel {
         Ok(DxModel {
                events_loop: events_loop,
                window: window,
+               aspect_ratio: aspect_ratio,
                device: device,
                command_queue: command_queue,
                swap_chain: swap_chain,
