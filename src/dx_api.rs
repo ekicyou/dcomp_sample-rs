@@ -8,6 +8,7 @@ use winapi::Interface;
 use winapi::_core::mem;
 use winapi::_core::ptr::{self, null_mut};
 use winapi::ctypes::c_void;
+use winapi::shared::basetsd::{UINT16, UINT64};
 pub use winapi::shared::dxgi::*;
 pub use winapi::shared::dxgi1_2::*;
 pub use winapi::shared::dxgi1_4::*;
@@ -743,7 +744,7 @@ impl CD3DX12_HEAP_PROPERTIES for D3D12_HEAP_PROPERTIES {
     fn new(heap_type: D3D12_HEAP_TYPE) -> D3D12_HEAP_PROPERTIES {
         D3D12_HEAP_PROPERTIES {
             Type: heap_type,
-            CPUPageProperty: D3D12_CPU_PAGE_PROPERTY,
+            CPUPageProperty: D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
             MemoryPoolPreference: D3D12_MEMORY_POOL_UNKNOWN,
             CreationNodeMask: 1,
             VisibleNodeMask: 1,
@@ -765,7 +766,7 @@ pub trait CD3DX12_RESOURCE_DESC {
            layout: D3D12_TEXTURE_LAYOUT,
            flags: D3D12_RESOURCE_FLAGS)
            -> D3D12_RESOURCE_DESC;
-    fn buffer(width: UINT64) -> D3D12_RESOURCE_DESC;
+    fn buffer(width: usize) -> D3D12_RESOURCE_DESC ;
 }
 impl CD3DX12_RESOURCE_DESC for D3D12_RESOURCE_DESC {
     #[inline]
@@ -798,10 +799,12 @@ impl CD3DX12_RESOURCE_DESC for D3D12_RESOURCE_DESC {
         }
     }
     #[inline]
-    fn buffer(width: UINT64) -> D3D12_RESOURCE_DESC {
+    fn buffer(width: usize) -> D3D12_RESOURCE_DESC {
+        let flags = D3D12_RESOURCE_FLAG_NONE;
+        let alignment = 0_u64;
         D3D12_RESOURCE_DESC::new(D3D12_RESOURCE_DIMENSION_BUFFER,
                                  alignment,
-                                 width,
+                                 width as UINT64,
                                  1,
                                  1,
                                  1,

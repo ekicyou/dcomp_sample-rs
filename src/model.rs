@@ -56,6 +56,14 @@ pub struct DxModel {
     root_signature: ComRc<ID3D12RootSignature>,
     pipeline_state: ComRc<ID3D12PipelineState>,
     command_list: ComRc<ID3D12GraphicsCommandList>,
+
+    // App resources.
+    vertex_buffer: ComRc<ID3D12Resource>, 
+	//ComPtr<ID3D12Resource> m_vertexBuffer;
+    //ComPtr<ID3D12Resource> m_indexBuffer;
+	//D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
+    //D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
+	//ComPtr<ID3D12Resource> m_texture;
 }
 
 impl DxModel {
@@ -310,7 +318,7 @@ impl DxModel {
                                  &pipeline_state)?;
 
         // Create the vertex buffer.
-        {
+        let vertex_buffer = {
             // Define the geometry for a circle.
             let triangle_vertices = (0..CIRCLE_SEGMENTS + 1)
                 .map(|i| {
@@ -324,33 +332,30 @@ impl DxModel {
                 .collect::<Vec<_>>();
             let vertex_buffer_size = mem::size_of::<Vertex>() * triangle_vertices.len();
             let heap_properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
-            let buffer_desc = CD3DX12_RESOURCE_DESC::buffer(vertex_buffer_size);
+            let buffer_desc = D3D12_RESOURCE_DESC::buffer(vertex_buffer_size);
 
-            let vertex_buffer = device
+            // Note: using upload heaps to transfer static data like vert buffers is not
+            // recommended. Every time the GPU needs it, the upload heap will be marshalled
+            // over. Please read up on Default Heap usage. An upload heap is used here for
+            // code simplicity and because there are very few verts to actually transfer.
+            let buffer = device
                 .create_committed_resource(&heap_properties,
                                            D3D12_HEAP_FLAG_NONE,
                                            &buffer_desc,
                                            D3D12_RESOURCE_STATE_GENERIC_READ,
                                            None)?;
+
+            // Copy the triangle data to the vertex buffer.
+
+
+
+            buffer
         };
 
         /*
 
 	// Create the vertex buffer.
 	{
-
-
-		// Note: using upload heaps to transfer static data like vert buffers is not 
-		// recommended. Every time the GPU needs it, the upload heap will be marshalled 
-		// over. Please read up on Default Heap usage. An upload heap is used here for 
-		// code simplicity and because there are very few verts to actually transfer.
-		ThrowIfFailed(m_device->CreateCommittedResource(
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize),
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(&m_vertexBuffer)));
 
 		// Copy the triangle data to the vertex buffer.
 		UINT8* pVertexDataBegin;
@@ -514,6 +519,7 @@ impl DxModel {
                root_signature: root_signature,
                pipeline_state: pipeline_state,
                command_list: command_list,
+               vertex_buffer: vertex_buffer,
            })
     }
 
