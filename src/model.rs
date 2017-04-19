@@ -1,5 +1,5 @@
 #![allow(unused_unsafe)]
-use super::dx_api::*;
+use super::com::*;
 use super::hwnd_window::HwndWindow;
 use winapi::_core::f32::consts::PI;
 use winapi::_core::mem;

@@ -1,9 +1,10 @@
 #![allow(unused_unsafe)]
 #![allow(dead_code)]
-pub use com_rc::*;
+
+use super::com_rc::*;
+use super::unsafe_api::*;
+use super::unsafe_util::*;
 use std::ffi::CStr;
-use unsafe_api::*;
-use unsafe_util::*;
 use winapi::Interface;
 use winapi::_core::mem;
 use winapi::_core::ptr::{self, null_mut};
@@ -766,7 +767,7 @@ pub trait CD3DX12_RESOURCE_DESC {
            layout: D3D12_TEXTURE_LAYOUT,
            flags: D3D12_RESOURCE_FLAGS)
            -> D3D12_RESOURCE_DESC;
-    fn buffer(width: usize) -> D3D12_RESOURCE_DESC ;
+    fn buffer(width: usize) -> D3D12_RESOURCE_DESC;
 }
 impl CD3DX12_RESOURCE_DESC for D3D12_RESOURCE_DESC {
     #[inline]

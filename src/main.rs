@@ -8,10 +8,7 @@ extern crate c_string;
 extern crate lazy_static;
 
 mod hwnd_window;
-mod com_rc;
-mod unsafe_api;
-mod unsafe_util;
-mod dx_api;
+mod com;
 mod model;
 
 use model::DxModel;
