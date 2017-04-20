@@ -483,12 +483,12 @@ impl DxModel {
 
 		// Copy data to the intermediate upload heap and then schedule a copy 
 		// from the upload heap to the Texture2D.
-		std::vector<UINT8> texture = GenerateTextureData();
+		std::vector<u8> texture = GenerateTextureData();
 
 		D3D12_SUBRESOURCE_DATA textureData = {};
 		textureData.pData = &texture[0];
-		textureData.RowPitch = TextureWidth * sizeof(u32);
-		textureData.SlicePitch = textureData.RowPitch * TextureHeight;
+		textureData.RowPitch = TEXTURE_WIDTH * sizeof(u32);
+		textureData.SlicePitch = textureData.RowPitch * TEXTURE_HEIGHT;
 
 		UpdateSubresources(m_commandList.Get(), m_texture.Get(), textureUploadHeap.Get(), 0, 0, 1, &textureData);
 		m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
