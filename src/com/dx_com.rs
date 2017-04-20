@@ -397,11 +397,15 @@ impl ID3D10BlobExt for ID3D10Blob {
 
 pub trait ID3D12ResourceExt {
     fn map(&self, subresource: UINT, read_range: &D3D12_RANGE) -> Result<ResourceMap, HRESULT>;
+    fn get_gpu_virtual_address(&self) -> D3D12_GPU_VIRTUAL_ADDRESS;
 }
 impl ID3D12ResourceExt for ID3D12Resource {
     #[inline]
     fn map(&self, subresource: UINT, read_range: &D3D12_RANGE) -> Result<ResourceMap, HRESULT> {
         ResourceMap::new(self, subresource, read_range)
+    }
+    fn get_gpu_virtual_address(&self) -> D3D12_GPU_VIRTUAL_ADDRESS {
+        unsafe { self.GetGPUVirtualAddress() }
     }
 }
 pub struct ResourceMap<'a> {

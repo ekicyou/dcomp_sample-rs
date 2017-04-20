@@ -3,7 +3,7 @@ use super::com::*;
 use super::hwnd_window::HwndWindow;
 use winapi::_core::f32::consts::PI;
 use winapi::_core::mem;
-use winapi::shared::minwindef::{FALSE, TRUE};
+use winapi::shared::minwindef::{FALSE, TRUE, UINT};
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::HRESULT;
 use winapi::vc::limits::UINT_MAX;
@@ -58,10 +58,10 @@ pub struct DxModel {
     command_list: ComRc<ID3D12GraphicsCommandList>,
 
     // App resources.
-    vertex_buffer: ComRc<ID3D12Resource>, 
-	//ComPtr<ID3D12Resource> m_vertexBuffer;
+    vertex_buffer: ComRc<ID3D12Resource>,
+    vertex_buffer_view: D3D12_VERTEX_BUFFER_VIEW, 
+
     //ComPtr<ID3D12Resource> m_indexBuffer;
-	//D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
     //D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
 	//ComPtr<ID3D12Resource> m_texture;
 }
@@ -318,7 +318,7 @@ impl DxModel {
                                  &pipeline_state)?;
 
         // Create the vertex buffer.
-        let vertex_buffer = {
+        let (vertex_buffer, vertex_buffer_view) = {
             // Define the geometry for a circle.
             let vertices = (0..CIRCLE_SEGMENTS + 1)
                 .map(|i| {
@@ -330,7 +330,8 @@ impl DxModel {
                          Vertex::new(pos, uv)
                      })
                 .collect::<Vec<_>>();
-            let vertex_buffer_size = mem::size_of::<Vertex>() * vertices.len();
+            let vertex_size_of = mem::size_of::<Vertex>();
+            let vertex_buffer_size = vertex_size_of * vertices.len();
             let vertex_ptr = vertices.as_ptr();
             let heap_properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
             let buffer_desc = D3D12_RESOURCE_DESC::buffer(vertex_buffer_size);
@@ -352,7 +353,14 @@ impl DxModel {
                 .map(0, &read_range)?
                 .memcpy(vertex_ptr, vertex_buffer_size);
 
-            buffer
+            // Initialize the vertex buffer view.
+            let view = D3D12_VERTEX_BUFFER_VIEW {
+                BufferLocation: buffer.get_gpu_virtual_address(),
+                SizeInBytes: vertex_size_of as UINT,
+                StrideInBytes: vertex_buffer_size as UINT,
+            };
+
+            (buffer, view)
         };
 
         /*
@@ -360,10 +368,6 @@ impl DxModel {
 	// Create the vertex buffer.
 	{
 
-		// Copy the triangle data to the vertex buffer.
-		ThrowIfFailed(m_vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
-		memcpy(pVertexDataBegin, triangleVertices, sizeof(triangleVertices));
-		m_vertexBuffer->Unmap(0, nullptr);
 
 		// Initialize the vertex buffer view.
 		m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
@@ -521,6 +525,7 @@ impl DxModel {
                pipeline_state: pipeline_state,
                command_list: command_list,
                vertex_buffer: vertex_buffer,
+               vertex_buffer_view: vertex_buffer_view,
            })
     }
 
