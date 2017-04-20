@@ -365,16 +365,6 @@ impl DxModel {
 
         /*
 
-	// Create the vertex buffer.
-	{
-
-
-		// Initialize the vertex buffer view.
-		m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-		m_vertexBufferView.StrideInBytes = sizeof(Vertex);
-		m_vertexBufferView.SizeInBytes = vertexBufferSize;
-	}
-
     // Create the index buffer
     {
         // Define the geometry for a circle.
