@@ -5,9 +5,18 @@ use super::dx_pub_use::*;
 use super::unsafe_util::*;
 use std::ffi::CStr;
 use winapi::_core::mem;
-use winapi::shared::basetsd::{UINT16, UINT64};
+use winapi::shared::basetsd::{SIZE_T, UINT16, UINT64};
 use winapi::shared::minwindef::{FALSE, INT, TRUE, UINT};
 
+pub struct Vertex {
+    pos: [f32; 3],
+    uv: [f32; 2],
+}
+impl Vertex {
+    pub fn new(pos: [f32; 3], uv: [f32; 2]) -> Vertex {
+        Vertex { pos: pos, uv: uv }
+    }
+}
 
 #[allow(non_camel_case_types)]
 pub trait CD3DX12_CPU_DESCRIPTOR_HANDLE {
@@ -308,15 +317,16 @@ impl CD3DX12_RESOURCE_DESC for D3D12_RESOURCE_DESC {
     }
 }
 
-
-
-
-pub struct Vertex {
-    pos: [f32; 3],
-    uv: [f32; 2],
+#[allow(non_camel_case_types)]
+pub trait CD3DX12_RANGE {
+    fn new(begin: usize, end: usize) -> D3D12_RANGE;
 }
-impl Vertex {
-    pub fn new(pos: [f32; 3], uv: [f32; 2]) -> Vertex {
-        Vertex { pos: pos, uv: uv }
+impl CD3DX12_RANGE for D3D12_RANGE {
+    #[inline]
+    fn new(begin: usize, end: usize) -> D3D12_RANGE {
+        D3D12_RANGE {
+            Begin: begin as SIZE_T,
+            End: end as SIZE_T,
+        }
     }
 }

@@ -320,7 +320,7 @@ impl DxModel {
         // Create the vertex buffer.
         let vertex_buffer = {
             // Define the geometry for a circle.
-            let triangle_vertices = (0..CIRCLE_SEGMENTS + 1)
+            let vertices = (0..CIRCLE_SEGMENTS + 1)
                 .map(|i| {
                          let theta = PI * 2.0_f32 * (i as f32) / (CIRCLE_SEGMENTS as f32);
                          let x = theta.sin();
@@ -330,7 +330,8 @@ impl DxModel {
                          Vertex::new(pos, uv)
                      })
                 .collect::<Vec<_>>();
-            let vertex_buffer_size = mem::size_of::<Vertex>() * triangle_vertices.len();
+            let vertex_buffer_size = mem::size_of::<Vertex>() * vertices.len();
+            let vertex_ptr = vertices.as_ptr();
             let heap_properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
             let buffer_desc = D3D12_RESOURCE_DESC::buffer(vertex_buffer_size);
 
@@ -339,15 +340,17 @@ impl DxModel {
             // over. Please read up on Default Heap usage. An upload heap is used here for
             // code simplicity and because there are very few verts to actually transfer.
             let buffer = device
-                .create_committed_resource(&heap_properties,
-                                           D3D12_HEAP_FLAG_NONE,
-                                           &buffer_desc,
-                                           D3D12_RESOURCE_STATE_GENERIC_READ,
-                                           None)?;
+                .create_committed_resource::<ID3D12Resource>(&heap_properties,
+                                                             D3D12_HEAP_FLAG_NONE,
+                                                             &buffer_desc,
+                                                             D3D12_RESOURCE_STATE_GENERIC_READ,
+                                                             None)?;
 
             // Copy the triangle data to the vertex buffer.
-
-
+            let read_range = D3D12_RANGE::new(0, 0); // We do not intend to read from this resource on the CPU.
+            buffer
+                .map(0, &read_range)?
+                .memcpy(vertex_ptr, vertex_buffer_size);
 
             buffer
         };
@@ -358,8 +361,6 @@ impl DxModel {
 	{
 
 		// Copy the triangle data to the vertex buffer.
-		UINT8* pVertexDataBegin;
-		CD3DX12_RANGE readRange(0, 0);		// We do not intend to read from this resource on the CPU.
 		ThrowIfFailed(m_vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)));
 		memcpy(pVertexDataBegin, triangleVertices, sizeof(triangleVertices));
 		m_vertexBuffer->Unmap(0, nullptr);

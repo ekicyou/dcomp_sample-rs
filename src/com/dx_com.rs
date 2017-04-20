@@ -5,9 +5,10 @@ use super::com_rc::*;
 use super::dx_func::*;
 use super::dx_pub_use::*;
 use super::unsafe_util::*;
+use libc;
 use winapi::Interface;
 use winapi::_core::mem;
-use winapi::_core::ptr::{self, null_mut};
+use winapi::_core::ptr;
 use winapi::ctypes::c_void;
 use winapi::shared::minwindef::UINT;
 use winapi::shared::windef::HWND;
@@ -47,7 +48,7 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
     fn enum_warp_adapter<U: Interface>(&self) -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = null_mut();
+            let mut ppv: *mut c_void = ptr::null_mut();
             self.EnumWarpAdapter(&riid, &mut ppv).hr()?;
             ppv as *const U
         };
@@ -148,7 +149,7 @@ impl ID3D12DeviceExt for ID3D12Device {
     fn create_command_queue<U: Interface>(&self, desc: &D3D12_COMMAND_QUEUE_DESC) -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = null_mut();
+            let mut ppv: *mut c_void = ptr::null_mut();
             self.CreateCommandQueue(desc, &riid, &mut ppv).hr()?;
             ppv as *const U
         };
@@ -160,7 +161,7 @@ impl ID3D12DeviceExt for ID3D12Device {
                                             -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = null_mut();
+            let mut ppv: *mut c_void = ptr::null_mut();
             self.CreateDescriptorHeap(desc, &riid, &mut ppv).hr()?;
             ppv as *const U
         };
@@ -189,7 +190,7 @@ impl ID3D12DeviceExt for ID3D12Device {
                                               -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = null_mut();
+            let mut ppv: *mut c_void = ptr::null_mut();
             self.CreateCommandAllocator(type_, &riid, &mut ppv)
                 .hr()?;
             ppv as *const U
@@ -204,7 +205,7 @@ impl ID3D12DeviceExt for ID3D12Device {
                                            -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = null_mut();
+            let mut ppv: *mut c_void = ptr::null_mut();
             self.CreateRootSignature(node_mask,
                                      blob_with_root_signature,
                                      blob_length_in_bytes,
@@ -221,7 +222,7 @@ impl ID3D12DeviceExt for ID3D12Device {
                                                     -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = null_mut();
+            let mut ppv: *mut c_void = ptr::null_mut();
             self.CreateGraphicsPipelineState(desc, &riid, &mut ppv)
                 .hr()?;
             ppv as *const U
@@ -237,7 +238,7 @@ impl ID3D12DeviceExt for ID3D12Device {
                                          -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = null_mut();
+            let mut ppv: *mut c_void = ptr::null_mut();
             self.CreateCommandList(node_mask,
                                    list_type,
                                    to_mut_ptr(command_allocator),
@@ -259,7 +260,7 @@ impl ID3D12DeviceExt for ID3D12Device {
                                                -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = null_mut();
+            let mut ppv: *mut c_void = ptr::null_mut();
             self.CreateCommittedResource(heap_properties,
                                          heap_flags,
                                          resource_desc,
@@ -339,7 +340,7 @@ impl IDXGISwapChain3Ext for IDXGISwapChain3 {
     fn get_buffer<U: Interface>(&self, buffer: UINT) -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
-            let mut ppv: *mut c_void = null_mut();
+            let mut ppv: *mut c_void = ptr::null_mut();
             self.GetBuffer(buffer, &riid, &mut ppv).hr()?;
             ppv as *const U
         };
@@ -391,5 +392,53 @@ impl ID3D10BlobExt for ID3D10Blob {
     #[inline]
     fn get_buffer_size(&self) -> usize {
         unsafe { self.GetBufferSize() }
+    }
+}
+
+pub trait ID3D12ResourceExt {
+    fn map(&self, subresource: UINT, read_range: &D3D12_RANGE) -> Result<ResourceMap, HRESULT>;
+}
+impl ID3D12ResourceExt for ID3D12Resource {
+    #[inline]
+    fn map(&self, subresource: UINT, read_range: &D3D12_RANGE) -> Result<ResourceMap, HRESULT> {
+        ResourceMap::new(self, subresource, read_range)
+    }
+}
+pub struct ResourceMap<'a> {
+    resource: &'a ID3D12Resource,
+    subresource: UINT,
+    data_begin: *mut c_void,
+}
+impl<'a> ResourceMap<'a> {
+    #[inline]
+    fn new(resource: &'a ID3D12Resource,
+           subresource: UINT,
+           read_range: &D3D12_RANGE)
+           -> Result<ResourceMap<'a>, HRESULT> {
+        let mut data_begin: *mut c_void = ptr::null_mut();
+        unsafe {
+            resource
+                .Map(subresource, read_range, &mut data_begin)
+                .hr()?;
+            Ok(ResourceMap {
+                   resource: resource,
+                   subresource: subresource,
+                   data_begin: data_begin,
+               })
+        }
+    }
+    #[inline]
+    pub fn memcpy<T>(self, src: *const T, size: usize) -> ResourceMap<'a> {
+        let dst = self.data_begin as *mut libc::c_void;
+        let src = src as *const libc::c_void;
+        unsafe { libc::memcpy(dst, src, size) };
+        self
+    }
+}
+impl<'a> Drop for ResourceMap<'a> {
+    fn drop(&mut self) {
+        unsafe {
+            self.resource.Unmap(self.subresource, ptr::null());
+        }
     }
 }
