@@ -8,6 +8,7 @@ extern crate c_string;
 #[macro_use]
 extern crate lazy_static;
 
+mod consts;
 mod hwnd_window;
 mod com;
 mod model;

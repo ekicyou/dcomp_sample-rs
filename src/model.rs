@@ -1,5 +1,6 @@
 #![allow(unused_unsafe)]
 use super::com::*;
+use super::consts::*;
 use super::hwnd_window::HwndWindow;
 use winapi::_core::f32::consts::PI;
 use winapi::_core::mem;
@@ -9,20 +10,6 @@ use winapi::shared::windef::HWND;
 use winapi::shared::winerror::HRESULT;
 use winapi::vc::limits::UINT_MAX;
 use winit::{EventsLoop, Window};
-
-const FRAME_COUNT: u32 = 2;
-const CIRCLE_SEGMENTS: u32 = 64;
-const TEXTURE_WIDTH: u64 = 256;
-const TEXTURE_HEIGHT: u32 = 256;
-
-mod t {
-    use std;
-    use std::ffi::CStr;
-    lazy_static! {
-        pub static ref POSITION: &'static CStr = c_str!("POSITION");
-        pub static ref TEXCOORD: &'static CStr = c_str!("TEXCOORD");
-    }
-}
 
 struct ArrayIterator3<T> {
     item: [T; 3],
