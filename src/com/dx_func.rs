@@ -8,7 +8,6 @@ use super::unsafe_util::*;
 use winapi::Interface;
 use winapi::_core::ptr::null_mut;
 use winapi::ctypes::c_void;
-use winapi::shared::minwindef::UINT;
 use winapi::shared::ntdef::{LPCSTR, LPCWSTR};
 use winapi::shared::winerror::HRESULT;
 use winapi::um::unknwnbase::IUnknown;
@@ -83,8 +82,8 @@ pub fn d3d_compile_from_file<'a, S: Into<&'a str>>
      include: Option<&ID3DInclude>,
      entrypoint: S,
      target: S,
-     flags1: UINT,
-     flags2: UINT)
+     flags1: u32,
+     flags2: u32)
      -> Result<(ComRc<ID3DBlob>, ComRc<ID3DBlob>), HRESULT> {
     let file_name = to_utf16_chars(file_name);
     let entrypoint = to_utf8_chars(entrypoint);

@@ -5,8 +5,8 @@ use super::dx_pub_use::*;
 use super::unsafe_util::*;
 use std::ffi::CStr;
 use winapi::_core::mem;
-use winapi::shared::basetsd::{SIZE_T, UINT16, UINT64};
-use winapi::shared::minwindef::{FALSE, INT, TRUE, UINT};
+use winapi::shared::basetsd::{SIZE_T, UINT16};
+use winapi::shared::minwindef::{FALSE, INT, TRUE};
 
 pub struct Vertex {
     pos: [f32; 3],
@@ -20,11 +20,11 @@ impl Vertex {
 
 #[allow(non_camel_case_types)]
 pub trait CD3DX12_CPU_DESCRIPTOR_HANDLE {
-    fn offset(&mut self, offset_in_descriptors: INT, descriptor_increment_size: UINT);
+    fn offset(&mut self, offset_in_descriptors: INT, descriptor_increment_size: u32);
 }
 impl CD3DX12_CPU_DESCRIPTOR_HANDLE for D3D12_CPU_DESCRIPTOR_HANDLE {
     #[inline]
-    fn offset(&mut self, offset_in_descriptors: INT, descriptor_increment_size: UINT) {
+    fn offset(&mut self, offset_in_descriptors: INT, descriptor_increment_size: u32) {
         unsafe {
             let offset = ((descriptor_increment_size as i64) * (offset_in_descriptors as i64)) as
                          usize;
@@ -36,15 +36,15 @@ impl CD3DX12_CPU_DESCRIPTOR_HANDLE for D3D12_CPU_DESCRIPTOR_HANDLE {
 #[allow(non_camel_case_types)]
 pub trait CD3DX12_DESCRIPTOR_RANGE {
     fn new(range_type: D3D12_DESCRIPTOR_RANGE_TYPE,
-           num_descriptors: UINT,
-           base_shader_register: UINT)
+           num_descriptors: u32,
+           base_shader_register: u32)
            -> D3D12_DESCRIPTOR_RANGE;
 }
 impl CD3DX12_DESCRIPTOR_RANGE for D3D12_DESCRIPTOR_RANGE {
     #[inline]
     fn new(range_type: D3D12_DESCRIPTOR_RANGE_TYPE,
-           num_descriptors: UINT,
-           base_shader_register: UINT)
+           num_descriptors: u32,
+           base_shader_register: u32)
            -> D3D12_DESCRIPTOR_RANGE {
         D3D12_DESCRIPTOR_RANGE {
             RangeType: range_type,
@@ -58,9 +58,9 @@ impl CD3DX12_DESCRIPTOR_RANGE for D3D12_DESCRIPTOR_RANGE {
 
 #[allow(non_camel_case_types)]
 pub trait CD3DX12_ROOT_PARAMETER {
-    fn new_constants(num32_bit_values: UINT,
-                     shader_register: UINT,
-                     register_space: UINT,
+    fn new_constants(num32_bit_values: u32,
+                     shader_register: u32,
+                     register_space: u32,
                      visibility: D3D12_SHADER_VISIBILITY)
                      -> D3D12_ROOT_PARAMETER;
     fn new_descriptor_table(descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE],
@@ -69,9 +69,9 @@ pub trait CD3DX12_ROOT_PARAMETER {
 }
 impl CD3DX12_ROOT_PARAMETER for D3D12_ROOT_PARAMETER {
     #[inline]
-    fn new_constants(num32_bit_values: UINT,
-                     shader_register: UINT,
-                     register_space: UINT,
+    fn new_constants(num32_bit_values: u32,
+                     shader_register: u32,
+                     register_space: u32,
                      visibility: D3D12_SHADER_VISIBILITY)
                      -> D3D12_ROOT_PARAMETER {
         unsafe {
@@ -100,11 +100,11 @@ impl CD3DX12_ROOT_PARAMETER for D3D12_ROOT_PARAMETER {
 
 #[allow(non_camel_case_types)]
 pub trait CD3DX12_ROOT_CONSTANTS {
-    fn init(&mut self, num32_bit_value: UINT, shader_register: UINT, register_space: UINT) -> ();
+    fn init(&mut self, num32_bit_value: u32, shader_register: u32, register_space: u32) -> ();
 }
 impl CD3DX12_ROOT_CONSTANTS for D3D12_ROOT_CONSTANTS {
     #[inline]
-    fn init(&mut self, num32_bit_value: UINT, shader_register: UINT, register_space: UINT) -> () {
+    fn init(&mut self, num32_bit_value: u32, shader_register: u32, register_space: u32) -> () {
         self.Num32BitValues = num32_bit_value;
         self.ShaderRegister = shader_register;
         self.RegisterSpace = register_space;
@@ -152,23 +152,23 @@ impl CD3DX12_ROOT_SIGNATURE_DESC for D3D12_ROOT_SIGNATURE_DESC {
 #[allow(non_camel_case_types)]
 pub trait D3D12_INPUT_ELEMENT_DESC_EXT {
     fn new(semantic_name: &CStr,
-           semantic_index: UINT,
+           semantic_index: u32,
            format: DXGI_FORMAT,
-           input_slot: UINT,
-           aligned_byte_offset: UINT,
+           input_slot: u32,
+           aligned_byte_offset: u32,
            input_slot_class: D3D12_INPUT_CLASSIFICATION,
-           instance_data_step_rate: UINT)
+           instance_data_step_rate: u32)
            -> D3D12_INPUT_ELEMENT_DESC;
 }
 impl D3D12_INPUT_ELEMENT_DESC_EXT for D3D12_INPUT_ELEMENT_DESC {
     #[inline]
     fn new(semantic_name: &CStr,
-           semantic_index: UINT,
+           semantic_index: u32,
            format: DXGI_FORMAT,
-           input_slot: UINT,
-           aligned_byte_offset: UINT,
+           input_slot: u32,
+           aligned_byte_offset: u32,
            input_slot_class: D3D12_INPUT_CLASSIFICATION,
-           instance_data_step_rate: UINT)
+           instance_data_step_rate: u32)
            -> D3D12_INPUT_ELEMENT_DESC {
         D3D12_INPUT_ELEMENT_DESC {
             SemanticName: semantic_name.as_ptr(),
@@ -256,30 +256,30 @@ impl CD3DX12_HEAP_PROPERTIES for D3D12_HEAP_PROPERTIES {
 #[allow(non_camel_case_types)]
 pub trait CD3DX12_RESOURCE_DESC {
     fn new(dimension: D3D12_RESOURCE_DIMENSION,
-           alignment: UINT64,
-           width: UINT64,
-           height: UINT,
+           alignment: u64,
+           width: u64,
+           height: u32,
            depth_or_array_size: UINT16,
            mip_levels: UINT16,
            format: DXGI_FORMAT,
-           sample_count: UINT,
-           sample_quality: UINT,
+           sample_count: u32,
+           sample_quality: u32,
            layout: D3D12_TEXTURE_LAYOUT,
            flags: D3D12_RESOURCE_FLAGS)
            -> D3D12_RESOURCE_DESC;
-    fn buffer(width: usize) -> D3D12_RESOURCE_DESC;
+    fn buffer(width: u64) -> D3D12_RESOURCE_DESC;
 }
 impl CD3DX12_RESOURCE_DESC for D3D12_RESOURCE_DESC {
     #[inline]
     fn new(dimension: D3D12_RESOURCE_DIMENSION,
-           alignment: UINT64,
-           width: UINT64,
-           height: UINT,
+           alignment: u64,
+           width: u64,
+           height: u32,
            depth_or_array_size: UINT16,
            mip_levels: UINT16,
            format: DXGI_FORMAT,
-           sample_count: UINT,
-           sample_quality: UINT,
+           sample_count: u32,
+           sample_quality: u32,
            layout: D3D12_TEXTURE_LAYOUT,
            flags: D3D12_RESOURCE_FLAGS)
            -> D3D12_RESOURCE_DESC {
@@ -300,12 +300,12 @@ impl CD3DX12_RESOURCE_DESC for D3D12_RESOURCE_DESC {
         }
     }
     #[inline]
-    fn buffer(width: usize) -> D3D12_RESOURCE_DESC {
+    fn buffer(width: u64) -> D3D12_RESOURCE_DESC {
         let flags = D3D12_RESOURCE_FLAG_NONE;
         let alignment = 0_u64;
         D3D12_RESOURCE_DESC::new(D3D12_RESOURCE_DIMENSION_BUFFER,
                                  alignment,
-                                 width as UINT64,
+                                 width,
                                  1,
                                  1,
                                  1,

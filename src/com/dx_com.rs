@@ -5,12 +5,11 @@ use super::com_rc::*;
 use super::dx_func::*;
 use super::dx_pub_use::*;
 use super::unsafe_util::*;
-use libc;
+use rlibc;
 use winapi::Interface;
 use winapi::_core::mem;
 use winapi::_core::ptr;
 use winapi::ctypes::c_void;
-use winapi::shared::minwindef::UINT;
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::{E_FAIL, HRESULT};
 use winapi::um::unknwnbase::IUnknown;
@@ -33,12 +32,12 @@ impl IDXGIAdapter1Ext for IDXGIAdapter1 {
 
 pub trait IDXGIFactory4Ext {
     fn enum_warp_adapter<U: Interface>(&self) -> ComResult<U>;
-    fn enum_adapters1(&self, index: UINT) -> ComResult<IDXGIAdapter1>;
+    fn enum_adapters1(&self, index: u32) -> ComResult<IDXGIAdapter1>;
     fn create_swap_chain_for_composition(&self,
                                          device: &IUnknown,
                                          desc: &DXGI_SWAP_CHAIN_DESC1)
                                          -> ComResult<IDXGISwapChain1>;
-    fn make_window_association(&self, hwnd: HWND, flags: UINT) -> Result<(), HRESULT>;
+    fn make_window_association(&self, hwnd: HWND, flags: u32) -> Result<(), HRESULT>;
     fn d3d12_create_hardware_device(&self) -> ComResult<ID3D12Device>;
     fn d3d12_create_warp_device(&self) -> ComResult<ID3D12Device>;
     fn d3d12_create_best_device(&self) -> ComResult<ID3D12Device>;
@@ -55,7 +54,7 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
         Ok(ComRc::new(p))
     }
     #[inline]
-    fn enum_adapters1(&self, index: UINT) -> ComResult<IDXGIAdapter1> {
+    fn enum_adapters1(&self, index: u32) -> ComResult<IDXGIAdapter1> {
         unsafe {
             let mut p = ptr::null_mut();
             self.EnumAdapters1(index, &mut p).hr()?;
@@ -75,7 +74,7 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
         }
     }
     #[inline]
-    fn make_window_association(&self, hwnd: HWND, flags: UINT) -> Result<(), HRESULT> {
+    fn make_window_association(&self, hwnd: HWND, flags: u32) -> Result<(), HRESULT> {
         unsafe { self.MakeWindowAssociation(hwnd, flags).hr() }
     }
     #[inline]
@@ -113,7 +112,7 @@ pub trait ID3D12DeviceExt {
                                             -> ComResult<U>;
     fn get_descriptor_handle_increment_size(&self,
                                             descriptor_heap_type: D3D12_DESCRIPTOR_HEAP_TYPE)
-                                            -> UINT;
+                                            -> u32;
     fn create_render_target_view(&self,
                                  resource: &ID3D12Resource,
                                  desc: Option<&D3D12_RENDER_TARGET_VIEW_DESC>,
@@ -123,7 +122,7 @@ pub trait ID3D12DeviceExt {
                                               type_: D3D12_COMMAND_LIST_TYPE)
                                               -> ComResult<U>;
     fn create_root_signature<U: Interface>(&self,
-                                           node_mask: UINT,
+                                           node_mask: u32,
                                            blob_with_root_signature: *const c_void,
                                            blob_length_in_bytes: usize)
                                            -> ComResult<U>;
@@ -131,7 +130,7 @@ pub trait ID3D12DeviceExt {
                                                     desc: &D3D12_GRAPHICS_PIPELINE_STATE_DESC)
                                                     -> ComResult<U>;
     fn create_command_list<U: Interface>(&self,
-                                         node_mask: UINT,
+                                         node_mask: u32,
                                          list_type: D3D12_COMMAND_LIST_TYPE,
                                          command_allocator: &ID3D12CommandAllocator,
                                          initial_state: &ID3D12PipelineState)
@@ -170,7 +169,7 @@ impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
     fn get_descriptor_handle_increment_size(&self,
                                             descriptor_heap_type: D3D12_DESCRIPTOR_HEAP_TYPE)
-                                            -> UINT {
+                                            -> u32 {
         unsafe { self.GetDescriptorHandleIncrementSize(descriptor_heap_type) }
     }
     #[inline]
@@ -199,7 +198,7 @@ impl ID3D12DeviceExt for ID3D12Device {
     }
     #[inline]
     fn create_root_signature<U: Interface>(&self,
-                                           node_mask: UINT,
+                                           node_mask: u32,
                                            blob_with_root_signature: *const c_void,
                                            blob_length_in_bytes: usize)
                                            -> ComResult<U> {
@@ -231,7 +230,7 @@ impl ID3D12DeviceExt for ID3D12Device {
     }
     #[inline]
     fn create_command_list<U: Interface>(&self,
-                                         node_mask: UINT,
+                                         node_mask: u32,
                                          list_type: D3D12_COMMAND_LIST_TYPE,
                                          command_allocator: &ID3D12CommandAllocator,
                                          initial_state: &ID3D12PipelineState)
@@ -328,16 +327,16 @@ impl IDCompositionTargetExt for IDCompositionTarget {
 }
 
 pub trait IDXGISwapChain3Ext {
-    fn get_current_back_buffer_index(&self) -> UINT;
-    fn get_buffer<U: Interface>(&self, buffer: UINT) -> ComResult<U>;
+    fn get_current_back_buffer_index(&self) -> u32;
+    fn get_buffer<U: Interface>(&self, buffer: u32) -> ComResult<U>;
 }
 impl IDXGISwapChain3Ext for IDXGISwapChain3 {
     #[inline]
-    fn get_current_back_buffer_index(&self) -> UINT {
+    fn get_current_back_buffer_index(&self) -> u32 {
         unsafe { self.GetCurrentBackBufferIndex() }
     }
     #[inline]
-    fn get_buffer<U: Interface>(&self, buffer: UINT) -> ComResult<U> {
+    fn get_buffer<U: Interface>(&self, buffer: u32) -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
             let mut ppv: *mut c_void = ptr::null_mut();
@@ -396,27 +395,64 @@ impl ID3D10BlobExt for ID3D10Blob {
 }
 
 pub trait ID3D12ResourceExt {
-    fn map(&self, subresource: UINT, read_range: &D3D12_RANGE) -> Result<ResourceMap, HRESULT>;
+    fn map(&self, subresource: u32, read_range: &D3D12_RANGE) -> Result<ResourceMap, HRESULT>;
     fn get_gpu_virtual_address(&self) -> D3D12_GPU_VIRTUAL_ADDRESS;
+    fn get_device<U: Interface>(&self) -> ComResult<U>;
+    fn get_required_intermediate_size(&self,
+                                      first_subresource: u32,
+                                      num_subresources: u32)
+                                      -> Result<u64, HRESULT>;
 }
 impl ID3D12ResourceExt for ID3D12Resource {
     #[inline]
-    fn map(&self, subresource: UINT, read_range: &D3D12_RANGE) -> Result<ResourceMap, HRESULT> {
+    fn map(&self, subresource: u32, read_range: &D3D12_RANGE) -> Result<ResourceMap, HRESULT> {
         ResourceMap::new(self, subresource, read_range)
     }
+    #[inline]
     fn get_gpu_virtual_address(&self) -> D3D12_GPU_VIRTUAL_ADDRESS {
         unsafe { self.GetGPUVirtualAddress() }
+    }
+    #[inline]
+    fn get_device<U: Interface>(&self) -> ComResult<U> {
+        let riid = U::uuidof();
+        let p = unsafe {
+            let mut ppv: *mut c_void = ptr::null_mut();
+            self.GetDevice(&riid, &mut ppv).hr()?;
+            ppv as *const U
+        };
+        Ok(ComRc::new(p))
+    }
+    #[inline]
+    fn get_required_intermediate_size(&self,
+                                      first_subresource: u32,
+                                      num_subresources: u32)
+                                      -> Result<u64, HRESULT> {
+        let mut required_size: u64 = 0;
+        let device = self.get_device::<ID3D12Device>()?;
+        unsafe {
+            let desc: *mut D3D12_RESOURCE_DESC = ptr::null_mut();
+            let _ = self.GetDesc(desc);
+            device.GetCopyableFootprints(desc,
+                                         first_subresource,
+                                         num_subresources,
+                                         0,
+                                         ptr::null_mut(),
+                                         ptr::null_mut(),
+                                         ptr::null_mut(),
+                                         &mut required_size);
+        }
+        Ok(required_size)
     }
 }
 pub struct ResourceMap<'a> {
     resource: &'a ID3D12Resource,
-    subresource: UINT,
+    subresource: u32,
     data_begin: *mut c_void,
 }
 impl<'a> ResourceMap<'a> {
     #[inline]
     fn new(resource: &'a ID3D12Resource,
-           subresource: UINT,
+           subresource: u32,
            read_range: &D3D12_RANGE)
            -> Result<ResourceMap<'a>, HRESULT> {
         let mut data_begin: *mut c_void = ptr::null_mut();
@@ -433,9 +469,9 @@ impl<'a> ResourceMap<'a> {
     }
     #[inline]
     pub fn memcpy<T>(self, src: *const T, size: usize) -> ResourceMap<'a> {
-        let dst = self.data_begin as *mut libc::c_void;
-        let src = src as *const libc::c_void;
-        unsafe { libc::memcpy(dst, src, size) };
+        let dst = self.data_begin as *mut u8;
+        let src = src as *const u8;
+        unsafe { rlibc::memcpy(dst, src, size) };
         self
     }
 }

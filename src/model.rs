@@ -3,7 +3,8 @@ use super::com::*;
 use super::hwnd_window::HwndWindow;
 use winapi::_core::f32::consts::PI;
 use winapi::_core::mem;
-use winapi::shared::minwindef::{FALSE, TRUE, UINT};
+use winapi::shared::basetsd::UINT16;
+use winapi::shared::minwindef::{FALSE, TRUE};
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::HRESULT;
 use winapi::vc::limits::UINT_MAX;
@@ -11,6 +12,8 @@ use winit::{EventsLoop, Window};
 
 const FRAME_COUNT: u32 = 2;
 const CIRCLE_SEGMENTS: u32 = 64;
+const TEXTURE_WIDTH: u64 = 256;
+const TEXTURE_HEIGHT: u32 = 256;
 
 mod t {
     use std;
@@ -20,6 +23,33 @@ mod t {
         pub static ref TEXCOORD: &'static CStr = c_str!("TEXCOORD");
     }
 }
+
+struct ArrayIterator3<T> {
+    item: [T; 3],
+    index: usize,
+}
+impl<T: Copy> ArrayIterator3<T> {
+    pub fn new(item: [T; 3]) -> ArrayIterator3<T> {
+        ArrayIterator3 {
+            item: item,
+            index: 0,
+        }
+    }
+}
+impl<T: Copy> Iterator for ArrayIterator3<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.index < self.item.len() {
+            true => {
+                let rc = self.item[self.index];
+                self.index += 1;
+                Some(rc)
+            }
+            false => None,
+        }
+    }
+}
+
 
 impl HwndWindow for Window {
     fn hwnd(&self) -> HWND {
@@ -59,11 +89,10 @@ pub struct DxModel {
 
     // App resources.
     vertex_buffer: ComRc<ID3D12Resource>,
-    vertex_buffer_view: D3D12_VERTEX_BUFFER_VIEW, 
-
-    //ComPtr<ID3D12Resource> m_indexBuffer;
-    //D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
-	//ComPtr<ID3D12Resource> m_texture;
+    vertex_buffer_view: D3D12_VERTEX_BUFFER_VIEW,
+    index_buffer: ComRc<ID3D12Resource>,
+    index_buffer_view: D3D12_INDEX_BUFFER_VIEW,
+    texture: ComRc<ID3D12Resource>,
 }
 
 impl DxModel {
@@ -320,7 +349,7 @@ impl DxModel {
         // Create the vertex buffer.
         let (vertex_buffer, vertex_buffer_view) = {
             // Define the geometry for a circle.
-            let vertices = (0..CIRCLE_SEGMENTS + 1)
+            let items = (0..CIRCLE_SEGMENTS + 1)
                 .map(|i| {
                          let theta = PI * 2.0_f32 * (i as f32) / (CIRCLE_SEGMENTS as f32);
                          let x = theta.sin();
@@ -330,118 +359,140 @@ impl DxModel {
                          Vertex::new(pos, uv)
                      })
                 .collect::<Vec<_>>();
-            let vertex_size_of = mem::size_of::<Vertex>();
-            let vertex_buffer_size = vertex_size_of * vertices.len();
-            let vertex_ptr = vertices.as_ptr();
-            let heap_properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
-            let buffer_desc = D3D12_RESOURCE_DESC::buffer(vertex_buffer_size);
+            let size_of = mem::size_of::<Vertex>();
+            let size = size_of * items.len();
+            let p = items.as_ptr();
 
             // Note: using upload heaps to transfer static data like vert buffers is not
             // recommended. Every time the GPU needs it, the upload heap will be marshalled
             // over. Please read up on Default Heap usage. An upload heap is used here for
             // code simplicity and because there are very few verts to actually transfer.
+            let properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
+            let desc = D3D12_RESOURCE_DESC::buffer(size as u64);
             let buffer = device
-                .create_committed_resource::<ID3D12Resource>(&heap_properties,
+                .create_committed_resource::<ID3D12Resource>(&properties,
                                                              D3D12_HEAP_FLAG_NONE,
-                                                             &buffer_desc,
+                                                             &desc,
                                                              D3D12_RESOURCE_STATE_GENERIC_READ,
                                                              None)?;
 
             // Copy the triangle data to the vertex buffer.
             let read_range = D3D12_RANGE::new(0, 0); // We do not intend to read from this resource on the CPU.
-            buffer
-                .map(0, &read_range)?
-                .memcpy(vertex_ptr, vertex_buffer_size);
+            buffer.map(0, &read_range)?.memcpy(p, size);
 
             // Initialize the vertex buffer view.
             let view = D3D12_VERTEX_BUFFER_VIEW {
                 BufferLocation: buffer.get_gpu_virtual_address(),
-                SizeInBytes: vertex_size_of as UINT,
-                StrideInBytes: vertex_buffer_size as UINT,
+                SizeInBytes: size as u32,
+                StrideInBytes: size_of as u32,
             };
 
             (buffer, view)
         };
 
+        // Create the index buffer
+        let (index_buffer, index_buffer_view) = {
+            // Define the geometry for a circle.
+            let items = (0..CIRCLE_SEGMENTS)
+                .map(|i| {
+                         let a = 0 as UINT16;
+                         let b = (1 + i) as UINT16;
+                         let c = (2 + i) as UINT16;
+                         [a, b, c]
+                     })
+                .flat_map(|a| ArrayIterator3::new(a))
+                .collect::<Vec<_>>();
+
+            let size_of = mem::size_of::<UINT16>();
+            let size = size_of * items.len();
+            let p = items.as_ptr();
+
+            // Note: using upload heaps to transfer static data like vert buffers is not
+            // recommended. Every time the GPU needs it, the upload heap will be marshalled
+            // over. Please read up on Default Heap usage. An upload heap is used here for
+            // code simplicity and because there are very few verts to actually transfer.
+            let properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
+            let desc = D3D12_RESOURCE_DESC::buffer(size as u64);
+            let buffer = device
+                .create_committed_resource::<ID3D12Resource>(&properties,
+                                                             D3D12_HEAP_FLAG_NONE,
+                                                             &desc,
+                                                             D3D12_RESOURCE_STATE_GENERIC_READ,
+                                                             None)?;
+
+            // Copy the index data to the index buffer.
+            let read_range = D3D12_RANGE::new(0, 0); // We do not intend to read from this resource on the CPU.
+            buffer.map(0, &read_range)?.memcpy(p, size);
+
+            // Intialize the index buffer view
+            let view = D3D12_INDEX_BUFFER_VIEW {
+                BufferLocation: buffer.get_gpu_virtual_address(),
+                SizeInBytes: size as u32,
+                Format: DXGI_FORMAT_R16_UINT,
+            };
+
+            (buffer, view)
+        };
+
+        // Create the texture.
+        let (texture, _) = {
+            let texture = {
+                // Describe and create a Texture2D.
+                let desc = D3D12_RESOURCE_DESC::new(D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+                                                    0,
+                                                    TEXTURE_WIDTH,
+                                                    TEXTURE_HEIGHT,
+                                                    1,
+                                                    1,
+                                                    DXGI_FORMAT_R8G8B8A8_UNORM,
+                                                    1,
+                                                    0,
+                                                    D3D12_TEXTURE_LAYOUT_UNKNOWN,
+                                                    D3D12_RESOURCE_FLAG_NONE);
+                let properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_DEFAULT);
+                let buffer = device
+                    .create_committed_resource::<ID3D12Resource>(&properties,
+                                                                 D3D12_HEAP_FLAG_NONE,
+                                                                 &desc,
+                                                                 D3D12_RESOURCE_STATE_COPY_DEST,
+                                                                 None)?;
+                buffer
+            };
+            let upload_buffer_size = texture.get_required_intermediate_size(0, 1)?;
+
+            // Note: ComPtr's are CPU objects but this resource needs to stay in scope until
+            // the command list that references it has finished executing on the GPU.
+            // We will flush the GPU at the end of this method to ensure the resource is not
+            // prematurely destroyed.
+            let texture_upload_heap = {
+                let properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
+                let desc = D3D12_RESOURCE_DESC::buffer(upload_buffer_size);
+                device
+                    .create_committed_resource::<ID3D12Resource>(&properties,
+                                                                 D3D12_HEAP_FLAG_NONE,
+                                                                 &desc,
+                                                                 D3D12_RESOURCE_STATE_GENERIC_READ,
+                                                                 None)?
+            };
+
+
+
+            (texture, texture_upload_heap)
+        };
+
+
+
+
         /*
 
-    // Create the index buffer
-    {
-        // Define the geometry for a circle.
-        UINT16 triangleIndices[3 * CircleSegments];
 
-        for (UINT i = 0; i < CircleSegments; ++i)
-        {
-            triangleIndices[i * 3 + 0] = 0;
-            triangleIndices[i * 3 + 1] = 1 + i;
-            triangleIndices[i * 3 + 2] = 2 + i;
-        }
-
-        const UINT indexBufferSize = sizeof(triangleIndices);
-
-        // Note: using upload heaps to transfer static data like vert buffers is not 
-        // recommended. Every time the GPU needs it, the upload heap will be marshalled 
-        // over. Please read up on Default Heap usage. An upload heap is used here for 
-        // code simplicity and because there are very few verts to actually transfer.
-        ThrowIfFailed(m_device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-            D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize),
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr,
-            IID_PPV_ARGS(&m_indexBuffer)));
-
-        // Copy the index data to the index buffer.
-        UINT8* pIndexDataBegin;
-        CD3DX12_RANGE readRange(0, 0);		// We do not intend to read from this resource on the CPU.
-        ThrowIfFailed(m_indexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pIndexDataBegin)));
-        memcpy(pIndexDataBegin, triangleIndices, sizeof(triangleIndices));
-        m_indexBuffer->Unmap(0, nullptr);
-
-        // Intialize the index buffer view
-        m_indexBufferView.BufferLocation = m_indexBuffer->GetGPUVirtualAddress();
-        m_indexBufferView.Format = DXGI_FORMAT_R16_UINT;
-        m_indexBufferView.SizeInBytes = indexBufferSize;
-    }
-
-	// Note: ComPtr's are CPU objects but this resource needs to stay in scope until
-	// the command list that references it has finished executing on the GPU.
-	// We will flush the GPU at the end of this method to ensure the resource is not
-	// prematurely destroyed.
-	ComPtr<ID3D12Resource> textureUploadHeap;
 
 	// Create the texture.
 	{
-		// Describe and create a Texture2D.
-		D3D12_RESOURCE_DESC textureDesc = {};
-		textureDesc.MipLevels = 1;
-		textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		textureDesc.Width = TextureWidth;
-		textureDesc.Height = TextureHeight;
-		textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-		textureDesc.DepthOrArraySize = 1;
-		textureDesc.SampleDesc.Count = 1;
-		textureDesc.SampleDesc.Quality = 0;
-		textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 
-		ThrowIfFailed(m_device->CreateCommittedResource(
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-			D3D12_HEAP_FLAG_NONE,
-			&textureDesc,
-			D3D12_RESOURCE_STATE_COPY_DEST,
-			nullptr,
-			IID_PPV_ARGS(&m_texture)));
 
-		const UINT64 uploadBufferSize = GetRequiredIntermediateSize(m_texture.Get(), 0, 1);
 
 		// Create the GPU upload buffer.
-		ThrowIfFailed(m_device->CreateCommittedResource(
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize),
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(&textureUploadHeap)));
 
 		// Copy data to the intermediate upload heap and then schedule a copy 
 		// from the upload heap to the Texture2D.
@@ -449,7 +500,7 @@ impl DxModel {
 
 		D3D12_SUBRESOURCE_DATA textureData = {};
 		textureData.pData = &texture[0];
-		textureData.RowPitch = TextureWidth * sizeof(UINT);
+		textureData.RowPitch = TextureWidth * sizeof(u32);
 		textureData.SlicePitch = textureData.RowPitch * TextureHeight;
 
 		UpdateSubresources(m_commandList.Get(), m_texture.Get(), textureUploadHeap.Get(), 0, 0, 1, &textureData);
@@ -516,6 +567,9 @@ impl DxModel {
                command_list: command_list,
                vertex_buffer: vertex_buffer,
                vertex_buffer_view: vertex_buffer_view,
+               index_buffer: index_buffer,
+               index_buffer_view: index_buffer_view,
+               texture: texture,
            })
     }
 
