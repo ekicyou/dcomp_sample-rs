@@ -430,9 +430,9 @@ impl ID3D12ResourceExt for ID3D12Resource {
         let mut required_size: u64 = 0;
         let device = self.get_device::<ID3D12Device>()?;
         unsafe {
-            let desc: *mut D3D12_RESOURCE_DESC = ptr::null_mut();
-            let _ = self.GetDesc(desc);
-            device.GetCopyableFootprints(desc,
+            let mut desc: D3D12_RESOURCE_DESC = mem::uninitialized();
+            let _ = self.GetDesc(&mut desc);
+            device.GetCopyableFootprints(&desc,
                                          first_subresource,
                                          num_subresources,
                                          0,
@@ -440,6 +440,7 @@ impl ID3D12ResourceExt for ID3D12Resource {
                                          ptr::null_mut(),
                                          ptr::null_mut(),
                                          &mut required_size);
+            println!("GetCopyableFootprints");
         }
         Ok(required_size)
     }
