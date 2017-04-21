@@ -491,16 +491,6 @@ impl DxModel {
                     SlicePitch: slice_pitch,
                 }
             };
-            fn update_subresources(cmd_list: &ID3D12GraphicsCommandList,
-                                   destination_resource: &ID3D12Resource,
-                                   intermediate: &ID3D12Resource,
-                                   intermediate_offset: u64,
-                                   first_subresource: u32,
-                                   num_subresources: u32,
-                                   src_data: &D3D12_SUBRESOURCE_DATA)
-                                   -> Result<u64, HRESULT> {
-                unimplemented!();
-            }
             update_subresources(&command_list,
                                 &texture,
                                 &texture_upload_heap,
@@ -595,6 +585,60 @@ impl DxModel {
            })
     }
 }
+
+fn offset_to_mut_ref<'a, T>(mem: &'a [u8], offset: usize) -> &'a mut T {
+    let start = mem[offset..];
+    let p = start.as_ptr();
+    unsafe { p as *mut T }
+}
+
+// Heap-allocating UpdateSubresources implementation
+fn update_subresources(cmd_list: &ID3D12GraphicsCommandList,
+                       destination_resource: &ID3D12Resource,
+                       intermediate: &ID3D12Resource,
+                       intermediate_offset: u64,
+                       first_subresource: u32,
+                       num_subresources: u32,
+                       src_data: &D3D12_SUBRESOURCE_DATA)
+                       -> Result<u64, HRESULT> {
+    let mut required_size = 0_u64;
+    let mem_to_alloc =
+        ((mem::size_of::<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>() + mem::size_of::<UINT>() +
+          mem::size_of::<UINT64>()) * num_subresources) as usize;
+    let mut mem = unsafe {
+        let mut mem = Vec::with_capacity::<u8>(mem_to_alloc);
+        mem.set_len(mem_to_alloc);
+        mem.into_boxed_slice()
+    };
+    let mut offset = 0_usize;
+    let mut layouts = offset_to_mut_ref::<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>(mem, &mut offset);
+    let mut row_sizes_in_bytes = offset_to_mut_ref::<u64>(mem, &mut offset);
+    let mut num_rows = offset_to_mut_ref::<u32>(mem, &mut offset);
+
+    let desc = destination_resource.get_desc();
+    let device = destination_resource.get_device::<ID3D12Device>()?;
+    device
+        .get_copyable_footprints(&desc,
+                                 first_subresource,
+                                 num_subresources,
+                                 intermediate_offset,
+                                 &mut layouts,
+                                 &mut num_rows,
+                                 &mut row_sizes_in_bytes,
+                                 &mut required_size)?;
+    let rc = update_subresources(cmd_list,
+                                 destination_resource,
+                                 intermediate,
+                                 first_subresource,
+                                 num_subresources,
+                                 required_size,
+                                 &layouts,
+                                 &num_rows,
+                                 &row_sizes_in_bytes,
+                                 src_data)?;
+    Ok(rc)
+}
+
 
 // WAITING FOR THE FRAME TO COMPLETE BEFORE CONTINUING IS NOT BEST PRACTICE.
 // This is code implemented as such for simplicity. The D3D12HelloFrameBuffering
