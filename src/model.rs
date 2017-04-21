@@ -431,24 +431,25 @@ impl DxModel {
         // texture_upload_heapの開放タイミングがGPUへのフラッシュ後になるように
         // 所有権を関数スコープに追い出しておく
         let (_texture_upload_heap, texture) = {
+            // Describe and create a Texture2D.
+            let texture_desc = D3D12_RESOURCE_DESC::new(D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+                                                        0,
+                                                        TEXTURE_WIDTH,
+                                                        TEXTURE_HEIGHT,
+                                                        1,
+                                                        1,
+                                                        DXGI_FORMAT_R8G8B8A8_UNORM,
+                                                        1,
+                                                        0,
+                                                        D3D12_TEXTURE_LAYOUT_UNKNOWN,
+                                                        D3D12_RESOURCE_FLAG_NONE);
+
             let texture = {
-                // Describe and create a Texture2D.
-                let desc = D3D12_RESOURCE_DESC::new(D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-                                                    0,
-                                                    TEXTURE_WIDTH,
-                                                    TEXTURE_HEIGHT,
-                                                    1,
-                                                    1,
-                                                    DXGI_FORMAT_R8G8B8A8_UNORM,
-                                                    1,
-                                                    0,
-                                                    D3D12_TEXTURE_LAYOUT_UNKNOWN,
-                                                    D3D12_RESOURCE_FLAG_NONE);
                 let properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_DEFAULT);
                 let buffer = device
                     .create_committed_resource::<ID3D12Resource>(&properties,
                                                                  D3D12_HEAP_FLAG_NONE,
-                                                                 &desc,
+                                                                 &texture_desc,
                                                                  D3D12_RESOURCE_STATE_COPY_DEST,
                                                                  None)?;
                 buffer
@@ -505,6 +506,20 @@ impl DxModel {
                 &D3D12_RESOURCE_BARRIER::transition(&texture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 
             // Describe and create a SRV for the texture.
+            {
+                let desc = unsafe {
+                    let mut desc = mem::zeroed::<D3D12_SHADER_RESOURCE_VIEW_DESC>();
+                    desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+                    desc.Format = texture_desc.Format;
+                    desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+                    {
+                        let mut t = desc.u.Texture2D_mut();
+                        t.MipLevels = 1;
+                    }
+                    desc
+                };
+
+            }
 
 
 
