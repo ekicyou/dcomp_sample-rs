@@ -25,8 +25,8 @@ pub fn D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(s0: u32, s1: u32, s2: u32, s3: u3
 pub fn D3D12_DECODE_SHADER_4_COMPONENT_MAPPING(component_to_extract: u32,
                                                mapping: u32)
                                                -> D3D12_SHADER_COMPONENT_MAPPING {
-    let rc = (mapping >> (D3D12_SHADER_COMPONENT_MAPPING_SHIFT * component_to_extract) &
-              D3D12_SHADER_COMPONENT_MAPPING_MASK);
+    let rc = mapping >> (D3D12_SHADER_COMPONENT_MAPPING_SHIFT * component_to_extract) &
+             D3D12_SHADER_COMPONENT_MAPPING_MASK;
     rc as D3D12_SHADER_COMPONENT_MAPPING
 }
 

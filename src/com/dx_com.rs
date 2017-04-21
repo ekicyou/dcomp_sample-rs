@@ -10,10 +10,11 @@ use winapi::Interface;
 use winapi::_core::mem;
 use winapi::_core::ptr;
 use winapi::ctypes::c_void;
+use winapi::shared::ntdef::HANDLE;
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::{E_FAIL, HRESULT};
 use winapi::um::unknwnbase::IUnknown;
-
+use winapi::um::winbase::INFINITE;
 
 pub trait IDXGIAdapter1Ext {
     fn get_desc1(&self) -> Result<DXGI_ADAPTER_DESC1, HRESULT>;
@@ -147,6 +148,10 @@ pub trait ID3D12DeviceExt {
                                    desc: &D3D12_SHADER_RESOURCE_VIEW_DESC,
                                    dest_descriptor: D3D12_CPU_DESCRIPTOR_HANDLE)
                                    -> ();
+    fn create_fence<U: Interface>(&self,
+                                  initial_value: u64,
+                                  flags: D3D12_FENCE_FLAGS)
+                                  -> ComResult<U>;
 }
 impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
@@ -286,6 +291,20 @@ impl ID3D12DeviceExt for ID3D12Device {
         unsafe {
             self.CreateShaderResourceView(resource as *const _ as *mut _, desc, dest_descriptor)
         }
+    }
+    #[inline]
+    fn create_fence<U: Interface>(&self,
+                                  initial_value: u64,
+                                  flags: D3D12_FENCE_FLAGS)
+                                  -> ComResult<U> {
+        let riid = U::uuidof();
+        let p = unsafe {
+            let mut ppv: *mut c_void = ptr::null_mut();
+            self.CreateFence(initial_value, flags, &riid, &mut ppv)
+                .hr()?;
+            ppv as *const U
+        };
+        Ok(ComRc::new(p))
     }
 }
 
@@ -517,6 +536,7 @@ impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
 
 pub trait ID3D12CommandQueueExt {
     fn execute_command_lists(&self, command_lists: &[&ID3D12GraphicsCommandList]);
+    fn signal(&self, fence: &ID3D12Fence, value: u64) -> Result<(), HRESULT>;
 }
 impl ID3D12CommandQueueExt for ID3D12CommandQueue {
     #[inline]
@@ -526,5 +546,38 @@ impl ID3D12CommandQueueExt for ID3D12CommandQueue {
             let ptr = command_lists.as_ptr() as *mut *mut ID3D12CommandList;
             self.ExecuteCommandLists(num, ptr)
         }
+    }
+    #[inline]
+    fn signal(&self, fence: &ID3D12Fence, value: u64) -> Result<(), HRESULT> {
+        unsafe { self.Signal(fence as *const _ as *mut _, value).hr() }
+    }
+}
+
+pub trait ID3D12FenceExt {
+    fn get_completed_value(&self) -> u64;
+    fn set_event_on_completion(&self, value: u64, event: HANDLE) -> Result<(), HRESULT>;
+    fn signal(&self, value: u64) -> Result<(), HRESULT>;
+    fn wait_infinite(&self, value: u64, event: HANDLE) -> Result<(), HRESULT>;
+}
+impl ID3D12FenceExt for ID3D12Fence {
+    #[inline]
+    fn get_completed_value(&self) -> u64 {
+        unsafe { self.GetCompletedValue() }
+    }
+    #[inline]
+    fn set_event_on_completion(&self, value: u64, event: HANDLE) -> Result<(), HRESULT> {
+        unsafe { self.SetEventOnCompletion(value, event).hr() }
+    }
+    #[inline]
+    fn signal(&self, value: u64) -> Result<(), HRESULT> {
+        unsafe { self.Signal(value).hr() }
+    }
+    #[inline]
+    fn wait_infinite(&self, value: u64, event: HANDLE) -> Result<(), HRESULT> {
+        if self.get_completed_value() < value {
+            self.set_event_on_completion(value, event)?;
+            wait_for_single_object(event, INFINITE);
+        }
+        Ok(())
     }
 }

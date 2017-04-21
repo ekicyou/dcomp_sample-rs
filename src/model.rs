@@ -4,8 +4,10 @@ use super::consts::*;
 use super::hwnd_window::HwndWindow;
 use winapi::_core::f32::consts::PI;
 use winapi::_core::mem;
+use winapi::_core::ptr;
 use winapi::shared::basetsd::UINT16;
 use winapi::shared::minwindef::{FALSE, TRUE};
+use winapi::shared::ntdef::HANDLE;
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::HRESULT;
 use winapi::vc::limits::UINT_MAX;
@@ -80,6 +82,11 @@ pub struct DxModel {
     index_buffer: ComRc<ID3D12Resource>,
     index_buffer_view: D3D12_INDEX_BUFFER_VIEW,
     texture: ComRc<ID3D12Resource>,
+
+    // Synchronization objects.
+    fence: ComRc<ID3D12Fence>,
+    fence_value: u64,
+    fence_event: HANDLE,
 }
 
 impl DxModel {
@@ -157,7 +164,7 @@ impl DxModel {
         // このサンプルはフルスクリーンへの遷移をサポートしません。
         factory
             .make_window_association(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
-        let frame_index = swap_chain.get_current_back_buffer_index();
+        let mut frame_index = swap_chain.get_current_back_buffer_index();
 
         // Create descriptor heaps.
         // Describe and create a render target view (RTV) descriptor heap.
@@ -533,6 +540,28 @@ impl DxModel {
             command_queue.execute_command_lists(&[a]);
         }
 
+        // Create synchronization objects and wait until assets have been uploaded to the GPU.
+        let (fence, fence_value, fence_event) = {
+            let fence = device
+                .create_fence::<ID3D12Fence>(0, D3D12_FENCE_FLAG_NONE)?;
+            let mut fence_value = 1_u64;
+
+            // Create an event handle to use for frame synchronization.
+            let fence_event = create_event(None, false, false, None)?;
+
+            // Wait for the command list to execute; we are reusing the same command
+            // list in our main loop but for now, we just want to wait for setup to
+            // complete before continuing.
+            wait_for_previous_frame(&swap_chain,
+                                    &command_queue,
+                                    &fence,
+                                    fence_event,
+                                    &mut fence_value,
+                                    &mut frame_index)?;
+
+            (fence, fence_value, fence_event)
+        };
+
         /*
 
 
@@ -586,13 +615,31 @@ impl DxModel {
                index_buffer: index_buffer,
                index_buffer_view: index_buffer_view,
                texture: texture,
+               fence: fence,
+               fence_value: fence_value,
+               fence_event: fence_event,
            })
     }
+}
 
+// WAITING FOR THE FRAME TO COMPLETE BEFORE CONTINUING IS NOT BEST PRACTICE.
+// This is code implemented as such for simplicity. The D3D12HelloFrameBuffering
+// sample illustrates how to use fences for efficient resource usage and to
+// maximize GPU utilization.
+fn wait_for_previous_frame(swap_chain: &IDXGISwapChain3,
+                           command_queue: &ID3D12CommandQueue,
+                           fence: &ID3D12Fence,
+                           event: HANDLE,
+                           fence_value: &mut u64,
+                           frame_index: &mut u32)
+                           -> Result<(), HRESULT> {
+    // Signal and increment the fence value.
+    command_queue.signal(fence, *fence_value)?;
+    *fence_value += 1;
 
+    // Wait until the previous frame is finished.
+    fence.wait_infinite(*fence_value, event)?;
 
-    /*
-    // Load the rendering pipeline dependencies.
-
-*/
+    *frame_index = swap_chain.get_current_back_buffer_index();
+    Ok(())
 }
