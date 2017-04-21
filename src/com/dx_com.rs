@@ -483,3 +483,12 @@ impl<'a> Drop for ResourceMap<'a> {
         }
     }
 }
+
+pub trait ID3D12GraphicsCommandListExt {
+    fn resource_barrier(&self, mum_barriers: u32, barriers: &D3D12_RESOURCE_BARRIER) -> ();
+}
+impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
+    fn resource_barrier(&self, mum_barriers: u32, barriers: &D3D12_RESOURCE_BARRIER) -> () {
+        unsafe { self.ResourceBarrier(mum_barriers, barriers) }
+    }
+}

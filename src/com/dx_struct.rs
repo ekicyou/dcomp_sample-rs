@@ -330,3 +330,34 @@ impl CD3DX12_RANGE for D3D12_RANGE {
         }
     }
 }
+
+#[allow(non_camel_case_types)]
+pub trait CD3DX12_RESOURCE_BARRIER {
+    fn transition(pResource: &ID3D12Resource,
+                  stateBefore: D3D12_RESOURCE_STATES,
+                  stateAfter: D3D12_RESOURCE_STATES)
+                  -> D3D12_RESOURCE_BARRIER;
+}
+impl CD3DX12_RESOURCE_BARRIER for D3D12_RESOURCE_BARRIER {
+    #[inline]
+    fn transition(resource: &ID3D12Resource,
+                  state_before: D3D12_RESOURCE_STATES,
+                  state_after: D3D12_RESOURCE_STATES)
+                  -> D3D12_RESOURCE_BARRIER {
+        let subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        let flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        unsafe {
+            let mut barrier = mem::zeroed::<D3D12_RESOURCE_BARRIER>();
+            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier.Flags = flags;
+            {
+                let mut transition = barrier.u.Transition_mut();
+                transition.pResource = resource as *const _ as *mut _;
+                transition.StateBefore = state_before;
+                transition.StateAfter = state_after;
+                transition.Subresource = subresource;
+            }
+            barrier
+        }
+    }
+}

@@ -422,7 +422,15 @@ impl DxModel {
         };
 
         // Create the texture.
-        let (texture, _) = {
+
+        // Note: ComPtr's are CPU objects but this resource needs to stay in scope until
+        // the command list that references it has finished executing on the GPU.
+        // We will flush the GPU at the end of this method to ensure the resource is not
+        // prematurely destroyed.
+
+        // texture_upload_heapの開放タイミングがGPUへのフラッシュ後になるように
+        // 所有権を関数スコープに追い出しておく
+        let (_texture_upload_heap, texture) = {
             let texture = {
                 // Describe and create a Texture2D.
                 let desc = D3D12_RESOURCE_DESC::new(D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -447,10 +455,7 @@ impl DxModel {
             };
             let upload_buffer_size = texture.get_required_intermediate_size(0, 1)?;
 
-            // Note: ComPtr's are CPU objects but this resource needs to stay in scope until
-            // the command list that references it has finished executing on the GPU.
-            // We will flush the GPU at the end of this method to ensure the resource is not
-            // prematurely destroyed.
+            // Create the GPU upload buffer.
             let texture_upload_heap = {
                 let properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
                 let desc = D3D12_RESOURCE_DESC::buffer(upload_buffer_size);
@@ -462,36 +467,55 @@ impl DxModel {
                                                                  None)?
             };
 
+            // Copy data to the intermediate upload heap and then schedule a copy
+            // from the upload heap to the Texture2D.
+            fn generate_texture_data() -> Vec<u8> {
+                unimplemented!();
+            }
+            let texture_bytes = generate_texture_data();
+            let texture_data = {
+                let ptr = texture_bytes.as_ptr();
+                let row_pitch = ((TEXTURE_WIDTH as usize) * mem::size_of::<u32>()) as isize;
+                let slice_pitch = row_pitch * (TEXTURE_HEIGHT as isize);
+                D3D12_SUBRESOURCE_DATA {
+                    pData: ptr as _,
+                    RowPitch: row_pitch,
+                    SlicePitch: slice_pitch,
+                }
+            };
+            fn update_subresources(cmd_list: &ID3D12GraphicsCommandList,
+                                   destination_resource: &ID3D12Resource,
+                                   intermediate: &ID3D12Resource,
+                                   intermediate_offset: u64,
+                                   first_subresource: u32,
+                                   num_subresources: u32,
+                                   src_data: &D3D12_SUBRESOURCE_DATA)
+                                   -> Result<u64, HRESULT> {
+                unimplemented!();
+            }
+            update_subresources(&command_list,
+                                &texture,
+                                &texture_upload_heap,
+                                0,
+                                0,
+                                1,
+                                &texture_data)?;
+            command_list.resource_barrier(
+                1, 
+                &D3D12_RESOURCE_BARRIER::transition(&texture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+
+            // Describe and create a SRV for the texture.
 
 
-            (texture, texture_upload_heap)
+
+            (texture_upload_heap, texture)
         };
-
 
 
 
         /*
 
 
-
-	// Create the texture.
-	{
-
-
-
-		// Create the GPU upload buffer.
-
-		// Copy data to the intermediate upload heap and then schedule a copy 
-		// from the upload heap to the Texture2D.
-		std::vector<u8> texture = GenerateTextureData();
-
-		D3D12_SUBRESOURCE_DATA textureData = {};
-		textureData.pData = &texture[0];
-		textureData.RowPitch = TEXTURE_WIDTH * sizeof(u32);
-		textureData.SlicePitch = textureData.RowPitch * TEXTURE_HEIGHT;
-
-		UpdateSubresources(m_commandList.Get(), m_texture.Get(), textureUploadHeap.Get(), 0, 0, 1, &textureData);
-		m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 
 		// Describe and create a SRV for the texture.
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
