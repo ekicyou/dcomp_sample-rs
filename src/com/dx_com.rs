@@ -142,6 +142,11 @@ pub trait ID3D12DeviceExt {
                                                initial_resource_state: D3D12_RESOURCE_STATES,
                                                optimized_clear_value: Option<&D3D12_CLEAR_VALUE>)
                                                -> ComResult<U>;
+    fn create_shader_resource_view(&self,
+                                   resource: &ID3D12Resource,
+                                   desc: &D3D12_SHADER_RESOURCE_VIEW_DESC,
+                                   dest_descriptor: D3D12_CPU_DESCRIPTOR_HANDLE)
+                                   -> ();
 }
 impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
@@ -271,6 +276,16 @@ impl ID3D12DeviceExt for ID3D12Device {
             ppv as *const U
         };
         Ok(ComRc::new(p))
+    }
+    #[inline]
+    fn create_shader_resource_view(&self,
+                                   resource: &ID3D12Resource,
+                                   desc: &D3D12_SHADER_RESOURCE_VIEW_DESC,
+                                   dest_descriptor: D3D12_CPU_DESCRIPTOR_HANDLE)
+                                   -> () {
+        unsafe {
+            self.CreateShaderResourceView(resource as *const _ as *mut _, desc, dest_descriptor)
+        }
     }
 }
 
@@ -477,6 +492,7 @@ impl<'a> ResourceMap<'a> {
     }
 }
 impl<'a> Drop for ResourceMap<'a> {
+    #[inline]
     fn drop(&mut self) {
         unsafe {
             self.resource.Unmap(self.subresource, ptr::null());
@@ -485,10 +501,30 @@ impl<'a> Drop for ResourceMap<'a> {
 }
 
 pub trait ID3D12GraphicsCommandListExt {
+    fn close(&self) -> Result<(), HRESULT>;
     fn resource_barrier(&self, mum_barriers: u32, barriers: &D3D12_RESOURCE_BARRIER) -> ();
 }
 impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
+    #[inline]
+    fn close(&self) -> Result<(), HRESULT> {
+        unsafe { self.Close().hr() }
+    }
+    #[inline]
     fn resource_barrier(&self, mum_barriers: u32, barriers: &D3D12_RESOURCE_BARRIER) -> () {
         unsafe { self.ResourceBarrier(mum_barriers, barriers) }
+    }
+}
+
+pub trait ID3D12CommandQueueExt {
+    fn execute_command_lists(&self, command_lists: &[&ID3D12GraphicsCommandList]);
+}
+impl ID3D12CommandQueueExt for ID3D12CommandQueue {
+    #[inline]
+    fn execute_command_lists(&self, command_lists: &[&ID3D12GraphicsCommandList]) {
+        unsafe {
+            let num = command_lists.len() as u32;
+            let ptr = command_lists.as_ptr() as *mut *mut ID3D12CommandList;
+            self.ExecuteCommandLists(num, ptr)
+        }
     }
 }

@@ -518,33 +518,23 @@ impl DxModel {
                     }
                     desc
                 };
-
+                device.create_shader_resource_view(&texture,
+                                               &desc,
+                                               srv_heap.get_cpu_descriptor_handle_for_heap_start());
             }
-
-
 
             (texture_upload_heap, texture)
         };
 
-
+        // Close the command list and execute it to begin the initial GPU setup.
+        {
+            command_list.close()?;
+            let a: &ID3D12GraphicsCommandList = &command_list;
+            command_queue.execute_command_lists(&[a]);
+        }
 
         /*
 
-
-
-		// Describe and create a SRV for the texture.
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.Format = textureDesc.Format;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MipLevels = 1;
-		m_device->CreateShaderResourceView(m_texture.Get(), &srvDesc, m_srvHeap->GetCPUDescriptorHandleForHeapStart());
-	}
-	
-	// Close the command list and execute it to begin the initial GPU setup.
-	ThrowIfFailed(m_commandList->Close());
-	ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
 	// Create synchronization objects and wait until assets have been uploaded to the GPU.
 	{
