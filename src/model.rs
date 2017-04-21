@@ -584,10 +584,13 @@ impl DxModel {
     }
 }
 
-fn offset_to_mut_ref<'a, T>(mem: &'a [u8], offset: usize) -> &'a mut T {
-    let start = mem[offset..];
-    let p = start.as_ptr();
-    unsafe { p as *mut T }
+fn offset_to_mut_ref<'a, T>(mem: &'a [u8], offset: &mut usize) -> &'a mut T {
+    let start = &mem[*offset..];
+    *offset += mem::size_of::<T>();
+    unsafe {
+        let p = start.as_mut_ptr() as *mut T;
+        &mut *p
+    }
 }
 
 // Heap-allocating UpdateSubresources implementation
@@ -596,22 +599,22 @@ fn update_subresources(cmd_list: &ID3D12GraphicsCommandList,
                        intermediate: &ID3D12Resource,
                        intermediate_offset: u64,
                        first_subresource: u32,
-                       num_subresources: u32,
+                       num_subresources: usize,
                        src_data: &D3D12_SUBRESOURCE_DATA)
                        -> Result<u64, HRESULT> {
     let mut required_size = 0_u64;
-    let mem_to_alloc = ((mem::size_of::<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>() +
-                         mem::size_of::<u32>() +
-                         mem::size_of::<u64>()) * num_subresources) as usize;
-    let mut mem = unsafe {
-        let mut mem = Vec::with_capacity::<u8>(mem_to_alloc);
-        mem.set_len(mem_to_alloc);
+    let mem_block = mem::size_of::<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>() + mem::size_of::<u64>() +
+                    mem::size_of::<u32>();
+    let mem_to_alloc = mem_block * num_subresources;
+    let mut mem = {
+        let mut mem: Vec<u8> = Vec::new();
+        mem.resize(mem_to_alloc, 0_u8);
         mem.into_boxed_slice()
     };
     let mut offset = 0_usize;
-    let mut layouts = offset_to_mut_ref::<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>(mem, &mut offset);
-    let mut row_sizes_in_bytes = offset_to_mut_ref::<u64>(mem, &mut offset);
-    let mut num_rows = offset_to_mut_ref::<u32>(mem, &mut offset);
+    let mut layouts = offset_to_mut_ref::<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>(&mem, &mut offset);
+    let mut row_sizes_in_bytes = offset_to_mut_ref::<u64>(&mem, &mut offset);
+    let mut num_rows = offset_to_mut_ref::<u32>(&mem, &mut offset);
 
     let desc = destination_resource.get_desc();
     let device = destination_resource.get_device::<ID3D12Device>()?;
