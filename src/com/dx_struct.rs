@@ -19,6 +19,25 @@ impl Vertex {
 }
 
 #[allow(non_camel_case_types)]
+pub struct XMFLOAT4 {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub w: f32,
+}
+impl XMFLOAT4 {
+    pub fn new(x: f32, y: f32, z: f32, w: f32) -> XMFLOAT4 {
+        XMFLOAT4 {
+            x: x,
+            y: y,
+            z: z,
+            w: w,
+        }
+    }
+}
+
+
+#[allow(non_camel_case_types)]
 pub trait CD3DX12_CPU_DESCRIPTOR_HANDLE {
     fn offset(&mut self, offset_in_descriptors: INT, descriptor_increment_size: u32);
 }

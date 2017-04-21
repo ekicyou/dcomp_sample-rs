@@ -2,6 +2,7 @@
 use super::com::*;
 use super::consts::*;
 use super::hwnd_window::HwndWindow;
+use texture::*;
 use winapi::_core::f32::consts::PI;
 use winapi::_core::mem;
 use winapi::_core::ptr;
@@ -477,9 +478,6 @@ impl DxModel {
 
             // Copy data to the intermediate upload heap and then schedule a copy
             // from the upload heap to the Texture2D.
-            fn generate_texture_data() -> Vec<u8> {
-                unimplemented!();
-            }
             let texture_bytes = generate_texture_data();
             let texture_data = {
                 let ptr = texture_bytes.as_ptr();
@@ -602,9 +600,9 @@ fn update_subresources(cmd_list: &ID3D12GraphicsCommandList,
                        src_data: &D3D12_SUBRESOURCE_DATA)
                        -> Result<u64, HRESULT> {
     let mut required_size = 0_u64;
-    let mem_to_alloc =
-        ((mem::size_of::<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>() + mem::size_of::<UINT>() +
-          mem::size_of::<UINT64>()) * num_subresources) as usize;
+    let mem_to_alloc = ((mem::size_of::<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>() +
+                         mem::size_of::<u32>() +
+                         mem::size_of::<u64>()) * num_subresources) as usize;
     let mut mem = unsafe {
         let mut mem = Vec::with_capacity::<u8>(mem_to_alloc);
         mem.set_len(mem_to_alloc);

@@ -1,61 +1,55 @@
 use super::com::*;
 use super::consts::*;
+use winapi::_core::mem;
 
 // Generate a simple black and white checkerboard texture.
-pub fn generate_texture_data()->Vec<u8>
-{
-	let  row_pitch:u32 = TEXTURE_WIDTH * sizeof(u32);
-	let  cell_pitch:u32 = row_pitch >> 3;		// The width of a cell in the checkboard texture.
-	let  cell_height:u32 = TEXTURE_WIDTH >> 3;	// The height of a cell in the checkerboard texture.
-	let  texture_size:u32 = row_pitch * TEXTURE_HEIGHT;
+pub fn generate_texture_data() -> Vec<u8> {
+    let row_pitch = mem::size_of::<u32>() * TEXTURE_WIDTH as usize;
+    let cell_pitch = (row_pitch >> 3) as usize; // The width of a cell in the checkboard texture.
+    let cell_height = (TEXTURE_WIDTH >> 3) as usize; // The height of a cell in the checkerboard texture.
+    let texture_size = row_pitch * TEXTURE_HEIGHT as usize;
 
-    DirectX::XMFLOAT4 colors[NUM_TEXTURE_COLORS] =
-    {
-        DirectX::XMFLOAT4(1, 0, 0, 1), // Red
-        DirectX::XMFLOAT4(0, 1, 0, 1), // Green
-        DirectX::XMFLOAT4(0, 0, 1, 1), // Blue
-        DirectX::XMFLOAT4(0, 0, 0, 1), // Black
-        DirectX::XMFLOAT4(1, 1, 1, 1), // White
-        DirectX::XMFLOAT4(1, 1, 0, 1), // Yellow
-        DirectX::XMFLOAT4(0, 1, 1, 1), // Cyan
-        DirectX::XMFLOAT4(1, 0, 1, 1)  // Purple
-    };
+    let colors = [
+        XMFLOAT4::new(1_f32, 0_f32, 0_f32, 1_f32), // Red
+        XMFLOAT4::new(0_f32, 1_f32, 0_f32, 1_f32), // Green
+        XMFLOAT4::new(0_f32, 0_f32, 1_f32, 1_f32), // Blue
+        XMFLOAT4::new(0_f32, 0_f32, 0_f32, 1_f32), // Black
+        XMFLOAT4::new(1_f32, 1_f32, 1_f32, 1_f32), // White
+        XMFLOAT4::new(1_f32, 1_f32, 0_f32, 1_f32), // Yellow
+        XMFLOAT4::new(0_f32, 1_f32, 1_f32, 1_f32), // Cyan
+        XMFLOAT4::new(1_f32, 0_f32, 1_f32, 1_f32)  // Purple
+    ];
 
-	std::vector<u8> data(texture_size);
-    u8* pData = &data[0];
+    let mut buf: Vec<u8> = Vec::new();
+    buf.resize(texture_size, 0_u8);
+    let mut data = buf.as_mut_slice();
 
-    for (u32 a = 0; a < NUM_ALPHA_SHADES; ++a)
-    {
-        float alpha = a / (float)(NUM_ALPHA_SHADES - 1);
-        u32 start_x = a * TEXTURE_PIXEL_SIZE_X;
-        u32 end_x = start_x + TEXTURE_PIXEL_SIZE_X;
+    for a in 0_usize..NUM_ALPHA_SHADES as _ {
+        let alpha = (a as f32) / ((NUM_ALPHA_SHADES - 1) as f32);
+        let start_x = a * TEXTURE_PIXEL_SIZE_X as usize;
+        let end_x = start_x + TEXTURE_PIXEL_SIZE_X as usize;
 
-        for (u32 c = 0; c < NUM_TEXTURE_COLORS; ++c)
-        {
-            const DirectX::XMFLOAT4& color = colors[c];
-            DirectX::XMFLOAT4 pmaColor = 
-            { 
-                color.x * alpha,
-                color.y * alpha,
-                color.z * alpha,
-                alpha
+        for c in 0_usize..NUM_TEXTURE_COLORS as _ {
+            let color = colors[c];
+            let pma_color = XMFLOAT4 {
+                x: color.x * alpha,
+                y: color.y * alpha,
+                z: color.z * alpha,
+                w: alpha,
             };
 
-            u32 start_y = TEXTURE_PIXEL_SIZE_Y * c;
-            u32 end_y = start_y + TEXTURE_PIXEL_SIZE_Y;
-            for (u32 y = start_y; y < end_y; ++y)
-            {
-                for (u32 x = start_x; x < end_x; ++x)
-                {
-                    u32 offset = (y * TEXTURE_WIDTH + x) * sizeof(u32);
-                    pData[offset + 0] = (uint8_t)(pmaColor.x * 255.0f);
-                    pData[offset + 1] = (uint8_t)(pmaColor.y * 255.0f);
-                    pData[offset + 2] = (uint8_t)(pmaColor.z * 255.0f);
-                    pData[offset + 3] = (uint8_t)(pmaColor.w * 255.0f);
+            let start_y = c * TEXTURE_PIXEL_SIZE_Y as usize;
+            let end_y = start_y + TEXTURE_PIXEL_SIZE_Y as usize;
+            for y in start_y..end_y {
+                for x in start_x..end_x {
+                    let offset = (y * TEXTURE_WIDTH as usize + x) * mem::size_of::<u32>() as usize;
+                    data[offset + 0] = (pma_color.x * 255_f32) as u8;
+                    data[offset + 1] = (pma_color.y * 255_f32) as u8;
+                    data[offset + 2] = (pma_color.z * 255_f32) as u8;
+                    data[offset + 3] = (pma_color.w * 255_f32) as u8;
                 }
             }
         }
-	}
-
-	return data;
+    }
+    buf
 }
