@@ -152,6 +152,16 @@ pub trait ID3D12DeviceExt {
                                   initial_value: u64,
                                   flags: D3D12_FENCE_FLAGS)
                                   -> ComResult<U>;
+    fn get_copyable_footprints(&self,
+                               resource_desc: &D3D12_RESOURCE_DESC,
+                               first_subresource: u32,
+                               num_subresources: u32,
+                               base_offset: u64,
+                               layouts: &mut D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
+                               num_rows: &mut u32,
+                               row_size_in_bytes: &mut u64,
+                               total_bytes: &mut u64)
+                               -> ();
 }
 impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
@@ -306,6 +316,28 @@ impl ID3D12DeviceExt for ID3D12Device {
         };
         Ok(ComRc::new(p))
     }
+    #[inline]
+    fn get_copyable_footprints(&self,
+                               resource_desc: &D3D12_RESOURCE_DESC,
+                               first_subresource: u32,
+                               num_subresources: u32,
+                               base_offset: u64,
+                               layouts: &mut D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
+                               num_rows: &mut u32,
+                               row_size_in_bytes: &mut u64,
+                               total_bytes: &mut u64)
+                               -> () {
+        unsafe {
+            self.GetCopyableFootprints(resource_desc,
+                                       first_subresource,
+                                       num_subresources,
+                                       base_offset,
+                                       layouts,
+                                       num_rows,
+                                       row_size_in_bytes,
+                                       total_bytes)
+        }
+    }
 }
 
 
@@ -429,8 +461,12 @@ impl ID3D10BlobExt for ID3D10Blob {
 }
 
 pub trait ID3D12ResourceExt {
-    fn map(&self, subresource: u32, read_range: &D3D12_RANGE) -> Result<ResourceMap, HRESULT>;
+    fn map(&self,
+           subresource: u32,
+           read_range: Option<&D3D12_RANGE>)
+           -> Result<ResourceMap, HRESULT>;
     fn get_gpu_virtual_address(&self) -> D3D12_GPU_VIRTUAL_ADDRESS;
+    fn get_desc(&self) -> D3D12_RESOURCE_DESC;
     fn get_device<U: Interface>(&self) -> ComResult<U>;
     fn get_required_intermediate_size(&self,
                                       first_subresource: u32,
@@ -439,12 +475,21 @@ pub trait ID3D12ResourceExt {
 }
 impl ID3D12ResourceExt for ID3D12Resource {
     #[inline]
-    fn map(&self, subresource: u32, read_range: &D3D12_RANGE) -> Result<ResourceMap, HRESULT> {
+    fn map(&self,
+           subresource: u32,
+           read_range: Option<&D3D12_RANGE>)
+           -> Result<ResourceMap, HRESULT> {
         ResourceMap::new(self, subresource, read_range)
     }
     #[inline]
     fn get_gpu_virtual_address(&self) -> D3D12_GPU_VIRTUAL_ADDRESS {
         unsafe { self.GetGPUVirtualAddress() }
+    }
+    #[inline]
+    fn get_desc(&self) -> D3D12_RESOURCE_DESC {
+        let mut desc: D3D12_RESOURCE_DESC = mem::uninitialized();
+        let _ = self.GetDesc(&mut desc);
+        desc
     }
     #[inline]
     fn get_device<U: Interface>(&self) -> ComResult<U> {
@@ -463,9 +508,8 @@ impl ID3D12ResourceExt for ID3D12Resource {
                                       -> Result<u64, HRESULT> {
         let mut required_size: u64 = 0;
         let device = self.get_device::<ID3D12Device>()?;
+        let desc = self.get_desc();
         unsafe {
-            let mut desc: D3D12_RESOURCE_DESC = mem::uninitialized();
-            let _ = self.GetDesc(&mut desc);
             device.GetCopyableFootprints(&desc,
                                          first_subresource,
                                          num_subresources,
@@ -479,6 +523,7 @@ impl ID3D12ResourceExt for ID3D12Resource {
         Ok(required_size)
     }
 }
+
 pub struct ResourceMap<'a> {
     resource: &'a ID3D12Resource,
     subresource: u32,
@@ -488,12 +533,12 @@ impl<'a> ResourceMap<'a> {
     #[inline]
     fn new(resource: &'a ID3D12Resource,
            subresource: u32,
-           read_range: &D3D12_RANGE)
+           read_range: Option<&D3D12_RANGE>)
            -> Result<ResourceMap<'a>, HRESULT> {
         let mut data_begin: *mut c_void = ptr::null_mut();
         unsafe {
             resource
-                .Map(subresource, read_range, &mut data_begin)
+                .Map(subresource, opt_to_ptr(read_range), &mut data_begin)
                 .hr()?;
             Ok(ResourceMap {
                    resource: resource,
@@ -508,6 +553,29 @@ impl<'a> ResourceMap<'a> {
         let src = src as *const u8;
         unsafe { rlibc::memcpy(dst, src, size) };
         self
+    }
+    #[inline]
+    pub fn memcpy_subresource<T>(&self,
+                                 dst_offset: usize,
+                                 dst_row_pitch: usize,
+                                 dst_slice_pitch: usize,
+                                 src: &D3D12_SUBRESOURCE_DATA,
+                                 row_size_in_bytes: usize,
+                                 num_rows: usize,
+                                 num_slices: usize) {
+        for z in 0_usize..num_slices {
+            let dst_slice = (self.data_begin as usize) + dst_offset + dst_slice_pitch * z;
+            let src_slice = (src.pData as usize) + (src.SlicePitch as usize) * z;
+            for y in 0_usize..num_rows {
+                let dst = dst_slice + dst_row_pitch * y;
+                let src = src_slice + (src.RowPitch as usize) * y;
+                unsafe {
+                    let dst = dst as *const u8 as *mut u8;
+                    let src = src as *const u8;
+                    unsafe { rlibc::memcpy(dst, src, size) };
+                }
+            }
+        }
     }
 }
 impl<'a> Drop for ResourceMap<'a> {

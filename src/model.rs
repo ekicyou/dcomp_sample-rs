@@ -373,7 +373,7 @@ impl DxModel {
 
             // Copy the triangle data to the vertex buffer.
             let read_range = D3D12_RANGE::new(0, 0); // We do not intend to read from this resource on the CPU.
-            buffer.map(0, &read_range)?.memcpy(p, size);
+            buffer.map(0,Some( &read_range))?.memcpy(p, size);
 
             // Initialize the vertex buffer view.
             let view = D3D12_VERTEX_BUFFER_VIEW {
@@ -417,7 +417,7 @@ impl DxModel {
 
             // Copy the index data to the index buffer.
             let read_range = D3D12_RANGE::new(0, 0); // We do not intend to read from this resource on the CPU.
-            buffer.map(0, &read_range)?.memcpy(p, size);
+            buffer.map(0,Some( &read_range))?.memcpy(p, size);
 
             // Intialize the index buffer view
             let view = D3D12_INDEX_BUFFER_VIEW {
@@ -593,8 +593,35 @@ fn offset_to_mut_ref<'a, T>(mem: &'a [u8], offset: &mut usize) -> &'a mut T {
     }
 }
 
+
+// WAITING FOR THE FRAME TO COMPLETE BEFORE CONTINUING IS NOT BEST PRACTICE.
+// This is code implemented as such for simplicity. The D3D12HelloFrameBuffering
+// sample illustrates how to use fences for efficient resource usage and to
+// maximize GPU utilization.
+fn wait_for_previous_frame(swap_chain: &IDXGISwapChain3,
+                           command_queue: &ID3D12CommandQueue,
+                           fence: &ID3D12Fence,
+                           event: HANDLE,
+                           fence_value: &mut u64,
+                           frame_index: &mut u32)
+                           -> Result<(), HRESULT> {
+    // Signal and increment the fence value.
+    command_queue.signal(fence, *fence_value)?;
+    *fence_value += 1;
+
+    // Wait until the previous frame is finished.
+    fence.wait_infinite(*fence_value, event)?;
+
+    *frame_index = swap_chain.get_current_back_buffer_index();
+    Ok(())
+}
+
+
+//------------------------------------------------------------------------------------------------
 // Heap-allocating UpdateSubresources implementation
-fn update_subresources(cmd_list: &ID3D12GraphicsCommandList,
+    #[inline]
+fn update_subresources_as_heap(
+    cmd_list: &ID3D12GraphicsCommandList,
                        destination_resource: &ID3D12Resource,
                        intermediate: &ID3D12Resource,
                        intermediate_offset: u64,
@@ -618,15 +645,14 @@ fn update_subresources(cmd_list: &ID3D12GraphicsCommandList,
 
     let desc = destination_resource.get_desc();
     let device = destination_resource.get_device::<ID3D12Device>()?;
-    device
-        .get_copyable_footprints(&desc,
-                                 first_subresource,
-                                 num_subresources,
-                                 intermediate_offset,
-                                 &mut layouts,
-                                 &mut num_rows,
-                                 &mut row_sizes_in_bytes,
-                                 &mut required_size)?;
+    device.get_copyable_footprints(&desc,
+                                   first_subresource,
+                                   num_subresources as u32,
+                                   intermediate_offset,
+                                   &mut layouts,
+                                   &mut num_rows,
+                                   &mut row_sizes_in_bytes,
+                                   &mut required_size);
     let rc = update_subresources(cmd_list,
                                  destination_resource,
                                  intermediate,
@@ -640,25 +666,64 @@ fn update_subresources(cmd_list: &ID3D12GraphicsCommandList,
     Ok(rc)
 }
 
+//------------------------------------------------------------------------------------------------
+// All arrays must be populated (e.g. by calling GetCopyableFootprints)
+    #[inline]
+ fn UpdateSubresources(
+    cmd_list: &ID3D12GraphicsCommandList,
+                       destination_resource: &ID3D12Resource,
+                       intermediate: &ID3D12Resource,
+                       first_subresource: u32,
+                       num_subresources: usize,
+     required_size:u64,
+                               layouts: & D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
+                               num_rows: &u32,
+                               row_size_in_bytes: & [usize],
+        src_data: &D3D12_SUBRESOURCE_DATA
+    )
+                       -> Result<u64, HRESULT>
+{
+    // Minor validation
+    let intermediate_desc = intermediate.get_desc();
+    let destination_desc = destination_resource.get_desc();
+    if intermediate_desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER || 
+        intermediate_desc.Width < required_size + layouts[0].Offset || 
+        required_size > (SIZE_T)-1 || 
+        (destination_desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER && 
+            (FirstSubresource != 0 || num_subresources != 1))
+    {
+        return Err(E_FALI);
+    }
+    
+    {
+        let map =  intermediate.map(0, None).hr()?;
+    
+    for i in  0..num_subresources
+    {
+        if (pRowSizesInBytes[i] > (SIZE_T)-1)  return Err(E_FALI);
+        D3D12_MEMCPY_DEST DestData = { pData + layouts[i].Offset, layouts[i].Footprint.RowPitch, layouts[i].Footprint.RowPitch * pNumRows[i] };
 
-// WAITING FOR THE FRAME TO COMPLETE BEFORE CONTINUING IS NOT BEST PRACTICE.
-// This is code implemented as such for simplicity. The D3D12HelloFrameBuffering
-// sample illustrates how to use fences for efficient resource usage and to
-// maximize GPU utilization.
-fn wait_for_previous_frame(swap_chain: &IDXGISwapChain3,
-                           command_queue: &ID3D12CommandQueue,
-                           fence: &ID3D12Fence,
-                           event: HANDLE,
-                           fence_value: &mut u64,
-                           frame_index: &mut u32)
-                           -> Result<(), HRESULT> {
-    // Signal and increment the fence value.
-    command_queue.signal(fence, *fence_value)?;
-    *fence_value += 1;
 
-    // Wait until the previous frame is finished.
-    fence.wait_infinite(*fence_value, event)?;
 
-    *frame_index = swap_chain.get_current_back_buffer_index();
-    Ok(())
+        MemcpySubresource(&DestData, &pSrcData[i], (SIZE_T)pRowSizesInBytes[i], pNumRows[i], layouts[i].Footprint.Depth);
+    }
+
+    }
+    
+    if (destination_desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
+    {
+        CD3DX12_BOX SrcBox( UINT( layouts[0].Offset ), UINT( layouts[0].Offset + layouts[0].Footprint.Width ) );
+        pCmdList->CopyBufferRegion(
+            pDestinationResource, 0, pIntermediate, layouts[0].Offset, layouts[0].Footprint.Width);
+    }
+    else
+    {
+        for i in 0..num_subresources
+        {
+            CD3DX12_TEXTURE_COPY_LOCATION Dst(pDestinationResource, i + FirstSubresource);
+            CD3DX12_TEXTURE_COPY_LOCATION Src(pIntermediate, layouts[i]);
+            pCmdList->CopyTextureRegion(&Dst, 0, 0, 0, &Src, nullptr);
+        }
+    }
+    Ok( required_size)
 }
