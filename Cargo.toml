@@ -4,12 +4,12 @@ name = "dcomp_sample"
 version = "0.1.0"
 
 [dependencies]
-c_string = "^0.7.0"
-lazy_static = "^0.2.8"
-rlibc = "^1.0"
-winit = "^0.6"
+c_string = "0.7.0"
+lazy_static = "0.2.8"
+libc = "0.2.22"
+winit = "0.6.4"
 
 [dependencies.winapi]
-branch = "feature/dcomp"
+branch = "dev"
 features = ["dcomp", "d3d12sdklayers", "dwrite_3", "dxgi1_5", "d3dcompiler", "winuser", "errhandlingapi","winbase"]
 git = "https://github.com/ekicyou/winapi-rs"

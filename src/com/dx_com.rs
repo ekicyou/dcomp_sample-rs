@@ -551,7 +551,7 @@ impl<'a> ResourceMap<'a> {
     pub fn memcpy<T>(self, src: *const T, size: usize) -> ResourceMap<'a> {
         let dst = self.data_begin as *mut u8;
         let src = src as *const u8;
-        unsafe { rlibc::memcpy(dst, src, size) };
+        unsafe { libc::memcpy(dst, src, size) };
         self
     }
     #[inline]
@@ -572,7 +572,7 @@ impl<'a> ResourceMap<'a> {
                 unsafe {
                     let dst = dst as *const u8 as *mut u8;
                     let src = src as *const u8;
-                    unsafe { rlibc::memcpy(dst, src, size) };
+                    unsafe { libc::memcpy(dst, src, size) };
                 }
             }
         }
@@ -590,6 +590,21 @@ impl<'a> Drop for ResourceMap<'a> {
 pub trait ID3D12GraphicsCommandListExt {
     fn close(&self) -> Result<(), HRESULT>;
     fn resource_barrier(&self, mum_barriers: u32, barriers: &D3D12_RESOURCE_BARRIER) -> ();
+        fn copy_buffer_region(&self,
+        dst_buffer: &ID3D12Resource,
+        dst_offset: u64,
+        src_buffer: &ID3D12Resource,
+        src_offset: u64,
+        num_bytes: u64,
+    ) -> ();
+    fn copy_texture_region(&self,
+        dst: &D3D12_TEXTURE_COPY_LOCATION,
+        dstX: UINT,
+        dstY: UINT,
+        dstZ: UINT,
+        src: &D3D12_TEXTURE_COPY_LOCATION,
+        src_box:Option<&D3D12_BOX>,
+    ) -> ();
 }
 impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
     #[inline]
@@ -600,6 +615,43 @@ impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
     fn resource_barrier(&self, mum_barriers: u32, barriers: &D3D12_RESOURCE_BARRIER) -> () {
         unsafe { self.ResourceBarrier(mum_barriers, barriers) }
     }
+    #[inline]
+        fn copy_buffer_region(&self,
+        dst_buffer: &ID3D12Resource,
+        dst_offset: u64,
+        src_buffer: &ID3D12Resource,
+        src_offset: u64,
+        num_bytes: u64,
+    ) -> (){
+        unsafe{ self.CopyBufferRegion(
+        dst_buffer as *const _ as *mut _ ,
+        dst_offset,
+        src_buffer  as *const _ as *mut _,
+        src_offset,
+        num_bytes,
+    )
+        }
+    }
+    #[inline]
+    fn copy_texture_region(&self,
+        dst: &D3D12_TEXTURE_COPY_LOCATION,
+        dstX: UINT,
+        dstY: UINT,
+        dstZ: UINT,
+        src: &D3D12_TEXTURE_COPY_LOCATION,
+                src_box:Option<&D3D12_BOX>,
+    ) -> (){
+        unsafe{
+            self.   CopyTextureRegion(
+        dst as  *const _,
+        dstX,
+        dstY,
+        dstZ,
+        src as *const _,
+        opt_to_ptr(src_box))
+        }
+    }
+
 }
 
 pub trait ID3D12CommandQueueExt {

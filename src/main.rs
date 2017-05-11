@@ -1,7 +1,7 @@
 #![cfg(windows)]
 
 extern crate winapi;
-extern crate rlibc;
+extern crate libc;
 extern crate winit;
 #[macro_use]
 extern crate c_string;

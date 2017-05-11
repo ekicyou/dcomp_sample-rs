@@ -380,3 +380,39 @@ impl CD3DX12_RESOURCE_BARRIER for D3D12_RESOURCE_BARRIER {
         }
     }
 }
+
+#[allow(non_camel_case_types)]
+pub trait CD3DX12_TEXTURE_COPY_LOCATION {
+
+
+}
+impl CD3DX12_TEXTURE_COPY_LOCATION for D3D12_TEXTURE_COPY_LOCATION {
+    #[inline]
+    fn from_footprint(res: &ID3D12Resource, footprint:&D3D12_PLACED_SUBRESOURCE_FOOTPRINT)->D3D12_TEXTURE_COPY_LOCATION
+    {
+        unsafe{
+            let mut rc = mem::uninitialized::<D3D12_TEXTURE_COPY_LOCATION>();
+            rc.pResource = res as *const _;
+            rc.        Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+            {
+                let mut u = rc.u.PlacedFootprint_mut();
+                u = footprint as *const _;
+            }
+rc
+        }
+    }
+    #[inline]
+    fn from_index(res: &ID3D12Resource, sub:u32)
+    {
+        unsafe{
+            let mut rc = mem::uninitialized::<D3D12_TEXTURE_COPY_LOCATION>();
+            rc.pResource = res as *const _;
+            rc.        Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            {
+                let mut u = rc.u.SubresourceIndex_mut();
+                u = sub;
+            }
+rc
+        }
+    }
+}
