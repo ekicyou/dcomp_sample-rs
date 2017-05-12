@@ -3,9 +3,8 @@ use super::dx_com::*;
 use super::dx_func::*;
 use super::dx_pub_use::*;
 use super::unsafe_util::*;
-use rlibc;
-use winapi::Interface;
 use winapi::_core::mem;
+use winapi::_core::intrinsics;
 use winapi::_core::ptr;
 use winapi::ctypes::c_void;
 use winapi::shared::ntdef::HANDLE;
@@ -13,6 +12,8 @@ use winapi::shared::windef::HWND;
 use winapi::shared::winerror::{E_FAIL, HRESULT};
 use winapi::um::unknwnbase::IUnknown;
 use winapi::um::winbase::INFINITE;
+
+const LIMIT_SIZE: usize = (isize::max_value() as usize);
 
 pub trait ID3D12GraphicsCommandListDx12 {
 fn update_subresources_as_heap(
@@ -117,7 +118,7 @@ fn update_subresources_as_heap(
         let map =  intermediate.map(0, None).hr()?;
     for i in  0..num_subresources
     {
-        if (row_sizes_in_bytes[i] > (SIZE_T)-1) { return Err(E_FALI);}
+        if row_sizes_in_bytes[i] > LIMIT_SIZE { return Err(E_FALI);}
    let   dest_data    = D3D12_MEMCPY_DEST{
        pData:   data + layouts[i].Offset, 
       RowPitch:    layouts[i].Footprint.RowPitch, 
@@ -153,29 +154,27 @@ _=>    {
   } 
     Ok( required_size)
 }
-
+}
 
 //------------------------------------------------------------------------------------------------
 // Row-by-row memcpy
-    #[inline]
+#[inline]
 fn memcpy_subresource(
-     dest:&D3D12_MEMCPY_DEST,
-    src:&D3D12_SUBRESOURCE_DATA,
+     dst:&D3D12_MEMCPY_DEST,
+     src:&D3D12_SUBRESOURCE_DATA,
      row_size_in_bytes:usize,
      num_rows:u32,
      num_slices:u32)
 {
-    for z in (0.. num_slices)
+    for z in 0.. num_slices
     {
-        BYTE* dest_slice = reinterpret_cast<BYTE*>(dest.Data) + dest.SlicePitch * z;
-        const BYTE* src_slice = reinterpret_cast<const BYTE*>(src.Data) + src->SlicePitch * z;
-        for y in (0 .. num_rows)
+        let dst_slice = dst.offset_slice(z);
+        let src_slice = src.offset_slice(z);
+        for y in 0 .. num_rows
         {
-          libc::  memcpy(dest_slice + dest->RowPitch * y,
-                   src_slice + src->RowPitch * y,
-                   row_size_in_bytes);
+            let dst_ptr = dst.ptr_offset(dst_slice + dst.offset_row(y));
+            let src_ptr = src.ptr_offset(src_slice + dst.offset_row(y));
+            unsafe{ memcpy(dst_ptr, src_ptr, row_size_in_bytes)};
         }
     }
-}
-
 }

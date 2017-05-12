@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use winapi::_core::ptr;
 use winapi::shared::minwindef::{BOOL, FALSE, TRUE, UINT};
+use libc;
 
 #[allow(non_snake_case)]
 #[inline]
@@ -51,4 +52,9 @@ pub fn to_utf8_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u8> {
     v.push(0);
     println!(" --> {:?}", v);
     v
+}
+
+#[inline]
+pub unsafe fn memcpy(dst: *mut u8, src: *const u8, size: usize){
+    libc::memcpy(dst, src, size)
 }

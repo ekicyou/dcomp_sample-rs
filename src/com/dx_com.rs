@@ -5,7 +5,6 @@ use super::com_rc::*;
 use super::dx_func::*;
 use super::dx_pub_use::*;
 use super::unsafe_util::*;
-use rlibc;
 use winapi::Interface;
 use winapi::_core::mem;
 use winapi::_core::ptr;
@@ -551,7 +550,7 @@ impl<'a> ResourceMap<'a> {
     pub fn memcpy<T>(self, src: *const T, size: usize) -> ResourceMap<'a> {
         let dst = self.data_begin as *mut u8;
         let src = src as *const u8;
-        unsafe { libc::memcpy(dst, src, size) };
+        unsafe { memcpy(dst, src, size) };
         self
     }
     #[inline]
@@ -572,7 +571,7 @@ impl<'a> ResourceMap<'a> {
                 unsafe {
                     let dst = dst as *const u8 as *mut u8;
                     let src = src as *const u8;
-                    unsafe { libc::memcpy(dst, src, size) };
+                    unsafe { memcpy(dst, src, size) };
                 }
             }
         }

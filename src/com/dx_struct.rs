@@ -383,8 +383,8 @@ impl CD3DX12_RESOURCE_BARRIER for D3D12_RESOURCE_BARRIER {
 
 #[allow(non_camel_case_types)]
 pub trait CD3DX12_TEXTURE_COPY_LOCATION {
-
-
+    fn from_footprint(res: &ID3D12Resource, footprint:&D3D12_PLACED_SUBRESOURCE_FOOTPRINT)->D3D12_TEXTURE_COPY_LOCATION;
+    fn from_index(res: &ID3D12Resource, sub:u32)->D3D12_TEXTURE_COPY_LOCATION;
 }
 impl CD3DX12_TEXTURE_COPY_LOCATION for D3D12_TEXTURE_COPY_LOCATION {
     #[inline]
@@ -402,7 +402,7 @@ rc
         }
     }
     #[inline]
-    fn from_index(res: &ID3D12Resource, sub:u32)
+    fn from_index(res: &ID3D12Resource, sub:u32)->D3D12_TEXTURE_COPY_LOCATION
     {
         unsafe{
             let mut rc = mem::uninitialized::<D3D12_TEXTURE_COPY_LOCATION>();
@@ -416,3 +416,55 @@ rc
         }
     }
 }
+
+#[allow(non_camel_case_types)]
+pub trait D3D12_MEMCPY_EXT {
+    fn offset_slice(&self,slice: u32)->usize;
+    fn offset_row(&self,slice: u32)->usize;
+    fn ptr_offset(&self, offset: usize)->*mut u8;
+}
+impl D3D12_MEMCPY_EXT for D3D12_MEMCPY_DEST {
+    #[inline]
+    fn offset_slice(&self,slice: u32)->usize
+    {
+        (self.SlicePitch as usize) * (slice as usize)
+    }
+     #[inline]
+    fn offset_row(&self, row: u32)->usize
+    {
+        (self.RowPitch as usize) * (row as usize)
+    }
+    #[inline]
+    fn ptr_offset(&self, offset: usize)->*mut u8
+    {
+        unsafe{
+            let mut a:usize = mem::transmute(self.pData);
+            a += offset;
+            mem::transmute::<_, _>(a)
+        }
+    }
+}
+impl D3D12_MEMCPY_EXT for D3D12_SUBRESOURCE_DATA {
+    #[inline]
+    fn offset_slice(&self,slice: u32)->usize
+    {
+        (self.SlicePitch as usize) * (slice as usize)
+    }
+     #[inline]
+    fn offset_row(&self, row: u32)->usize
+    {
+        (self.RowPitch as usize) * (row as usize)
+    }
+    #[inline]
+    fn ptr_offset(&self, offset: usize)->*mut u8
+    {
+        unsafe{
+            let mut a:usize = mem::transmute(self.pData);
+            a += offset;
+            mem::transmute(a)
+        }
+    }
+}
+
+
+
