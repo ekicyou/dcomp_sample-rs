@@ -120,7 +120,7 @@ fn update_subresources_as_heap(
     {
         if row_sizes_in_bytes[i] > LIMIT_SIZE { return Err(E_FAIL);}
    let   dest_data    = D3D12_MEMCPY_DEST{
-       pData:   data + layouts[i].Offset, 
+       pData: map.offset(layouts[i].Offset), 
       RowPitch:    layouts[i].Footprint.RowPitch, 
      SlicePitch:     layouts[i].Footprint.RowPitch * num_rows[i] 
           };

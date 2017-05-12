@@ -547,6 +547,14 @@ impl<'a> ResourceMap<'a> {
         }
     }
     #[inline]
+    pub fn offset(self, offset: usize) -> *mut c_void{
+        unsafe{
+            let mut a:usize = mem::transmute(self.data_begin);
+            a += offset;
+            mem::transmute(a)
+        }
+    }
+    #[inline]
     pub fn memcpy<T>(self, src: *const T, size: usize) -> ResourceMap<'a> {
         let dst = self.data_begin as *mut u8;
         let src = src as *const u8;
