@@ -115,7 +115,7 @@ fn update_subresources_as_heap(
         return Err(E_FAIL);
     }
     {
-        let map =  intermediate.map(0, None).hr()?;
+        let map =  intermediate.map(0,None).hr()?;
     for i in  0..num_subresources
     {
         if row_sizes_in_bytes[i] > LIMIT_SIZE { return Err(E_FAIL);}
