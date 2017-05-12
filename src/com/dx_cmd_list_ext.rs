@@ -1,10 +1,10 @@
 use super::com_rc::*;
+use super::unsafe_util::*;
 use super::dx_com::*;
 use super::dx_func::*;
+use super::dx_struct::*;
 use super::dx_pub_use::*;
-use super::unsafe_util::*;
 use winapi::_core::mem;
-use winapi::_core::intrinsics;
 use winapi::_core::ptr;
 use winapi::ctypes::c_void;
 use winapi::shared::ntdef::HANDLE;
@@ -98,7 +98,7 @@ fn update_subresources_as_heap(
      required_size:u64,
                                layouts: & D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
                                num_rows: &u32,
-                               row_size_in_bytes: & [usize],
+                               row_sizes_in_bytes: & [usize],
         src_data: &D3D12_SUBRESOURCE_DATA
     )
                        -> Result<u64, HRESULT>
@@ -108,17 +108,17 @@ fn update_subresources_as_heap(
     let destination_desc = destination_resource.get_desc();
     if intermediate_desc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER || 
         intermediate_desc.Width < required_size + layouts[0].Offset || 
-        required_size > (SIZE_T)-1 || 
+        required_size > LIMIT_SIZE || 
         (destination_desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER && 
             (first_subresource != 0 || num_subresources != 1))
     {
-        return Err(E_FALI);
+        return Err(E_FAIL);
     }
     {
         let map =  intermediate.map(0, None).hr()?;
     for i in  0..num_subresources
     {
-        if row_sizes_in_bytes[i] > LIMIT_SIZE { return Err(E_FALI);}
+        if row_sizes_in_bytes[i] > LIMIT_SIZE { return Err(E_FAIL);}
    let   dest_data    = D3D12_MEMCPY_DEST{
        pData:   data + layouts[i].Offset, 
       RowPitch:    layouts[i].Footprint.RowPitch, 

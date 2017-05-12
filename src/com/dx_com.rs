@@ -571,7 +571,7 @@ impl<'a> ResourceMap<'a> {
                 unsafe {
                     let dst = dst as *const u8 as *mut u8;
                     let src = src as *const u8;
-                    unsafe { memcpy(dst, src, size) };
+                    unsafe { memcpy(dst, src, row_size_in_bytes) };
                 }
             }
         }
@@ -598,11 +598,11 @@ pub trait ID3D12GraphicsCommandListExt {
     ) -> ();
     fn copy_texture_region(&self,
         dst: &D3D12_TEXTURE_COPY_LOCATION,
-        dstX: UINT,
-        dstY: UINT,
-        dstZ: UINT,
+        x: u32,
+        y: u32,
+        z: u32,
         src: &D3D12_TEXTURE_COPY_LOCATION,
-        src_box:Option<&D3D12_BOX>,
+                src_box:Option<&D3D12_BOX>,
     ) -> ();
 }
 impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
@@ -634,18 +634,18 @@ impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
     #[inline]
     fn copy_texture_region(&self,
         dst: &D3D12_TEXTURE_COPY_LOCATION,
-        dstX: UINT,
-        dstY: UINT,
-        dstZ: UINT,
+        x: u32,
+        y: u32,
+        z: u32,
         src: &D3D12_TEXTURE_COPY_LOCATION,
                 src_box:Option<&D3D12_BOX>,
     ) -> (){
         unsafe{
             self.   CopyTextureRegion(
         dst as  *const _,
-        dstX,
-        dstY,
-        dstZ,
+        x,
+        y,
+        z,
         src as *const _,
         opt_to_ptr(src_box))
         }

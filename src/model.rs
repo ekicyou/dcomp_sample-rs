@@ -584,14 +584,6 @@ impl DxModel {
     }
 }
 
-fn offset_to_mut_ref<'a, T>(mem: &'a [u8], offset: &mut usize) -> &'a mut T {
-    let start = &mem[*offset..];
-    *offset += mem::size_of::<T>();
-    unsafe {
-        let p = start.as_mut_ptr() as *mut T;
-        &mut *p
-    }
-}
 
 
 // WAITING FOR THE FRAME TO COMPLETE BEFORE CONTINUING IS NOT BEST PRACTICE.

@@ -2,6 +2,7 @@
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use winapi::_core::ptr;
+use winapi::_core::mem;
 use winapi::shared::minwindef::{BOOL, FALSE, TRUE, UINT};
 use libc;
 
@@ -56,5 +57,15 @@ pub fn to_utf8_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u8> {
 
 #[inline]
 pub unsafe fn memcpy(dst: *mut u8, src: *const u8, size: usize){
-    libc::memcpy(dst, src, size)
+    libc::memcpy(dst as *mut libc::c_void, src as *const libc::c_void, size)
+}
+
+#[inline]
+pub fn offset_to_mut_ref<'a, T>(mem: &'a [u8], offset: &mut usize) -> &'a mut T {
+    let start = &mem[*offset..];
+    *offset += mem::size_of::<T>();
+    unsafe {
+        let p = start.as_mut_ptr() as *mut T;
+        &mut *p
+    }
 }
