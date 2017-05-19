@@ -489,7 +489,7 @@ impl DxModel {
                     SlicePitch: slice_pitch,
                 }
             };
-            update_subresources(&command_list,
+            command_list.update_subresources_as_heap(
                                 &texture,
                                 &texture_upload_heap,
                                 0,

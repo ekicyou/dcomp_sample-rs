@@ -137,7 +137,7 @@ fn update_subresources_as_heap(
   match destination_desc.Dimension {
 D3D12_RESOURCE_DIMENSION_BUFFER=>
     {
-       let src_box = CD3DX12_BOX::new( 
+       let src_box = D3D12_BOX::new( 
            ( layouts[0].Offset ) as u32, 
            ( layouts[0].Offset + layouts[0].Footprint.Width )as u32 );
         self.copy_buffer_region(

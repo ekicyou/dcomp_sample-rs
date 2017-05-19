@@ -327,3 +327,20 @@ rc
         }
     }
 }
+
+pub trait CD3DX12_BOX {
+    fn new(        left:u32,right:u32 )->D3D12_BOX    ;
+}
+impl CD3DX12_BOX for D3D12_BOX {
+    #[inline]
+    fn new(        left:u32,right:u32 )->D3D12_BOX    {
+        D3D12_BOX{
+        left : left,
+        top : 0,
+        front : 0,
+        right : right,
+        bottom : 1,
+        back : 1,
+        }
+    }
+}
