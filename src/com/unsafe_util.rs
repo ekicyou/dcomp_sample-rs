@@ -56,8 +56,10 @@ pub fn to_utf8_chars<'a, S: Into<&'a str>>(s: S) -> Vec<u8> {
 }
 
 #[inline]
-pub unsafe fn memcpy(dst: *mut u8, src: *const u8, size: usize){
-    libc::memcpy(dst as *mut libc::c_void, src as *const libc::c_void, size)
+pub unsafe fn memcpy(dst: *mut u8, src: *const u8, size: usize)->*mut u8{
+    let dst = dst  as *mut libc::c_void;
+    let src = src as *const libc::c_void;
+    libc::memcpy(dst , src, size) as *mut u8
 }
 
 #[inline]
