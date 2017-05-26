@@ -51,18 +51,17 @@ fn update_subresources_as_heap(
                        src_data: &D3D12_SUBRESOURCE_DATA)
                        -> Result<u64, HRESULT> {
     let mut required_size = 0_u64;
-    let mem_block = mem::size_of::<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>() + mem::size_of::<u64>() +
-                    mem::size_of::<u32>();
-    let mem_to_alloc = mem_block * num_subresources;
-    let mut mem = {
-        let mut mem: Vec<u8> = Vec::new();
-        mem.resize(mem_to_alloc, 0_u8);
-        mem.into_boxed_slice()
-    };
-    let mut offset = 0_usize;
-    let mut layouts = offset_to_mut_ref::<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>(&mem, &mut offset);
-    let mut row_sizes_in_bytes = offset_to_mut_ref::<u64>(&mem, &mut offset);
-    let mut num_rows = offset_to_mut_ref::<u32>(&mem, &mut offset);
+    #[repr(C, packed)]
+    struct Block{
+        layouts: D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
+        row_sizes_in_bytes: u64,
+        num_rows: u32,
+    }
+    let mut blocks = Vec::with_capacity::<Block>(num_subresources);
+    unsafe{blocks.set_len(num_subresourcesddd)}
+    let mut layouts = &pack[0].layouts;
+    let mut row_sizes_in_bytes = &pack[0].row_sizes_in_bytes;
+    let mut num_rows =  &pack[0].num_rows;
 
     let desc = destination_resource.get_desc();
     let device = destination_resource.get_device::<ID3D12Device>()?;
@@ -90,16 +89,16 @@ fn update_subresources_as_heap(
 // All arrays must be populated (e.g. by calling GetCopyableFootprints)
     #[inline]
  fn update_subresources(
-    &self,
-                       destination_resource: &ID3D12Resource,
-                       intermediate: &ID3D12Resource,
-                       first_subresource: u32,
-                       num_subresources: usize,
-     required_size:u64,
-                               layouts: & D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
-                               num_rows: &u32,
-                               row_sizes_in_bytes: & [usize],
-        src_data: &D3D12_SUBRESOURCE_DATA
+    &self,                           
+    destination_resource: &ID3D12Resource,
+    intermediate: &ID3D12Resource,
+    first_subresource: u32,
+    num_subresources: usize,
+    required_size:u64,
+    layouts: & D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
+    num_rows: &u32,
+    row_sizes_in_bytes: & [usize],
+    src_data: &D3D12_SUBRESOURCE_DATA
     )
                        -> Result<u64, HRESULT>
 {

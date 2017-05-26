@@ -61,13 +61,3 @@ pub unsafe fn memcpy(dst: *mut u8, src: *const u8, size: usize)->*mut u8{
     let src = src as *const libc::c_void;
     libc::memcpy(dst , src, size) as *mut u8
 }
-
-#[inline]
-pub fn offset_to_mut_ref<'a, T>(mem: &'a [u8], offset: &mut usize) -> &'a mut T {
-    let start = &mem[*offset..];
-    *offset += mem::size_of::<T>();
-    unsafe {
-        let p = start.as_mut_ptr() as *mut T;
-        &mut *p
-    }
-}
