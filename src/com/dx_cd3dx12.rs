@@ -303,11 +303,11 @@ impl CD3DX12_TEXTURE_COPY_LOCATION for D3D12_TEXTURE_COPY_LOCATION {
     {
         unsafe{
             let mut rc = mem::uninitialized::<D3D12_TEXTURE_COPY_LOCATION>();
-            rc.pResource = res as *const _;
+            rc.pResource = res as *const _ as *mut _;
             rc.        Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
             {
                 let mut u = rc.u.PlacedFootprint_mut();
-                u = footprint as *const _;
+                *u = *footprint;
             }
 rc
         }
@@ -317,11 +317,11 @@ rc
     {
         unsafe{
             let mut rc = mem::uninitialized::<D3D12_TEXTURE_COPY_LOCATION>();
-            rc.pResource = res as *const _;
+            rc.pResource = res as *const _ as *mut _;
             rc.        Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
             {
                 let mut u = rc.u.SubresourceIndex_mut();
-                u = sub;
+                *u = sub;
             }
 rc
         }
