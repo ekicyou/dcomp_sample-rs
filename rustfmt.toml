@@ -1,3 +1,7 @@
+write_mode = "Overwrite"
+max_width = 80
+error_on_line_overflow = false
+fn_single_line = true
 reorder_imports = true
 reorder_imported_names  = true
-write_mode = "Overwrite"
+use_try_shorthand = true
