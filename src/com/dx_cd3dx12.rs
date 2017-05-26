@@ -66,7 +66,7 @@ impl CD3DX12_ROOT_PARAMETER for D3D12_ROOT_PARAMETER {
             let mut rc = mem::zeroed::<D3D12_ROOT_PARAMETER>();
             rc.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
             rc.ShaderVisibility = visibility;
-            rc.Constants_mut()
+            rc.u.Constants_mut()
                 .init(num32_bit_values, shader_register, register_space);
             rc
         }
@@ -80,7 +80,7 @@ impl CD3DX12_ROOT_PARAMETER for D3D12_ROOT_PARAMETER {
             let mut rc = mem::zeroed::<D3D12_ROOT_PARAMETER>();
             rc.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
             rc.ShaderVisibility = visibility;
-            rc.DescriptorTable_mut().init(descriptor_ranges);
+            rc.u.DescriptorTable_mut().init(descriptor_ranges);
             rc
         }
     }
