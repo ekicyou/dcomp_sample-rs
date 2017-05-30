@@ -58,7 +58,7 @@ fn update_subresources_as_heap(
         num_rows: u32,
     }
     let mut blocks = Vec::with_capacity::<Block>(num_subresources);
-    unsafe{blocks.set_len(num_subresourcesddd)}
+    unsafe{blocks.set_len(num_subresources)}
     let mut layouts = &pack[0].layouts;
     let mut row_sizes_in_bytes = &pack[0].row_sizes_in_bytes;
     let mut num_rows =  &pack[0].num_rows;
