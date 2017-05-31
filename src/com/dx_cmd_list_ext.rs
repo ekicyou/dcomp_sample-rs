@@ -132,8 +132,8 @@ D3D12_RESOURCE_DIMENSION_BUFFER=>
 _=>    {
         for i in 0..num_subresources
         {
-            let dst = D3D12_TEXTURE_COPY_LOCATION::from_footprint(destination_resource, i + first_subresource);
-            let src= D3D12_TEXTURE_COPY_LOCATION::from_index  (intermediate, layouts[i]);
+            let dst = D3D12_TEXTURE_COPY_LOCATION::from_index(destination_resource, i as u32 + first_subresource);
+            let src= D3D12_TEXTURE_COPY_LOCATION::from_footprint (intermediate, &layouts[i]);
              self.copy_texture_region(&dst, 0, 0, 0, &src, None);
         }
     }
