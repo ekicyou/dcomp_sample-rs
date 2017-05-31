@@ -16,8 +16,27 @@ use winapi::um::winbase::INFINITE;
 
 const LIMIT_SIZE: u64 = (isize::max_value() as u64);
 
-pub trait ID3D12GraphicsCommandListDx12 {
-fn update_subresources_as_heap(
+
+pub trait ID3D12GraphicsCommandListExt {
+    fn close(&self) -> Result<(), HRESULT>;
+    fn resource_barrier(&self, mum_barriers: u32, barriers: &D3D12_RESOURCE_BARRIER) -> ();
+    fn copy_buffer_region(&self,
+        dst_buffer: &ID3D12Resource,
+        dst_offset: u64,
+        src_buffer: &ID3D12Resource,
+        src_offset: u64,
+        num_bytes: u64,
+    ) -> ();
+    fn copy_texture_region(&self,
+        dst: &D3D12_TEXTURE_COPY_LOCATION,
+        x: u32,
+        y: u32,
+        z: u32,
+        src: &D3D12_TEXTURE_COPY_LOCATION,
+                src_box:Option<&D3D12_BOX>,
+    ) -> ();
+
+    fn update_subresources_as_heap(
     &self,
                        destination_resource: &ID3D12Resource,
                        intermediate: &ID3D12Resource,
@@ -36,7 +55,52 @@ fn update_subresources_as_heap(
     )
                        -> Result<u64, HRESULT>;
 }
-impl ID3D12GraphicsCommandListDx12 for ID3D12GraphicsCommandList {
+impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
+    #[inline]
+    fn close(&self) -> Result<(), HRESULT> {
+        unsafe { self.Close().hr() }
+    }
+    #[inline]
+    fn resource_barrier(&self, mum_barriers: u32, barriers: &D3D12_RESOURCE_BARRIER) -> () {
+        unsafe { self.ResourceBarrier(mum_barriers, barriers) }
+    }
+    #[inline]
+        fn copy_buffer_region(&self,
+        dst_buffer: &ID3D12Resource,
+        dst_offset: u64,
+        src_buffer: &ID3D12Resource,
+        src_offset: u64,
+        num_bytes: u64,
+    ) -> (){
+        unsafe{ self.CopyBufferRegion(
+        dst_buffer as *const _ as *mut _ ,
+        dst_offset,
+        src_buffer  as *const _ as *mut _,
+        src_offset,
+        num_bytes,
+    )
+        }
+    }
+    #[inline]
+    fn copy_texture_region(&self,
+        dst: &D3D12_TEXTURE_COPY_LOCATION,
+        x: u32,
+        y: u32,
+        z: u32,
+        src: &D3D12_TEXTURE_COPY_LOCATION,
+                src_box:Option<&D3D12_BOX>,
+    ) -> (){
+        unsafe{
+            self.   CopyTextureRegion(
+        dst as  *const _,
+        x,
+        y,
+        z,
+        src as *const _,
+        opt_to_ptr(src_box))
+        }
+    }
+
 // サブリソースをヒープに配置します。
     #[inline]
 fn update_subresources_as_heap(

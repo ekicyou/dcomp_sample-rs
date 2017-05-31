@@ -493,9 +493,13 @@ impl DxModel {
                                 &texture_upload_heap,
                                 0,
                                 &texture_data)?;
-            command_list.resource_barrier(
-                1, 
-                &D3D12_RESOURCE_BARRIER::transition(&texture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+            {
+                let barrier = D3D12_RESOURCE_BARRIER::transition(
+                    &texture, 
+                    D3D12_RESOURCE_STATE_COPY_DEST, 
+                    D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+                command_list.resource_barrier(1, &barrier);
+            }
 
             // Describe and create a SRV for the texture.
             {
