@@ -483,11 +483,11 @@ impl DxModel {
                 let ptr = texture_bytes.as_ptr();
                 let row_pitch = ((TEXTURE_WIDTH as usize) * mem::size_of::<u32>()) as isize;
                 let slice_pitch = row_pitch * (TEXTURE_HEIGHT as isize);
-                D3D12_SUBRESOURCE_DATA {
+                [D3D12_SUBRESOURCE_DATA {
                     pData: ptr as _,
                     RowPitch: row_pitch,
                     SlicePitch: slice_pitch,
-                }
+                }]
             };
             command_list.update_subresources_as_heap(
                                 &texture,
@@ -495,7 +495,7 @@ impl DxModel {
                                 0,
                                 0,
                                 1,
-                                &[texture_data])?;
+                                &texture_data)?;
             command_list.resource_barrier(
                 1, 
                 &D3D12_RESOURCE_BARRIER::transition(&texture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));

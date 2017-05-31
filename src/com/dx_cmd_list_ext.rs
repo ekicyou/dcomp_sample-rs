@@ -106,14 +106,14 @@ fn update_subresources_as_heap(
     {
         if row_sizes_in_bytes[i] > LIMIT_SIZE { return Err(E_FAIL);}
    let   dest_data    = D3D12_MEMCPY_DEST{
-       pData: map.offset(layouts[i].Offset as usize), 
-      RowPitch:    layouts[i].Footprint.RowPitch as usize, 
-     SlicePitch:     (layouts[i].Footprint.RowPitch * num_rows[i])   as usize
+       pData: map.offset(layouts[i].Offset as _), 
+      RowPitch:    layouts[i].Footprint.RowPitch as _, 
+     SlicePitch:     (layouts[i].Footprint.RowPitch * num_rows[i])   as _
           };
         memcpy_subresource(
             &dest_data, 
             &src_data[i], 
-            row_sizes_in_bytes[i] as usize, 
+            row_sizes_in_bytes[i] as _, 
             num_rows[i], 
             layouts[i].Footprint.Depth);
     }
@@ -124,7 +124,7 @@ fn update_subresources_as_heap(
 D3D12_RESOURCE_DIMENSION_BUFFER=>
     {
        let src_box = D3D12_BOX::new( 
-           ( layouts[0].Offset ) as u32, 
+           ( layouts[0].Offset ) as _, 
            ( layouts[0].Offset as u32 + layouts[0].Footprint.Width ));
         self.copy_buffer_region(
             destination_resource, 0, intermediate, layouts[0].Offset, layouts[0].Footprint.Width as u64);
