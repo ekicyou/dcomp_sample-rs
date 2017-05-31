@@ -37,12 +37,12 @@ pub trait ID3D12GraphicsCommandListExt {
     ) -> ();
 
     fn update_subresources_as_heap(
-    &self,
-                       destination_resource: &ID3D12Resource,
-                       intermediate: &ID3D12Resource,
-                       intermediate_offset: usize,
-                       src_data: &[D3D12_SUBRESOURCE_DATA])
-                       -> Result<u64, HRESULT> ;
+            &self,
+            destination_resource: &ID3D12Resource,
+            intermediate: &ID3D12Resource,
+            intermediate_offset: usize,
+            src_data: &[D3D12_SUBRESOURCE_DATA])
+        -> Result<u64, HRESULT>;
  fn update_subresources(
     &self,                           
     destination_resource: &ID3D12Resource,
@@ -103,14 +103,13 @@ impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
 
 // サブリソースをヒープに配置します。
     #[inline]
-fn update_subresources_as_heap(
-    &self,
-                       destination_resource: &ID3D12Resource,
-                       intermediate: &ID3D12Resource,
-                       intermediate_offset: usize,
-                       src_data: &[D3D12_SUBRESOURCE_DATA])
-                       -> Result<u64, HRESULT> {
-    let mut required_size = 0_u64;
+    fn update_subresources_as_heap(
+            &self,
+            destination_resource: &ID3D12Resource,
+            intermediate: &ID3D12Resource,
+            intermediate_offset: usize,
+            src_data: &[D3D12_SUBRESOURCE_DATA])
+        -> Result<u64, HRESULT>{
     let desc = destination_resource.get_desc();
     let device = destination_resource.get_device::<ID3D12Device>()?;
     let (layouts,num_rows,row_sizes_in_bytes,required_size)
