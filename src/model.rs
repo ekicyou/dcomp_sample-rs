@@ -454,13 +454,12 @@ impl DxModel {
 
             let texture = {
                 let properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_DEFAULT);
-                let buffer = device
+                device
                     .create_committed_resource::<ID3D12Resource>(&properties,
                                                                  D3D12_HEAP_FLAG_NONE,
                                                                  &texture_desc,
                                                                  D3D12_RESOURCE_STATE_COPY_DEST,
-                                                                 None)?;
-                buffer
+                                                                 None)?
             };
             let upload_buffer_size = texture.get_required_intermediate_size(0, 1)?;
 
@@ -493,8 +492,6 @@ impl DxModel {
                                 &texture,
                                 &texture_upload_heap,
                                 0,
-                                0,
-                                1,
                                 &texture_data)?;
             command_list.resource_barrier(
                 1, 

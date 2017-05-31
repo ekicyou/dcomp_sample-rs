@@ -153,9 +153,8 @@ pub trait ID3D12DeviceExt {
                                   -> ComResult<U>;
     fn get_copyable_footprints(&self,
                                resource_desc: &D3D12_RESOURCE_DESC,
-                               first_subresource: u32,
-                               num_subresources: u32,
-                               base_offset: u64)
+                               num_subresources: usize,
+                               base_offset: usize)
                                -> (Box<[D3D12_PLACED_SUBRESOURCE_FOOTPRINT]>,
                                Box<[u32]>,
                                Box<[u64]>,
@@ -318,27 +317,25 @@ impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
     fn get_copyable_footprints(&self,
                                resource_desc: &D3D12_RESOURCE_DESC,
-                               first_subresource: u32,
-                               num_subresources: u32,
-                               base_offset: u64)
+                               num_subresources: usize,
+                               base_offset: usize)
                                -> (Box<[D3D12_PLACED_SUBRESOURCE_FOOTPRINT]>,
                                Box<[u32]>,
                                Box<[u64]>,
                                u64,
                                ) {
-        let vec_size = num_subresources as usize;
-        let mut layouts =Vec::with_capacity(vec_size);
-        let mut num_rows  =Vec::with_capacity(vec_size);
-        let mut row_size_in_bytes =Vec::with_capacity(vec_size);
+        let mut layouts =Vec::with_capacity(num_subresources);
+        let mut num_rows  =Vec::with_capacity(num_subresources);
+        let mut row_size_in_bytes =Vec::with_capacity(num_subresources);
         let mut total_bytes = 0_u64;
         unsafe {
-            layouts.set_len(vec_size);
-            num_rows.set_len(vec_size);
-            row_size_in_bytes.set_len(vec_size);
+            layouts.set_len(num_subresources);
+            num_rows.set_len(num_subresources);
+            row_size_in_bytes.set_len(num_subresources);
             self.GetCopyableFootprints(resource_desc,
-                                       first_subresource,
-                                       num_subresources,
-                                       base_offset,
+                                       0,
+                                       num_subresources as _,
+                                       base_offset as _,
                                        layouts.as_mut_ptr(),
                                        num_rows.as_mut_ptr(),
                                        row_size_in_bytes.as_mut_ptr(),

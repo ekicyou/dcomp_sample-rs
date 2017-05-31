@@ -21,17 +21,13 @@ fn update_subresources_as_heap(
     &self,
                        destination_resource: &ID3D12Resource,
                        intermediate: &ID3D12Resource,
-                       intermediate_offset: u64,
-                       first_subresource: u32,
-                       num_subresources: usize,
+                       intermediate_offset: usize,
                        src_data: &[D3D12_SUBRESOURCE_DATA])
                        -> Result<u64, HRESULT> ;
  fn update_subresources(
     &self,                           
     destination_resource: &ID3D12Resource,
     intermediate: &ID3D12Resource,
-    first_subresource: u32,
-    num_subresources: usize,
     required_size:u64,
     layouts: &[D3D12_PLACED_SUBRESOURCE_FOOTPRINT],
     num_rows: &[u32],
@@ -47,24 +43,19 @@ fn update_subresources_as_heap(
     &self,
                        destination_resource: &ID3D12Resource,
                        intermediate: &ID3D12Resource,
-                       intermediate_offset: u64,
-                       first_subresource: u32,
-                       num_subresources: usize,
+                       intermediate_offset: usize,
                        src_data: &[D3D12_SUBRESOURCE_DATA])
                        -> Result<u64, HRESULT> {
     let mut required_size = 0_u64;
-
     let desc = destination_resource.get_desc();
     let device = destination_resource.get_device::<ID3D12Device>()?;
-    let (layouts,num_rows,row_sizes_in_bytes,required_size)= device.get_copyable_footprints(&desc,
-                                   first_subresource,
-                                   num_subresources as u32,
-                                   intermediate_offset );
+    let (layouts,num_rows,row_sizes_in_bytes,required_size)
+        = device.get_copyable_footprints(&desc,
+                                        src_data.len(),
+                                        intermediate_offset );
     let rc = self.update_subresources(
                                  destination_resource,
                                  intermediate,
-                                 first_subresource,
-                                 num_subresources,
                                  required_size,
                                  &layouts,
                                  &num_rows,
@@ -79,8 +70,6 @@ fn update_subresources_as_heap(
     &self,                           
     destination_resource: &ID3D12Resource,
     intermediate: &ID3D12Resource,
-    first_subresource: u32,
-    num_subresources: usize,
     required_size:u64,
     layouts: &[D3D12_PLACED_SUBRESOURCE_FOOTPRINT],
     num_rows: &[u32],
@@ -89,6 +78,7 @@ fn update_subresources_as_heap(
     )
                        -> Result<u64, HRESULT>
 {
+    let num_subresources =src_data.len();
     // Minor validation
     let intermediate_desc = intermediate.get_desc();
     let destination_desc = destination_resource.get_desc();
@@ -96,7 +86,7 @@ fn update_subresources_as_heap(
         intermediate_desc.Width < required_size + layouts[0].Offset || 
         required_size > LIMIT_SIZE || 
         (destination_desc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER && 
-            (first_subresource != 0 || num_subresources != 1))
+            (num_subresources != 1))
     {
         return Err(E_FAIL);
     }
@@ -132,7 +122,7 @@ D3D12_RESOURCE_DIMENSION_BUFFER=>
 _=>    {
         for i in 0..num_subresources
         {
-            let dst = D3D12_TEXTURE_COPY_LOCATION::from_index(destination_resource, i as u32 + first_subresource);
+            let dst = D3D12_TEXTURE_COPY_LOCATION::from_index(destination_resource, i as u32);
             let src= D3D12_TEXTURE_COPY_LOCATION::from_footprint (intermediate, &layouts[i]);
              self.copy_texture_region(&dst, 0, 0, 0, &src, None);
         }
