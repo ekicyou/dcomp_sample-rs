@@ -155,12 +155,12 @@ pub trait ID3D12DeviceExt {
                                resource_desc: &D3D12_RESOURCE_DESC,
                                first_subresource: u32,
                                num_subresources: u32,
-                               base_offset: u64,
-                               layouts: &mut D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
-                               num_rows: &mut u32,
-                               row_size_in_bytes: &mut u64,
-                               total_bytes: &mut u64)
-                               -> ();
+                               base_offset: u64)
+                               -> (Box<[D3D12_PLACED_SUBRESOURCE_FOOTPRINT]>,
+                               Box<[u32]>,
+                               Box<[u64]>,
+                               u64,
+                               );
 }
 impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
@@ -320,22 +320,31 @@ impl ID3D12DeviceExt for ID3D12Device {
                                resource_desc: &D3D12_RESOURCE_DESC,
                                first_subresource: u32,
                                num_subresources: u32,
-                               base_offset: u64,
-                               layouts: &mut D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
-                               num_rows: &mut u32,
-                               row_size_in_bytes: &mut u64,
-                               total_bytes: &mut u64)
-                               -> () {
+                               base_offset: u64)
+                               -> (Box<[D3D12_PLACED_SUBRESOURCE_FOOTPRINT]>,
+                               Box<[u32]>,
+                               Box<[u64]>,
+                               u64,
+                               ) {
+        let vec_size = num_subresources as usize;
+        let mut layouts =Vec::with_capacity(vec_size);
+        let mut num_rows  =Vec::with_capacity(vec_size);
+        let mut row_size_in_bytes =Vec::with_capacity(vec_size);
+        let mut total_bytes = 0_u64;
         unsafe {
+            layouts.set_len(vec_size);
+            num_rows.set_len(vec_size);
+            row_size_in_bytes.set_len(vec_size);
             self.GetCopyableFootprints(resource_desc,
                                        first_subresource,
                                        num_subresources,
                                        base_offset,
-                                       layouts,
-                                       num_rows,
-                                       row_size_in_bytes,
-                                       total_bytes)
+                                       layouts.as_mut_ptr(),
+                                       num_rows.as_mut_ptr(),
+                                       row_size_in_bytes.as_mut_ptr(),
+                                       &mut total_bytes);
         }
+        (layouts.into_boxed_slice(),num_rows.into_boxed_slice(),row_size_in_bytes.into_boxed_slice(),total_bytes)
     }
 }
 

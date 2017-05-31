@@ -495,7 +495,7 @@ impl DxModel {
                                 0,
                                 0,
                                 1,
-                                &texture_data)?;
+                                &[texture_data])?;
             command_list.resource_barrier(
                 1, 
                 &D3D12_RESOURCE_BARRIER::transition(&texture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));

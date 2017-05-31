@@ -4,6 +4,7 @@ use super::dx_com::*;
 use super::dx_func::*;
 use super::dx_struct::*;
 use super::dx_pub_use::*;
+use super::dx_cd3dx12::*;
 use winapi::_core::mem;
 use winapi::_core::ptr;
 use winapi::ctypes::c_void;
@@ -13,7 +14,7 @@ use winapi::shared::winerror::{E_FAIL, HRESULT};
 use winapi::um::unknwnbase::IUnknown;
 use winapi::um::winbase::INFINITE;
 
-const LIMIT_SIZE: usize = (isize::max_value() as usize);
+const LIMIT_SIZE: u64 = (isize::max_value() as u64);
 
 pub trait ID3D12GraphicsCommandListDx12 {
 fn update_subresources_as_heap(
@@ -23,21 +24,22 @@ fn update_subresources_as_heap(
                        intermediate_offset: u64,
                        first_subresource: u32,
                        num_subresources: usize,
-                       src_data: &D3D12_SUBRESOURCE_DATA)
+                       src_data: &[D3D12_SUBRESOURCE_DATA])
                        -> Result<u64, HRESULT> ;
  fn update_subresources(
-    &self,
-                       destination_resource: &ID3D12Resource,
-                       intermediate: &ID3D12Resource,
-                       first_subresource: u32,
-                       num_subresources: usize,
-     required_size:u64,
-                               layouts: & D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
-                               num_rows: &u32,
-                               row_size_in_bytes: & [usize],
-        src_data: &D3D12_SUBRESOURCE_DATA
+    &self,                           
+    destination_resource: &ID3D12Resource,
+    intermediate: &ID3D12Resource,
+    first_subresource: u32,
+    num_subresources: usize,
+    required_size:u64,
+    layouts: &[D3D12_PLACED_SUBRESOURCE_FOOTPRINT],
+    num_rows: &[u32],
+    row_sizes_in_bytes: & [u64],
+    src_data: &[D3D12_SUBRESOURCE_DATA]
     )
-                       -> Result<u64, HRESULT>;}
+                       -> Result<u64, HRESULT>;
+}
 impl ID3D12GraphicsCommandListDx12 for ID3D12GraphicsCommandList {
 // サブリソースをヒープに配置します。
     #[inline]
@@ -48,31 +50,16 @@ fn update_subresources_as_heap(
                        intermediate_offset: u64,
                        first_subresource: u32,
                        num_subresources: usize,
-                       src_data: &D3D12_SUBRESOURCE_DATA)
+                       src_data: &[D3D12_SUBRESOURCE_DATA])
                        -> Result<u64, HRESULT> {
     let mut required_size = 0_u64;
-    #[repr(C, packed)]
-    struct Block{
-        layouts: D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
-        row_sizes_in_bytes: u64,
-        num_rows: u32,
-    }
-    let mut blocks = Vec::with_capacity::<Block>(num_subresources);
-    unsafe{blocks.set_len(num_subresources)}
-    let mut layouts = &pack[0].layouts;
-    let mut row_sizes_in_bytes = &pack[0].row_sizes_in_bytes;
-    let mut num_rows =  &pack[0].num_rows;
 
     let desc = destination_resource.get_desc();
     let device = destination_resource.get_device::<ID3D12Device>()?;
-    device.get_copyable_footprints(&desc,
+    let (layouts,num_rows,row_sizes_in_bytes,required_size)= device.get_copyable_footprints(&desc,
                                    first_subresource,
                                    num_subresources as u32,
-                                   intermediate_offset,
-                                   &mut layouts,
-                                   &mut num_rows,
-                                   &mut row_sizes_in_bytes,
-                                   &mut required_size);
+                                   intermediate_offset );
     let rc = self.update_subresources(
                                  destination_resource,
                                  intermediate,
@@ -95,10 +82,10 @@ fn update_subresources_as_heap(
     first_subresource: u32,
     num_subresources: usize,
     required_size:u64,
-    layouts: & D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
-    num_rows: &u32,
-    row_sizes_in_bytes: & [usize],
-    src_data: &D3D12_SUBRESOURCE_DATA
+    layouts: &[D3D12_PLACED_SUBRESOURCE_FOOTPRINT],
+    num_rows: &[u32],
+    row_sizes_in_bytes: & [u64],
+    src_data: &[D3D12_SUBRESOURCE_DATA]
     )
                        -> Result<u64, HRESULT>
 {
@@ -114,14 +101,14 @@ fn update_subresources_as_heap(
         return Err(E_FAIL);
     }
     {
-        let map =  intermediate.map(0,None).hr()?;
+        let map =  intermediate.map(0,None)?;
     for i in  0..num_subresources
     {
         if row_sizes_in_bytes[i] > LIMIT_SIZE { return Err(E_FAIL);}
    let   dest_data    = D3D12_MEMCPY_DEST{
-       pData: map.offset(layouts[i].Offset), 
-      RowPitch:    layouts[i].Footprint.RowPitch, 
-     SlicePitch:     layouts[i].Footprint.RowPitch * num_rows[i] 
+       pData: map.offset(layouts[i].Offset as usize), 
+      RowPitch:    layouts[i].Footprint.RowPitch as usize, 
+     SlicePitch:     (layouts[i].Footprint.RowPitch * num_rows[i])   as usize
           };
         memcpy_subresource(
             &dest_data, 
@@ -138,9 +125,9 @@ D3D12_RESOURCE_DIMENSION_BUFFER=>
     {
        let src_box = D3D12_BOX::new( 
            ( layouts[0].Offset ) as u32, 
-           ( layouts[0].Offset + layouts[0].Footprint.Width )as u32 );
+           ( layouts[0].Offset as u32 + layouts[0].Footprint.Width ));
         self.copy_buffer_region(
-            destination_resource, 0, intermediate, layouts[0].Offset, layouts[0].Footprint.Width);
+            destination_resource, 0, intermediate, layouts[0].Offset, layouts[0].Footprint.Width as u64);
     }
 _=>    {
         for i in 0..num_subresources
