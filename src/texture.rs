@@ -8,8 +8,6 @@ pub fn generate_texture_data() -> Vec<u8> {
     let cell_pitch = (row_pitch >> 3) as usize; // The width of a cell in the checkboard texture.
     let cell_height = (TEXTURE_WIDTH >> 3) as usize; // The height of a cell in the checkerboard texture.
     let texture_size = row_pitch * TEXTURE_HEIGHT as usize;
-
-
     let mut buf: Vec<u8> = Vec::new();
     buf.resize(texture_size, 0_u8);
     {
