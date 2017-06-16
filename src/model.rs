@@ -92,17 +92,17 @@ pub struct DxModel {
 
 impl DxModel {
     #[allow(dead_code)]
-    pub fn events_loop(&self) -> &EventsLoop {
-        &self.events_loop
-    }
+    pub fn events_loop(&self) -> &EventsLoop { &self.events_loop }
     #[allow(dead_code)]
-    pub fn window(&self) -> &Window {
-        &self.window
-    }
+    pub fn window(&self) -> &Window { &self.window }
 
-    pub fn new(events_loop: EventsLoop, window: Window) -> Result<DxModel, HRESULT> {
+    pub fn new(
+        events_loop: EventsLoop,
+        window: Window,
+    ) -> Result<DxModel, HRESULT> {
         // window params
-        let (width, height) = window.get_inner_size_pixels().unwrap_or_default();
+        let (width, height) =
+            window.get_inner_size_pixels().unwrap_or_default();
         println!("width={}, height={}", width, height);
         let hwnd = window.hwnd();
         let aspect_ratio = (width as f32) / (height as f32);
@@ -163,8 +163,7 @@ impl DxModel {
         dc_dev.commit()?;
 
         // このサンプルはフルスクリーンへの遷移をサポートしません。
-        factory
-            .make_window_association(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
+        factory.make_window_association(hwnd, DXGI_MWA_NO_ALT_ENTER)?;
         let mut frame_index = swap_chain.get_current_back_buffer_index();
 
         // Create descriptor heaps.
@@ -176,8 +175,7 @@ impl DxModel {
                 Flags: D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
                 NodeMask: 0,
             };
-            device
-                .create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
+            device.create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
         };
 
         // Describe and create a shader resource view (SRV) heap for the texture.
@@ -188,16 +186,18 @@ impl DxModel {
                 Flags: D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
                 NodeMask: 0,
             };
-            device
-                .create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
+            device.create_descriptor_heap::<ID3D12DescriptorHeap>(&desc)?
         };
-        let rtv_descriptor_size =
-            device.get_descriptor_handle_increment_size(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        let rtv_descriptor_size = device.get_descriptor_handle_increment_size(
+            D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+        );
 
         // フレームバッファの作成
         let render_targets = {
-            let mut rtv_handle = rtv_heap.get_cpu_descriptor_handle_for_heap_start();
-            let mut targets: Vec<ComRc<ID3D12Resource>> = Vec::with_capacity(FRAME_COUNT as usize);
+            let mut rtv_handle =
+                rtv_heap.get_cpu_descriptor_handle_for_heap_start();
+            let mut targets: Vec<ComRc<ID3D12Resource>> =
+                Vec::with_capacity(FRAME_COUNT as usize);
             for n in 0..FRAME_COUNT {
                 let target = swap_chain.get_buffer::<ID3D12Resource>(n)?;
                 device.create_render_target_view(&target, None, rtv_handle);
@@ -207,8 +207,9 @@ impl DxModel {
             targets
         };
         // コマンドアロケータ
-        let command_allocator = device
-            .create_command_allocator(D3D12_COMMAND_LIST_TYPE_DIRECT)?;
+        let command_allocator = device.create_command_allocator(
+            D3D12_COMMAND_LIST_TYPE_DIRECT,
+        )?;
 
 
         //------------------------------------------------------------------
@@ -218,14 +219,24 @@ impl DxModel {
         // Create the root signature.
         let root_signature = {
             let ranges = {
-                let range = D3D12_DESCRIPTOR_RANGE::new(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+                let range = D3D12_DESCRIPTOR_RANGE::new(
+                    D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+                    1,
+                    0,
+                );
                 [range]
             };
             let root_parameters = {
-                let a =
-                    D3D12_ROOT_PARAMETER::new_constants(1, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
-                let b = D3D12_ROOT_PARAMETER::new_descriptor_table(&ranges,
-                                                                   D3D12_SHADER_VISIBILITY_PIXEL);
+                let a = D3D12_ROOT_PARAMETER::new_constants(
+                    1,
+                    0,
+                    0,
+                    D3D12_SHADER_VISIBILITY_VERTEX,
+                );
+                let b = D3D12_ROOT_PARAMETER::new_descriptor_table(
+                    &ranges,
+                    D3D12_SHADER_VISIBILITY_PIXEL,
+                );
                 [a, b]
             };
             let samplers = unsafe {
@@ -237,7 +248,8 @@ impl DxModel {
                 sampler.MipLODBias = 0.0;
                 sampler.MaxAnisotropy = 0;
                 sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-                sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+                sampler.BorderColor =
+                    D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
                 sampler.MinLOD = 0.0;
                 sampler.MaxLOD = D3D12_FLOAT32_MAX;
                 sampler.ShaderRegister = 0;
@@ -245,16 +257,20 @@ impl DxModel {
                 sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
                 [sampler]
             };
-            let desc= D3D12_ROOT_SIGNATURE_DESC::new(
-		        &root_parameters, 
-                &samplers, 
-                D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-            let (signature, _error) = d3d12_serialize_root_signature(&desc,
-                                                                     D3D_ROOT_SIGNATURE_VERSION_1)?;
-            device
-                .create_root_signature::<ID3D12RootSignature>(0,
-                                                              signature.get_buffer_pointer(),
-                                                              signature.get_buffer_size())?
+            let desc = D3D12_ROOT_SIGNATURE_DESC::new(
+                &root_parameters,
+                &samplers,
+                D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT,
+            );
+            let (signature, _error) = d3d12_serialize_root_signature(
+                &desc,
+                D3D_ROOT_SIGNATURE_VERSION_1,
+            )?;
+            device.create_root_signature::<ID3D12RootSignature>(
+                0,
+                signature.get_buffer_pointer(),
+                signature.get_buffer_size(),
+            )?
         };
 
         // Create the pipeline state, which includes compiling and loading shaders.
@@ -270,27 +286,45 @@ impl DxModel {
                 }
             };
             let file = "resources\\shaders.hlsl";
-            let (vertex_shader, _) =
-                d3d_compile_from_file(file, None, None, "VSMain", "vs_5_0", flags, 0)?;
-            let (pixel_shader, _) =
-                d3d_compile_from_file(file, None, None, "PSMain", "ps_5_0", flags, 0)?;
+            let (vertex_shader, _) = d3d_compile_from_file(
+                file,
+                None,
+                None,
+                "VSMain",
+                "vs_5_0",
+                flags,
+                0,
+            )?;
+            let (pixel_shader, _) = d3d_compile_from_file(
+                file,
+                None,
+                None,
+                "PSMain",
+                "ps_5_0",
+                flags,
+                0,
+            )?;
 
             // Define the vertex input layout.
             let input_element_descs = {
-                let a = D3D12_INPUT_ELEMENT_DESC::new(*t::POSITION,
-                                                      0,
-                                                      DXGI_FORMAT_R32G32B32_FLOAT,
-                                                      0,
-                                                      0,
-                                                      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                                                      0);
-                let b = D3D12_INPUT_ELEMENT_DESC::new(*t::TEXCOORD,
-                                                      0,
-                                                      DXGI_FORMAT_R32G32_FLOAT,
-                                                      0,
-                                                      12,
-                                                      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                                                      0);
+                let a = D3D12_INPUT_ELEMENT_DESC::new(
+                    *t::POSITION,
+                    0,
+                    DXGI_FORMAT_R32G32B32_FLOAT,
+                    0,
+                    0,
+                    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                    0,
+                );
+                let b = D3D12_INPUT_ELEMENT_DESC::new(
+                    *t::TEXCOORD,
+                    0,
+                    DXGI_FORMAT_R32G32_FLOAT,
+                    0,
+                    12,
+                    D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                    0,
+                );
                 [a, b]
             };
             let alpha_blend = {
@@ -325,7 +359,8 @@ impl DxModel {
                 desc.DepthStencilState.DepthEnable = FALSE;
                 desc.DepthStencilState.StencilEnable = FALSE;
                 desc.SampleMask = UINT_MAX;
-                desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+                desc.PrimitiveTopologyType =
+                    D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
                 desc.NumRenderTargets = 1;
                 desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
                 desc.SampleDesc.Count = 1;
@@ -335,24 +370,26 @@ impl DxModel {
         };
 
         // Create the command list.
-        let command_list = device
-            .create_command_list(0,
-                                 D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                 &command_allocator,
-                                 &pipeline_state)?;
+        let command_list = device.create_command_list(
+            0,
+            D3D12_COMMAND_LIST_TYPE_DIRECT,
+            &command_allocator,
+            &pipeline_state,
+        )?;
 
         // Create the vertex buffer.
         let (vertex_buffer, vertex_buffer_view) = {
             // Define the geometry for a circle.
             let items = (0..CIRCLE_SEGMENTS + 1)
                 .map(|i| {
-                         let theta = PI * 2.0_f32 * (i as f32) / (CIRCLE_SEGMENTS as f32);
-                         let x = theta.sin();
-                         let y = theta.cos();
-                         let pos = [x, y * aspect_ratio, 0.0_f32];
-                         let uv = [x * 0.5_f32 + 0.5_f32, y * 0.5_f32 + 0.5_f32];
-                         Vertex::new(pos, uv)
-                     })
+                    let theta = PI * 2.0_f32 * (i as f32) /
+                        (CIRCLE_SEGMENTS as f32);
+                    let x = theta.sin();
+                    let y = theta.cos();
+                    let pos = [x, y * aspect_ratio, 0.0_f32];
+                    let uv = [x * 0.5_f32 + 0.5_f32, y * 0.5_f32 + 0.5_f32];
+                    Vertex::new(pos, uv)
+                })
                 .collect::<Vec<_>>();
             let size_of = mem::size_of::<Vertex>();
             let size = size_of * items.len();
@@ -364,12 +401,13 @@ impl DxModel {
             // code simplicity and because there are very few verts to actually transfer.
             let properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
             let desc = D3D12_RESOURCE_DESC::buffer(size as u64);
-            let buffer = device
-                .create_committed_resource::<ID3D12Resource>(&properties,
-                                                             D3D12_HEAP_FLAG_NONE,
-                                                             &desc,
-                                                             D3D12_RESOURCE_STATE_GENERIC_READ,
-                                                             None)?;
+            let buffer = device.create_committed_resource::<ID3D12Resource>(
+                &properties,
+                D3D12_HEAP_FLAG_NONE,
+                &desc,
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                None,
+            )?;
 
             // Copy the triangle data to the vertex buffer.
             let read_range = D3D12_RANGE::new(0, 0); // We do not intend to read from this resource on the CPU.
@@ -390,11 +428,11 @@ impl DxModel {
             // Define the geometry for a circle.
             let items = (0..CIRCLE_SEGMENTS)
                 .map(|i| {
-                         let a = 0 as UINT16;
-                         let b = (1 + i) as UINT16;
-                         let c = (2 + i) as UINT16;
-                         [a, b, c]
-                     })
+                    let a = 0 as UINT16;
+                    let b = (1 + i) as UINT16;
+                    let c = (2 + i) as UINT16;
+                    [a, b, c]
+                })
                 .flat_map(|a| ArrayIterator3::new(a))
                 .collect::<Vec<_>>();
 
@@ -408,12 +446,13 @@ impl DxModel {
             // code simplicity and because there are very few verts to actually transfer.
             let properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
             let desc = D3D12_RESOURCE_DESC::buffer(size as u64);
-            let buffer = device
-                .create_committed_resource::<ID3D12Resource>(&properties,
-                                                             D3D12_HEAP_FLAG_NONE,
-                                                             &desc,
-                                                             D3D12_RESOURCE_STATE_GENERIC_READ,
-                                                             None)?;
+            let buffer = device.create_committed_resource::<ID3D12Resource>(
+                &properties,
+                D3D12_HEAP_FLAG_NONE,
+                &desc,
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                None,
+            )?;
 
             // Copy the index data to the index buffer.
             let read_range = D3D12_RANGE::new(0, 0); // We do not intend to read from this resource on the CPU.
@@ -440,39 +479,46 @@ impl DxModel {
         // 所有権を関数スコープに追い出しておく
         let (_texture_upload_heap, texture) = {
             // Describe and create a Texture2D.
-            let texture_desc = D3D12_RESOURCE_DESC::new(D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-                                                        0,
-                                                        TEXTURE_WIDTH,
-                                                        TEXTURE_HEIGHT,
-                                                        1,
-                                                        1,
-                                                        DXGI_FORMAT_R8G8B8A8_UNORM,
-                                                        1,
-                                                        0,
-                                                        D3D12_TEXTURE_LAYOUT_UNKNOWN,
-                                                        D3D12_RESOURCE_FLAG_NONE);
+            let texture_desc = D3D12_RESOURCE_DESC::new(
+                D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+                0,
+                TEXTURE_WIDTH,
+                TEXTURE_HEIGHT,
+                1,
+                1,
+                DXGI_FORMAT_R8G8B8A8_UNORM,
+                1,
+                0,
+                D3D12_TEXTURE_LAYOUT_UNKNOWN,
+                D3D12_RESOURCE_FLAG_NONE,
+            );
 
             let texture = {
-                let properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_DEFAULT);
-                device
-                    .create_committed_resource::<ID3D12Resource>(&properties,
-                                                                 D3D12_HEAP_FLAG_NONE,
-                                                                 &texture_desc,
-                                                                 D3D12_RESOURCE_STATE_COPY_DEST,
-                                                                 None)?
+                let properties =
+                    D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_DEFAULT);
+                device.create_committed_resource::<ID3D12Resource>(
+                    &properties,
+                    D3D12_HEAP_FLAG_NONE,
+                    &texture_desc,
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                    None,
+                )?
             };
-            let upload_buffer_size = texture.get_required_intermediate_size(0, 1)?;
+            let upload_buffer_size =
+                texture.get_required_intermediate_size(0, 1)?;
 
             // Create the GPU upload buffer.
             let texture_upload_heap = {
-                let properties = D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
+                let properties =
+                    D3D12_HEAP_PROPERTIES::new(D3D12_HEAP_TYPE_UPLOAD);
                 let desc = D3D12_RESOURCE_DESC::buffer(upload_buffer_size);
-                device
-                    .create_committed_resource::<ID3D12Resource>(&properties,
-                                                                 D3D12_HEAP_FLAG_NONE,
-                                                                 &desc,
-                                                                 D3D12_RESOURCE_STATE_GENERIC_READ,
-                                                                 None)?
+                device.create_committed_resource::<ID3D12Resource>(
+                    &properties,
+                    D3D12_HEAP_FLAG_NONE,
+                    &desc,
+                    D3D12_RESOURCE_STATE_GENERIC_READ,
+                    None,
+                )?
             };
 
             // Copy data to the intermediate upload heap and then schedule a copy
@@ -480,32 +526,39 @@ impl DxModel {
             let texture_bytes = generate_texture_data();
             let texture_data = {
                 let ptr = texture_bytes.as_ptr();
-                let row_pitch = ((TEXTURE_WIDTH as usize) * mem::size_of::<u32>()) as isize;
+                let row_pitch =
+                    ((TEXTURE_WIDTH as usize) * mem::size_of::<u32>()) as isize;
                 let slice_pitch = row_pitch * (TEXTURE_HEIGHT as isize);
-                [D3D12_SUBRESOURCE_DATA {
-                    pData: ptr as _,
-                    RowPitch: row_pitch,
-                    SlicePitch: slice_pitch,
-                }]
+                [
+                    D3D12_SUBRESOURCE_DATA {
+                        pData: ptr as _,
+                        RowPitch: row_pitch,
+                        SlicePitch: slice_pitch,
+                    },
+                ]
             };
             command_list.update_subresources_as_heap(
-                                &texture,
-                                &texture_upload_heap,
-                                0,
-                                &texture_data)?;
+                &texture,
+                &texture_upload_heap,
+                0,
+                &texture_data,
+            )?;
             {
                 let barrier = D3D12_RESOURCE_BARRIER::transition(
-                    &texture, 
-                    D3D12_RESOURCE_STATE_COPY_DEST, 
-                    D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+                    &texture,
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                    D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                );
                 command_list.resource_barrier(1, &barrier);
             }
 
             // Describe and create a SRV for the texture.
             {
                 let desc = unsafe {
-                    let mut desc = mem::zeroed::<D3D12_SHADER_RESOURCE_VIEW_DESC>();
-                    desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+                    let mut desc =
+                        mem::zeroed::<D3D12_SHADER_RESOURCE_VIEW_DESC>();
+                    desc.Shader4ComponentMapping =
+                        D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
                     desc.Format = texture_desc.Format;
                     desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
                     {
@@ -514,9 +567,11 @@ impl DxModel {
                     }
                     desc
                 };
-                device.create_shader_resource_view(&texture,
-                                               &desc,
-                                               srv_heap.get_cpu_descriptor_handle_for_heap_start());
+                device.create_shader_resource_view(
+                    &texture,
+                    &desc,
+                    srv_heap.get_cpu_descriptor_handle_for_heap_start(),
+                );
             }
 
             (texture_upload_heap, texture)
@@ -531,8 +586,8 @@ impl DxModel {
 
         // Create synchronization objects and wait until assets have been uploaded to the GPU.
         let (fence, fence_value, fence_event) = {
-            let fence = device
-                .create_fence::<ID3D12Fence>(0, D3D12_FENCE_FLAG_NONE)?;
+            let fence =
+                device.create_fence::<ID3D12Fence>(0, D3D12_FENCE_FLAG_NONE)?;
             let mut fence_value = 1_u64;
 
             // Create an event handle to use for frame synchronization.
@@ -541,12 +596,14 @@ impl DxModel {
             // Wait for the command list to execute; we are reusing the same command
             // list in our main loop but for now, we just want to wait for setup to
             // complete before continuing.
-            wait_for_previous_frame(&swap_chain,
-                                    &command_queue,
-                                    &fence,
-                                    fence_event,
-                                    &mut fence_value,
-                                    &mut frame_index)?;
+            wait_for_previous_frame(
+                &swap_chain,
+                &command_queue,
+                &fence,
+                fence_event,
+                &mut fence_value,
+                &mut frame_index,
+            )?;
 
             (fence, fence_value, fence_event)
         };
@@ -555,33 +612,33 @@ impl DxModel {
         // result
         //------------------------------------------------------------------
         Ok(DxModel {
-               events_loop: events_loop,
-               window: window,
-               aspect_ratio: aspect_ratio,
-               device: device,
-               command_queue: command_queue,
-               swap_chain: swap_chain,
-               dc_dev: dc_dev,
-               dc_target: dc_target,
-               dc_visual: dc_visual,
-               frame_index: frame_index,
-               rtv_heap: rtv_heap,
-               srv_heap: srv_heap,
-               rtv_descriptor_size: rtv_descriptor_size,
-               render_targets: render_targets,
-               command_allocator: command_allocator,
-               root_signature: root_signature,
-               pipeline_state: pipeline_state,
-               command_list: command_list,
-               vertex_buffer: vertex_buffer,
-               vertex_buffer_view: vertex_buffer_view,
-               index_buffer: index_buffer,
-               index_buffer_view: index_buffer_view,
-               texture: texture,
-               fence: fence,
-               fence_value: fence_value,
-               fence_event: fence_event,
-           })
+            events_loop: events_loop,
+            window: window,
+            aspect_ratio: aspect_ratio,
+            device: device,
+            command_queue: command_queue,
+            swap_chain: swap_chain,
+            dc_dev: dc_dev,
+            dc_target: dc_target,
+            dc_visual: dc_visual,
+            frame_index: frame_index,
+            rtv_heap: rtv_heap,
+            srv_heap: srv_heap,
+            rtv_descriptor_size: rtv_descriptor_size,
+            render_targets: render_targets,
+            command_allocator: command_allocator,
+            root_signature: root_signature,
+            pipeline_state: pipeline_state,
+            command_list: command_list,
+            vertex_buffer: vertex_buffer,
+            vertex_buffer_view: vertex_buffer_view,
+            index_buffer: index_buffer,
+            index_buffer_view: index_buffer_view,
+            texture: texture,
+            fence: fence,
+            fence_value: fence_value,
+            fence_event: fence_event,
+        })
     }
 }
 
@@ -591,13 +648,14 @@ impl DxModel {
 // This is code implemented as such for simplicity. The D3D12HelloFrameBuffering
 // sample illustrates how to use fences for efficient resource usage and to
 // maximize GPU utilization.
-fn wait_for_previous_frame(swap_chain: &IDXGISwapChain3,
-                           command_queue: &ID3D12CommandQueue,
-                           fence: &ID3D12Fence,
-                           event: HANDLE,
-                           fence_value: &mut u64,
-                           frame_index: &mut u32)
-                           -> Result<(), HRESULT> {
+fn wait_for_previous_frame(
+    swap_chain: &IDXGISwapChain3,
+    command_queue: &ID3D12CommandQueue,
+    fence: &ID3D12Fence,
+    event: HANDLE,
+    fence_value: &mut u64,
+    frame_index: &mut u32,
+) -> Result<(), HRESULT> {
     // Signal and increment the fence value.
     command_queue.signal(fence, *fence_value)?;
     *fence_value += 1;

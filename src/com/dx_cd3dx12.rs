@@ -10,72 +10,91 @@ use winapi::shared::basetsd::{SIZE_T, UINT16};
 use winapi::shared::minwindef::{FALSE, INT, TRUE};
 
 pub trait CD3DX12_CPU_DESCRIPTOR_HANDLE {
-    fn offset(&mut self, offset_in_descriptors: INT, descriptor_increment_size: u32);
+    fn offset(
+        &mut self,
+        offset_in_descriptors: INT,
+        descriptor_increment_size: u32,
+    );
 }
 impl CD3DX12_CPU_DESCRIPTOR_HANDLE for D3D12_CPU_DESCRIPTOR_HANDLE {
     #[inline]
-    fn offset(&mut self, offset_in_descriptors: INT, descriptor_increment_size: u32) {
+    fn offset(
+        &mut self,
+        offset_in_descriptors: INT,
+        descriptor_increment_size: u32,
+    ) {
         unsafe {
-            let offset = ((descriptor_increment_size as i64) * (offset_in_descriptors as i64)) as
-                         usize;
+            let offset = ((descriptor_increment_size as i64) *
+                              (offset_in_descriptors as i64)) as
+                usize;
             self.ptr += offset;
         }
     }
 }
 
 pub trait CD3DX12_DESCRIPTOR_RANGE {
-    fn new(range_type: D3D12_DESCRIPTOR_RANGE_TYPE,
-           num_descriptors: u32,
-           base_shader_register: u32)
-           -> D3D12_DESCRIPTOR_RANGE;
+    fn new(
+        range_type: D3D12_DESCRIPTOR_RANGE_TYPE,
+        num_descriptors: u32,
+        base_shader_register: u32,
+    ) -> D3D12_DESCRIPTOR_RANGE;
 }
 impl CD3DX12_DESCRIPTOR_RANGE for D3D12_DESCRIPTOR_RANGE {
     #[inline]
-    fn new(range_type: D3D12_DESCRIPTOR_RANGE_TYPE,
-           num_descriptors: u32,
-           base_shader_register: u32)
-           -> D3D12_DESCRIPTOR_RANGE {
+    fn new(
+        range_type: D3D12_DESCRIPTOR_RANGE_TYPE,
+        num_descriptors: u32,
+        base_shader_register: u32,
+    ) -> D3D12_DESCRIPTOR_RANGE {
         D3D12_DESCRIPTOR_RANGE {
             RangeType: range_type,
             NumDescriptors: num_descriptors,
             BaseShaderRegister: base_shader_register,
             RegisterSpace: 0,
-            OffsetInDescriptorsFromTableStart: D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND,
+            OffsetInDescriptorsFromTableStart:
+                D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND,
         }
     }
 }
 
 pub trait CD3DX12_ROOT_PARAMETER {
-    fn new_constants(num32_bit_values: u32,
-                     shader_register: u32,
-                     register_space: u32,
-                     visibility: D3D12_SHADER_VISIBILITY)
-                     -> D3D12_ROOT_PARAMETER;
-    fn new_descriptor_table(descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE],
-                            visibility: D3D12_SHADER_VISIBILITY)
-                            -> D3D12_ROOT_PARAMETER;
+    fn new_constants(
+        num32_bit_values: u32,
+        shader_register: u32,
+        register_space: u32,
+        visibility: D3D12_SHADER_VISIBILITY,
+    ) -> D3D12_ROOT_PARAMETER;
+    fn new_descriptor_table(
+        descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE],
+        visibility: D3D12_SHADER_VISIBILITY,
+    ) -> D3D12_ROOT_PARAMETER;
 }
 impl CD3DX12_ROOT_PARAMETER for D3D12_ROOT_PARAMETER {
     #[inline]
-    fn new_constants(num32_bit_values: u32,
-                     shader_register: u32,
-                     register_space: u32,
-                     visibility: D3D12_SHADER_VISIBILITY)
-                     -> D3D12_ROOT_PARAMETER {
+    fn new_constants(
+        num32_bit_values: u32,
+        shader_register: u32,
+        register_space: u32,
+        visibility: D3D12_SHADER_VISIBILITY,
+    ) -> D3D12_ROOT_PARAMETER {
         unsafe {
             let mut rc = mem::zeroed::<D3D12_ROOT_PARAMETER>();
             rc.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
             rc.ShaderVisibility = visibility;
-            rc.u.Constants_mut()
-                .init(num32_bit_values, shader_register, register_space);
+            rc.u.Constants_mut().init(
+                num32_bit_values,
+                shader_register,
+                register_space,
+            );
             rc
         }
     }
 
     #[inline]
-    fn new_descriptor_table(descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE],
-                            visibility: D3D12_SHADER_VISIBILITY)
-                            -> D3D12_ROOT_PARAMETER {
+    fn new_descriptor_table(
+        descriptor_ranges: &[D3D12_DESCRIPTOR_RANGE],
+        visibility: D3D12_SHADER_VISIBILITY,
+    ) -> D3D12_ROOT_PARAMETER {
         unsafe {
             let mut rc = mem::zeroed::<D3D12_ROOT_PARAMETER>();
             rc.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
@@ -87,11 +106,21 @@ impl CD3DX12_ROOT_PARAMETER for D3D12_ROOT_PARAMETER {
 }
 
 pub trait CD3DX12_ROOT_CONSTANTS {
-    fn init(&mut self, num32_bit_value: u32, shader_register: u32, register_space: u32) -> ();
+    fn init(
+        &mut self,
+        num32_bit_value: u32,
+        shader_register: u32,
+        register_space: u32,
+    ) -> ();
 }
 impl CD3DX12_ROOT_CONSTANTS for D3D12_ROOT_CONSTANTS {
     #[inline]
-    fn init(&mut self, num32_bit_value: u32, shader_register: u32, register_space: u32) -> () {
+    fn init(
+        &mut self,
+        num32_bit_value: u32,
+        shader_register: u32,
+        register_space: u32,
+    ) -> () {
         self.Num32BitValues = num32_bit_value;
         self.ShaderRegister = shader_register;
         self.RegisterSpace = register_space;
@@ -111,19 +140,22 @@ impl CD3DX12_ROOT_DESCRIPTOR_TABLE for D3D12_ROOT_DESCRIPTOR_TABLE {
 }
 
 pub trait CD3DX12_ROOT_SIGNATURE_DESC {
-    fn new(parameters: &[D3D12_ROOT_PARAMETER],
-           static_samplers: &[D3D12_STATIC_SAMPLER_DESC],
-           flags: D3D12_ROOT_SIGNATURE_FLAGS)
-           -> D3D12_ROOT_SIGNATURE_DESC;
+    fn new(
+        parameters: &[D3D12_ROOT_PARAMETER],
+        static_samplers: &[D3D12_STATIC_SAMPLER_DESC],
+        flags: D3D12_ROOT_SIGNATURE_FLAGS,
+    ) -> D3D12_ROOT_SIGNATURE_DESC;
 }
 impl CD3DX12_ROOT_SIGNATURE_DESC for D3D12_ROOT_SIGNATURE_DESC {
     #[inline]
-    fn new(parameters: &[D3D12_ROOT_PARAMETER],
-           static_samplers: &[D3D12_STATIC_SAMPLER_DESC],
-           flags: D3D12_ROOT_SIGNATURE_FLAGS)
-           -> D3D12_ROOT_SIGNATURE_DESC {
+    fn new(
+        parameters: &[D3D12_ROOT_PARAMETER],
+        static_samplers: &[D3D12_STATIC_SAMPLER_DESC],
+        flags: D3D12_ROOT_SIGNATURE_FLAGS,
+    ) -> D3D12_ROOT_SIGNATURE_DESC {
         let (num_parameters, p_parameters) = slice_to_ptr(parameters);
-        let (num_static_samplers, p_static_samplers) = slice_to_ptr(static_samplers);
+        let (num_static_samplers, p_static_samplers) =
+            slice_to_ptr(static_samplers);
         D3D12_ROOT_SIGNATURE_DESC {
             NumParameters: num_parameters,
             pParameters: p_parameters,
@@ -188,34 +220,36 @@ impl CD3DX12_HEAP_PROPERTIES for D3D12_HEAP_PROPERTIES {
 }
 
 pub trait CD3DX12_RESOURCE_DESC {
-    fn new(dimension: D3D12_RESOURCE_DIMENSION,
-           alignment: u64,
-           width: u64,
-           height: u32,
-           depth_or_array_size: UINT16,
-           mip_levels: UINT16,
-           format: DXGI_FORMAT,
-           sample_count: u32,
-           sample_quality: u32,
-           layout: D3D12_TEXTURE_LAYOUT,
-           flags: D3D12_RESOURCE_FLAGS)
-           -> D3D12_RESOURCE_DESC;
+    fn new(
+        dimension: D3D12_RESOURCE_DIMENSION,
+        alignment: u64,
+        width: u64,
+        height: u32,
+        depth_or_array_size: UINT16,
+        mip_levels: UINT16,
+        format: DXGI_FORMAT,
+        sample_count: u32,
+        sample_quality: u32,
+        layout: D3D12_TEXTURE_LAYOUT,
+        flags: D3D12_RESOURCE_FLAGS,
+    ) -> D3D12_RESOURCE_DESC;
     fn buffer(width: u64) -> D3D12_RESOURCE_DESC;
 }
 impl CD3DX12_RESOURCE_DESC for D3D12_RESOURCE_DESC {
     #[inline]
-    fn new(dimension: D3D12_RESOURCE_DIMENSION,
-           alignment: u64,
-           width: u64,
-           height: u32,
-           depth_or_array_size: UINT16,
-           mip_levels: UINT16,
-           format: DXGI_FORMAT,
-           sample_count: u32,
-           sample_quality: u32,
-           layout: D3D12_TEXTURE_LAYOUT,
-           flags: D3D12_RESOURCE_FLAGS)
-           -> D3D12_RESOURCE_DESC {
+    fn new(
+        dimension: D3D12_RESOURCE_DIMENSION,
+        alignment: u64,
+        width: u64,
+        height: u32,
+        depth_or_array_size: UINT16,
+        mip_levels: UINT16,
+        format: DXGI_FORMAT,
+        sample_count: u32,
+        sample_quality: u32,
+        layout: D3D12_TEXTURE_LAYOUT,
+        flags: D3D12_RESOURCE_FLAGS,
+    ) -> D3D12_RESOURCE_DESC {
         D3D12_RESOURCE_DESC {
             Dimension: dimension,
             Alignment: alignment,
@@ -236,17 +270,19 @@ impl CD3DX12_RESOURCE_DESC for D3D12_RESOURCE_DESC {
     fn buffer(width: u64) -> D3D12_RESOURCE_DESC {
         let flags = D3D12_RESOURCE_FLAG_NONE;
         let alignment = 0_u64;
-        D3D12_RESOURCE_DESC::new(D3D12_RESOURCE_DIMENSION_BUFFER,
-                                 alignment,
-                                 width,
-                                 1,
-                                 1,
-                                 1,
-                                 DXGI_FORMAT_UNKNOWN,
-                                 1,
-                                 0,
-                                 D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-                                 flags)
+        D3D12_RESOURCE_DESC::new(
+            D3D12_RESOURCE_DIMENSION_BUFFER,
+            alignment,
+            width,
+            1,
+            1,
+            1,
+            DXGI_FORMAT_UNKNOWN,
+            1,
+            0,
+            D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+            flags,
+        )
     }
 }
 
@@ -264,17 +300,19 @@ impl CD3DX12_RANGE for D3D12_RANGE {
 }
 
 pub trait CD3DX12_RESOURCE_BARRIER {
-    fn transition(pResource: &ID3D12Resource,
-                  stateBefore: D3D12_RESOURCE_STATES,
-                  stateAfter: D3D12_RESOURCE_STATES)
-                  -> D3D12_RESOURCE_BARRIER;
+    fn transition(
+        pResource: &ID3D12Resource,
+        stateBefore: D3D12_RESOURCE_STATES,
+        stateAfter: D3D12_RESOURCE_STATES,
+    ) -> D3D12_RESOURCE_BARRIER;
 }
 impl CD3DX12_RESOURCE_BARRIER for D3D12_RESOURCE_BARRIER {
     #[inline]
-    fn transition(resource: &ID3D12Resource,
-                  state_before: D3D12_RESOURCE_STATES,
-                  state_after: D3D12_RESOURCE_STATES)
-                  -> D3D12_RESOURCE_BARRIER {
+    fn transition(
+        resource: &ID3D12Resource,
+        state_before: D3D12_RESOURCE_STATES,
+        state_after: D3D12_RESOURCE_STATES,
+    ) -> D3D12_RESOURCE_BARRIER {
         let subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         let flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
         unsafe {
@@ -294,53 +332,63 @@ impl CD3DX12_RESOURCE_BARRIER for D3D12_RESOURCE_BARRIER {
 }
 
 pub trait CD3DX12_TEXTURE_COPY_LOCATION {
-    fn from_footprint(res: &ID3D12Resource, footprint:&D3D12_PLACED_SUBRESOURCE_FOOTPRINT)->D3D12_TEXTURE_COPY_LOCATION;
-    fn from_index(res: &ID3D12Resource, sub:u32)->D3D12_TEXTURE_COPY_LOCATION;
+    fn from_footprint(
+        res: &ID3D12Resource,
+        footprint: &D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
+    ) -> D3D12_TEXTURE_COPY_LOCATION;
+    fn from_index(
+        res: &ID3D12Resource,
+        sub: u32,
+    ) -> D3D12_TEXTURE_COPY_LOCATION;
 }
 impl CD3DX12_TEXTURE_COPY_LOCATION for D3D12_TEXTURE_COPY_LOCATION {
     #[inline]
-    fn from_footprint(res: &ID3D12Resource, footprint:&D3D12_PLACED_SUBRESOURCE_FOOTPRINT)->D3D12_TEXTURE_COPY_LOCATION
-    {
-        unsafe{
+    fn from_footprint(
+        res: &ID3D12Resource,
+        footprint: &D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
+    ) -> D3D12_TEXTURE_COPY_LOCATION {
+        unsafe {
             let mut rc = mem::uninitialized::<D3D12_TEXTURE_COPY_LOCATION>();
             rc.pResource = res as *const _ as *mut _;
-            rc.        Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+            rc.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
             {
                 let mut u = rc.u.PlacedFootprint_mut();
                 *u = *footprint;
             }
-rc
+            rc
         }
     }
     #[inline]
-    fn from_index(res: &ID3D12Resource, sub:u32)->D3D12_TEXTURE_COPY_LOCATION
-    {
-        unsafe{
+    fn from_index(
+        res: &ID3D12Resource,
+        sub: u32,
+    ) -> D3D12_TEXTURE_COPY_LOCATION {
+        unsafe {
             let mut rc = mem::uninitialized::<D3D12_TEXTURE_COPY_LOCATION>();
             rc.pResource = res as *const _ as *mut _;
-            rc.        Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            rc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
             {
                 let mut u = rc.u.SubresourceIndex_mut();
                 *u = sub;
             }
-rc
+            rc
         }
     }
 }
 
 pub trait CD3DX12_BOX {
-    fn new(        left:u32,right:u32 )->D3D12_BOX    ;
+    fn new(left: u32, right: u32) -> D3D12_BOX;
 }
 impl CD3DX12_BOX for D3D12_BOX {
     #[inline]
-    fn new(        left:u32,right:u32 )->D3D12_BOX    {
-        D3D12_BOX{
-        left : left,
-        top : 0,
-        front : 0,
-        right : right,
-        bottom : 1,
-        back : 1,
+    fn new(left: u32, right: u32) -> D3D12_BOX {
+        D3D12_BOX {
+            left: left,
+            top: 0,
+            front: 0,
+            right: right,
+            bottom: 1,
+            back: 1,
         }
     }
 }

@@ -42,7 +42,8 @@ pub fn generate_texture_data() -> Vec<u8> {
             let end_y = start_y + TEXTURE_PIXEL_SIZE_Y as usize;
             for y in start_y..end_y {
                 for x in start_x..end_x {
-                    let offset = (y * TEXTURE_WIDTH as usize + x) * mem::size_of::<u32>() as usize;
+                    let offset = (y * TEXTURE_WIDTH as usize + x) *
+                        mem::size_of::<u32>() as usize;
                     data[offset + 0] = (pma_color.x * 255_f32) as u8;
                     data[offset + 1] = (pma_color.y * 255_f32) as u8;
                     data[offset + 2] = (pma_color.z * 255_f32) as u8;

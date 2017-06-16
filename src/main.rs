@@ -41,7 +41,9 @@ fn run() -> Result<(), HRESULT> {
     let events_loop = model.events_loop();
     events_loop.run_forever(|event| {
         let rc = match event {
-            Event::WindowEvent { event: WindowEvent::Resized(w, h), .. } => {
+            Event::WindowEvent {
+                event: WindowEvent::Resized(w, h), ..
+            } => {
                 println!("The window was resized to {}x{}", w, h);
             }
             Event::WindowEvent { event: WindowEvent::Closed, .. } => {

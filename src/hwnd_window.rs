@@ -10,13 +10,9 @@ pub struct HWndProxy {
 }
 
 impl HWndProxy {
-    pub fn new(hwnd: HWND) -> HWndProxy {
-        HWndProxy { hwnd: hwnd }
-    }
+    pub fn new(hwnd: HWND) -> HWndProxy { HWndProxy { hwnd: hwnd } }
 }
 
 impl HwndWindow for HWndProxy {
-    fn hwnd(&self) -> HWND {
-        self.hwnd
-    }
+    fn hwnd(&self) -> HWND { self.hwnd }
 }

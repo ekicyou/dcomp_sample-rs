@@ -38,25 +38,27 @@ impl XMFLOAT4 {
 
 #[allow(non_camel_case_types)]
 pub trait D3D12_INPUT_ELEMENT_DESC_EXT {
-    fn new(semantic_name: &CStr,
-           semantic_index: u32,
-           format: DXGI_FORMAT,
-           input_slot: u32,
-           aligned_byte_offset: u32,
-           input_slot_class: D3D12_INPUT_CLASSIFICATION,
-           instance_data_step_rate: u32)
-           -> D3D12_INPUT_ELEMENT_DESC;
+    fn new(
+        semantic_name: &CStr,
+        semantic_index: u32,
+        format: DXGI_FORMAT,
+        input_slot: u32,
+        aligned_byte_offset: u32,
+        input_slot_class: D3D12_INPUT_CLASSIFICATION,
+        instance_data_step_rate: u32,
+    ) -> D3D12_INPUT_ELEMENT_DESC;
 }
 impl D3D12_INPUT_ELEMENT_DESC_EXT for D3D12_INPUT_ELEMENT_DESC {
     #[inline]
-    fn new(semantic_name: &CStr,
-           semantic_index: u32,
-           format: DXGI_FORMAT,
-           input_slot: u32,
-           aligned_byte_offset: u32,
-           input_slot_class: D3D12_INPUT_CLASSIFICATION,
-           instance_data_step_rate: u32)
-           -> D3D12_INPUT_ELEMENT_DESC {
+    fn new(
+        semantic_name: &CStr,
+        semantic_index: u32,
+        format: DXGI_FORMAT,
+        input_slot: u32,
+        aligned_byte_offset: u32,
+        input_slot_class: D3D12_INPUT_CLASSIFICATION,
+        instance_data_step_rate: u32,
+    ) -> D3D12_INPUT_ELEMENT_DESC {
         D3D12_INPUT_ELEMENT_DESC {
             SemanticName: semantic_name.as_ptr(),
             SemanticIndex: semantic_index,
@@ -86,26 +88,23 @@ impl D3D12_INPUT_LAYOUT_DESC_EXT for [D3D12_INPUT_ELEMENT_DESC] {
 
 #[allow(non_camel_case_types)]
 pub trait D3D12_MEMCPY_EXT {
-    fn offset_slice(&self,slice: u32)->usize;
-    fn offset_row(&self,slice: u32)->usize;
-    fn ptr_offset(&self, offset: usize)->*mut u8;
+    fn offset_slice(&self, slice: u32) -> usize;
+    fn offset_row(&self, slice: u32) -> usize;
+    fn ptr_offset(&self, offset: usize) -> *mut u8;
 }
 impl D3D12_MEMCPY_EXT for D3D12_MEMCPY_DEST {
     #[inline]
-    fn offset_slice(&self,slice: u32)->usize
-    {
+    fn offset_slice(&self, slice: u32) -> usize {
         (self.SlicePitch as usize) * (slice as usize)
     }
-     #[inline]
-    fn offset_row(&self, row: u32)->usize
-    {
+    #[inline]
+    fn offset_row(&self, row: u32) -> usize {
         (self.RowPitch as usize) * (row as usize)
     }
     #[inline]
-    fn ptr_offset(&self, offset: usize)->*mut u8
-    {
-        unsafe{
-            let mut a:usize = mem::transmute(self.pData);
+    fn ptr_offset(&self, offset: usize) -> *mut u8 {
+        unsafe {
+            let mut a: usize = mem::transmute(self.pData);
             a += offset;
             mem::transmute::<_, _>(a)
         }
@@ -113,25 +112,19 @@ impl D3D12_MEMCPY_EXT for D3D12_MEMCPY_DEST {
 }
 impl D3D12_MEMCPY_EXT for D3D12_SUBRESOURCE_DATA {
     #[inline]
-    fn offset_slice(&self,slice: u32)->usize
-    {
+    fn offset_slice(&self, slice: u32) -> usize {
         (self.SlicePitch as usize) * (slice as usize)
     }
-     #[inline]
-    fn offset_row(&self, row: u32)->usize
-    {
+    #[inline]
+    fn offset_row(&self, row: u32) -> usize {
         (self.RowPitch as usize) * (row as usize)
     }
     #[inline]
-    fn ptr_offset(&self, offset: usize)->*mut u8
-    {
-        unsafe{
-            let mut a:usize = mem::transmute(self.pData);
+    fn ptr_offset(&self, offset: usize) -> *mut u8 {
+        unsafe {
+            let mut a: usize = mem::transmute(self.pData);
             a += offset;
             mem::transmute(a)
         }
     }
 }
-
-
-

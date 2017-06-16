@@ -24,9 +24,7 @@ impl HresultMapping for HRESULT {
 }
 
 #[inline]
-pub fn to_mut_ptr<T>(p: *const T) -> *mut T {
-    p as *mut _
-}
+pub fn to_mut_ptr<T>(p: *const T) -> *mut T { p as *mut _ }
 
 pub trait QueryInterface {
     fn query_interface<U: Interface>(&self) -> ComResult<U>;
@@ -90,38 +88,28 @@ impl<T: Interface> ComRc<T> {
         unsafe { self.unknown().Release() }
     }
     #[inline]
-    pub fn as_ptr(&self) -> *const T {
-        self.raw
-    }
+    pub fn as_ptr(&self) -> *const T { self.raw }
 }
 
 impl<T: Interface> Drop for ComRc<T> {
     #[inline]
-    fn drop(&mut self) {
-        self.release();
-    }
+    fn drop(&mut self) { self.release(); }
 }
 
 impl<T: Interface> Default for ComRc<T> {
     #[inline]
-    fn default() -> ComRc<T> {
-        ComRc { raw: ptr::null() }
-    }
+    fn default() -> ComRc<T> { ComRc { raw: ptr::null() } }
 }
 
 impl<T: Interface> Deref for ComRc<T> {
     type Target = T;
     #[inline]
-    fn deref(&self) -> &T {
-        unsafe { &*self.raw }
-    }
+    fn deref(&self) -> &T { unsafe { &*self.raw } }
 }
 
 impl<T: Interface> Clone for ComRc<T> {
     #[inline]
-    fn clone(&self) -> Self {
-        ComRc::new(self.raw)
-    }
+    fn clone(&self) -> Self { ComRc::new(self.raw) }
 }
 
 #[cfg(test)]
@@ -141,10 +129,11 @@ mod tests {
         pub ref_count: ULONG,
     }
 
-    unsafe extern "system" fn QueryInterface(This: *mut IUnknown,
-                                             riid: REFIID,
-                                             ppvObject: *mut *mut c_void)
-                                             -> HRESULT {
+    unsafe extern "system" fn QueryInterface(
+        This: *mut IUnknown,
+        riid: REFIID,
+        ppvObject: *mut *mut c_void,
+    ) -> HRESULT {
         let guid = &*(riid);
         let check = guid.Data4[7];
         match check {
@@ -170,18 +159,20 @@ mod tests {
         test.ref_count
     }
 
-    unsafe extern "system" fn Read(_: *mut ISequentialStream,
-                                   _: *mut c_void,
-                                   _: ULONG,
-                                   _: *mut ULONG)
-                                   -> HRESULT {
+    unsafe extern "system" fn Read(
+        _: *mut ISequentialStream,
+        _: *mut c_void,
+        _: ULONG,
+        _: *mut ULONG,
+    ) -> HRESULT {
         S_OK
     }
-    unsafe extern "system" fn Write(_: *mut ISequentialStream,
-                                    _: *const c_void,
-                                    _: ULONG,
-                                    _: *mut ULONG)
-                                    -> HRESULT {
+    unsafe extern "system" fn Write(
+        _: *mut ISequentialStream,
+        _: *const c_void,
+        _: ULONG,
+        _: *mut ULONG,
+    ) -> HRESULT {
         E_FAIL
     }
 
@@ -229,7 +220,8 @@ mod tests {
                 let com2 = com_ref.query_interface::<IUnknown>().unwrap();
                 assert_eq!(2, test.ref_count);
 
-                let com3 = com_ref.query_interface::<ISequentialStream>().unwrap();
+                let com3 =
+                    com_ref.query_interface::<ISequentialStream>().unwrap();
                 assert_eq!(3, test.ref_count);
             }
             assert_eq!(1, test.ref_count);
