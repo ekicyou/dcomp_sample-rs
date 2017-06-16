@@ -41,7 +41,6 @@ pub trait ID3D12GraphicsCommandListExt {
         src: &D3D12_TEXTURE_COPY_LOCATION,
         src_box: Option<&D3D12_BOX>,
     ) -> ();
-
     fn update_subresources_as_heap(
         &self,
         destination_resource: &ID3D12Resource,
