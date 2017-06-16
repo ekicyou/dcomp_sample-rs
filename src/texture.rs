@@ -24,12 +24,10 @@ pub fn generate_texture_data() -> Vec<u8> {
     buf.resize(texture_size, 0_u8);
     {
         let mut data = buf.as_mut_slice();
-
         for a in 0_usize..NUM_ALPHA_SHADES as _ {
             let alpha = (a as f32) / ((NUM_ALPHA_SHADES - 1) as f32);
             let start_x = a * TEXTURE_PIXEL_SIZE_X as usize;
             let end_x = start_x + TEXTURE_PIXEL_SIZE_X as usize;
-
             for c in 0_usize..NUM_TEXTURE_COLORS as _ {
                 let color = &colors[c];
                 let pma_color = XMFLOAT4 {
@@ -38,7 +36,6 @@ pub fn generate_texture_data() -> Vec<u8> {
                     z: color.z * alpha,
                     w: alpha,
                 };
-
                 let start_y = c * TEXTURE_PIXEL_SIZE_Y as usize;
                 let end_y = start_y + TEXTURE_PIXEL_SIZE_Y as usize;
                 for y in start_y..end_y {
