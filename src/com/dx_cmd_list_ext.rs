@@ -5,6 +5,7 @@ use super::dx_func::*;
 use super::dx_pub_use::*;
 use super::dx_struct::*;
 use super::unsafe_util::*;
+use winapi::_core as core;
 use winapi::_core::mem;
 use winapi::_core::ptr;
 use winapi::ctypes::c_void;
@@ -14,7 +15,7 @@ use winapi::shared::winerror::{E_FAIL, HRESULT};
 use winapi::um::unknwnbase::IUnknown;
 use winapi::um::winbase::INFINITE;
 
-const LIMIT_SIZE: u64 = (isize::max_value() as u64);
+const LIMIT_SIZE: u64 = (core::isize::MAX as u64);
 
 
 pub trait ID3D12GraphicsCommandListExt {

@@ -559,9 +559,11 @@ impl ID3D12ResourceExt for ID3D12Resource {
     }
     #[inline]
     fn get_desc(&self) -> D3D12_RESOURCE_DESC {
-        let mut desc: D3D12_RESOURCE_DESC = mem::uninitialized();
-        let _ = self.GetDesc(&mut desc);
-        desc
+        unsafe {
+            let mut desc: D3D12_RESOURCE_DESC = mem::uninitialized();
+            let _ = self.GetDesc(&mut desc);
+            desc
+        }
     }
     #[inline]
     fn get_device<U: Interface>(&self) -> ComResult<U> {

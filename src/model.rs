@@ -370,12 +370,13 @@ impl DxModel {
         };
 
         // Create the command list.
-        let command_list = device.create_command_list(
-            0,
-            D3D12_COMMAND_LIST_TYPE_DIRECT,
-            &command_allocator,
-            &pipeline_state,
-        )?;
+        let command_list = device
+            .create_command_list::<ID3D12GraphicsCommandList>(
+                0,
+                D3D12_COMMAND_LIST_TYPE_DIRECT,
+                &command_allocator,
+                &pipeline_state,
+            )?;
 
         // Create the vertex buffer.
         let (vertex_buffer, vertex_buffer_view) = {
@@ -537,7 +538,7 @@ impl DxModel {
                     },
                 ]
             };
-            command_list.update_subresources_as_heap(
+            let _ = command_list.update_subresources_as_heap(
                 &texture,
                 &texture_upload_heap,
                 0,
