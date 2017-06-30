@@ -7,6 +7,7 @@ extern crate winit;
 extern crate c_string;
 #[macro_use]
 extern crate lazy_static;
+extern crate euclid;
 
 mod hwnd_window;
 mod com;
