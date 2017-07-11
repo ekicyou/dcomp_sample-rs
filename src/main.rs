@@ -17,7 +17,7 @@ mod model;
 
 use model::DxModel;
 use winapi::shared::winerror::HRESULT;
-use winit::{Event, EventsLoop, WindowBuilder, WindowEvent};
+use winit::{ControlFlow, Event, EventsLoop, WindowBuilder, WindowEvent};
 
 fn main() {
     match run() {
@@ -27,7 +27,7 @@ fn main() {
 }
 
 fn run() -> Result<(), HRESULT> {
-    let model = {
+    let mut model = {
         let events_loop = EventsLoop::new();
         let window = WindowBuilder::new()
             .with_title("hello window")
@@ -39,20 +39,20 @@ fn run() -> Result<(), HRESULT> {
         DxModel::new(events_loop, window)?
     };
 
-    let events_loop = model.events_loop();
+    let mut events_loop = model.events_loop_mut();
     events_loop.run_forever(|event| {
-        let rc = match event {
+        match event {
             Event::WindowEvent {
                 event: WindowEvent::Resized(w, h), ..
             } => {
                 println!("The window was resized to {}x{}", w, h);
             }
             Event::WindowEvent { event: WindowEvent::Closed, .. } => {
-                events_loop.interrupt();
+                return ControlFlow::Break
             }
-            _ => (),
-        };
-        rc
+            _ => {}
+        }
+        ControlFlow::Continue
     });
     Ok(())
 }

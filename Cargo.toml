@@ -7,7 +7,7 @@ version = "0.1.0"
 c_string = "0.7.0"
 lazy_static = "0.2.8"
 libc = "0.2.22"
-winit = "0.6.4"
+winit = "0.7.2"
 euclid = "0.15.1"
 
 [dependencies.winapi]

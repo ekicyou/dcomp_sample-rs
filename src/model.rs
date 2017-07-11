@@ -92,7 +92,9 @@ pub struct DxModel {
 
 impl DxModel {
     #[allow(dead_code)]
-    pub fn events_loop(&self) -> &EventsLoop { &self.events_loop }
+    pub fn events_loop_mut(&mut self) -> &mut EventsLoop {
+        &mut self.events_loop
+    }
     #[allow(dead_code)]
     pub fn window(&self) -> &Window { &self.window }
 
