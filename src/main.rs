@@ -3,6 +3,7 @@
 extern crate winapi;
 extern crate libc;
 extern crate winit;
+extern crate widestring;
 #[macro_use]
 extern crate c_string;
 #[macro_use]

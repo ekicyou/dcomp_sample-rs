@@ -9,6 +9,7 @@ lazy_static = "0.2.8"
 libc = "0.2.22"
 winit = "0.7.2"
 euclid = "0.15.1"
+widestring = "0.2.2"
 
 [dependencies.winapi]
 branch = "dev"
