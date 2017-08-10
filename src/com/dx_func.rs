@@ -11,6 +11,7 @@ use winapi::ctypes::c_void;
 use winapi::shared::ntdef::{LPCSTR, LPCWSTR};
 use winapi::shared::ntdef::HANDLE;
 use winapi::shared::winerror::{FACILITY_WIN32, HRESULT};
+use winapi::shared::dxgi::CreateDXGIFactory1;
 use winapi::um::errhandlingapi::GetLastError;
 use winapi::um::minwinbase::SECURITY_ATTRIBUTES;
 use winapi::um::unknwnbase::IUnknown;

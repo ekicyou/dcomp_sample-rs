@@ -489,9 +489,10 @@ impl ID3D12DescriptorHeapExt for ID3D12DescriptorHeap {
     #[inline]
     fn get_desc(&self) -> D3D12_DESCRIPTOR_HEAP_DESC {
         unsafe {
-            let mut rc = mem::uninitialized();
-            self.GetDesc(&mut rc);
-            rc
+            //let mut rc = mem::uninitialized();
+            //self.GetDesc(&mut rc);
+            //rc
+            self.GetDesc()
         }
     }
     #[inline]
@@ -499,9 +500,10 @@ impl ID3D12DescriptorHeapExt for ID3D12DescriptorHeap {
         &self,
     ) -> D3D12_CPU_DESCRIPTOR_HANDLE {
         unsafe {
-            let mut rc = mem::uninitialized();
-            self.GetCPUDescriptorHandleForHeapStart(&mut rc);
-            rc
+            //let mut rc = mem::uninitialized();
+            //self.GetCPUDescriptorHandleForHeapStart(&mut rc);
+            //rc
+            self.GetCPUDescriptorHandleForHeapStart()
         }
     }
     #[inline]
@@ -509,9 +511,10 @@ impl ID3D12DescriptorHeapExt for ID3D12DescriptorHeap {
         &self,
     ) -> D3D12_GPU_DESCRIPTOR_HANDLE {
         unsafe {
-            let mut rc = mem::uninitialized();
-            self.GetGPUDescriptorHandleForHeapStart(&mut rc);
-            rc
+            //let mut rc = mem::uninitialized();
+            //self.GetGPUDescriptorHandleForHeapStart(&mut rc);
+            //rc
+            self.GetGPUDescriptorHandleForHeapStart()
         }
     }
 }
@@ -560,9 +563,10 @@ impl ID3D12ResourceExt for ID3D12Resource {
     #[inline]
     fn get_desc(&self) -> D3D12_RESOURCE_DESC {
         unsafe {
-            let mut desc: D3D12_RESOURCE_DESC = mem::uninitialized();
-            let _ = self.GetDesc(&mut desc);
-            desc
+            //let mut desc: D3D12_RESOURCE_DESC = mem::uninitialized();
+            //let _ = self.GetDesc(&mut desc);
+            //desc
+            self.GetDesc()
         }
     }
     #[inline]

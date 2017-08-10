@@ -7,9 +7,12 @@ version = "0.1.0"
 c_string = "0.7.0"
 lazy_static = "0.2.8"
 libc = "0.2.22"
-winit = "0.7.2"
 euclid = "0.15.1"
 widestring = "0.2.2"
+
+[dependencies.winit]
+branch = "feature/WS_EX_NOREDIRECTIONBITMAP"
+git = "https://github.com/ekicyou/winit"
 
 [dependencies.winapi]
 branch = "dev"
