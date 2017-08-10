@@ -10,7 +10,7 @@ pub const DXGI_MWA_NO_ALT_ENTER: u32 = (1 << 1);
 pub const DXGI_MWA_NO_PRINT_SCREEN: u32 = (1 << 2);
 pub const DXGI_MWA_VALID: u32 = (0x7);
 
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, non_snake_case)]
 #[inline]
 pub fn D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(
     s0: u32,
@@ -33,7 +33,7 @@ pub fn D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(
     m0 | m1 | m2 | m3 | m4
 }
 
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, non_snake_case)]
 #[inline]
 pub fn D3D12_DECODE_SHADER_4_COMPONENT_MAPPING(
     component_to_extract: u32,

@@ -121,7 +121,10 @@ pub fn hr_from_win32(x: u32) -> HRESULT {
     if x <= 0 {
         return x;
     }
-    (x & 0x0000FFFF) | (FACILITY_WIN32 << 16) | 0x80000000
+    let x = x as u32;
+    let x = (x & 0x0000FFFFu32) | ((FACILITY_WIN32 as u32) << 16) |
+        0x80000000u32;
+    x as HRESULT
 }
 #[inline]
 pub fn hr_last_error() -> HRESULT { hr_from_win32(get_last_error()) }

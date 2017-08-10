@@ -1,18 +1,11 @@
 use super::com_rc::*;
 use super::dx_cd3dx12::*;
 use super::dx_com::*;
-use super::dx_func::*;
 use super::dx_pub_use::*;
 use super::dx_struct::*;
 use super::unsafe_util::*;
 use winapi::_core as core;
-use winapi::_core::mem;
-use winapi::_core::ptr;
-use winapi::ctypes::c_void;
-use winapi::shared::ntdef::HANDLE;
-use winapi::shared::windef::HWND;
 use winapi::shared::winerror::{E_FAIL, HRESULT};
-use winapi::um::unknwnbase::IUnknown;
 use winapi::um::winbase::INFINITE;
 
 const LIMIT_SIZE: u64 = (core::isize::MAX as u64);

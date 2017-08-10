@@ -4,8 +4,8 @@
 use winapi::ctypes::c_void;
 use winapi::shared::basetsd::SIZE_T;
 use winapi::shared::guiddef::REFIID;
-use winapi::shared::minwindef::{BOOL, DWORD, LPCVOID, LPVOID, UINT, ULONG};
-use winapi::shared::ntdef::{HANDLE, LPCSTR, LPCWSTR, PHANDLE, PVOID};
+use winapi::shared::minwindef::{BOOL, DWORD, LPCVOID, LPVOID, UINT};
+use winapi::shared::ntdef::{HANDLE, LPCSTR, LPCWSTR};
 use winapi::shared::winerror::HRESULT;
 use winapi::um::d3d12::{D3D12_ROOT_SIGNATURE_DESC, D3D_ROOT_SIGNATURE_VERSION};
 use winapi::um::d3dcommon::{D3D_FEATURE_LEVEL, D3D_SHADER_MACRO, ID3DBlob,
@@ -13,7 +13,6 @@ use winapi::um::d3dcommon::{D3D_FEATURE_LEVEL, D3D_SHADER_MACRO, ID3DBlob,
 use winapi::um::d3dcompiler::{D3D_BLOB_PART, D3D_SHADER_DATA};
 use winapi::um::minwinbase::SECURITY_ATTRIBUTES;
 use winapi::um::unknwnbase::IUnknown;
-use winapi::um::winnt::WAITORTIMERCALLBACK;
 
 #[link(name = "kernel32")]
 extern "system" {

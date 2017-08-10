@@ -4,7 +4,6 @@ use super::consts::*;
 use texture::*;
 use winapi::_core::f32::consts::PI;
 use winapi::_core::mem;
-use winapi::_core::ptr;
 use winapi::shared::basetsd::UINT16;
 use winapi::shared::minwindef::{FALSE, TRUE};
 use winapi::shared::ntdef::HANDLE;

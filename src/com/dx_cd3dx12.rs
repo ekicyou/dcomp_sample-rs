@@ -4,7 +4,6 @@
 
 use super::dx_pub_use::*;
 use super::unsafe_util::*;
-use std::ffi::CStr;
 use winapi::_core::mem;
 use winapi::shared::basetsd::{SIZE_T, UINT16};
 use winapi::shared::minwindef::{FALSE, INT, TRUE};
@@ -301,9 +300,9 @@ impl CD3DX12_RANGE for D3D12_RANGE {
 
 pub trait CD3DX12_RESOURCE_BARRIER {
     fn transition(
-        pResource: &ID3D12Resource,
-        stateBefore: D3D12_RESOURCE_STATES,
-        stateAfter: D3D12_RESOURCE_STATES,
+        resource: &ID3D12Resource,
+        state_before: D3D12_RESOURCE_STATES,
+        state_after: D3D12_RESOURCE_STATES,
     ) -> D3D12_RESOURCE_BARRIER;
 }
 impl CD3DX12_RESOURCE_BARRIER for D3D12_RESOURCE_BARRIER {

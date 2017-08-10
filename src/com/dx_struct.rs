@@ -5,8 +5,6 @@ use super::dx_pub_use::*;
 use super::unsafe_util::*;
 use std::ffi::CStr;
 use winapi::_core::mem;
-use winapi::shared::basetsd::{SIZE_T, UINT16};
-use winapi::shared::minwindef::{FALSE, INT, TRUE};
 
 pub struct Vertex {
     pos: [f32; 3],

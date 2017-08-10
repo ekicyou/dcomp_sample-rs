@@ -2,7 +2,6 @@
 use libc;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
-use winapi::_core::mem;
 use winapi::_core::ptr;
 use winapi::shared::minwindef::{BOOL, FALSE, TRUE, UINT};
 
