@@ -6,7 +6,6 @@ use super::dx_struct::*;
 use super::unsafe_util::*;
 use winapi::_core as core;
 use winapi::shared::winerror::{E_FAIL, HRESULT};
-use winapi::um::winbase::INFINITE;
 
 const LIMIT_SIZE: u64 = (core::isize::MAX as u64);
 
@@ -183,11 +182,12 @@ impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
 
         match destination_desc.Dimension {
             D3D12_RESOURCE_DIMENSION_BUFFER => {
-                let src_box = D3D12_BOX::new(
-                    (layouts[0].Offset) as _,
-                    (layouts[0].Offset as u32 +
-                         layouts[0].Footprint.Width),
-                );
+                // ??
+                //let src_box = D3D12_BOX::new(
+                //    (layouts[0].Offset) as _,
+                //    (layouts[0].Offset as u32 +
+                //         layouts[0].Footprint.Width),
+                //);
                 self.copy_buffer_region(
                     destination_resource,
                     0,
