@@ -1,7 +1,6 @@
 #![allow(unused_unsafe)]
 use super::com::*;
 use super::consts::*;
-use super::hwnd_window::HwndWindow;
 use texture::*;
 use winapi::_core::f32::consts::PI;
 use winapi::_core::mem;
@@ -13,6 +12,7 @@ use winapi::shared::windef::HWND;
 use winapi::shared::winerror::HRESULT;
 use winapi::vc::limits::UINT_MAX;
 use winit::{EventsLoop, Window};
+use winit::os::windows::WindowExt;
 
 struct ArrayIterator3<T> {
     item: [T; 3],
@@ -36,17 +36,6 @@ impl<T: Copy> Iterator for ArrayIterator3<T> {
                 Some(rc)
             }
             false => None,
-        }
-    }
-}
-
-
-impl HwndWindow for Window {
-    fn hwnd(&self) -> HWND {
-        unsafe {
-            #[allow(deprecated)]
-            let p = self.platform_window();
-            p as HWND
         }
     }
 }
@@ -106,7 +95,7 @@ impl DxModel {
         let (width, height) =
             window.get_inner_size_pixels().unwrap_or_default();
         println!("width={}, height={}", width, height);
-        let hwnd = window.hwnd();
+        let hwnd = window.get_hwnd() as HWND;
         let aspect_ratio = (width as f32) / (height as f32);
 
         // Enable the D3D12 debug layer.

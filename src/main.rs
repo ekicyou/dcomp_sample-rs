@@ -10,7 +10,6 @@ extern crate c_string;
 extern crate lazy_static;
 extern crate euclid;
 
-mod hwnd_window;
 mod com;
 mod consts;
 mod texture;
