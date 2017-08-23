@@ -32,7 +32,7 @@ fn run() -> Result<(), HRESULT> {
         let window = WindowBuilder::new()
             .with_title("hello window")
             .with_dimensions(512, 512)
-            .with_transparency(true)
+            .with_no_redirection_bitmap(true)
             .with_multitouch()
             .build(&events_loop)
             .unwrap();
