@@ -371,17 +371,25 @@ impl DxModel {
         // Create the vertex buffer.
         let (vertex_buffer, vertex_buffer_view) = {
             // Define the geometry for a circle.
-            let items = (0..CIRCLE_SEGMENTS + 1)
-                .map(|i| {
-                    let theta = PI * 2.0_f32 * (i as f32) /
-                        (CIRCLE_SEGMENTS as f32);
-                    let x = theta.sin();
-                    let y = theta.cos();
-                    let pos = [x, y * aspect_ratio, 0.0_f32];
-                    let uv = [x * 0.5_f32 + 0.5_f32, y * 0.5_f32 + 0.5_f32];
-                    Vertex::new(pos, uv)
+            let items = (-1..CIRCLE_SEGMENTS)
+                .map(|i| match i {
+                    -1 => {
+                        let pos = [0_f32, 0_f32, 0_f32];
+                        let uv = [0.5_f32, 0.5_f32];
+                        Vertex::new(pos, uv)
+                    }
+                    _ => {
+                        let theta = PI * 2.0_f32 * (i as f32) /
+                            (CIRCLE_SEGMENTS as f32);
+                        let x = theta.sin();
+                        let y = theta.cos();
+                        let pos = [x, y * aspect_ratio, 0.0_f32];
+                        let uv = [x * 0.5_f32 + 0.5_f32, y * 0.5_f32 + 0.5_f32];
+                        Vertex::new(pos, uv)
+                    }
                 })
                 .collect::<Vec<_>>();
+            println!("{:?}", items);
             let size_of = mem::size_of::<Vertex>();
             let size = size_of * items.len();
             let p = items.as_ptr();

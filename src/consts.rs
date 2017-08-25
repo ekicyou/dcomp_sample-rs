@@ -1,4 +1,4 @@
-pub const CIRCLE_SEGMENTS: u32 = 64;
+pub const CIRCLE_SEGMENTS: i32 = 64;
 pub const NUM_TEXTURE_COLORS: u32 = 8;
 pub const NUM_ALPHA_SHADES: u32 = 256;
 pub const FRAME_COUNT: u32 = 2;

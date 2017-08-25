@@ -6,6 +6,7 @@ use super::unsafe_util::*;
 use std::ffi::CStr;
 use winapi::_core::mem;
 
+#[derive(Copy, Clone, Debug)]
 pub struct Vertex {
     pos: [f32; 3],
     uv: [f32; 2],
