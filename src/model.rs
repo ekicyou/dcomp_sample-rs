@@ -627,7 +627,77 @@ impl DxModel {
     }
 
     pub fn render(&mut self) -> Result<(), HRESULT> {
-        println!("model::render()");
+        self.populate_command_list()?;
+        self.command_queue.execute_command_lists(&self.command_list);
+        self.swap_chain.present(1, 0)?;
+        self.wait_for_previous_frame()?;
+        Ok(())
+    }
+
+    /// 描画コマンドリストを構築する
+    fn populate_command_list(&mut self) -> Result<(), HRESULT> {
+        let command_allocator = &self.command_allocator;
+        let command_list = &self.command_list;
+        let pipeline_state = &self.pipeline_state;
+        let root_signature = &self.root_signature;
+
+	// Command list allocators can only be reset when the associated 
+	// command lists have finished execution on the GPU; apps should use 
+	// fences to determine GPU execution progress.
+	   command_allocator.reset()?;
+
+	// However, when ExecuteCommandList() is called on a particular command 
+	// list, that command list can then be reset at any time and must be before 
+	// re-recording.
+    command_list.reset(command_allocator, pipeline_state)?;
+
+	// Set necessary state.
+	command_list.SetGraphicsRootSignature(root_signature.Get());
+
+	ID3D12DescriptorHeap* ppHeaps[] = { m_srvHeap.Get() };
+	command_list.set_descriptor_heaps(_countof(ppHeaps), ppHeaps);
+
+    static float rotationRadians = 0;
+    rotationRadians += 0.02f;
+    command_list.set_graphics_root_32bit_constant(0, *((UINT*)&rotationRadians), 0); // TODO
+	command_list.set_graphics_root_descriptor_table(1, m_srvHeap->get_gpu_descriptor_handle_for_heap_start());
+	command_list.rs_set_viewports(1, &m_viewport);
+	command_list.rs_set_scissor_rects(1, &m_scissorRect);
+
+	// Indicate that the back buffer will be used as a render target.
+	command_list.resource_barrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->get_cpu_descriptor_handle_for_heap_start(), m_frameIndex, m_rtvDescriptorSize);
+	command_list.om_set_render_targets(1, &rtvHandle, FALSE, nullptr);
+
+	// Record commands.
+	let clear_color = [0_f32;4];
+	command_list.clear_render_target_view(rtvHandle, clear_color, 0, nullptr);
+	command_list.ia_set_primitive_topology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	command_list.ia_set_vertex_buffers(0, 1, &m_vertexBufferView);
+    command_list.ia_set_index_buffer(&m_indexBufferView);
+	command_list.draw_indexed_instanced(CircleSegments * 3, 1, 0, 0, 0);
+
+	// Indicate that the back buffer will now be used to present.
+	command_list.resource_barrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+
+	command_list.close()?;
+    Ok(())
+    }
+
+    fn wait_for_previous_frame(&mut self) -> Result<(), HRESULT> {
+        let mut fence_value = self.fence_value;
+        let mut frame_index = self.frame_index;
+        wait_for_previous_frame(
+            &self.swap_chain,
+            &self.command_queue,
+            &self.fence,
+            self.fence_event,
+            &mut fence_value,
+            &mut frame_index,
+        )?;
+        self.fence_value = fence_value;
+        self.frame_index = frame_index;
         Ok(())
     }
 }
