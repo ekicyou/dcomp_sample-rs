@@ -104,7 +104,7 @@ impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
         }
     }
 
-    // サブリソースをヒープに配置します。
+    // サブリソースをヒープにコピーします。
     #[inline]
     fn update_subresources_as_heap(
         &self,

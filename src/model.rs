@@ -10,7 +10,7 @@ use winapi::shared::ntdef::HANDLE;
 use winapi::shared::windef::HWND;
 use winapi::shared::winerror::HRESULT;
 use winapi::vc::limits::UINT_MAX;
-use winit::{EventsLoop, Window};
+use winit::Window;
 use winit::os::windows::WindowExt;
 
 struct ArrayIterator3<T> {
@@ -42,8 +42,6 @@ impl<T: Copy> Iterator for ArrayIterator3<T> {
 #[allow(dead_code)]
 pub struct DxModel {
     // Window
-    events_loop: EventsLoop,
-    window: Window,
     aspect_ratio: f32,
 
     // D3D12 Targets
@@ -79,17 +77,7 @@ pub struct DxModel {
 }
 
 impl DxModel {
-    #[allow(dead_code)]
-    pub fn events_loop_mut(&mut self) -> &mut EventsLoop {
-        &mut self.events_loop
-    }
-    #[allow(dead_code)]
-    pub fn window(&self) -> &Window { &self.window }
-
-    pub fn new(
-        events_loop: EventsLoop,
-        window: Window,
-    ) -> Result<DxModel, HRESULT> {
+    pub fn new(window: &Window) -> Result<DxModel, HRESULT> {
         // window params
         let (width, height) =
             window.get_inner_size_pixels().unwrap_or_default();
@@ -611,8 +599,6 @@ impl DxModel {
         // result
         //------------------------------------------------------------------
         Ok(DxModel {
-            events_loop: events_loop,
-            window: window,
             aspect_ratio: aspect_ratio,
             device: device,
             command_queue: command_queue,
@@ -638,6 +624,11 @@ impl DxModel {
             fence_value: fence_value,
             fence_event: fence_event,
         })
+    }
+
+    pub fn render(&mut self) -> Result<(), HRESULT> {
+        println!("model::render()");
+        Ok(())
     }
 }
 

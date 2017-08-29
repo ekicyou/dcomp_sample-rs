@@ -27,21 +27,21 @@ fn main() {
 }
 
 fn run() -> Result<(), HRESULT> {
-    let mut model = {
-        let events_loop = EventsLoop::new();
-        let window = WindowBuilder::new()
-            .with_title("hello window")
-            .with_dimensions(512, 512)
-            .with_no_redirection_bitmap(true)
-            .with_multitouch()
-            .build(&events_loop)
-            .unwrap();
-        DxModel::new(events_loop, window)?
-    };
+    let mut events_loop = EventsLoop::new();
+    let window = WindowBuilder::new()
+        .with_title("hello window")
+        .with_dimensions(512, 512)
+        .with_no_redirection_bitmap(true)
+        .with_multitouch()
+        .build(&events_loop)
+        .unwrap();
+    let mut model = DxModel::new(&window)?;
 
-    let mut events_loop = model.events_loop_mut();
-    events_loop.run_forever(|event| {
+    events_loop.run_forever(move |event| {
         match event {
+            Event::WindowEvent { event: WindowEvent::Refresh, .. } => {
+                let _ = model.render();
+            }
             Event::WindowEvent {
                 event: WindowEvent::Resized(w, h), ..
             } => {
