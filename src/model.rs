@@ -74,6 +74,11 @@ pub struct DxModel {
     fence: ComRc<ID3D12Fence>,
     fence_value: u64,
     fence_event: HANDLE,
+
+    // Pipeline objects.
+    rotation_radians: f32,
+	 viewport: D3D12_VIEWPORT,
+	 scissor_rect: D3D12_RECT,
 }
 
 impl DxModel {
@@ -84,6 +89,17 @@ impl DxModel {
         println!("width={}, height={}", width, height);
         let hwnd = window.get_hwnd() as HWND;
         let aspect_ratio = (width as f32) / (height as f32);
+
+	    let viewport = D3D12_VIEWPORT{
+            Width: width as _,
+            Height: height as _,
+            MaxDepth: 1.0_f32,
+        };
+        let scissor_rect = D3D12_RECT{
+            right: width as _,
+            bottom: height as _,
+        };
+
 
         // Enable the D3D12 debug layer.
         #[cfg(build = "debug")]
@@ -623,6 +639,9 @@ impl DxModel {
             fence: fence,
             fence_value: fence_value,
             fence_event: fence_event,
+            rotation_radians: 0,
+	        viewport: viewport,
+	        scissor_rect: scissor_rect,
         })
     }
 
@@ -640,6 +659,11 @@ impl DxModel {
         let command_list = &self.command_list;
         let pipeline_state = &self.pipeline_state;
         let root_signature = &self.root_signature;
+        let srv_heap = &self.srv_heap;
+        let rtv_heap = &self.rtv_heap;
+        let rtv_descriptor_size = self.rtv_descriptor_size;
+        let viewport = &self.viewport;
+        let scissor_rect = &self.scissor_rect;
 
 	// Command list allocators can only be reset when the associated 
 	// command lists have finished execution on the GPU; apps should use 
@@ -654,20 +678,20 @@ impl DxModel {
 	// Set necessary state.
 	command_list.SetGraphicsRootSignature(root_signature.Get());
 
-	ID3D12DescriptorHeap* ppHeaps[] = { m_srvHeap.Get() };
-	command_list.set_descriptor_heaps(_countof(ppHeaps), ppHeaps);
+	let pp_heaps = [ srv_heap ];
+	command_list.set_descriptor_heaps(&pp_heaps);
 
-    static float rotationRadians = 0;
-    rotationRadians += 0.02f;
-    command_list.set_graphics_root_32bit_constant(0, *((UINT*)&rotationRadians), 0); // TODO
-	command_list.set_graphics_root_descriptor_table(1, m_srvHeap->get_gpu_descriptor_handle_for_heap_start());
-	command_list.rs_set_viewports(1, &m_viewport);
-	command_list.rs_set_scissor_rects(1, &m_scissorRect);
+    self.rotation_radians  += 0.02_f32;
+    let rotation_radians = self.rotation_radians;
+    command_list.set_graphics_root_f32_constant(0, rotation_radians, 0); // TODO
+	command_list.set_graphics_root_descriptor_table(1, srv_heap.get_gpu_descriptor_handle_for_heap_start());
+	command_list.rs_set_viewports(1, viewport);
+	command_list.rs_set_scissor_rects(1, scissor_rect);
 
 	// Indicate that the back buffer will be used as a render target.
-	command_list.resource_barrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+	command_list.resource_barrier(1, D3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->get_cpu_descriptor_handle_for_heap_start(), m_frameIndex, m_rtvDescriptorSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtv_heap.get_cpu_descriptor_handle_for_heap_start(), m_frameIndex, rtv_descriptor_size);
 	command_list.om_set_render_targets(1, &rtvHandle, FALSE, nullptr);
 
 	// Record commands.
@@ -679,7 +703,7 @@ impl DxModel {
 	command_list.draw_indexed_instanced(CircleSegments * 3, 1, 0, 0, 0);
 
 	// Indicate that the back buffer will now be used to present.
-	command_list.resource_barrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+	command_list.resource_barrier(1, D3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
 	command_list.close()?;
     Ok(())
