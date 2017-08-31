@@ -77,8 +77,8 @@ pub struct DxModel {
 
     // Pipeline objects.
     rotation_radians: f32,
-	 viewport: D3D12_VIEWPORT,
-	 scissor_rect: D3D12_RECT,
+    viewport: D3D12_VIEWPORT,
+    scissor_rect: D3D12_RECT,
 }
 
 impl DxModel {
@@ -90,12 +90,12 @@ impl DxModel {
         let hwnd = window.get_hwnd() as HWND;
         let aspect_ratio = (width as f32) / (height as f32);
 
-	    let viewport = D3D12_VIEWPORT{
+        let viewport = D3D12_VIEWPORT {
             Width: width as _,
             Height: height as _,
             MaxDepth: 1.0_f32,
         };
-        let scissor_rect = D3D12_RECT{
+        let scissor_rect = D3D12_RECT {
             right: width as _,
             bottom: height as _,
         };
@@ -640,8 +640,8 @@ impl DxModel {
             fence_value: fence_value,
             fence_event: fence_event,
             rotation_radians: 0,
-	        viewport: viewport,
-	        scissor_rect: scissor_rect,
+            viewport: viewport,
+            scissor_rect: scissor_rect,
         })
     }
 
@@ -664,49 +664,80 @@ impl DxModel {
         let rtv_descriptor_size = self.rtv_descriptor_size;
         let viewport = &self.viewport;
         let scissor_rect = &self.scissor_rect;
+        let render_targets = self.render_targets.as_slice();
+        let frame_index = self.frame_index;
+        let vertex_buffer_view = &self.vertex_buffer_view;
+        let index_buffer_view = &self.index_buffer_view;
 
-	// Command list allocators can only be reset when the associated 
-	// command lists have finished execution on the GPU; apps should use 
-	// fences to determine GPU execution progress.
-	   command_allocator.reset()?;
 
-	// However, when ExecuteCommandList() is called on a particular command 
-	// list, that command list can then be reset at any time and must be before 
-	// re-recording.
-    command_list.reset(command_allocator, pipeline_state)?;
+        // Command list allocators can only be reset when the associated
+        // command lists have finished execution on the GPU; apps should use
+        // fences to determine GPU execution progress.
+        command_allocator.reset()?;
 
-	// Set necessary state.
-	command_list.SetGraphicsRootSignature(root_signature.Get());
+        // However, when ExecuteCommandList() is called on a particular command
+        // list, that command list can then be reset at any time and must be before
+        // re-recording.
+        command_list.reset(command_allocator, pipeline_state)?;
 
-	let pp_heaps = [ srv_heap ];
-	command_list.set_descriptor_heaps(&pp_heaps);
+        // Set necessary state.
+        command_list.SetGraphicsRootSignature(root_signature.Get());
 
-    self.rotation_radians  += 0.02_f32;
-    let rotation_radians = self.rotation_radians;
-    command_list.set_graphics_root_f32_constant(0, rotation_radians, 0); // TODO
-	command_list.set_graphics_root_descriptor_table(1, srv_heap.get_gpu_descriptor_handle_for_heap_start());
-	command_list.rs_set_viewports(1, viewport);
-	command_list.rs_set_scissor_rects(1, scissor_rect);
+        let pp_heaps = [srv_heap];
+        command_list.set_descriptor_heaps(&pp_heaps);
 
-	// Indicate that the back buffer will be used as a render target.
-	command_list.resource_barrier(1, D3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+        self.rotation_radians += 0.02_f32;
+        let rotation_radians = self.rotation_radians;
+        command_list.set_graphics_root_f32_constant(0, rotation_radians, 0); // TODO
+        command_list.set_graphics_root_descriptor_table(
+            1,
+            srv_heap.get_gpu_descriptor_handle_for_heap_start(),
+        );
+        command_list.rs_set_viewports(1, viewport);
+        command_list.rs_set_scissor_rects(1, scissor_rect);
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtv_heap.get_cpu_descriptor_handle_for_heap_start(), m_frameIndex, rtv_descriptor_size);
-	command_list.om_set_render_targets(1, &rtvHandle, FALSE, nullptr);
+        // Indicate that the back buffer will be used as a render target.
+        command_list.resource_barrier(
+            1,
+            D3DX12_RESOURCE_BARRIER::Transition(
+                &render_targets[frame_index],
+                D3D12_RESOURCE_STATE_PRESENT,
+                D3D12_RESOURCE_STATE_RENDER_TARGET,
+            ),
+        );
+        let rtv_handle = rtv_heap
+            .get_cpu_descriptor_handle_for_heap_start()
+            .frame_index(frame_index)
+            .descriptor_size(rtv_descriptor_size);
+        command_list.om_set_render_targets(1, &rtvHandle, false, None);
 
-	// Record commands.
-	let clear_color = [0_f32;4];
-	command_list.clear_render_target_view(rtvHandle, clear_color, 0, nullptr);
-	command_list.ia_set_primitive_topology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	command_list.ia_set_vertex_buffers(0, 1, &m_vertexBufferView);
-    command_list.ia_set_index_buffer(&m_indexBufferView);
-	command_list.draw_indexed_instanced(CircleSegments * 3, 1, 0, 0, 0);
+        // Record commands.
+        let clear_color = [0_f32; 4];
+        command_list.clear_render_target_view(
+            &rtv_handle,
+            clear_color,
+            0,
+            None,
+        );
+        command_list.ia_set_primitive_topology(
+            D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,
+        );
+        command_list.ia_set_vertex_buffers(0, 1, vertex_buffer_view);
+        command_list.ia_set_index_buffer(index_buffer_view);
+        command_list.draw_indexed_instanced(CIRCLE_SEGMENTS * 3, 1, 0, 0, 0);
 
-	// Indicate that the back buffer will now be used to present.
-	command_list.resource_barrier(1, D3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+        // Indicate that the back buffer will now be used to present.
+        command_list.resource_barrier(
+            1,
+            D3DX12_RESOURCE_BARRIER::Transition(
+                &render_targets[frame_index],
+                D3D12_RESOURCE_STATE_RENDER_TARGET,
+                D3D12_RESOURCE_STATE_PRESENT,
+            ),
+        );
 
-	command_list.close()?;
-    Ok(())
+        command_list.close()?;
+        Ok(())
     }
 
     fn wait_for_previous_frame(&mut self) -> Result<(), HRESULT> {
