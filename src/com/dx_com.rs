@@ -398,6 +398,13 @@ impl ID3D12DeviceExt for ID3D12Device {
     }
 }
 
+pub trait ID3D12CommandAllocatorExt {
+    fn reset(&self) -> Result<(), HRESULT>;
+}
+
+impl ID3D12CommandAllocatorExt for ID3D12CommandAllocator {
+    fn reset(&self) -> Result<(), HRESULT> { unsafe { self.Reset().hr() } }
+}
 
 pub trait IDCompositionDeviceExt {
     fn commit(&self) -> Result<(), HRESULT>;
@@ -455,15 +462,11 @@ impl IDCompositionTargetExt for IDCompositionTarget {
     }
 }
 
-pub trait IDXGISwapChain3Ext {
-    fn get_current_back_buffer_index(&self) -> u32;
+pub trait IDXGISwapChainExt {
     fn get_buffer<U: Interface>(&self, buffer: u32) -> ComResult<U>;
+    fn present(&self, sync_interval: u32, flags: u32) -> Result<(), HRESULT>;
 }
-impl IDXGISwapChain3Ext for IDXGISwapChain3 {
-    #[inline]
-    fn get_current_back_buffer_index(&self) -> u32 {
-        unsafe { self.GetCurrentBackBufferIndex() }
-    }
+impl IDXGISwapChainExt for IDXGISwapChain {
     #[inline]
     fn get_buffer<U: Interface>(&self, buffer: u32) -> ComResult<U> {
         let riid = U::uuidof();
@@ -473,6 +476,20 @@ impl IDXGISwapChain3Ext for IDXGISwapChain3 {
             ppv as *const U
         };
         Ok(ComRc::new(p))
+    }
+    #[inline]
+    fn present(&self, sync_interval: u32, flags: u32) -> Result<(), HRESULT> {
+        unsafe { self.Present(sync_interval, flags).hr() }
+    }
+}
+
+pub trait IDXGISwapChain3Ext {
+    fn get_current_back_buffer_index(&self) -> u32;
+}
+impl IDXGISwapChain3Ext for IDXGISwapChain3 {
+    #[inline]
+    fn get_current_back_buffer_index(&self) -> u32 {
+        unsafe { self.GetCurrentBackBufferIndex() }
     }
 }
 

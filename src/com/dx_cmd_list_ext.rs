@@ -34,6 +34,10 @@ pub trait ID3D12GraphicsCommandListExt {
         src: &D3D12_TEXTURE_COPY_LOCATION,
         src_box: Option<&D3D12_BOX>,
     ) -> ();
+    fn set_graphics_root_signature(
+        &self,
+        root_signature: &ID3D12RootSignature,
+    ) -> ();
     fn update_subresources_as_heap(
         &self,
         destination_resource: &ID3D12Resource,
@@ -51,7 +55,13 @@ pub trait ID3D12GraphicsCommandListExt {
         row_sizes_in_bytes: &[u64],
         src_data: &[D3D12_SUBRESOURCE_DATA],
     ) -> Result<u64, HRESULT>;
+    fn reset(
+        &self,
+        allocator: &ID3D12CommandAllocator,
+        initial_state: &ID3D12PipelineState,
+    ) -> Result<(), HRESULT>;
 }
+
 impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
     #[inline]
     fn close(&self) -> Result<(), HRESULT> { unsafe { self.Close().hr() } }
@@ -101,6 +111,28 @@ impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
                 src as *const _,
                 opt_to_ptr(src_box),
             )
+        }
+    }
+    #[inline]
+    fn reset(
+        &self,
+        allocator: &ID3D12CommandAllocator,
+        initial_state: &ID3D12PipelineState,
+    ) -> Result<(), HRESULT> {
+        unsafe {
+            self.Reset(
+                allocator as *const _ as *mut _,
+                initial_state as *const _ as *mut _,
+            ).hr()
+        }
+    }
+    #[inline]
+    fn set_graphics_root_signature(
+        &self,
+        root_signature: &ID3D12RootSignature,
+    ) -> () {
+        unsafe {
+            self.SetGraphicsRootSignature(root_signature as *const _ as *mut _)
         }
     }
 

@@ -94,10 +94,12 @@ impl DxModel {
             Width: width as _,
             Height: height as _,
             MaxDepth: 1.0_f32,
+            ..unsafe { mem::zeroed() }
         };
         let scissor_rect = D3D12_RECT {
             right: width as _,
             bottom: height as _,
+            ..unsafe { mem::zeroed() }
         };
 
 
@@ -639,17 +641,24 @@ impl DxModel {
             fence: fence,
             fence_value: fence_value,
             fence_event: fence_event,
-            rotation_radians: 0,
+            rotation_radians: 0_f32,
             viewport: viewport,
             scissor_rect: scissor_rect,
         })
     }
 
     pub fn render(&mut self) -> Result<(), HRESULT> {
-        self.populate_command_list()?;
-        self.command_queue.execute_command_lists(&self.command_list);
-        self.swap_chain.present(1, 0)?;
-        self.wait_for_previous_frame()?;
+        {
+            self.populate_command_list()?;
+        }
+        {
+            let command_queue = &self.command_queue;
+            let command_list = &self.command_list;
+            let swap_chain = &self.swap_chain;
+            command_queue.execute_command_lists(&[command_list]);
+            swap_chain.present(1, 0)?;
+            self.wait_for_previous_frame()?;
+        }
         Ok(())
     }
 
@@ -681,7 +690,7 @@ impl DxModel {
         command_list.reset(command_allocator, pipeline_state)?;
 
         // Set necessary state.
-        command_list.SetGraphicsRootSignature(root_signature.Get());
+        command_list.set_graphics_root_signature(root_signature);
 
         let pp_heaps = [srv_heap];
         command_list.set_descriptor_heaps(&pp_heaps);
@@ -697,19 +706,19 @@ impl DxModel {
         command_list.rs_set_scissor_rects(1, scissor_rect);
 
         // Indicate that the back buffer will be used as a render target.
-        command_list.resource_barrier(
-            1,
-            D3DX12_RESOURCE_BARRIER::Transition(
+        {
+            let barrier = D3D12_RESOURCE_BARRIER::transition(
                 &render_targets[frame_index],
-                D3D12_RESOURCE_STATE_PRESENT,
-                D3D12_RESOURCE_STATE_RENDER_TARGET,
-            ),
-        );
+                D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_PRESENT,
+                D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RENDER_TARGET,
+            );
+            command_list.resource_barrier(1, &barrier);
+        }
         let rtv_handle = rtv_heap
             .get_cpu_descriptor_handle_for_heap_start()
             .frame_index(frame_index)
             .descriptor_size(rtv_descriptor_size);
-        command_list.om_set_render_targets(1, &rtvHandle, false, None);
+        command_list.om_set_render_targets(1, &rtv_handle, false, None);
 
         // Record commands.
         let clear_color = [0_f32; 4];
@@ -727,14 +736,14 @@ impl DxModel {
         command_list.draw_indexed_instanced(CIRCLE_SEGMENTS * 3, 1, 0, 0, 0);
 
         // Indicate that the back buffer will now be used to present.
-        command_list.resource_barrier(
-            1,
-            D3DX12_RESOURCE_BARRIER::Transition(
+        {
+            let barrier = D3D12_RESOURCE_BARRIER::transition(
                 &render_targets[frame_index],
-                D3D12_RESOURCE_STATE_RENDER_TARGET,
-                D3D12_RESOURCE_STATE_PRESENT,
-            ),
-        );
+                D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RENDER_TARGET,
+                D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_PRESENT,
+            );
+            command_list.resource_barrier(1, &barrier);
+        }
 
         command_list.close()?;
         Ok(())
