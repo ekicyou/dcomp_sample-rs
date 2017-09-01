@@ -664,12 +664,12 @@ impl DxModel {
 
     /// 描画コマンドリストを構築する
     fn populate_command_list(&mut self) -> Result<(), HRESULT> {
-        let command_allocator = &self.command_allocator;
-        let command_list = &self.command_list;
-        let pipeline_state = &self.pipeline_state;
-        let root_signature = &self.root_signature;
-        let srv_heap = &self.srv_heap;
-        let rtv_heap = &self.rtv_heap;
+        let command_allocator = self.command_allocator.as_ref();
+        let command_list = self.command_list.as_ref();;
+        let pipeline_state = self.pipeline_state.as_ref();
+        let root_signature = self.root_signature.as_ref();
+        let srv_heap = self.srv_heap.as_ref();
+        let rtv_heap = self.rtv_heap.as_ref();
         let rtv_descriptor_size = self.rtv_descriptor_size;
         let viewport = &self.viewport;
         let scissor_rect = &self.scissor_rect;

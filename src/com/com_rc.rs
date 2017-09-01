@@ -89,6 +89,8 @@ impl<T: Interface> ComRc<T> {
     }
     #[inline]
     pub fn as_ptr(&self) -> *const T { self.raw }
+    #[inline]
+    pub fn as_ref(&self) -> &T { self }
 }
 
 impl<T: Interface> Drop for ComRc<T> {

@@ -11,6 +11,7 @@ const LIMIT_SIZE: u64 = (core::isize::MAX as u64);
 
 
 pub trait ID3D12GraphicsCommandListExt {
+    fn set_descriptor_heaps(&self,heaps: &[&ID3D12DescriptorHeap])->();
     fn close(&self) -> Result<(), HRESULT>;
     fn resource_barrier(
         &self,
@@ -63,6 +64,14 @@ pub trait ID3D12GraphicsCommandListExt {
 }
 
 impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
+    #[inline]
+    fn set_descriptor_heaps(&self,heaps: &[&ID3D12DescriptorHeap])->(){
+        unsafe {
+            let num = heaps.len() as u32;
+            let ptr = heaps.as_ptr() as *mut *mut ID3D12DescriptorHeap;
+            self.SetDescriptorHeaps(num, ptr)
+        }
+    }
     #[inline]
     fn close(&self) -> Result<(), HRESULT> { unsafe { self.Close().hr() } }
     #[inline]
