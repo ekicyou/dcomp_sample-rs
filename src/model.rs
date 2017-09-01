@@ -13,6 +13,7 @@ use winapi::vc::limits::UINT_MAX;
 use winit::Window;
 use winit::os::windows::WindowExt;
 
+
 struct ArrayIterator3<T> {
     item: [T; 3],
     index: usize,
@@ -711,8 +712,8 @@ impl DxModel {
         {
             let barrier = D3D12_RESOURCE_BARRIER::transition(
                 &render_targets[frame_index as _],
-                D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_PRESENT,
-                D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RENDER_TARGET,
+                D3D12_RESOURCE_STATE_PRESENT,
+                D3D12_RESOURCE_STATE_RENDER_TARGET,
             );
             command_list.resource_barrier(1, &barrier);
         }
@@ -741,8 +742,8 @@ impl DxModel {
         {
             let barrier = D3D12_RESOURCE_BARRIER::transition(
                 &render_targets[frame_index],
-                D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RENDER_TARGET,
-                D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_PRESENT,
+                D3D12_RESOURCE_STATE_RENDER_TARGET,
+                D3D12_RESOURCE_STATE_PRESENT,
             );
             command_list.resource_barrier(1, &barrier);
         }
