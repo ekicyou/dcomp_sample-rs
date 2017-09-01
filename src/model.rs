@@ -717,10 +717,9 @@ impl DxModel {
             );
             command_list.resource_barrier(1, &barrier);
         }
-        let rtv_handle = rtv_heap
-            .get_cpu_descriptor_handle_for_heap_start()
-            .frame_index(frame_index)
-            .descriptor_size(rtv_descriptor_size);
+        let mut rtv_handle = rtv_heap
+            .get_cpu_descriptor_handle_for_heap_start();
+        rtv_handle.offset(frame_index as _, rtv_descriptor_size);
         command_list.om_set_render_targets(1, &rtv_handle, false, None);
 
         // Record commands.
