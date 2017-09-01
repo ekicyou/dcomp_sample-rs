@@ -12,6 +12,11 @@ const LIMIT_SIZE: u64 = (core::isize::MAX as u64);
 
 
 pub trait ID3D12GraphicsCommandListExt {
+    fn set_graphics_root_descriptor_table(
+        &self,
+        root_parameter_index: u32,
+        base_descriptor: D3D12_GPU_DESCRIPTOR_HANDLE,
+    ) -> ();
     fn set_graphics_root_u32_constant(
         &self,
         root_parameter_index: u32,
@@ -74,9 +79,40 @@ pub trait ID3D12GraphicsCommandListExt {
         allocator: &ID3D12CommandAllocator,
         initial_state: &ID3D12PipelineState,
     ) -> Result<(), HRESULT>;
+    fn rs_set_viewports(&self, viewports: &[D3D12_VIEWPORT]) -> ();
+    fn rs_set_scissor_rects(&self, rects: &[D3D12_RECT]) -> ();
 }
 
 impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
+    #[inline]
+    fn rs_set_viewports(&self, viewports: &[D3D12_VIEWPORT]) -> () {
+        unsafe {
+            let num = viewports.len() as u32;
+            let ptr = viewports.as_ptr() as *const _;
+            self.RSSetViewports(num, ptr)
+        }
+    }
+    #[inline]
+    fn rs_set_scissor_rects(&self, rects: &[D3D12_RECT]) -> () {
+        unsafe {
+            let num = rects.len() as u32;
+            let ptr = rects.as_ptr() as *const _;
+            self.RSSetScissorRects(num, ptr)
+        }
+    }
+    #[inline]
+    fn set_graphics_root_descriptor_table(
+        &self,
+        root_parameter_index: u32,
+        base_descriptor: D3D12_GPU_DESCRIPTOR_HANDLE,
+    ) -> () {
+        unsafe {
+            self.SetGraphicsRootDescriptorTable(
+                root_parameter_index,
+                base_descriptor,
+            )
+        }
+    }
     #[inline]
     fn set_graphics_root_u32_constant(
         &self,

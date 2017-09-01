@@ -702,13 +702,15 @@ impl DxModel {
             1,
             srv_heap.get_gpu_descriptor_handle_for_heap_start(),
         );
-        command_list.rs_set_viewports(1, viewport);
-        command_list.rs_set_scissor_rects(1, scissor_rect);
+        let viewports = [*viewport];
+        command_list.rs_set_viewports(&viewports);
+        let scissor_rects = [*scissor_rect];
+        command_list.rs_set_scissor_rects(&scissor_rects);
 
         // Indicate that the back buffer will be used as a render target.
         {
             let barrier = D3D12_RESOURCE_BARRIER::transition(
-                &render_targets[frame_index],
+                &render_targets[frame_index as _],
                 D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_PRESENT,
                 D3D12_RESOURCE_STATES::D3D12_RESOURCE_STATE_RENDER_TARGET,
             );
