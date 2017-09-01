@@ -665,7 +665,7 @@ impl DxModel {
     /// 描画コマンドリストを構築する
     fn populate_command_list(&mut self) -> Result<(), HRESULT> {
         let command_allocator = self.command_allocator.as_ref();
-        let command_list = self.command_list.as_ref();;
+        let command_list = self.command_list.as_ref();
         let pipeline_state = self.pipeline_state.as_ref();
         let root_signature = self.root_signature.as_ref();
         let srv_heap = self.srv_heap.as_ref();
@@ -697,7 +697,7 @@ impl DxModel {
 
         self.rotation_radians += 0.02_f32;
         let rotation_radians = self.rotation_radians;
-        command_list.set_graphics_root_f32_constant(0, rotation_radians, 0); // TODO
+        command_list.set_graphics_root_f32_constant(0, rotation_radians, 0);
         command_list.set_graphics_root_descriptor_table(
             1,
             srv_heap.get_gpu_descriptor_handle_for_heap_start(),

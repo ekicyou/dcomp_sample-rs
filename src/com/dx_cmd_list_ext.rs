@@ -5,13 +5,26 @@ use super::dx_pub_use::*;
 use super::dx_struct::*;
 use super::unsafe_util::*;
 use winapi::_core as core;
+use winapi::_core::mem;
 use winapi::shared::winerror::{E_FAIL, HRESULT};
 
 const LIMIT_SIZE: u64 = (core::isize::MAX as u64);
 
 
 pub trait ID3D12GraphicsCommandListExt {
-    fn set_descriptor_heaps(&self,heaps: &[&ID3D12DescriptorHeap])->();
+    fn set_graphics_root_u32_constant(
+        &self,
+        root_parameter_index: u32,
+        src_data: u32,
+        dest_offset_in_u32_values: u32,
+    ) -> ();
+    fn set_graphics_root_f32_constant(
+        &self,
+        root_parameter_index: u32,
+        src_data: f32,
+        dest_offset_in_u32_values: u32,
+    ) -> ();
+    fn set_descriptor_heaps(&self, heaps: &[&ID3D12DescriptorHeap]) -> ();
     fn close(&self) -> Result<(), HRESULT>;
     fn resource_barrier(
         &self,
@@ -65,7 +78,36 @@ pub trait ID3D12GraphicsCommandListExt {
 
 impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
     #[inline]
-    fn set_descriptor_heaps(&self,heaps: &[&ID3D12DescriptorHeap])->(){
+    fn set_graphics_root_u32_constant(
+        &self,
+        root_parameter_index: u32,
+        src_data: u32,
+        dest_offset_in_u32_values: u32,
+    ) -> () {
+        unsafe {
+            self.SetGraphicsRoot32BitConstant(
+                root_parameter_index,
+                src_data,
+                dest_offset_in_u32_values,
+            )
+        }
+    }
+    #[inline]
+    fn set_graphics_root_f32_constant(
+        &self,
+        root_parameter_index: u32,
+        src_data: f32,
+        dest_offset_in_u32_values: u32,
+    ) -> () {
+        let src_data = unsafe { mem::transmute(src_data) };
+        self.set_graphics_root_u32_constant(
+            root_parameter_index,
+            src_data,
+            dest_offset_in_u32_values,
+        )
+    }
+    #[inline]
+    fn set_descriptor_heaps(&self, heaps: &[&ID3D12DescriptorHeap]) -> () {
         unsafe {
             let num = heaps.len() as u32;
             let ptr = heaps.as_ptr() as *mut *mut ID3D12DescriptorHeap;
