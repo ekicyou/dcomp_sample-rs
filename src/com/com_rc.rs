@@ -10,11 +10,13 @@ use winapi::um::unknwnbase::IUnknown;
 pub type ComResult<U> = Result<ComRc<U>, HRESULT>;
 
 pub trait HresultMapping {
+    /// HRESULT値をResult型に変換する。
     fn hr(self) -> Result<(), HRESULT>;
 }
 
 impl HresultMapping for HRESULT {
     #[inline]
+    /// HRESULT値をResult型に変換する。
     fn hr(self) -> Result<(), HRESULT> {
         match self {
             S_OK => Ok(()),

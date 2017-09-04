@@ -81,9 +81,34 @@ pub trait ID3D12GraphicsCommandListExt {
     ) -> Result<(), HRESULT>;
     fn rs_set_viewports(&self, viewports: &[D3D12_VIEWPORT]) -> ();
     fn rs_set_scissor_rects(&self, rects: &[D3D12_RECT]) -> ();
+    fn om_set_render_targets(
+        &self,
+        render_target_descriptors: &[D3D12_CPU_DESCRIPTOR_HANDLE],
+        rts_single_handle_to_descriptor_range: bool,
+        depth_stencil_descriptor: &[D3D12_CPU_DESCRIPTOR_HANDLE],
+    ) -> ();
 }
 
 impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
+    #[inline]
+    fn om_set_render_targets(
+        &self,
+        render_target_descriptors: &[D3D12_CPU_DESCRIPTOR_HANDLE],
+        rts_single_handle_to_descriptor_range: bool,
+        depth_stencil_descriptor: Option<D3D12_CPU_DESCRIPTOR_HANDLE>,
+    ) -> () {
+        unsafe {
+            let num = render_target_descriptors.len() as _;
+            let p1 = render_target_descriptors.as_ptr() as *const _;
+            let p2 = 
+            self.OMSetRenderTargets(
+                num,
+                p1,
+                BOOL(rts_single_handle_to_descriptor_range),
+                p2,
+            )
+        }
+    }
     #[inline]
     fn rs_set_viewports(&self, viewports: &[D3D12_VIEWPORT]) -> () {
         unsafe {
