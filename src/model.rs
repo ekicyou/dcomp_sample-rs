@@ -734,7 +734,7 @@ impl DxModel {
         command_list.ia_set_primitive_topology(
             D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,
         );
-        let vertex_buffer_views = [vertex_buffer_view];
+        let vertex_buffer_views = [vertex_buffer_view.clone()];
         command_list.ia_set_vertex_buffers(0, &vertex_buffer_views);
         command_list.ia_set_index_buffer(index_buffer_view);
         command_list.draw_indexed_instanced(CIRCLE_SEGMENTS * 3, 1, 0, 0, 0);
