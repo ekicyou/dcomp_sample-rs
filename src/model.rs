@@ -658,6 +658,8 @@ impl DxModel {
             let swap_chain = &self.swap_chain;
             command_queue.execute_command_lists(&[command_list]);
             swap_chain.present(1, 0)?;
+        }
+        {
             self.wait_for_previous_frame()?;
         }
         Ok(())
@@ -675,7 +677,7 @@ impl DxModel {
         let viewport = &self.viewport;
         let scissor_rect = &self.scissor_rect;
         let render_targets = self.render_targets.as_slice();
-        let frame_index = self.frame_index;
+        let frame_index = self.frame_index as usize;
         let vertex_buffer_view = &self.vertex_buffer_view;
         let index_buffer_view = &self.index_buffer_view;
 
@@ -711,7 +713,7 @@ impl DxModel {
         // Indicate that the back buffer will be used as a render target.
         {
             let barrier = D3D12_RESOURCE_BARRIER::transition(
-                &render_targets[frame_index as _],
+                &render_targets[frame_index],
                 D3D12_RESOURCE_STATE_PRESENT,
                 D3D12_RESOURCE_STATE_RENDER_TARGET,
             );
@@ -737,7 +739,13 @@ impl DxModel {
         let vertex_buffer_views = [vertex_buffer_view.clone()];
         command_list.ia_set_vertex_buffers(0, &vertex_buffer_views);
         command_list.ia_set_index_buffer(index_buffer_view);
-        command_list.draw_indexed_instanced(CIRCLE_SEGMENTS * 3, 1, 0, 0, 0);
+        command_list.draw_indexed_instanced(
+            (CIRCLE_SEGMENTS * 3) as _,
+            1,
+            0,
+            0,
+            0,
+        );
 
         // Indicate that the back buffer will now be used to present.
         {

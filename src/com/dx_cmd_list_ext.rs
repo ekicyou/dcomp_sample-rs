@@ -103,9 +103,44 @@ pub trait ID3D12GraphicsCommandListExt {
         start_slot: u32,
         views: &[D3D12_VERTEX_BUFFER_VIEW],
     ) -> ();
+    fn ia_set_index_buffer(&self, view: &D3D12_INDEX_BUFFER_VIEW) -> ();
+    fn draw_indexed_instanced(
+        &self,
+        index_count_per_instance: u32,
+        instance_count: u32,
+        start_index_location: u32,
+        base_vertex_location: i32,
+        start_instance_location: u32,
+    ) -> ();
 }
 
 impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
+    #[inline]
+    fn draw_indexed_instanced(
+        &self,
+        index_count_per_instance: u32,
+        instance_count: u32,
+        start_index_location: u32,
+        base_vertex_location: i32,
+        start_instance_location: u32,
+    ) -> () {
+        unsafe {
+            self.DrawIndexedInstanced(
+                index_count_per_instance,
+                instance_count,
+                start_index_location,
+                base_vertex_location,
+                start_instance_location,
+            )
+        }
+    }
+    #[inline]
+    fn ia_set_index_buffer(&self, view: &D3D12_INDEX_BUFFER_VIEW) -> () {
+        unsafe {
+            let p = view as *const _;
+            self.IASetIndexBuffer(p)
+        }
+    }
     #[inline]
     fn ia_set_vertex_buffers(
         &self,
