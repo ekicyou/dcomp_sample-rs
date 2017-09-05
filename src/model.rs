@@ -720,20 +720,22 @@ impl DxModel {
         let mut rtv_handle = rtv_heap
             .get_cpu_descriptor_handle_for_heap_start();
         rtv_handle.offset(frame_index as _, rtv_descriptor_size);
-        command_list.om_set_render_targets(1, &rtv_handle, false, None);
+        let rtv_handles = [rtv_handle];
+        command_list.om_set_render_targets(&rtv_handles, false, None);
 
         // Record commands.
         let clear_color = [0_f32; 4];
+        let no_rects = [];
         command_list.clear_render_target_view(
-            &rtv_handle,
-            clear_color,
-            0,
-            None,
+            rtv_handle,
+            &clear_color,
+            &no_rects,
         );
         command_list.ia_set_primitive_topology(
             D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,
         );
-        command_list.ia_set_vertex_buffers(0, 1, vertex_buffer_view);
+        let vertex_buffer_views = [vertex_buffer_view];
+        command_list.ia_set_vertex_buffers(0, &vertex_buffer_views);
         command_list.ia_set_index_buffer(index_buffer_view);
         command_list.draw_indexed_instanced(CIRCLE_SEGMENTS * 3, 1, 0, 0, 0);
 

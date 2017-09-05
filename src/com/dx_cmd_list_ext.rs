@@ -88,9 +88,58 @@ pub trait ID3D12GraphicsCommandListExt {
         rts_single_handle_to_descriptor_range: bool,
         depth_stencil_descriptor: Option<D3D12_CPU_DESCRIPTOR_HANDLE>,
     ) -> ();
+    fn clear_render_target_view(
+        &self,
+        render_target_view: D3D12_CPU_DESCRIPTOR_HANDLE,
+        rgba: &[f32; 4],
+        rects: &[D3D12_RECT],
+    ) -> ();
+    fn ia_set_primitive_topology(
+        &self,
+        primitive_topology: D3D12_PRIMITIVE_TOPOLOGY,
+    ) -> ();
+    fn ia_set_vertex_buffers(
+        &self,
+        start_slot: u32,
+        views: &[D3D12_VERTEX_BUFFER_VIEW],
+    ) -> ();
 }
 
 impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
+    #[inline]
+    fn ia_set_vertex_buffers(
+        &self,
+        start_slot: u32,
+        views: &[D3D12_VERTEX_BUFFER_VIEW],
+    ) -> () {
+        unsafe {
+            let num = views.len() as _;
+            let p = views.as_ptr() as *const _;
+            self.IASetVertexBuffers(start_slot, num, p)
+        }
+    }
+    #[inline]
+    fn ia_set_primitive_topology(
+        &self,
+        primitive_topology: D3D12_PRIMITIVE_TOPOLOGY,
+    ) -> () {
+        unsafe { self.IASetPrimitiveTopology(primitive_topology) }
+    }
+    #[inline]
+    fn clear_render_target_view(
+        &self,
+        render_target_view: D3D12_CPU_DESCRIPTOR_HANDLE,
+        rgba: &[f32; 4],
+        rects: &[D3D12_RECT],
+    ) -> () {
+        unsafe {
+            let (num, p) = match rects.len() {
+                0 => (0, ptr::null()),
+                n => (n, rects.as_ptr() as *const _),
+            };
+            self.ClearRenderTargetView(render_target_view, rgba, num as _, p)
+        }
+    }
     #[inline]
     fn om_set_render_targets(
         &self,
