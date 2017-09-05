@@ -6,6 +6,7 @@ use super::dx_struct::*;
 use super::unsafe_util::*;
 use winapi::_core as core;
 use winapi::_core::mem;
+use winapi::_core::ptr;
 use winapi::shared::winerror::{E_FAIL, HRESULT};
 
 const LIMIT_SIZE: u64 = (core::isize::MAX as u64);
@@ -85,7 +86,7 @@ pub trait ID3D12GraphicsCommandListExt {
         &self,
         render_target_descriptors: &[D3D12_CPU_DESCRIPTOR_HANDLE],
         rts_single_handle_to_descriptor_range: bool,
-        depth_stencil_descriptor: &[D3D12_CPU_DESCRIPTOR_HANDLE],
+        depth_stencil_descriptor: Option<D3D12_CPU_DESCRIPTOR_HANDLE>,
     ) -> ();
 }
 
@@ -100,7 +101,10 @@ impl ID3D12GraphicsCommandListExt for ID3D12GraphicsCommandList {
         unsafe {
             let num = render_target_descriptors.len() as _;
             let p1 = render_target_descriptors.as_ptr() as *const _;
-            let p2 = 
+            let p2 = match depth_stencil_descriptor {
+                None => ptr::null(),
+                Some(a) => &a as *const _,
+            };
             self.OMSetRenderTargets(
                 num,
                 p1,
