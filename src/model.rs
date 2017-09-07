@@ -792,18 +792,13 @@ fn wait_for_previous_frame(
     fence_value: &mut u64,
     frame_index: &mut u32,
 ) -> Result<(), HRESULT> {
-    println!("wait_for_previous_frame start fence_value={}", *fence_value);
     // Signal and increment the fence value.
     let old_fence_value = *fence_value;
     command_queue.signal(fence, old_fence_value)?;
     *fence_value += 1;
-    println!("wait_for_previous_frame set command_queue.signal");
 
     // Wait until the previous frame is finished.
     fence.wait_infinite(old_fence_value, event)?;
-    println!("wait_for_previous_frame end fence.wait_infinite");
-
     *frame_index = swap_chain.get_current_back_buffer_index();
-    println!("wait_for_previous_frame end");
     Ok(())
 }
