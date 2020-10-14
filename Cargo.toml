@@ -1,20 +1,18 @@
 [package]
 authors = ["ekicyou <dot.station@gmail.com>"]
 name = "dcomp_sample"
-version = "0.1.0"
+version = "0.2.0"
+edition = "2018"
 
 [dependencies]
 c_string = "0.7.0"
-lazy_static = "0.2.8"
+lazy_static = "1.4"
 libc = "0.2.22"
-euclid = "0.15.1"
-widestring = "0.2.2"
-
-[dependencies.winit]
-branch = "feature/WS_EX_NOREDIRECTIONBITMAP"
-git = "https://github.com/ekicyou/winit"
+euclid = "0.22"
+widestring = "0.4"
+winit = "0.23"
+raw-window-handle = "0.3"
 
 [dependencies.winapi]
-branch = "dev"
+ver = "0.3"
 features = ["dcomp", "d3d12sdklayers", "dwrite_3", "dxgi1_5", "d3dcompiler", "winuser", "errhandlingapi","winbase"]
-git = "https://github.com/ekicyou/winapi-rs"
