@@ -95,8 +95,8 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
     }
     #[inline]
     fn d3d12_create_warp_device(&self) -> ComResult<ID3D12Device> {
-        let mut adapter = self.enum_warp_adapter::<IDXGIAdapter>()?;
-        d3d12_create_device(&mut adapter, D3D_FEATURE_LEVEL_11_0)
+        let adapter = self.enum_warp_adapter::<IDXGIAdapter>()?;
+        d3d12_create_device(&adapter, D3D_FEATURE_LEVEL_11_0)
     }
     #[inline]
     fn d3d12_create_best_device(&self) -> ComResult<ID3D12Device> {
