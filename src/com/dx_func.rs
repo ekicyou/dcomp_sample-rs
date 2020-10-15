@@ -3,17 +3,19 @@
 
 use super::com_rc::*;
 use super::dx_pub_use::*;
-use super::unsafe_api::*;
 use super::unsafe_util::*;
 use winapi::Interface;
 use winapi::_core::ptr;
 use winapi::ctypes::c_void;
 use winapi::shared::dxgi::CreateDXGIFactory1;
-use winapi::shared::ntdef::{LPCSTR, LPCWSTR};
 use winapi::shared::ntdef::HANDLE;
+use winapi::shared::ntdef::{LPCSTR, LPCWSTR};
 use winapi::shared::winerror::{FACILITY_WIN32, HRESULT};
+use winapi::um::d3dcompiler::D3DCompileFromFile;
 use winapi::um::errhandlingapi::GetLastError;
 use winapi::um::minwinbase::SECURITY_ATTRIBUTES;
+use winapi::um::synchapi::CreateEventA;
+use winapi::um::synchapi::WaitForSingleObject;
 use winapi::um::unknwnbase::IUnknown;
 
 #[inline]
@@ -24,8 +26,13 @@ pub fn d3d12_create_device<U: Interface>(
     let riid = U::uuidof();
     let p = unsafe {
         let mut ppv: *mut c_void = ptr::null_mut();
-        D3D12CreateDevice(adapter, minimum_feature_level, &riid, &mut ppv)
-            .hr()?;
+        D3D12CreateDevice(
+            adapter as *const _ as *mut _,
+            minimum_feature_level,
+            &riid,
+            &mut ppv,
+        )
+        .hr()?;
         ppv as *const U
     };
     Ok(ComRc::new(p))
@@ -55,14 +62,11 @@ pub fn d3d12_get_debug_interface<U: Interface>() -> ComResult<U> {
 }
 
 #[inline]
-pub fn dcomp_create_device<U: Interface>(
-    dxgi_device: Option<&IUnknown>,
-) -> ComResult<U> {
+pub fn dcomp_create_device<U: Interface>(dxgi_device: Option<&IUnknown>) -> ComResult<U> {
     let riid = U::uuidof();
     let p = unsafe {
         let mut ppv: *mut c_void = ptr::null_mut();
-        DCompositionCreateDevice3(opt_to_ptr(dxgi_device), &riid, &mut ppv)
-            .hr()?;
+        DCompositionCreateDevice3(opt_to_ptr(dxgi_device), &riid, &mut ppv).hr()?;
         ppv as *const U
     };
     Ok(ComRc::new(p))
@@ -76,8 +80,7 @@ pub fn d3d12_serialize_root_signature(
     unsafe {
         let mut p1: *mut ID3DBlob = ptr::null_mut();
         let mut p2: *mut ID3DBlob = ptr::null_mut();
-        D3D12SerializeRootSignature(root_signature, version, &mut p1, &mut p2)
-            .hr()?;
+        D3D12SerializeRootSignature(root_signature, version, &mut p1, &mut p2).hr()?;
         Ok((ComRc::new(p1), ComRc::new(p2)))
     }
 }
@@ -108,14 +111,16 @@ pub fn d3d_compile_from_file<'a, S: Into<&'a str>>(
             flags2,
             &mut p1,
             &mut p2,
-        ).hr()?;
+        )
+        .hr()?;
         Ok((ComRc::new(p1), ComRc::new(p2)))
     }
 }
 
-
 #[inline]
-pub fn get_last_error() -> u32 { unsafe { GetLastError() } }
+pub fn get_last_error() -> u32 {
+    unsafe { GetLastError() }
+}
 #[inline]
 pub fn hr_from_win32(x: u32) -> HRESULT {
     let x = x as HRESULT;
@@ -123,12 +128,13 @@ pub fn hr_from_win32(x: u32) -> HRESULT {
         return x;
     }
     let x = x as u32;
-    let x = (x & 0x0000FFFFu32) | ((FACILITY_WIN32 as u32) << 16) |
-        0x80000000u32;
+    let x = (x & 0x0000FFFFu32) | ((FACILITY_WIN32 as u32) << 16) | 0x80000000u32;
     x as HRESULT
 }
 #[inline]
-pub fn hr_last_error() -> HRESULT { hr_from_win32(get_last_error()) }
+pub fn hr_last_error() -> HRESULT {
+    hr_from_win32(get_last_error())
+}
 
 #[inline]
 pub fn create_event(
@@ -143,7 +149,7 @@ pub fn create_event(
         None => ptr::null(),
         Some(a) => a,
     };
-    let h = unsafe { CreateEventA(opt_to_ptr(attr), reset, init_state, name) };
+    let h = unsafe { CreateEventA(opt_to_ptr_mut(attr), reset, init_state, name) };
     if h == ptr::null_mut() {
         hr_last_error().hr()?
     }

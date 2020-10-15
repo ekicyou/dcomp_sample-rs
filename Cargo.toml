@@ -15,4 +15,4 @@ raw-window-handle = "0.3"
 
 [dependencies.winapi]
 ver = "0.3"
-features = ["dcomp", "d3d12sdklayers", "dwrite_3", "dxgi1_5", "d3dcompiler", "winuser", "errhandlingapi","winbase"]
+features = ["dcomp", "d3d12sdklayers", "dwrite_3", "dxgi1_5", "d3dcompiler", "winuser","synchapi", "errhandlingapi","winbase"]

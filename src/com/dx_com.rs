@@ -5,12 +5,12 @@ use super::com_rc::*;
 use super::dx_func::*;
 use super::dx_pub_use::*;
 use super::unsafe_util::*;
+use raw_window_handle::*;
 use winapi::Interface;
 use winapi::_core::mem;
 use winapi::_core::ptr;
 use winapi::ctypes::c_void;
 use winapi::shared::ntdef::HANDLE;
-use winapi::shared::windef::HWND;
 use winapi::shared::winerror::{E_FAIL, HRESULT};
 use winapi::um::unknwnbase::IUnknown;
 use winapi::um::winbase::INFINITE;
@@ -29,7 +29,6 @@ impl IDXGIAdapter1Ext for IDXGIAdapter1 {
     }
 }
 
-
 pub trait IDXGIFactory4Ext {
     fn enum_warp_adapter<U: Interface>(&self) -> ComResult<U>;
     fn enum_adapters1(&self, index: u32) -> ComResult<IDXGIAdapter1>;
@@ -38,11 +37,7 @@ pub trait IDXGIFactory4Ext {
         device: &IUnknown,
         desc: &DXGI_SWAP_CHAIN_DESC1,
     ) -> ComResult<IDXGISwapChain1>;
-    fn make_window_association(
-        &self,
-        hwnd: HWND,
-        flags: u32,
-    ) -> Result<(), HRESULT>;
+    fn make_window_association(&self, hwnd: RawWindowHandle, flags: u32) -> Result<(), HRESULT>;
     fn d3d12_create_hardware_device(&self) -> ComResult<ID3D12Device>;
     fn d3d12_create_warp_device(&self) -> ComResult<ID3D12Device>;
     fn d3d12_create_best_device(&self) -> ComResult<ID3D12Device>;
@@ -74,22 +69,14 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
     ) -> ComResult<IDXGISwapChain1> {
         unsafe {
             let mut p = ptr::null_mut();
-            self.CreateSwapChainForComposition(
-                to_mut_ptr(device),
-                desc,
-                ptr::null_mut(),
-                &mut p,
-            ).hr()?;
+            self.CreateSwapChainForComposition(to_mut_ptr(device), desc, ptr::null_mut(), &mut p)
+                .hr()?;
             Ok(ComRc::new(p))
         }
     }
     #[inline]
-    fn make_window_association(
-        &self,
-        hwnd: HWND,
-        flags: u32,
-    ) -> Result<(), HRESULT> {
-        unsafe { self.MakeWindowAssociation(hwnd, flags).hr() }
+    fn make_window_association(&self, hwnd: RawWindowHandle, flags: u32) -> Result<(), HRESULT> {
+        unsafe { self.MakeWindowAssociation(HWND(hwnd), flags).hr() }
     }
     #[inline]
     fn d3d12_create_hardware_device(&self) -> ComResult<ID3D12Device> {
@@ -99,10 +86,7 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
             if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) != 0 {
                 continue;
             }
-            let rc = d3d12_create_device::<ID3D12Device>(
-                &adapter,
-                D3D_FEATURE_LEVEL_11_0,
-            );
+            let rc = d3d12_create_device::<ID3D12Device>(&adapter, D3D_FEATURE_LEVEL_11_0);
             if rc.is_ok() {
                 return rc;
             }
@@ -111,23 +95,18 @@ impl IDXGIFactory4Ext for IDXGIFactory4 {
     }
     #[inline]
     fn d3d12_create_warp_device(&self) -> ComResult<ID3D12Device> {
-        let adapter = self.enum_warp_adapter::<IDXGIAdapter>()?;
-        d3d12_create_device(&adapter, D3D_FEATURE_LEVEL_11_0)
+        let mut adapter = self.enum_warp_adapter::<IDXGIAdapter>()?;
+        d3d12_create_device(&mut adapter, D3D_FEATURE_LEVEL_11_0)
     }
     #[inline]
     fn d3d12_create_best_device(&self) -> ComResult<ID3D12Device> {
-        self.d3d12_create_hardware_device().or_else(|_| {
-            self.d3d12_create_warp_device()
-        })
+        self.d3d12_create_hardware_device()
+            .or_else(|_| self.d3d12_create_warp_device())
     }
 }
 
-
 pub trait ID3D12DeviceExt {
-    fn create_command_queue<U: Interface>(
-        &self,
-        desc: &D3D12_COMMAND_QUEUE_DESC,
-    ) -> ComResult<U>;
+    fn create_command_queue<U: Interface>(&self, desc: &D3D12_COMMAND_QUEUE_DESC) -> ComResult<U>;
     fn create_descriptor_heap<U: Interface>(
         &self,
         desc: &D3D12_DESCRIPTOR_HEAP_DESC,
@@ -187,14 +166,16 @@ pub trait ID3D12DeviceExt {
         resource_desc: &D3D12_RESOURCE_DESC,
         num_subresources: usize,
         base_offset: usize,
-    ) -> (Box<[D3D12_PLACED_SUBRESOURCE_FOOTPRINT]>, Box<[u32]>, Box<[u64]>, u64);
+    ) -> (
+        Box<[D3D12_PLACED_SUBRESOURCE_FOOTPRINT]>,
+        Box<[u32]>,
+        Box<[u64]>,
+        u64,
+    );
 }
 impl ID3D12DeviceExt for ID3D12Device {
     #[inline]
-    fn create_command_queue<U: Interface>(
-        &self,
-        desc: &D3D12_COMMAND_QUEUE_DESC,
-    ) -> ComResult<U> {
+    fn create_command_queue<U: Interface>(&self, desc: &D3D12_COMMAND_QUEUE_DESC) -> ComResult<U> {
         let riid = U::uuidof();
         let p = unsafe {
             let mut ppv: *mut c_void = ptr::null_mut();
@@ -232,11 +213,7 @@ impl ID3D12DeviceExt for ID3D12Device {
     ) -> () {
         unsafe {
             let p_resource = to_mut_ptr(resource);
-            self.CreateRenderTargetView(
-                p_resource,
-                opt_to_ptr(desc),
-                dest_descriptor,
-            )
+            self.CreateRenderTargetView(p_resource, opt_to_ptr(desc), dest_descriptor)
         }
     }
     #[inline]
@@ -268,7 +245,8 @@ impl ID3D12DeviceExt for ID3D12Device {
                 blob_length_in_bytes,
                 &riid,
                 &mut ppv,
-            ).hr()?;
+            )
+            .hr()?;
             ppv as *const U
         };
         Ok(ComRc::new(p))
@@ -281,7 +259,8 @@ impl ID3D12DeviceExt for ID3D12Device {
         let riid = U::uuidof();
         let p = unsafe {
             let mut ppv: *mut c_void = ptr::null_mut();
-            self.CreateGraphicsPipelineState(desc, &riid, &mut ppv).hr()?;
+            self.CreateGraphicsPipelineState(desc, &riid, &mut ppv)
+                .hr()?;
             ppv as *const U
         };
         Ok(ComRc::new(p))
@@ -304,7 +283,8 @@ impl ID3D12DeviceExt for ID3D12Device {
                 to_mut_ptr(initial_state),
                 &riid,
                 &mut ppv,
-            ).hr()?;
+            )
+            .hr()?;
             ppv as *const U
         };
         Ok(ComRc::new(p))
@@ -329,7 +309,8 @@ impl ID3D12DeviceExt for ID3D12Device {
                 opt_to_ptr(optimized_clear_value),
                 &riid,
                 &mut ppv,
-            ).hr()?;
+            )
+            .hr()?;
             ppv as *const U
         };
         Ok(ComRc::new(p))
@@ -342,11 +323,7 @@ impl ID3D12DeviceExt for ID3D12Device {
         dest_descriptor: D3D12_CPU_DESCRIPTOR_HANDLE,
     ) -> () {
         unsafe {
-            self.CreateShaderResourceView(
-                resource as *const _ as *mut _,
-                desc,
-                dest_descriptor,
-            )
+            self.CreateShaderResourceView(resource as *const _ as *mut _, desc, dest_descriptor)
         }
     }
     #[inline]
@@ -358,7 +335,8 @@ impl ID3D12DeviceExt for ID3D12Device {
         let riid = U::uuidof();
         let p = unsafe {
             let mut ppv: *mut c_void = ptr::null_mut();
-            self.CreateFence(initial_value, flags, &riid, &mut ppv).hr()?;
+            self.CreateFence(initial_value, flags, &riid, &mut ppv)
+                .hr()?;
             ppv as *const U
         };
         Ok(ComRc::new(p))
@@ -369,7 +347,12 @@ impl ID3D12DeviceExt for ID3D12Device {
         resource_desc: &D3D12_RESOURCE_DESC,
         num_subresources: usize,
         base_offset: usize,
-    ) -> (Box<[D3D12_PLACED_SUBRESOURCE_FOOTPRINT]>, Box<[u32]>, Box<[u64]>, u64) {
+    ) -> (
+        Box<[D3D12_PLACED_SUBRESOURCE_FOOTPRINT]>,
+        Box<[u32]>,
+        Box<[u64]>,
+        u64,
+    ) {
         let mut layouts = Vec::with_capacity(num_subresources);
         let mut num_rows = Vec::with_capacity(num_subresources);
         let mut row_size_in_bytes = Vec::with_capacity(num_subresources);
@@ -403,30 +386,35 @@ pub trait ID3D12CommandAllocatorExt {
 }
 
 impl ID3D12CommandAllocatorExt for ID3D12CommandAllocator {
-    fn reset(&self) -> Result<(), HRESULT> { unsafe { self.Reset().hr() } }
+    fn reset(&self) -> Result<(), HRESULT> {
+        unsafe { self.Reset().hr() }
+    }
 }
 
 pub trait IDCompositionDeviceExt {
     fn commit(&self) -> Result<(), HRESULT>;
     fn create_target_for_hwnd(
         &self,
-        hwnd: HWND,
+        hwnd: RawWindowHandle,
         topmost: bool,
     ) -> ComResult<IDCompositionTarget>;
     fn create_visual(&self) -> ComResult<IDCompositionVisual>;
 }
 impl IDCompositionDeviceExt for IDCompositionDevice {
     #[inline]
-    fn commit(&self) -> Result<(), HRESULT> { unsafe { self.Commit().hr() } }
+    fn commit(&self) -> Result<(), HRESULT> {
+        unsafe { self.Commit().hr() }
+    }
     #[inline]
     fn create_target_for_hwnd(
         &self,
-        hwnd: HWND,
+        hwnd: RawWindowHandle,
         topmost: bool,
     ) -> ComResult<IDCompositionTarget> {
         unsafe {
             let mut p: *mut IDCompositionTarget = ptr::null_mut();
-            self.CreateTargetForHwnd(hwnd, BOOL(topmost), &mut p).hr()?;
+            self.CreateTargetForHwnd(HWND(hwnd), BOOL(topmost), &mut p)
+                .hr()?;
             Ok(ComRc::new(p))
         }
     }
@@ -440,7 +428,6 @@ impl IDCompositionDeviceExt for IDCompositionDevice {
     }
 }
 
-
 pub trait IDCompositionVisualExt {
     fn set_content(&self, content: &IUnknown) -> Result<(), HRESULT>;
 }
@@ -450,7 +437,6 @@ impl IDCompositionVisualExt for IDCompositionVisual {
         unsafe { self.SetContent(content).hr() }
     }
 }
-
 
 pub trait IDCompositionTargetExt {
     fn set_root(&self, visual: &IDCompositionVisual) -> Result<(), HRESULT>;
@@ -495,12 +481,8 @@ impl IDXGISwapChain3Ext for IDXGISwapChain3 {
 
 pub trait ID3D12DescriptorHeapExt {
     fn get_desc(&self) -> D3D12_DESCRIPTOR_HEAP_DESC;
-    fn get_cpu_descriptor_handle_for_heap_start(
-        &self,
-    ) -> D3D12_CPU_DESCRIPTOR_HANDLE;
-    fn get_gpu_descriptor_handle_for_heap_start(
-        &self,
-    ) -> D3D12_GPU_DESCRIPTOR_HANDLE;
+    fn get_cpu_descriptor_handle_for_heap_start(&self) -> D3D12_CPU_DESCRIPTOR_HANDLE;
+    fn get_gpu_descriptor_handle_for_heap_start(&self) -> D3D12_GPU_DESCRIPTOR_HANDLE;
 }
 impl ID3D12DescriptorHeapExt for ID3D12DescriptorHeap {
     #[inline]
@@ -508,15 +490,11 @@ impl ID3D12DescriptorHeapExt for ID3D12DescriptorHeap {
         unsafe { self.GetDesc() }
     }
     #[inline]
-    fn get_cpu_descriptor_handle_for_heap_start(
-        &self,
-    ) -> D3D12_CPU_DESCRIPTOR_HANDLE {
+    fn get_cpu_descriptor_handle_for_heap_start(&self) -> D3D12_CPU_DESCRIPTOR_HANDLE {
         unsafe { self.GetCPUDescriptorHandleForHeapStart() }
     }
     #[inline]
-    fn get_gpu_descriptor_handle_for_heap_start(
-        &self,
-    ) -> D3D12_GPU_DESCRIPTOR_HANDLE {
+    fn get_gpu_descriptor_handle_for_heap_start(&self) -> D3D12_GPU_DESCRIPTOR_HANDLE {
         unsafe { self.GetGPUDescriptorHandleForHeapStart() }
     }
 }
@@ -531,7 +509,9 @@ impl ID3D10BlobExt for ID3D10Blob {
         unsafe { self.GetBufferPointer() }
     }
     #[inline]
-    fn get_buffer_size(&self) -> usize { unsafe { self.GetBufferSize() } }
+    fn get_buffer_size(&self) -> usize {
+        unsafe { self.GetBufferSize() }
+    }
 }
 
 pub trait ID3D12ResourceExt {
@@ -563,7 +543,9 @@ impl ID3D12ResourceExt for ID3D12Resource {
         unsafe { self.GetGPUVirtualAddress() }
     }
     #[inline]
-    fn get_desc(&self) -> D3D12_RESOURCE_DESC { unsafe { self.GetDesc() } }
+    fn get_desc(&self) -> D3D12_RESOURCE_DESC {
+        unsafe { self.GetDesc() }
+    }
     #[inline]
     fn get_device<U: Interface>(&self) -> ComResult<U> {
         let riid = U::uuidof();
@@ -650,10 +632,8 @@ impl<'a> ResourceMap<'a> {
         num_slices: usize,
     ) {
         for z in 0_usize..num_slices {
-            let dst_slice = (self.data_begin as usize) + dst_offset +
-                dst_slice_pitch * z;
-            let src_slice = (src.pData as usize) +
-                (src.SlicePitch as usize) * z;
+            let dst_slice = (self.data_begin as usize) + dst_offset + dst_slice_pitch * z;
+            let src_slice = (src.pData as usize) + (src.SlicePitch as usize) * z;
             for y in 0_usize..num_rows {
                 let dst = dst_slice + dst_row_pitch * y;
                 let src = src_slice + (src.RowPitch as usize) * y;
@@ -676,18 +656,12 @@ impl<'a> Drop for ResourceMap<'a> {
 }
 
 pub trait ID3D12CommandQueueExt {
-    fn execute_command_lists(
-        &self,
-        command_lists: &[&ID3D12GraphicsCommandList],
-    );
+    fn execute_command_lists(&self, command_lists: &[&ID3D12GraphicsCommandList]);
     fn signal(&self, fence: &ID3D12Fence, value: u64) -> Result<(), HRESULT>;
 }
 impl ID3D12CommandQueueExt for ID3D12CommandQueue {
     #[inline]
-    fn execute_command_lists(
-        &self,
-        command_lists: &[&ID3D12GraphicsCommandList],
-    ) {
+    fn execute_command_lists(&self, command_lists: &[&ID3D12GraphicsCommandList]) {
         unsafe {
             let num = command_lists.len() as u32;
             let ptr = command_lists.as_ptr() as *mut *mut ID3D12CommandList;
@@ -702,23 +676,17 @@ impl ID3D12CommandQueueExt for ID3D12CommandQueue {
 
 pub trait ID3D12FenceExt {
     fn get_completed_value(&self) -> u64;
-    fn set_event_on_completion(
-        &self,
-        value: u64,
-        event: HANDLE,
-    ) -> Result<(), HRESULT>;
+    fn set_event_on_completion(&self, value: u64, event: HANDLE) -> Result<(), HRESULT>;
     fn signal(&self, value: u64) -> Result<(), HRESULT>;
     fn wait_infinite(&self, value: u64, event: HANDLE) -> Result<(), HRESULT>;
 }
 impl ID3D12FenceExt for ID3D12Fence {
     #[inline]
-    fn get_completed_value(&self) -> u64 { unsafe { self.GetCompletedValue() } }
+    fn get_completed_value(&self) -> u64 {
+        unsafe { self.GetCompletedValue() }
+    }
     #[inline]
-    fn set_event_on_completion(
-        &self,
-        value: u64,
-        event: HANDLE,
-    ) -> Result<(), HRESULT> {
+    fn set_event_on_completion(&self, value: u64, event: HANDLE) -> Result<(), HRESULT> {
         unsafe { self.SetEventOnCompletion(value, event).hr() }
     }
     #[inline]
