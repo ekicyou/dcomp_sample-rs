@@ -1,7 +1,3 @@
-# dcomp_sample-rs
-A demonstration of DirectComposition and DirectX 12 interoperability by rust
+This sample first appeared in Kenny's [DirectComposition course on Pluralsight](https://www.pluralsight.com/courses/directcomposition-in-action). Check it out to learn all about DirectComposition, Direct2D, and DirectWrite, image decoding, and animation.
 
-convert from @PJayB C++ code.
-
-* http://blog.pjblewis.com/efficient-alpha-blended-windows-directcomposition/
-* https://github.com/PJayB/DirectCompositionDirectX12Sample
+![dcomp](https://user-images.githubusercontent.com/9845234/199103049-78e6c647-abfd-438a-8b11-ca1ba3ea7dd8.gif)

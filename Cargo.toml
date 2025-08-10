@@ -1,18 +1,32 @@
 [package]
-authors = ["ekicyou <dot.station@gmail.com>"]
-name = "dcomp_sample"
-version = "0.2.0"
-edition = "2018"
+name = "sample_dcomp"
+version = "0.0.0"
+edition = "2021"
+publish = false
 
 [dependencies]
-c_string = "0.7.0"
-lazy_static = "1.4"
-libc = "0.2.22"
-euclid = "0.22"
-widestring = "0.4"
-winit = "0.23"
-raw-window-handle = "0.3"
+rand = "0.9.2"
+windows-numerics = "0.2.0"
 
-[dependencies.winapi]
-ver = "0.3"
-features = ["dcomp", "d3d12sdklayers", "dwrite_3", "dxgi1_5", "d3dcompiler", "winuser","synchapi", "errhandlingapi","winbase"]
+[dependencies.windows]
+version = "0.61.3"
+features = [
+    "Win32_Graphics_Direct2D_Common",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_DirectComposition",
+    "Win32_Graphics_DirectWrite",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Imaging_D2D",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Performance",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_UI_Animation",
+    "Win32_UI_HiDpi",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Shell",
+]
+
