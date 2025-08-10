@@ -6,14 +6,10 @@ use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 pub trait WindowMessageHandler {
+    fn hwnd(&self) -> HWND;
+
     #[inline(always)]
-    fn message_handler(
-        &mut self,
-        hwnd: HWND,
-        message: u32,
-        wparam: WPARAM,
-        lparam: LPARAM,
-    ) -> LRESULT {
+    fn message_handler(&mut self, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         match message {
             WM_LBUTTONUP => self.WM_LBUTTONUP(wparam, lparam),
             WM_PAINT => self.WM_PAINT(wparam, lparam),
@@ -21,7 +17,7 @@ pub trait WindowMessageHandler {
             WM_CREATE => self.WM_CREATE(wparam, lparam),
             WM_WINDOWPOSCHANGING => self.WM_WINDOWPOSCHANGING(wparam, lparam),
             WM_DESTROY => self.WM_DESTROY(wparam, lparam),
-            _ => return unsafe { DefWindowProcA(hwnd, message, wparam, lparam) },
+            _ => return unsafe { DefWindowProcA(self.hwnd(), message, wparam, lparam) },
         }
     }
 

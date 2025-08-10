@@ -13,6 +13,8 @@ use windows::{
 
 use windows_numerics::*;
 
+use crate::win_message_handler::WindowMessageHandler;
+
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 6;
 const CARD_MARGIN: f32 = 15.0;
@@ -389,34 +391,6 @@ impl Window {
         }
     }
 
-    fn message_handler(&mut self, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        unsafe {
-            match message {
-                WM_LBUTTONUP => self.click_handler(lparam).expect("WM_LBUTTONUP"),
-                WM_PAINT => {
-                    self.paint_handler().unwrap_or_else(|_| {
-                        // Device loss can cause rendering to fail and should not be considered fatal.
-                        if cfg!(debug_assertions) {
-                            println!("WM_PAINT failed");
-                        }
-                        self.device = None;
-                    });
-                }
-                WM_DPICHANGED => self
-                    .dpi_changed_handler(wparam, lparam)
-                    .expect("WM_DPICHANGED"),
-                WM_CREATE => self.create_handler().expect("WM_CREATE"),
-                WM_WINDOWPOSCHANGING => {
-                    // Prevents window resizing due to device loss
-                }
-                WM_DESTROY => PostQuitMessage(0),
-                _ => return DefWindowProcA(self.handle, message, wparam, lparam),
-            }
-        }
-
-        LRESULT(0)
-    }
-
     fn run(&mut self) -> Result<()> {
         unsafe {
             let instance = GetModuleHandleA(None)?;
@@ -485,6 +459,44 @@ impl Window {
 
             DefWindowProcA(window, message, wparam, lparam)
         }
+    }
+}
+
+impl WindowMessageHandler for Window {
+    fn hwnd(&self) -> HWND {
+        self.handle
+    }
+
+    fn WM_LBUTTONUP(&mut self, _wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        self.click_handler(lparam).expect("WM_LBUTTONUP");
+        LRESULT(0)
+    }
+
+    fn WM_PAINT(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
+        self.paint_handler().unwrap_or_else(|_| {
+            // Device loss can cause rendering to fail and should not be considered fatal.
+            if cfg!(debug_assertions) {
+                println!("WM_PAINT failed");
+            }
+            self.device = None;
+        });
+        LRESULT(0)
+    }
+
+    fn WM_DPICHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        self.dpi_changed_handler(wparam, lparam)
+            .expect("WM_DPICHANGED");
+        LRESULT(0)
+    }
+
+    fn WM_CREATE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
+        self.create_handler().expect("WM_CREATE");
+        LRESULT(0)
+    }
+
+    fn WM_DESTROY(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
+        unsafe { PostQuitMessage(0) };
+        LRESULT(0)
     }
 }
 
