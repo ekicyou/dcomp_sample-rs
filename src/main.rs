@@ -61,6 +61,49 @@ struct Window {
     target: Option<IDCompositionTarget>,
 }
 
+impl WindowMessageHandler for Window {
+    fn hwnd(&self) -> HWND {
+        self.handle
+    }
+
+    fn set_hwnd(&mut self, hwnd: HWND) {
+        self.handle = hwnd;
+    }
+
+    fn WM_CREATE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
+        self.create_handler().expect("WM_CREATE");
+        LRESULT(0)
+    }
+
+    fn WM_DESTROY(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
+        unsafe { PostQuitMessage(0) };
+        LRESULT(0)
+    }
+
+    fn WM_LBUTTONUP(&mut self, _wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        self.click_handler(lparam).expect("WM_LBUTTONUP");
+        LRESULT(0)
+    }
+
+    fn WM_PAINT(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
+        self.paint_handler().unwrap_or_else(|_| {
+            // デバイスロスはレンダリングの失敗を引き起こす可能性がありますが、
+            // 致命的とは見なされるべきではありません。
+            if cfg!(debug_assertions) {
+                println!("WM_PAINT failed");
+            }
+            self.device = None;
+        });
+        LRESULT(0)
+    }
+
+    fn WM_DPICHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        self.dpi_changed_handler(wparam, lparam)
+            .expect("WM_DPICHANGED");
+        LRESULT(0)
+    }
+}
+
 impl Window {
     fn new() -> Result<Self> {
         unsafe {
@@ -434,70 +477,6 @@ impl Window {
 
             Ok(())
         }
-    }
-
-    extern "system" fn wndproc(
-        window: HWND,
-        message: u32,
-        wparam: WPARAM,
-        lparam: LPARAM,
-    ) -> LRESULT {
-        unsafe {
-            if message == WM_NCCREATE {
-                let cs = lparam.0 as *const CREATESTRUCTA;
-                let this = (*cs).lpCreateParams as *mut Self;
-                (*this).handle = window;
-
-                SetWindowLongPtrA(window, GWLP_USERDATA, this as _);
-            } else {
-                let this = GetWindowLongPtrA(window, GWLP_USERDATA) as *mut Self;
-
-                if !this.is_null() {
-                    return (*this).message_handler(message, wparam, lparam);
-                }
-            }
-
-            DefWindowProcA(window, message, wparam, lparam)
-        }
-    }
-}
-
-impl WindowMessageHandler for Window {
-    fn hwnd(&self) -> HWND {
-        self.handle
-    }
-
-    fn WM_LBUTTONUP(&mut self, _wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        self.click_handler(lparam).expect("WM_LBUTTONUP");
-        LRESULT(0)
-    }
-
-    fn WM_PAINT(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
-        self.paint_handler().unwrap_or_else(|_| {
-            // デバイスロスはレンダリングの失敗を引き起こす可能性がありますが、
-            // 致命的とは見なされるべきではありません。
-            if cfg!(debug_assertions) {
-                println!("WM_PAINT failed");
-            }
-            self.device = None;
-        });
-        LRESULT(0)
-    }
-
-    fn WM_DPICHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        self.dpi_changed_handler(wparam, lparam)
-            .expect("WM_DPICHANGED");
-        LRESULT(0)
-    }
-
-    fn WM_CREATE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
-        self.create_handler().expect("WM_CREATE");
-        LRESULT(0)
-    }
-
-    fn WM_DESTROY(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
-        unsafe { PostQuitMessage(0) };
-        LRESULT(0)
     }
 }
 
