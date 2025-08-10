@@ -131,7 +131,7 @@ impl Window {
             self.device = Some(device_3d);
             let desktop: IDCompositionDesktopDevice = DCompositionCreateDevice2(&device_2d)?;
 
-            // First release any previous target, otherwise `CreateTargetForHwnd` will find the HWND occupied.
+            // 以前のターゲットを最初にリリースします。そうしないと `CreateTargetForHwnd` が HWND が占有されていることを検出します。
             self.target = None;
             let target = desktop.CreateTargetForHwnd(self.handle, true)?;
             let root_visual = create_visual(&desktop)?;
@@ -474,7 +474,8 @@ impl WindowMessageHandler for Window {
 
     fn WM_PAINT(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
         self.paint_handler().unwrap_or_else(|_| {
-            // Device loss can cause rendering to fail and should not be considered fatal.
+            // デバイスロスはレンダリングの失敗を引き起こす可能性がありますが、
+            // 致命的とは見なされるべきではありません。
             if cfg!(debug_assertions) {
                 println!("WM_PAINT failed");
             }
@@ -525,7 +526,7 @@ fn create_image() -> Result<IWICFormatConverter> {
         let factory: IWICImagingFactory2 =
             CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
 
-        // Just a little hack to make it simpler to run the sample from the root of the workspace.
+        // ワークスペースのルートからサンプルを実行しやすくするための小さなハック。
         let path = if PathFileExistsW(w!("image.jpg")).is_ok() {
             w!("image.jpg")
         } else {
