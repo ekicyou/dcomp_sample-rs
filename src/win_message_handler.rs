@@ -2,37 +2,14 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+use std::ffi::c_void;
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-pub trait WindowMessageHandler: Sized {
+// Object-safe trait（winitスタイル）
+pub trait WindowMessageHandler {
     fn hwnd(&self) -> HWND;
-
     fn set_hwnd(&mut self, hwnd: HWND);
-
-    extern "system" fn wndproc(
-        window: HWND,
-        message: u32,
-        wparam: WPARAM,
-        lparam: LPARAM,
-    ) -> LRESULT {
-        unsafe {
-            if message == WM_NCCREATE {
-                let cs = lparam.0 as *const CREATESTRUCTA;
-                let this = (*cs).lpCreateParams as *mut Self;
-                (*this).set_hwnd(window);
-
-                SetWindowLongPtrA(window, GWLP_USERDATA, this as _);
-            } else {
-                let this = GetWindowLongPtrA(window, GWLP_USERDATA) as *mut Self;
-                if !this.is_null() {
-                    return (*this).message_handler(message, wparam, lparam);
-                }
-            }
-
-            DefWindowProcA(window, message, wparam, lparam)
-        }
-    }
 
     #[inline(always)]
     fn message_handler(&mut self, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
@@ -43,37 +20,61 @@ pub trait WindowMessageHandler: Sized {
             WM_CREATE => self.WM_CREATE(wparam, lparam),
             WM_WINDOWPOSCHANGING => self.WM_WINDOWPOSCHANGING(wparam, lparam),
             WM_DESTROY => self.WM_DESTROY(wparam, lparam),
-            _ => return unsafe { DefWindowProcA(self.hwnd(), message, wparam, lparam) },
+            _ => unsafe { DefWindowProcA(self.hwnd(), message, wparam, lparam) },
         }
     }
 
-    #[inline]
+    // デフォルト実装（winitスタイル）
     fn WM_CREATE(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         LRESULT(0)
     }
-
-    #[inline]
     fn WM_DESTROY(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         LRESULT(0)
     }
-
-    #[inline]
     fn WM_LBUTTONUP(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         LRESULT(0)
     }
-
-    #[inline]
     fn WM_PAINT(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         LRESULT(0)
     }
-
-    #[inline]
     fn WM_DPICHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         LRESULT(0)
     }
-
-    #[inline]
     fn WM_WINDOWPOSCHANGING(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         LRESULT(0)
+    }
+}
+
+#[inline]
+pub fn box_handler<T: WindowMessageHandler + 'static>(
+    handler: T,
+) -> Box<Box<dyn WindowMessageHandler>> {
+    Box::new(Box::new(handler))
+}
+
+pub extern "system" fn wndproc(
+    window: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    unsafe {
+        if message == WM_NCCREATE {
+            let cs = lparam.0 as *const CREATESTRUCTA;
+            let boxed_handler = (*cs).lpCreateParams as *mut Box<dyn WindowMessageHandler>;
+
+            if !boxed_handler.is_null() {
+                (**boxed_handler).set_hwnd(window);
+                SetWindowLongPtrA(window, GWLP_USERDATA, boxed_handler as _);
+            }
+        } else {
+            let boxed_handler =
+                GetWindowLongPtrA(window, GWLP_USERDATA) as *mut Box<dyn WindowMessageHandler>;
+            if !boxed_handler.is_null() {
+                return (**boxed_handler).message_handler(message, wparam, lparam);
+            }
+        }
+
+        DefWindowProcA(window, message, wparam, lparam)
     }
 }

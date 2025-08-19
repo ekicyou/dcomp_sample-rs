@@ -445,12 +445,13 @@ impl Window {
                 lpszClassName: window_class,
 
                 style: CS_HREDRAW | CS_VREDRAW,
-                lpfnWndProc: Some(Self::wndproc),
+                lpfnWndProc: Some(win_message_handler::wndproc),
                 ..Default::default()
             };
 
             let atom = RegisterClassA(&wc);
             debug_assert!(atom != 0);
+            let win = win_message_handler::box_handler(self);
 
             let handle = CreateWindowExA(
                 WS_EX_NOREDIRECTIONBITMAP,
@@ -464,7 +465,7 @@ impl Window {
                 None,
                 None,
                 None,
-                Some(self as *mut _ as _),
+                Some(win.as_mut() as *mut _ as _),
             )?;
 
             debug_assert!(!handle.is_invalid());
