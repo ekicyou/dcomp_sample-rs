@@ -52,7 +52,8 @@ pub(crate) trait WindowMessageHandlerExt: WindowMessageHandler {
     {
         let b1: Box<dyn WindowMessageHandler> = Box::new(self);
         let b2 = Box::new(b1);
-        Box::into_raw(b2) as *const c_void
+        let ptr = Box::into_raw(b2) as *const c_void;
+        ptr
     }
 }
 
