@@ -72,10 +72,14 @@ pub extern "system" fn wndproc(
                 let ptr = (*cs).lpCreateParams;
                 let boxed_handler = ptr as *mut Box<Box<dyn WindowMessageHandler>>;
                 if !boxed_handler.is_null() {
-                    (**boxed_handler).set_hwnd(hwnd);
+                    let outer: &mut Box<Box<dyn WindowMessageHandler>> = &mut *boxed_handler;
+                    let inner: &mut Box<dyn WindowMessageHandler> = outer.as_mut();
+                    let handler: &mut dyn WindowMessageHandler = inner.as_mut();
+                    handler.set_hwnd(hwnd);
+
                     SetWindowLongPtrW(hwnd, GWLP_USERDATA, boxed_handler as _);
                 }
-                LRESULT(0)
+                LRESULT(1) // 成功を明示
             }
             WM_NCDESTROY => {
                 let boxed_handler = GetWindowLongPtrW(hwnd, GWLP_USERDATA)
