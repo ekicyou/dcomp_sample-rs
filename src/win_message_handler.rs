@@ -46,13 +46,13 @@ pub trait WindowMessageHandler {
 }
 
 pub(crate) trait WindowMessageHandlerExt: WindowMessageHandler {
-    unsafe fn into_raw(self) -> *const c_void
+    fn into_raw(self) -> *mut c_void
     where
         Self: Sized,
     {
         let b1: Box<dyn WindowMessageHandler> = Box::new(self);
-        let b2 = Box::new(b1);
-        let ptr = Box::into_raw(b2) as *const c_void;
+        let b2: Box<Box<dyn WindowMessageHandler>> = Box::new(b1);
+        let ptr = Box::into_raw(b2) as *mut c_void;
         ptr
     }
 }
