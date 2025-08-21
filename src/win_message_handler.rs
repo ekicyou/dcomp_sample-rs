@@ -59,13 +59,6 @@ pub(crate) trait WindowMessageHandlerExt: WindowMessageHandler {
 
 impl<T: WindowMessageHandler + Sized> WindowMessageHandlerExt for T {}
 
-#[inline]
-pub fn box_handler<T: WindowMessageHandler + 'static>(
-    handler: T,
-) -> Box<Box<dyn WindowMessageHandler>> {
-    Box::new(Box::new(handler))
-}
-
 pub extern "system" fn wndproc(
     hwnd: HWND,
     message: u32,
