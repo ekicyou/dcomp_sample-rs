@@ -14,6 +14,7 @@ use windows::{
 use windows_numerics::*;
 
 use crate::win_message_handler::WindowMessageHandler;
+use crate::win_message_handler::WindowMessageHandlerExt;
 
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 6;
@@ -28,7 +29,7 @@ fn main() -> Result<()> {
         CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)?;
     }
-    let mut window = Window::new()?;
+    let window = Window::new()?;
     window.run()
 }
 
@@ -434,29 +435,29 @@ impl Window {
         }
     }
 
-    fn run(&mut self) -> Result<()> {
+    fn run(self) -> Result<()> {
         unsafe {
-            let instance = GetModuleHandleA(None)?;
-            let window_class = s!("window");
+            let instance = GetModuleHandleW(None)?;
+            let window_class = w!("window");
 
-            let wc = WNDCLASSA {
+            let wc = WNDCLASSW {
                 hCursor: LoadCursorW(None, IDC_ARROW)?,
-                hInstance: instance.into(),
-                lpszClassName: window_class,
-
+                hInstance: instance.clone().into(),
+                lpszClassName: window_class, // PCWSTR
                 style: CS_HREDRAW | CS_VREDRAW,
                 lpfnWndProc: Some(win_message_handler::wndproc),
                 ..Default::default()
             };
 
-            let atom = RegisterClassA(&wc);
+            let atom = RegisterClassW(&wc);
             debug_assert!(atom != 0);
-            let win = win_message_handler::box_handler(self);
 
-            let handle = CreateWindowExA(
+            let raw_win = self.into_raw();
+            let handle = CreateWindowExW(
+                // A→W
                 WS_EX_NOREDIRECTIONBITMAP,
                 window_class,
-                s!("Sample Window"),
+                w!("Sample Window"),
                 WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
@@ -464,16 +465,15 @@ impl Window {
                 CW_USEDEFAULT,
                 None,
                 None,
-                None,
-                Some(win.as_mut() as *mut _ as _),
+                Some(instance.clone().into()),
+                Some(raw_win),
             )?;
 
             debug_assert!(!handle.is_invalid());
-            debug_assert!(handle == self.handle);
-            let mut message = MSG::default();
-
-            while GetMessageA(&mut message, None, 0, 0).into() {
-                DispatchMessageA(&message);
+            let mut msg = MSG::default();
+            // メッセージループもW系で統一
+            while GetMessageW(&mut msg, None, 0, 0).into() {
+                DispatchMessageW(&msg);
             }
 
             Ok(())

@@ -1,17 +1,44 @@
 {
-    // IntelliSense を使用して利用可能な属性を学べます。
-    // 既存の属性の説明をホバーして表示します。
-    // 詳細情報は次を確認してください: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [{
-        "type": "lua",
-        "request": "launch",
-        "name": "Launch",
-        "program": "${file}",
-        "env": {
-            "WORK_SPACE_DOLDER": "${workspaceFolder}"
-        },
-        "stopOnEntry": false,
-        "path": "${workspaceFolder}/script/profile/emo/save/?.lua;${workspaceFolder}/script/profile/emo/save/?/init.lua;${workspaceFolder}/script/test/?.lua;${workspaceFolder}/script/test/?/init.lua;${workspaceFolder}/script/dic/?.lua;${workspaceFolder}/script/dic/?/init.lua;${workspaceFolder}/script/emo/?.lua;${workspaceFolder}/script/emo/?/init.lua"
-    }]
+  // VS Code + CodeLLDB 用。Rust Analyzer + CodeLLDB をインストールしてください。
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Rust: Debug (cargo build)",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["build"],            // ここを run → build に変更
+        "filter": { "kind": "bin" }   // 対象binを自動選択（単一bin想定）
+      },
+      "cwd": "${workspaceFolder}",
+      "env": { "RUST_BACKTRACE": "1" },
+      "console": "integratedTerminal"
+    },
+    {
+      // ビルド済みバイナリを直接起動する場合（必要なら exe 名を変更）
+      "name": "Rust: Debug (binary path)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/sample_dcomp.exe",
+      "cwd": "${workspaceFolder}",
+      "env": { "RUST_BACKTRACE": "1" },
+      "args": []
+    }
+  ],
+    "tasks": [
+    {
+      "label": "cargo build",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["build"],
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "cargo test",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["test"],
+      "problemMatcher": ["$rustc"]
+    }
+  ]
 }
