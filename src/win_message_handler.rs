@@ -91,11 +91,11 @@ pub extern "system" fn wndproc(
             }
             _ => {
                 let boxed_handler = GetWindowLongPtrW(hwnd, GWLP_USERDATA)
-                    as *mut Box<Box<dyn WindowMessageHandler>>; // A→W
+                    as *mut Box<Box<dyn WindowMessageHandler>>;
                 if !boxed_handler.is_null() {
                     (**boxed_handler).message_handler(message, wparam, lparam)
                 } else {
-                    DefWindowProcW(hwnd, message, wparam, lparam) // A→W
+                    DefWindowProcW(hwnd, message, wparam, lparam)
                 }
             }
         }
