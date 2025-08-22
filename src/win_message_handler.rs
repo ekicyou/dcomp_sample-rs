@@ -76,8 +76,7 @@ pub extern "system" fn wndproc(
                 let ptr = (*cs).lpCreateParams;
                 let boxed_handler = ptr as *mut Box<dyn WindowMessageHandler>;
                 if !boxed_handler.is_null() {
-                    let handler = (*boxed_handler).as_mut();
-                    handler.set_hwnd(hwnd);
+                    (*boxed_handler).set_hwnd(hwnd);
                     SetWindowLongPtrW(hwnd, GWLP_USERDATA, boxed_handler as _);
                 }
                 LRESULT(1)
@@ -86,10 +85,9 @@ pub extern "system" fn wndproc(
                 let boxed_handler =
                     GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Box<dyn WindowMessageHandler>;
                 if !boxed_handler.is_null() {
-                    let rc = (*boxed_handler).message_handler(message, wparam, lparam);
                     SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
                     let _box = Box::from_raw(boxed_handler);
-                    rc
+                    LRESULT(1)
                 } else {
                     DefWindowProcW(hwnd, message, wparam, lparam)
                 }
