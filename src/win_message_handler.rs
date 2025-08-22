@@ -52,20 +52,8 @@ pub(crate) trait WindowMessageHandlerExt: WindowMessageHandler {
     {
         let b1: Box<dyn WindowMessageHandler> = Box::new(self);
         let b2: Box<Box<dyn WindowMessageHandler>> = Box::new(b1);
-        let ptr = Box::into_raw(b2) as *mut c_void;
-        eprintln!("into_raw# ptr: {ptr:?}");
-
-        // 逆変換してエラーが出ないかを確認
-        unsafe {
-            // b2はBox<Box<dyn WindowMessageHandler>>だったので
-            let restored_b2 = ptr as *mut Box<dyn WindowMessageHandler>;
-            // *restored_b2でBox<dyn WindowMessageHandler>にアクセス
-            let inner_handler = (*restored_b2).as_mut();
-            eprintln!("into_raw# 2");
-            inner_handler.set_hwnd(HWND(std::ptr::null_mut()));
-            eprintln!("into_raw# 3");
-        }
-
+        let ptr = Box::into_raw(b2);
+        let ptr = ptr as *mut c_void;
         ptr
     }
 }
@@ -86,15 +74,10 @@ pub extern "system" fn wndproc(
                     return LRESULT(0);
                 }
                 let ptr = (*cs).lpCreateParams;
-                eprintln!("#1 ptr: {ptr:?}");
                 let boxed_handler = ptr as *mut Box<dyn WindowMessageHandler>;
-                eprintln!("#1");
                 if !boxed_handler.is_null() {
-                    eprintln!("#2");
                     let handler = (*boxed_handler).as_mut();
-                    eprintln!("#3");
                     handler.set_hwnd(hwnd);
-                    eprintln!("#4");
                     SetWindowLongPtrW(hwnd, GWLP_USERDATA, boxed_handler as _);
                 }
                 LRESULT(1)
@@ -105,7 +88,7 @@ pub extern "system" fn wndproc(
                 if !boxed_handler.is_null() {
                     let rc = (*boxed_handler).message_handler(message, wparam, lparam);
                     SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-                    let _ = Box::from_raw(boxed_handler);
+                    let _box = Box::from_raw(boxed_handler);
                     rc
                 } else {
                     DefWindowProcW(hwnd, message, wparam, lparam)
