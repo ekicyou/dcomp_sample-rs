@@ -68,6 +68,7 @@ impl WindowMessageHandler for Window {
     }
 
     fn set_hwnd(&mut self, hwnd: HWND) {
+        eprintln!("set_hwnd");
         self.handle = hwnd;
     }
 

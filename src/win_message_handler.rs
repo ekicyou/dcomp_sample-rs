@@ -53,6 +53,19 @@ pub(crate) trait WindowMessageHandlerExt: WindowMessageHandler {
         let b1: Box<dyn WindowMessageHandler> = Box::new(self);
         let b2: Box<Box<dyn WindowMessageHandler>> = Box::new(b1);
         let ptr = Box::into_raw(b2) as *mut c_void;
+        eprintln!("into_raw# ptr: {ptr:?}");
+
+        // 逆変換してエラーが出ないかを確認
+        unsafe {
+            // b2はBox<Box<dyn WindowMessageHandler>>だったので
+            let restored_b2 = ptr as *mut Box<dyn WindowMessageHandler>;
+            // *restored_b2でBox<dyn WindowMessageHandler>にアクセス
+            let inner_handler = (*restored_b2).as_mut();
+            eprintln!("into_raw# 2");
+            inner_handler.set_hwnd(HWND(std::ptr::null_mut()));
+            eprintln!("into_raw# 3");
+        }
+
         ptr
     }
 }
@@ -69,23 +82,28 @@ pub extern "system" fn wndproc(
         match message {
             WM_NCCREATE => {
                 let cs = lparam.0 as *const CREATESTRUCTW;
+                if cs.is_null() {
+                    return LRESULT(0);
+                }
                 let ptr = (*cs).lpCreateParams;
-                let boxed_handler = ptr as *mut Box<Box<dyn WindowMessageHandler>>;
+                eprintln!("#1 ptr: {ptr:?}");
+                let boxed_handler = ptr as *mut Box<dyn WindowMessageHandler>;
+                eprintln!("#1");
                 if !boxed_handler.is_null() {
-                    let outer: &mut Box<Box<dyn WindowMessageHandler>> = &mut *boxed_handler;
-                    let inner: &mut Box<dyn WindowMessageHandler> = outer.as_mut();
-                    let handler: &mut dyn WindowMessageHandler = inner.as_mut();
+                    eprintln!("#2");
+                    let handler = (*boxed_handler).as_mut();
+                    eprintln!("#3");
                     handler.set_hwnd(hwnd);
-
+                    eprintln!("#4");
                     SetWindowLongPtrW(hwnd, GWLP_USERDATA, boxed_handler as _);
                 }
-                LRESULT(1) // 成功を明示
+                LRESULT(1)
             }
             WM_NCDESTROY => {
-                let boxed_handler = GetWindowLongPtrW(hwnd, GWLP_USERDATA)
-                    as *mut Box<Box<dyn WindowMessageHandler>>;
+                let boxed_handler =
+                    GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Box<dyn WindowMessageHandler>;
                 if !boxed_handler.is_null() {
-                    let rc = (**boxed_handler).message_handler(message, wparam, lparam);
+                    let rc = (*boxed_handler).message_handler(message, wparam, lparam);
                     SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
                     let _ = Box::from_raw(boxed_handler);
                     rc
@@ -94,10 +112,10 @@ pub extern "system" fn wndproc(
                 }
             }
             _ => {
-                let boxed_handler = GetWindowLongPtrW(hwnd, GWLP_USERDATA)
-                    as *mut Box<Box<dyn WindowMessageHandler>>;
+                let boxed_handler =
+                    GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Box<dyn WindowMessageHandler>;
                 if !boxed_handler.is_null() {
-                    (**boxed_handler).message_handler(message, wparam, lparam)
+                    (*boxed_handler).message_handler(message, wparam, lparam)
                 } else {
                     DefWindowProcW(hwnd, message, wparam, lparam)
                 }
