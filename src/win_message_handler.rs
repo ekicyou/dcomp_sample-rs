@@ -13,35 +13,39 @@ pub trait WindowMessageHandler {
 
     #[inline(always)]
     fn message_handler(&mut self, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        match message {
+        let handled = match message {
             WM_LBUTTONUP => self.WM_LBUTTONUP(wparam, lparam),
             WM_PAINT => self.WM_PAINT(wparam, lparam),
             WM_DPICHANGED => self.WM_DPICHANGED(wparam, lparam),
             WM_CREATE => self.WM_CREATE(wparam, lparam),
             WM_WINDOWPOSCHANGING => self.WM_WINDOWPOSCHANGING(wparam, lparam),
             WM_DESTROY => self.WM_DESTROY(wparam, lparam),
-            _ => unsafe { DefWindowProcW(self.hwnd(), message, wparam, lparam) }, // A→W
+            _ => None,
+        };
+        match handled {
+            Some(res) => res,
+            None => unsafe { DefWindowProcW(self.hwnd(), message, wparam, lparam) },
         }
     }
 
     // デフォルト実装
-    fn WM_CREATE(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        LRESULT(0)
+    fn WM_CREATE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        Some(LRESULT(0))
     }
-    fn WM_DESTROY(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        LRESULT(0)
+    fn WM_DESTROY(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        Some(LRESULT(0))
     }
-    fn WM_LBUTTONUP(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        LRESULT(0)
+    fn WM_LBUTTONUP(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        Some(LRESULT(0))
     }
-    fn WM_PAINT(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        LRESULT(0)
+    fn WM_PAINT(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        Some(LRESULT(0))
     }
-    fn WM_DPICHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        LRESULT(0)
+    fn WM_DPICHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        Some(LRESULT(0))
     }
-    fn WM_WINDOWPOSCHANGING(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        LRESULT(0)
+    fn WM_WINDOWPOSCHANGING(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        Some(LRESULT(0))
     }
 }
 
@@ -51,7 +55,7 @@ pub(crate) trait WindowMessageHandlerExt: WindowMessageHandler {
         Self: Sized,
     {
         let b1: Box<dyn WindowMessageHandler> = Box::new(self);
-        let b2: Box<Box<dyn WindowMessageHandler>> = Box::new(b1);
+        let b2 = Box::new(b1);
         let ptr = Box::into_raw(b2);
         let ptr = ptr as *mut c_void;
         ptr

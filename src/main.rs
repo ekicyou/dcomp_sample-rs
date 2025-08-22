@@ -72,22 +72,22 @@ impl WindowMessageHandler for Window {
         self.handle = hwnd;
     }
 
-    fn WM_CREATE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
+    fn WM_CREATE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
         self.create_handler().expect("WM_CREATE");
-        LRESULT(0)
+        Some(LRESULT(0))
     }
 
-    fn WM_DESTROY(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
+    fn WM_DESTROY(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
         unsafe { PostQuitMessage(0) };
-        LRESULT(0)
+        Some(LRESULT(0))
     }
 
-    fn WM_LBUTTONUP(&mut self, _wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    fn WM_LBUTTONUP(&mut self, _wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         self.click_handler(lparam).expect("WM_LBUTTONUP");
-        LRESULT(0)
+        Some(LRESULT(0))
     }
 
-    fn WM_PAINT(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> LRESULT {
+    fn WM_PAINT(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
         self.paint_handler().unwrap_or_else(|_| {
             // デバイスロスはレンダリングの失敗を引き起こす可能性がありますが、
             // 致命的とは見なされるべきではありません。
@@ -96,13 +96,13 @@ impl WindowMessageHandler for Window {
             }
             self.device = None;
         });
-        LRESULT(0)
+        Some(LRESULT(0))
     }
 
-    fn WM_DPICHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    fn WM_DPICHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         self.dpi_changed_handler(wparam, lparam)
             .expect("WM_DPICHANGED");
-        LRESULT(0)
+        Some(LRESULT(0))
     }
 }
 
