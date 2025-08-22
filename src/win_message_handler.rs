@@ -30,22 +30,22 @@ pub trait WindowMessageHandler {
 
     // デフォルト実装
     fn WM_CREATE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
-        Some(LRESULT(0))
+        None
     }
     fn WM_DESTROY(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
-        Some(LRESULT(0))
+        None
     }
     fn WM_LBUTTONUP(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
-        Some(LRESULT(0))
+        None
     }
     fn WM_PAINT(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
-        Some(LRESULT(0))
+        None
     }
     fn WM_DPICHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
-        Some(LRESULT(0))
+        None
     }
     fn WM_WINDOWPOSCHANGING(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
-        Some(LRESULT(0))
+        None
     }
 }
 
