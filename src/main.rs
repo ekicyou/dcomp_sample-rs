@@ -565,11 +565,11 @@ fn create_device_2d(device_3d: &ID3D11Device) -> Result<ID2D1Device> {
     unsafe { D2D1CreateDevice(&dxgi, None) }
 }
 
-fn create_visual(dcomp: &IDCompositionDevice3) -> Result<IDCompositionVisual2> {
+fn create_visual(dcomp: &IDCompositionDevice3) -> Result<IDCompositionVisual3> {
     unsafe {
         let visual = dcomp.CreateVisual()?;
         visual.SetBackFaceVisibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
-        Ok(visual)
+        Ok(visual.cast()?)
     }
 }
 
@@ -636,7 +636,7 @@ fn create_transition(
 
 fn create_effect(
     dcomp: &IDCompositionDevice3,
-    visual: &IDCompositionVisual2,
+    visual: &IDCompositionVisual3,
     rotation: &IDCompositionRotateTransform3D,
     front: bool,
     dpi: (f32, f32),
