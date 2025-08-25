@@ -57,7 +57,7 @@ struct Window {
     library: IUIAnimationTransitionLibrary2,
     first: Option<usize>,
     cards: Vec<Card>,
-    device: Option<ID3D11Device>,
+    d3d: Option<ID3D11Device>,
     desktop: Option<IDCompositionDesktopDevice>,
     target: Option<IDCompositionTarget>,
 }
@@ -94,7 +94,7 @@ impl WindowMessageHandler for Window {
             if cfg!(debug_assertions) {
                 println!("WM_PAINT failed");
             }
-            self.device = None;
+            self.d3d = None;
         });
         Some(LRESULT(0))
     }
@@ -161,7 +161,7 @@ impl Window {
                 library,
                 first: None,
                 cards,
-                device: None,
+                d3d: None,
                 desktop: None,
                 target: None,
             })
@@ -170,11 +170,11 @@ impl Window {
 
     fn create_device_resources(&mut self) -> Result<()> {
         unsafe {
-            debug_assert!(self.device.is_none());
-            let device_3d = create_device_3d()?;
-            let device_2d = create_device_2d(&device_3d)?;
-            self.device = Some(device_3d);
-            let desktop: IDCompositionDesktopDevice = DCompositionCreateDevice2(&device_2d)?;
+            debug_assert!(self.d3d.is_none());
+            let d3d = create_device_3d()?;
+            let d2d = create_device_2d(&d3d)?;
+            self.d3d = Some(d3d);
+            let desktop: IDCompositionDesktopDevice = DCompositionCreateDevice2(&d2d)?;
 
             // 以前のターゲットを最初にリリースします。そうしないと `CreateTargetForHwnd` が HWND が占有されていることを検出します。
             self.target = None;
@@ -183,7 +183,7 @@ impl Window {
             target.SetRoot(&root_visual)?;
             self.target = Some(target);
 
-            let dc = device_2d.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
+            let dc = d2d.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
 
             let brush = dc.CreateSolidColorBrush(
                 &D2D1_COLOR_F {
@@ -369,7 +369,7 @@ impl Window {
 
     fn paint_handler(&mut self) -> Result<()> {
         unsafe {
-            if let Some(device) = &self.device {
+            if let Some(device) = &self.d3d {
                 if cfg!(debug_assertions) {
                     println!("check device");
                 }
@@ -406,7 +406,7 @@ impl Window {
                 SWP_NOACTIVATE | SWP_NOZORDER,
             )?;
 
-            self.device = None;
+            self.d3d = None;
             Ok(())
         }
     }
