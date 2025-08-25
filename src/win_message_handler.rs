@@ -20,6 +20,13 @@ pub trait WindowMessageHandler {
             WM_CREATE => self.WM_CREATE(wparam, lparam),
             WM_WINDOWPOSCHANGING => self.WM_WINDOWPOSCHANGING(wparam, lparam),
             WM_DESTROY => self.WM_DESTROY(wparam, lparam),
+
+            WM_IME_SETCONTEXT => self.WM_IME_SETCONTEXT(wparam, lparam),
+            WM_IME_STARTCOMPOSITION => self.WM_IME_STARTCOMPOSITION(wparam, lparam),
+            WM_IME_COMPOSITION => self.WM_IME_COMPOSITION(wparam, lparam),
+            WM_IME_ENDCOMPOSITION => self.WM_IME_ENDCOMPOSITION(wparam, lparam),
+            WM_IME_NOTIFY => self.WM_IME_NOTIFY(wparam, lparam),
+            WM_CHAR => self.WM_CHAR(wparam, lparam),
             _ => None,
         };
         match handled {
@@ -45,6 +52,24 @@ pub trait WindowMessageHandler {
         None
     }
     fn WM_WINDOWPOSCHANGING(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        None
+    }
+    fn WM_IME_SETCONTEXT(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        None
+    }
+    fn WM_IME_STARTCOMPOSITION(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        None
+    }
+    fn WM_IME_COMPOSITION(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        None
+    }
+    fn WM_IME_ENDCOMPOSITION(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        None
+    }
+    fn WM_IME_NOTIFY(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        None
+    }
+    fn WM_CHAR(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
 }
