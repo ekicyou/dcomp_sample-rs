@@ -174,7 +174,7 @@ impl Window {
             let d3d = create_device_3d()?;
             let d2d = create_device_2d(&d3d)?;
             self.d3d = Some(d3d);
-            let desktop: IDCompositionDesktopDevice = DCompositionCreateDevice2(&d2d)?;
+            let desktop: IDCompositionDesktopDevice = DCompositionCreateDevice3(&d2d)?;
 
             // 以前のターゲットを最初にリリースします。そうしないと `CreateTargetForHwnd` が HWND が占有されていることを検出します。
             self.target = None;
