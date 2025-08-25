@@ -58,7 +58,7 @@ struct Window {
     first: Option<usize>,
     cards: Vec<Card>,
     d3d: Option<ID3D11Device>,
-    dcomp: Option<IDCompositionDesktopDevice>,
+    dcomp: Option<IDCompositionDevice3>,
     target: Option<IDCompositionTarget>,
 }
 
@@ -179,6 +179,9 @@ impl Window {
             // 以前のターゲットを最初にリリースします。そうしないと `CreateTargetForHwnd` が HWND が占有されていることを検出します。
             self.target = None;
             let target = dcomp.CreateTargetForHwnd(self.handle, true)?;
+
+            let dcomp: IDCompositionDevice3 = dcomp.cast()?;
+
             let root_visual = create_visual(&dcomp)?;
             target.SetRoot(&root_visual)?;
             self.target = Some(target);
@@ -561,7 +564,7 @@ fn create_device_2d(device_3d: &ID3D11Device) -> Result<ID2D1Device> {
     unsafe { D2D1CreateDevice(&dxgi, None) }
 }
 
-fn create_visual(device: &IDCompositionDesktopDevice) -> Result<IDCompositionVisual2> {
+fn create_visual(device: &IDCompositionDevice3) -> Result<IDCompositionVisual2> {
     unsafe {
         let visual = device.CreateVisual()?;
         visual.SetBackFaceVisibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
@@ -570,7 +573,7 @@ fn create_visual(device: &IDCompositionDesktopDevice) -> Result<IDCompositionVis
 }
 
 fn create_surface(
-    device: &IDCompositionDesktopDevice,
+    device: &IDCompositionDevice3,
     width: f32,
     height: f32,
 ) -> Result<IDCompositionSurface> {
@@ -610,7 +613,7 @@ fn add_hide_transition(
     }
 }
 
-fn update_animation(device: &IDCompositionDesktopDevice, card: &Card) -> Result<()> {
+fn update_animation(device: &IDCompositionDevice3, card: &Card) -> Result<()> {
     unsafe {
         let animation = device.CreateAnimation()?;
         card.variable.GetCurve(&animation)?;
@@ -631,7 +634,7 @@ fn create_transition(
 }
 
 fn create_effect(
-    device: &IDCompositionDesktopDevice,
+    device: &IDCompositionDevice3,
     visual: &IDCompositionVisual2,
     rotation: &IDCompositionRotateTransform3D,
     front: bool,
