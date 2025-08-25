@@ -174,6 +174,9 @@ impl Window {
             let d3d = create_device_3d()?;
             let d2d = create_device_2d(&d3d)?;
             self.d3d = Some(d3d);
+
+            // DCompositionCreateDevice3でIDCompositionDevice3は直接取り出せません。
+            // IDCompositionDesktopDeviceを取り出した後にキャストする必要があります。
             let desktop: IDCompositionDesktopDevice = DCompositionCreateDevice3(&d2d)?;
             let dcomp: IDCompositionDevice3 = desktop.cast()?;
 
