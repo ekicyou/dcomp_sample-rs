@@ -310,8 +310,8 @@ impl Window {
                     return Ok(());
                 }
 
-                let desktop = self.desktop.as_ref().expect("IDCompositionDesktopDevice");
-                let stats = desktop.GetFrameStatistics()?;
+                let dcomp = self.desktop.as_ref().expect("IDCompositionDesktopDevice");
+                let stats = dcomp.GetFrameStatistics()?;
 
                 let next_frame: f64 =
                     stats.nextEstimatedFrameTime as f64 / stats.timeFrequency as f64;
@@ -349,16 +349,16 @@ impl Window {
                     )?;
 
                     storyboard.Schedule(next_frame, None)?;
-                    update_animation(desktop, &self.cards[first])?;
-                    update_animation(desktop, &self.cards[next])?;
+                    update_animation(dcomp, &self.cards[first])?;
+                    update_animation(dcomp, &self.cards[next])?;
                 } else {
                     self.first = Some(next);
                     self.cards[next].status = Status::Selected;
                     storyboard.Schedule(next_frame, None)?;
-                    update_animation(desktop, &self.cards[next])?;
+                    update_animation(dcomp, &self.cards[next])?;
                 }
 
-                desktop.Commit()?;
+                dcomp.Commit()?;
             } else if cfg!(debug_assertions) {
                 println!("missed");
             }
