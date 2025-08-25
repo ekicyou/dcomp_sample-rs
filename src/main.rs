@@ -564,21 +564,21 @@ fn create_device_2d(device_3d: &ID3D11Device) -> Result<ID2D1Device> {
     unsafe { D2D1CreateDevice(&dxgi, None) }
 }
 
-fn create_visual(device: &IDCompositionDevice3) -> Result<IDCompositionVisual2> {
+fn create_visual(dcomp: &IDCompositionDevice3) -> Result<IDCompositionVisual2> {
     unsafe {
-        let visual = device.CreateVisual()?;
+        let visual = dcomp.CreateVisual()?;
         visual.SetBackFaceVisibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
         Ok(visual)
     }
 }
 
 fn create_surface(
-    device: &IDCompositionDevice3,
+    dcomp: &IDCompositionDevice3,
     width: f32,
     height: f32,
 ) -> Result<IDCompositionSurface> {
     unsafe {
-        device.CreateSurface(
+        dcomp.CreateSurface(
             width as u32,
             height as u32,
             DXGI_FORMAT_B8G8R8A8_UNORM,
@@ -613,9 +613,9 @@ fn add_hide_transition(
     }
 }
 
-fn update_animation(device: &IDCompositionDevice3, card: &Card) -> Result<()> {
+fn update_animation(dcomp: &IDCompositionDevice3, card: &Card) -> Result<()> {
     unsafe {
-        let animation = device.CreateAnimation()?;
+        let animation = dcomp.CreateAnimation()?;
         card.variable.GetCurve(&animation)?;
 
         card.rotation
@@ -634,7 +634,7 @@ fn create_transition(
 }
 
 fn create_effect(
-    device: &IDCompositionDevice3,
+    dcomp: &IDCompositionDevice3,
     visual: &IDCompositionVisual2,
     rotation: &IDCompositionRotateTransform3D,
     front: bool,
@@ -647,16 +647,16 @@ fn create_effect(
         let pre_matrix = Matrix4x4::translation(-width / 2.0, -height / 2.0, 0.0)
             * Matrix4x4::rotation_y(if front { 180.0 } else { 0.0 });
 
-        let pre_transform = device.CreateMatrixTransform3D()?;
+        let pre_transform = dcomp.CreateMatrixTransform3D()?;
         pre_transform.SetMatrix(&pre_matrix)?;
 
         let post_matrix = Matrix4x4::perspective_projection(width * 2.0)
             * Matrix4x4::translation(width / 2.0, height / 2.0, 0.0);
 
-        let post_transform = device.CreateMatrixTransform3D()?;
+        let post_transform = dcomp.CreateMatrixTransform3D()?;
         post_transform.SetMatrix(&post_matrix)?;
 
-        let transform = device.CreateTransform3DGroup(&[
+        let transform = dcomp.CreateTransform3DGroup(&[
             pre_transform.cast().ok(),
             rotation.cast().ok(),
             post_transform.cast().ok(),
