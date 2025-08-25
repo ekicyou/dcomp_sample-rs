@@ -58,7 +58,7 @@ struct Window {
     first: Option<usize>,
     cards: Vec<Card>,
     d3d: Option<ID3D11Device>,
-    desktop: Option<IDCompositionDesktopDevice>,
+    dcomp: Option<IDCompositionDesktopDevice>,
     target: Option<IDCompositionTarget>,
 }
 
@@ -162,7 +162,7 @@ impl Window {
                 first: None,
                 cards,
                 d3d: None,
-                desktop: None,
+                dcomp: None,
                 target: None,
             })
         }
@@ -251,7 +251,7 @@ impl Window {
             }
 
             desktop.Commit()?;
-            self.desktop = Some(desktop);
+            self.dcomp = Some(desktop);
             Ok(())
         }
     }
@@ -310,7 +310,7 @@ impl Window {
                     return Ok(());
                 }
 
-                let dcomp = self.desktop.as_ref().expect("IDCompositionDesktopDevice");
+                let dcomp = self.dcomp.as_ref().expect("IDCompositionDesktopDevice");
                 let stats = dcomp.GetFrameStatistics()?;
 
                 let next_frame: f64 =
