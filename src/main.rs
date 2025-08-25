@@ -174,12 +174,12 @@ impl Window {
             let d3d = create_device_3d()?;
             let d2d = create_device_2d(&d3d)?;
             self.d3d = Some(d3d);
-            let desktop: IDCompositionDesktopDevice = DCompositionCreateDevice3(&d2d)?;
+            let dcomp: IDCompositionDesktopDevice = DCompositionCreateDevice3(&d2d)?;
 
             // 以前のターゲットを最初にリリースします。そうしないと `CreateTargetForHwnd` が HWND が占有されていることを検出します。
             self.target = None;
-            let target = desktop.CreateTargetForHwnd(self.handle, true)?;
-            let root_visual = create_visual(&desktop)?;
+            let target = dcomp.CreateTargetForHwnd(self.handle, true)?;
+            let root_visual = create_visual(&dcomp)?;
             target.SetRoot(&root_visual)?;
             self.target = Some(target);
 
@@ -218,25 +218,25 @@ impl Window {
                         continue;
                     }
 
-                    let front_visual = create_visual(&desktop)?;
+                    let front_visual = create_visual(&dcomp)?;
                     front_visual.SetOffsetX2(card.offset.0)?;
                     front_visual.SetOffsetY2(card.offset.1)?;
                     root_visual.AddVisual(&front_visual, false, None)?;
 
-                    let back_visual = create_visual(&desktop)?;
+                    let back_visual = create_visual(&dcomp)?;
                     back_visual.SetOffsetX2(card.offset.0)?;
                     back_visual.SetOffsetY2(card.offset.1)?;
                     root_visual.AddVisual(&back_visual, false, None)?;
 
-                    let front_surface = create_surface(&desktop, width, height)?;
+                    let front_surface = create_surface(&dcomp, width, height)?;
                     front_visual.SetContent(&front_surface)?;
                     draw_card_front(&front_surface, card.value, &self.format, &brush, self.dpi)?;
 
-                    let back_surface = create_surface(&desktop, width, height)?;
+                    let back_surface = create_surface(&dcomp, width, height)?;
                     back_visual.SetContent(&back_surface)?;
                     draw_card_back(&back_surface, &bitmap, card.offset, self.dpi)?;
 
-                    let rotation = desktop.CreateRotateTransform3D()?;
+                    let rotation = dcomp.CreateRotateTransform3D()?;
 
                     if card.status == Status::Selected {
                         rotation.SetAngle2(180.0)?;
@@ -244,14 +244,14 @@ impl Window {
 
                     rotation.SetAxisZ2(0.0)?;
                     rotation.SetAxisY2(1.0)?;
-                    create_effect(&desktop, &front_visual, &rotation, true, self.dpi)?;
-                    create_effect(&desktop, &back_visual, &rotation, false, self.dpi)?;
+                    create_effect(&dcomp, &front_visual, &rotation, true, self.dpi)?;
+                    create_effect(&dcomp, &back_visual, &rotation, false, self.dpi)?;
                     card.rotation = Some(rotation);
                 }
             }
 
-            desktop.Commit()?;
-            self.dcomp = Some(desktop);
+            dcomp.Commit()?;
+            self.dcomp = Some(dcomp);
             Ok(())
         }
     }
