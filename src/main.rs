@@ -174,14 +174,12 @@ impl Window {
             let d3d = create_device_3d()?;
             let d2d = create_device_2d(&d3d)?;
             self.d3d = Some(d3d);
-            let dcomp: IDCompositionDesktopDevice = DCompositionCreateDevice3(&d2d)?;
+            let desktop: IDCompositionDesktopDevice = DCompositionCreateDevice3(&d2d)?;
+            let dcomp: IDCompositionDevice3 = desktop.cast()?;
 
             // 以前のターゲットを最初にリリースします。そうしないと `CreateTargetForHwnd` が HWND が占有されていることを検出します。
             self.target = None;
-            let target = dcomp.CreateTargetForHwnd(self.handle, true)?;
-
-            let dcomp: IDCompositionDevice3 = dcomp.cast()?;
-
+            let target = desktop.CreateTargetForHwnd(self.handle, true)?;
             let root_visual = create_visual(&dcomp)?;
             target.SetRoot(&root_visual)?;
             self.target = Some(target);
