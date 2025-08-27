@@ -50,6 +50,7 @@ struct Card {
 
 struct Window {
     handle: HWND,
+    mouse_tracking: bool,
     dpi: (f32, f32),
     format: IDWriteTextFormat,
     image: IWICFormatConverter,
@@ -68,8 +69,25 @@ impl WindowMessageHandler for Window {
     }
 
     fn set_hwnd(&mut self, hwnd: HWND) {
-        eprintln!("set_hwnd");
         self.handle = hwnd;
+    }
+
+    fn mouse_tracking(&self) -> bool {
+        self.mouse_tracking
+    }
+
+    fn set_mouse_tracking(&mut self, tracking: bool) {
+        self.mouse_tracking = tracking;
+    }
+
+    fn WM_MOUSEENTER(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
+        eprintln!("WM_MOUSEENTER");
+        None
+    }
+
+    fn WM_MOUSELEAVE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
+        eprintln!("WM_MOUSELEAVE");
+        None
     }
 
     fn WM_CREATE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
@@ -154,6 +172,7 @@ impl Window {
 
             Ok(Window {
                 handle: Default::default(),
+                mouse_tracking: false,
                 dpi: (0.0, 0.0),
                 format: create_text_format()?,
                 image: create_image()?,
