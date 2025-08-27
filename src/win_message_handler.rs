@@ -5,12 +5,18 @@
 use std::ffi::c_void;
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::Controls::*;
+use windows::Win32::UI::Input::KeyboardAndMouse::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 // Object-safe trait（winitスタイル）
 pub trait WindowMessageHandler {
     fn hwnd(&self) -> HWND;
     fn set_hwnd(&mut self, hwnd: HWND);
+
+    fn mouse_tracking(&self) -> bool {
+        true
+    }
+    fn set_mouse_tracking(&mut self, tracking: bool) {}
 
     #[inline(always)]
     fn message_handler(&mut self, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
@@ -37,11 +43,32 @@ pub trait WindowMessageHandler {
             WM_WINDOWPOSCHANGED => self.WM_WINDOWPOSCHANGED(wparam, lparam),
             WM_GETMINMAXINFO => self.WM_GETMINMAXINFO(wparam, lparam),
 
-            // マウス入力
-            WM_MOUSEMOVE => self.WM_MOUSEMOVE(wparam, lparam),
+            // マウス：移動、エンター、リーブ
+            WM_MOUSEMOVE => {
+                if !self.mouse_tracking() {
+                    let mut tt = TRACKMOUSEEVENT {
+                        cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
+                        dwFlags: TME_LEAVE,
+                        hwndTrack: self.hwnd(),
+                        dwHoverTime: HOVER_DEFAULT,
+                    };
+                    unsafe {
+                        if TrackMouseEvent(&mut tt).is_ok() {
+                            self.set_mouse_tracking(true);
+                            self.WM_MOUSEENTER(wparam, lparam);
+                        }
+                    }
+                }
+                self.WM_MOUSEMOVE(wparam, lparam)
+            }
+            WM_MOUSELEAVE => {
+                self.set_mouse_tracking(false);
+                self.WM_MOUSELEAVE(wparam, lparam)
+            }
+
+            // マウス：その他
             WM_MOUSEWHEEL => self.WM_MOUSEWHEEL(wparam, lparam),
             WM_MOUSEHWHEEL => self.WM_MOUSEHWHEEL(wparam, lparam),
-            WM_MOUSELEAVE => self.WM_MOUSELEAVE(wparam, lparam),
             WM_LBUTTONDOWN => self.WM_LBUTTONDOWN(wparam, lparam),
             WM_LBUTTONUP => self.WM_LBUTTONUP(wparam, lparam),
             WM_LBUTTONDBLCLK => self.WM_LBUTTONDBLCLK(wparam, lparam),
@@ -169,13 +196,16 @@ pub trait WindowMessageHandler {
     fn WM_MOUSEMOVE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    fn WM_MOUSEENTER(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        None
+    }
+    fn WM_MOUSELEAVE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        None
+    }
     fn WM_MOUSEWHEEL(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
     fn WM_MOUSEHWHEEL(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
-        None
-    }
-    fn WM_MOUSELEAVE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
     fn WM_XBUTTONDOWN(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
