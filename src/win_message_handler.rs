@@ -4,6 +4,7 @@
 
 use std::ffi::c_void;
 use windows::Win32::Foundation::*;
+use windows::Win32::UI::Controls::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 // Object-safe trait（winitスタイル）
@@ -40,6 +41,7 @@ pub trait WindowMessageHandler {
             WM_MOUSEMOVE => self.WM_MOUSEMOVE(wparam, lparam),
             WM_MOUSEWHEEL => self.WM_MOUSEWHEEL(wparam, lparam),
             WM_MOUSEHWHEEL => self.WM_MOUSEHWHEEL(wparam, lparam),
+            WM_MOUSELEAVE => self.WM_MOUSELEAVE(wparam, lparam),
             WM_LBUTTONDOWN => self.WM_LBUTTONDOWN(wparam, lparam),
             WM_LBUTTONUP => self.WM_LBUTTONUP(wparam, lparam),
             WM_LBUTTONDBLCLK => self.WM_LBUTTONDBLCLK(wparam, lparam),
@@ -171,6 +173,9 @@ pub trait WindowMessageHandler {
         None
     }
     fn WM_MOUSEHWHEEL(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        None
+    }
+    fn WM_MOUSELEAVE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
     fn WM_XBUTTONDOWN(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
