@@ -5,6 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
+human-panic = "2.0.3"
 rand = "0.9.2"
 windows-numerics = "0.2.0"
 
@@ -31,4 +32,16 @@ features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_UI_Shell",
 ]
+
+[profile.release]
+# 最適化レベル。'z'はサイズを最優先で最適化します。
+opt-level = 'z'
+# リンク時最適化を有効にし、より積極的な最適化を行います。
+lto = true
+# コード生成ユニットを1にすることで、より多くの最適化が可能になりますが、コンパイル時間は長くなります。
+codegen-units = 1
+# パニック時にスタックを巻き戻し、バックトレースを可能にします。(変更)
+panic = 'unwind'
+# デバッグシンボルを実行ファイルに残し、詳細なバックトレースを可能にします。(変更)
+strip = false
 

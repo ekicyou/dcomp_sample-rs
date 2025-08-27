@@ -1,3 +1,4 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod win_message_handler;
 
 use windows::{
@@ -11,6 +12,7 @@ use windows::{
     },
 };
 
+use human_panic::setup_panic;
 use windows_numerics::*;
 
 use crate::win_message_handler::WindowMessageHandler;
@@ -25,6 +27,7 @@ const WINDOW_WIDTH: f32 = CARD_COLUMNS as f32 * (CARD_WIDTH + CARD_MARGIN) + CAR
 const WINDOW_HEIGHT: f32 = CARD_ROWS as f32 * (CARD_HEIGHT + CARD_MARGIN) + CARD_MARGIN;
 
 fn main() -> Result<()> {
+    setup_panic!();
     unsafe {
         CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)?;
