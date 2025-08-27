@@ -80,16 +80,6 @@ impl WindowMessageHandler for Window {
         self.mouse_tracking = tracking;
     }
 
-    fn WM_MOUSEENTER(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
-        eprintln!("WM_MOUSEENTER");
-        None
-    }
-
-    fn WM_MOUSELEAVE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
-        eprintln!("WM_MOUSELEAVE");
-        None
-    }
-
     fn WM_CREATE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
         self.create_handler().expect("WM_CREATE");
         Some(LRESULT(0))
