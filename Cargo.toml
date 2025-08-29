@@ -4,6 +4,11 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 
+[workspace]
+members = [
+    "crates/*",
+]
+
 [dependencies]
 human-panic = "2.0.3"
 rand = "0.9.2"
