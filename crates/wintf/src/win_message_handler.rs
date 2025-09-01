@@ -282,7 +282,7 @@ pub trait WindowMessageHandler {
     }
 }
 
-pub(crate) trait WindowMessageHandlerExt: WindowMessageHandler {
+pub trait WindowMessageHandlerExt: WindowMessageHandler {
     fn into_raw(self) -> *mut c_void
     where
         Self: Sized,

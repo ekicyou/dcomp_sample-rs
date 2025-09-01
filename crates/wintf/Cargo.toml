@@ -1,13 +1,13 @@
 [package]
 name = "wintf"
-version = "0.0.0"
-edition = "2021"
-publish = false
+version = { workspace = true }
+edition = { workspace = true }
+publish = { workspace = true }
 
 [dependencies]
+windows = { workspace = true }
+windows-numerics = { workspace = true }
 
-[dependencies.windows]
-version = "0.61.3"
-features = [
-    "Win32_UI_WindowsAndMessaging",
-]
+[dev-dependencies]
+human-panic = { workspace = true }
+rand ={ workspace = true }

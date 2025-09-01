@@ -1,3 +1,31 @@
-This sample first appeared in Kenny's [DirectComposition course on Pluralsight](https://www.pluralsight.com/courses/directcomposition-in-action). Check it out to learn all about DirectComposition, Direct2D, and DirectWrite, image decoding, and animation.
+# wintf /wɪn.tɪf/
 
-![dcomp](https://user-images.githubusercontent.com/9845234/199103049-78e6c647-abfd-438a-8b11-ca1ba3ea7dd8.gif)
+Windows Tategaki Framework
+
+Windowsにて、日本語による縦書き描画をサポートするために必要な低レベル実装を
+提供することを目的とします。
+
+
+## 目的
+
+## プロジェクトの目的
+
+### 主目的
+
+- [ ] Windows上で日本語縦書き描画をサポートする低レベル実装の提供
+- [ ] ウィンドウの作成と管理
+- [ ] ウィンドウメッセージのハンドリング
+- [ ] GUIスレッドの初期化とメッセージループの実行
+- [ ] 一般的な2D描画および合成処理
+- [ ] 透過画像を含むビットマップの扱い
+- [ ] 日本語テキスト描画（縦書き・横書き両対応）
+- [ ] 高度な日本語IMEサポート（TSFベース）
+- [ ] ヒットテスト
+
+### 追加で必要となりそうな構成要素
+
+- [ ] フォント管理とレンダリング
+- [ ] テキストレイアウトエンジン（縦書き・横書き切替対応）
+- [ ] 入力イベント（キーボード・マウス等）の抽象化
+- [ ] DPIスケーリング対応
+- [ ] サンプルアプリケーション・デモ

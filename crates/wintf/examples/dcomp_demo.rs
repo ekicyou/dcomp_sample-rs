@@ -1,6 +1,4 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-mod win_message_handler;
-
 use windows::{
     core::*,
     Win32::{
@@ -11,11 +9,9 @@ use windows::{
         UI::HiDpi::*, UI::Shell::*, UI::WindowsAndMessaging::*,
     },
 };
-
 use windows_numerics::*;
 
-use crate::win_message_handler::WindowMessageHandler;
-use crate::win_message_handler::WindowMessageHandlerExt;
+use wintf::win_message_handler::*;
 
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 6;
@@ -462,7 +458,7 @@ impl Window {
                 hInstance: instance.clone().into(),
                 lpszClassName: window_class, // PCWSTR
                 style: CS_HREDRAW | CS_VREDRAW,
-                lpfnWndProc: Some(win_message_handler::wndproc),
+                lpfnWndProc: Some(wintf::win_message_handler::wndproc),
                 ..Default::default()
             };
 
@@ -471,7 +467,6 @@ impl Window {
 
             let raw_win = self.into_raw();
             let handle = CreateWindowExW(
-                // A→W
                 WS_EX_NOREDIRECTIONBITMAP,
                 window_class,
                 w!("Sample Window"),
@@ -524,10 +519,10 @@ fn create_image() -> Result<IWICFormatConverter> {
             CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
 
         // ワークスペースのルートからサンプルを実行しやすくするための小さなハック。
-        let path = if PathFileExistsW(w!("image.jpg")).is_ok() {
-            w!("image.jpg")
+        let path = if PathFileExistsW(w!("dcomp_demo.jpg")).is_ok() {
+            w!("dcomp_demo.jpg")
         } else {
-            w!("crates/samples/windows/dcomp/image.jpg")
+            w!("crates/wintf/examples/dcomp_demo.jpg")
         };
 
         let decoder = factory.CreateDecoderFromFilename(
