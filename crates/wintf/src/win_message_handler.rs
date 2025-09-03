@@ -20,6 +20,10 @@ pub trait WindowMessageHandler {
 
     #[inline(always)]
     fn message_handler(&mut self, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        if let Some(handled) = self.raw_message_handler(message, wparam, lparam) {
+            return handled;
+        }
+
         let handled = match message {
             // ウィンドウライフサイクル
             WM_CREATE => self.WM_CREATE(wparam, lparam),
@@ -109,12 +113,23 @@ pub trait WindowMessageHandler {
             WM_THEMECHANGED => self.WM_THEMECHANGED(wparam, lparam),
             WM_DWMCOMPOSITIONCHANGED => self.WM_DWMCOMPOSITIONCHANGED(wparam, lparam),
 
+            // その他
             _ => None,
         };
         match handled {
             Some(res) => res,
             None => unsafe { DefWindowProcW(self.hwnd(), message, wparam, lparam) },
         }
+    }
+
+    /// 生のメッセージハンドラ
+    fn raw_message_handler(
+        &mut self,
+        message: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> Option<LRESULT> {
+        None
     }
 
     // デフォルト実装
