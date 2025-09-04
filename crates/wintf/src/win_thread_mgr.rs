@@ -87,7 +87,7 @@ impl WinThreadMgr {
     ) -> Result<HWND> {
         let singleton = WinProcessSingleton::get_or_init();
         let window_name_hstring = HSTRING::from(window_name);
-        let handler_ptr = handler.into_boxed_ptr();
+        let boxed_ptr = handler.into_boxed_ptr();
 
         unsafe {
             CreateWindowExW(
@@ -102,7 +102,7 @@ impl WinThreadMgr {
                 parent,
                 None,
                 None,
-                Some(handler_ptr),
+                Some(boxed_ptr),
             )
         }
     }
