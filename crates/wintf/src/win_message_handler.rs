@@ -3,6 +3,8 @@
 #![allow(dead_code)]
 
 use std::ffi::c_void;
+use std::rc::*;
+use std::sync::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::Controls::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
@@ -301,20 +303,39 @@ pub trait WindowMessageHandler {
     }
 }
 
-pub trait WindowMessageHandlerExt: WindowMessageHandler {
-    fn into_raw(self) -> *mut c_void
-    where
-        Self: Sized,
-    {
-        let b1: Box<dyn WindowMessageHandler> = Box::new(self);
-        let b2 = Box::new(b1);
-        let ptr = Box::into_raw(b2);
-        let ptr = ptr as *mut c_void;
+pub(crate) trait WindowMessageHandlerIntoBoxedPtr {
+    fn into_boxed_ptr(self) -> *mut c_void;
+}
+
+impl WindowMessageHandlerIntoBoxedPtr for Rc<Mutex<dyn WindowMessageHandler>> {
+    fn into_boxed_ptr(self) -> *mut c_void {
+        let boxed = Box::new(self);
+        let raw = Box::into_raw(boxed);
+        let ptr = raw as _;
         ptr
     }
 }
 
-impl<T: WindowMessageHandler + Sized> WindowMessageHandlerExt for T {}
+fn get_boxed_ptr(ptr: *mut c_void) -> Option<&'static Rc<Mutex<dyn WindowMessageHandler>>> {
+    if ptr.is_null() {
+        return None;
+    }
+    unsafe {
+        let raw: *mut Rc<Mutex<dyn WindowMessageHandler>> = ptr as _;
+        Some(&*raw)
+    }
+}
+
+fn from_boxed_ptr(ptr: *mut c_void) -> Option<Rc<Mutex<dyn WindowMessageHandler>>> {
+    if ptr.is_null() {
+        return None;
+    }
+    unsafe {
+        let raw: *mut Rc<Mutex<dyn WindowMessageHandler>> = ptr as _;
+        let boxed = Box::from_raw(raw);
+        Some(*boxed)
+    }
+}
 
 pub extern "system" fn wndproc(
     hwnd: HWND,
@@ -330,29 +351,26 @@ pub extern "system" fn wndproc(
                     return LRESULT(0);
                 }
                 let ptr = (*cs).lpCreateParams;
-                let boxed_handler = ptr as *mut Box<dyn WindowMessageHandler>;
-                if !boxed_handler.is_null() {
-                    (*boxed_handler).set_hwnd(hwnd);
-                    SetWindowLongPtrW(hwnd, GWLP_USERDATA, boxed_handler as _);
+                if let Some(handler) = get_boxed_ptr(ptr) {
+                    SetWindowLongPtrW(hwnd, GWLP_USERDATA, ptr as _);
+                    let mut guard = handler.lock().unwrap();
+                    let handler = &mut *guard;
+                    handler.set_hwnd(hwnd);
                 }
                 LRESULT(1)
             }
             WM_NCDESTROY => {
-                let boxed_handler =
-                    GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Box<dyn WindowMessageHandler>;
-                if !boxed_handler.is_null() {
-                    SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-                    let _box = Box::from_raw(boxed_handler);
-                    LRESULT(1)
-                } else {
-                    DefWindowProcW(hwnd, message, wparam, lparam)
-                }
+                let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as _;
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+                let _ = from_boxed_ptr(ptr);
+                LRESULT(1)
             }
             _ => {
-                let boxed_handler =
-                    GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Box<dyn WindowMessageHandler>;
-                if !boxed_handler.is_null() {
-                    (*boxed_handler).message_handler(message, wparam, lparam)
+                let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as _;
+                if let Some(handler) = get_boxed_ptr(ptr) {
+                    let mut guard = handler.lock().unwrap();
+                    let handler = &mut *guard;
+                    handler.message_handler(message, wparam, lparam)
                 } else {
                     DefWindowProcW(hwnd, message, wparam, lparam)
                 }
