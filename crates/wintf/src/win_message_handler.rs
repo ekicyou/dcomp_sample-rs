@@ -39,6 +39,7 @@ pub trait WindowMessageHandler {
             WM_DPICHANGED_AFTERPARENT => self.WM_DPICHANGED_AFTERPARENT(wparam, lparam),
 
             // ウィンドウサイズ・位置
+            WM_NCCALCSIZE => self.WM_NCCALCSIZE(wparam, lparam),
             WM_SIZE => self.WM_SIZE(wparam, lparam),
             WM_SIZING => self.WM_SIZING(wparam, lparam),
             WM_MOVE => self.WM_MOVE(wparam, lparam),
@@ -161,6 +162,9 @@ pub trait WindowMessageHandler {
         None
     }
     fn WM_DPICHANGED_AFTERPARENT(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        None
+    }
+    fn WM_NCCALCSIZE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
     fn WM_SIZE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {

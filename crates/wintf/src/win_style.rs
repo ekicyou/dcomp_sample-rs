@@ -2,24 +2,23 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+use crate::api::*;
 use windows::core::*;
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct WinStyle {
-    pub(crate) style: WINDOW_STYLE,
-    pub(crate) ex_style: WINDOW_EX_STYLE,
+    style: WINDOW_STYLE,
+    ex_style: WINDOW_EX_STYLE,
 }
 
 impl WinStyle {
     // new
 
-    pub fn new(hwnd: HWND) -> Self {
-        unsafe {
-            let style = WINDOW_STYLE(GetWindowLongW(hwnd, GWL_STYLE) as _);
-            let ex_style = WINDOW_EX_STYLE(GetWindowLongW(hwnd, GWL_EXSTYLE) as _);
-            Self { style, ex_style }
-        }
+    pub fn new(hwnd: HWND) -> Result<Self> {
+        let style = WINDOW_STYLE(get_window_long_ptr(hwnd, GWL_STYLE)? as _);
+        let ex_style = WINDOW_EX_STYLE(get_window_long_ptr(hwnd, GWL_EXSTYLE)? as _);
+        Ok(Self { style, ex_style })
     }
 
     pub fn WS_OVERLAPPED() -> Self {
@@ -49,20 +48,9 @@ impl WinStyle {
 
     /// SetWindowLongWへ反映
     pub fn commit(&self, hwnd: HWND) -> Result<()> {
-        unsafe {
-            SetLastError(ERROR_SUCCESS);
-            let res = SetWindowLongW(hwnd, GWL_STYLE, self.style.0 as _);
-            let err = Error::from_win32();
-            if res == 0 && err.code() != S_OK {
-                return Err(err);
-            }
-            let res = SetWindowLongW(hwnd, GWL_EXSTYLE, self.ex_style.0 as _);
-            let err = Error::from_win32();
-            if res == 0 && err.code() != S_OK {
-                return Err(err);
-            }
-            Ok(())
-        }
+        set_window_long_ptr(hwnd, GWL_STYLE, self.style.0 as _)?;
+        set_window_long_ptr(hwnd, GWL_EXSTYLE, self.ex_style.0 as _)?;
+        Ok(())
     }
 
     // dwStyleの更新
