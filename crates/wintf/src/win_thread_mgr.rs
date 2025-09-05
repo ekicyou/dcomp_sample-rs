@@ -33,6 +33,7 @@ impl WinProcessSingleton {
 
     pub(crate) fn get_or_init() -> &'static Self {
         WIN_PROCESS_SINGLETON.get_or_init(|| {
+            eprintln!("window class creation...");
             let instance = unsafe { GetModuleHandleW(None).unwrap().into() };
             let window_class_name = HSTRING::from(WINTF_CLASS_NAME);
             let wc = WNDCLASSEXW {
@@ -49,6 +50,7 @@ impl WinProcessSingleton {
                     panic!("Failed to register window class");
                 }
             }
+            eprintln!("window class created");
             Self {
                 instance,
                 window_class_name,
@@ -74,8 +76,8 @@ impl WinThreadMgr {
     }
 
     pub fn create_window(
-        &self,
-        handler: Rc<Mutex<dyn WindowMessageHandler>>,
+        &mut self,
+        handler: Rc<dyn WindowMessageHandler>,
         window_name: &str,
         style: WINDOW_STYLE,
         ex_style: WINDOW_EX_STYLE,
@@ -90,7 +92,8 @@ impl WinThreadMgr {
         let boxed_ptr = handler.into_boxed_ptr();
 
         unsafe {
-            CreateWindowExW(
+            eprintln!("Window creation...");
+            let rc = CreateWindowExW(
                 ex_style,
                 singleton.window_class_name(),
                 &window_name_hstring,
@@ -103,11 +106,13 @@ impl WinThreadMgr {
                 None,
                 None,
                 Some(boxed_ptr),
-            )
+            );
+            eprintln!("Window created {:?}", rc);
+            rc
         }
     }
 
-    pub fn run_message_loop(&self) {
+    pub fn run(&mut self) -> Result<()> {
         let mut msg = MSG::default();
         unsafe {
             while GetMessageW(&mut msg, None, 0, 0).into() {
@@ -115,5 +120,6 @@ impl WinThreadMgr {
                 DispatchMessageW(&msg);
             }
         }
+        Ok(())
     }
 }

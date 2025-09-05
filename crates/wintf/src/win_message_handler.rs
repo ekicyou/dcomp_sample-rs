@@ -307,7 +307,7 @@ pub(crate) trait WindowMessageHandlerIntoBoxedPtr {
     fn into_boxed_ptr(self) -> *mut c_void;
 }
 
-impl WindowMessageHandlerIntoBoxedPtr for Rc<Mutex<dyn WindowMessageHandler>> {
+impl WindowMessageHandlerIntoBoxedPtr for Rc<dyn WindowMessageHandler> {
     fn into_boxed_ptr(self) -> *mut c_void {
         let boxed = Box::new(self);
         let raw = Box::into_raw(boxed);
@@ -316,36 +316,41 @@ impl WindowMessageHandlerIntoBoxedPtr for Rc<Mutex<dyn WindowMessageHandler>> {
     }
 }
 
-fn get_boxed_ptr(ptr: *mut c_void) -> Option<&'static Rc<Mutex<dyn WindowMessageHandler>>> {
+fn get_boxed_ptr<'a>(ptr: *mut c_void) -> Option<&'a mut dyn WindowMessageHandler> {
     if ptr.is_null() {
         return None;
     }
     unsafe {
-        let raw: *mut Rc<Mutex<dyn WindowMessageHandler>> = ptr as _;
-        Some(&*raw)
+        let raw: *mut Rc<dyn WindowMessageHandler> = ptr as _;
+        let handler = &**raw;
+        #[allow(mutable_transmutes)]
+        let handler = std::mem::transmute::<_, &mut dyn WindowMessageHandler>(handler);
+        Some(handler)
     }
 }
 
-fn from_boxed_ptr(ptr: *mut c_void) -> Option<Rc<Mutex<dyn WindowMessageHandler>>> {
+fn from_boxed_ptr(ptr: *mut c_void) -> Option<Rc<dyn WindowMessageHandler>> {
     if ptr.is_null() {
         return None;
     }
     unsafe {
-        let raw: *mut Rc<Mutex<dyn WindowMessageHandler>> = ptr as _;
+        let raw: *mut Rc<dyn WindowMessageHandler> = ptr as _;
         let boxed = Box::from_raw(raw);
         Some(*boxed)
     }
 }
 
-pub extern "system" fn wndproc(
+pub(crate) extern "system" fn wndproc(
     hwnd: HWND,
     message: u32,
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    unsafe {
+    //eprintln!("wndproc message: {}", message);
+    let rc = unsafe {
         match message {
             WM_NCCREATE => {
+                eprintln!("WM_NCCREATE");
                 let cs = lparam.0 as *const CREATESTRUCTW;
                 if cs.is_null() {
                     return LRESULT(0);
@@ -353,13 +358,12 @@ pub extern "system" fn wndproc(
                 let ptr = (*cs).lpCreateParams;
                 if let Some(handler) = get_boxed_ptr(ptr) {
                     SetWindowLongPtrW(hwnd, GWLP_USERDATA, ptr as _);
-                    let mut guard = handler.lock().unwrap();
-                    let handler = &mut *guard;
                     handler.set_hwnd(hwnd);
                 }
                 LRESULT(1)
             }
             WM_NCDESTROY => {
+                eprintln!("WM_NCDESTROY");
                 let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as _;
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
                 let _ = from_boxed_ptr(ptr);
@@ -368,13 +372,13 @@ pub extern "system" fn wndproc(
             _ => {
                 let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as _;
                 if let Some(handler) = get_boxed_ptr(ptr) {
-                    let mut guard = handler.lock().unwrap();
-                    let handler = &mut *guard;
                     handler.message_handler(message, wparam, lparam)
                 } else {
                     DefWindowProcW(hwnd, message, wparam, lparam)
                 }
             }
         }
-    }
+    };
+    //eprintln!("wndproc message: {} --> {:?}", message, rc);
+    rc
 }

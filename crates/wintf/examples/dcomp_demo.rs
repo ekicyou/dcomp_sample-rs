@@ -1,4 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use std::{rc::*, sync::*};
+
 use windows::{
     core::*,
     Win32::{
@@ -11,7 +13,7 @@ use windows::{
 };
 use windows_numerics::*;
 
-use wintf::win_message_handler::*;
+use wintf::*;
 
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 6;
@@ -24,12 +26,29 @@ const WINDOW_HEIGHT: f32 = CARD_ROWS as f32 * (CARD_HEIGHT + CARD_MARGIN) + CARD
 fn main() -> Result<()> {
     human_panic::setup_panic!();
 
-    unsafe {
-        CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
-        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)?;
-    }
-    let window = Window::new()?;
-    window.run()
+    let mut mgr = WinThreadMgr::new()?;
+    let window: Rc<dyn WindowMessageHandler> = Rc::new(Window::new()?);
+    let (style, ex_style) = WinStyle::WS_OVERLAPPED()
+        .WS_CAPTION(true)
+        .WS_SYSMENU(true)
+        .WS_MINIMIZEBOX(true)
+        .WS_VISIBLE(true)
+        .WS_EX_NOREDIRECTIONBITMAP(true)
+        .get_style();
+
+    let _ = mgr.create_window(
+        window.clone(),
+        &"Sample Window",
+        style,
+        ex_style,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        None,
+    )?;
+
+    mgr.run()
 }
 
 #[derive(PartialEq)]
@@ -80,6 +99,7 @@ impl WindowMessageHandler for Window {
     }
 
     fn WM_CREATE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
+        eprintln!("WM_CREATE");
         self.create_handler().expect("WM_CREATE");
         Some(LRESULT(0))
     }
@@ -445,50 +465,6 @@ impl Window {
                 size.1,
                 SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER,
             )
-        }
-    }
-
-    fn run(self) -> Result<()> {
-        unsafe {
-            let instance = GetModuleHandleW(None)?;
-            let window_class = w!("window");
-
-            let wc = WNDCLASSW {
-                hCursor: LoadCursorW(None, IDC_ARROW)?,
-                hInstance: instance.clone().into(),
-                lpszClassName: window_class, // PCWSTR
-                style: CS_HREDRAW | CS_VREDRAW,
-                lpfnWndProc: Some(wintf::win_message_handler::wndproc),
-                ..Default::default()
-            };
-
-            let atom = RegisterClassW(&wc);
-            debug_assert!(atom != 0);
-
-            let raw_win = self.into_raw();
-            let handle = CreateWindowExW(
-                WS_EX_NOREDIRECTIONBITMAP,
-                window_class,
-                w!("Sample Window"),
-                WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                None,
-                None,
-                Some(instance.clone().into()),
-                Some(raw_win),
-            )?;
-
-            debug_assert!(!handle.is_invalid());
-            let mut msg = MSG::default();
-            // メッセージループもW系で統一
-            while GetMessageW(&mut msg, None, 0, 0).into() {
-                DispatchMessageW(&msg);
-            }
-
-            Ok(())
         }
     }
 }
