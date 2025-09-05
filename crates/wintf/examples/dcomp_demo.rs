@@ -1,5 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use std::{rc::*, sync::*};
+use std::rc::*;
 
 use windows::{
     core::*,
@@ -7,8 +7,8 @@ use windows::{
         Foundation::*, Graphics::Direct2D::Common::*, Graphics::Direct2D::*, Graphics::Direct3D::*,
         Graphics::Direct3D11::*, Graphics::DirectComposition::*, Graphics::DirectWrite::*,
         Graphics::Dxgi::Common::*, Graphics::Dxgi::*, Graphics::Gdi::*, Graphics::Imaging::D2D::*,
-        Graphics::Imaging::*, System::Com::*, System::LibraryLoader::*, UI::Animation::*,
-        UI::HiDpi::*, UI::Shell::*, UI::WindowsAndMessaging::*,
+        Graphics::Imaging::*, System::Com::*, UI::Animation::*, UI::HiDpi::*, UI::Shell::*,
+        UI::WindowsAndMessaging::*,
     },
 };
 use windows_numerics::*;
@@ -27,7 +27,7 @@ fn main() -> Result<()> {
     human_panic::setup_panic!();
 
     let mut mgr = WinThreadMgr::new()?;
-    let window: Rc<dyn WindowMessageHandler> = Rc::new(Window::new()?);
+    let window = Rc::new(Window::new()?);
     let (style, ex_style) = WinStyle::WS_OVERLAPPED()
         .WS_CAPTION(true)
         .WS_SYSMENU(true)

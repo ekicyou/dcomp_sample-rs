@@ -4,7 +4,6 @@
 
 use std::ffi::c_void;
 use std::rc::*;
-use std::sync::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::Controls::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
