@@ -12,8 +12,8 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 pub trait BaseWindowMessageHandler {
     fn message_handler(
         &mut self,
-        message: u32,
         hwnd: HWND,
+        message: u32,
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> LRESULT;
@@ -29,10 +29,11 @@ pub trait WindowMessageHandler: BaseWindowMessageHandler {
     fn set_mouse_tracking(&mut self, tracking: bool) {}
 
     /// 生のメッセージハンドラ
+    #[inline(always)]
     fn raw_message_handler(
         &mut self,
-        message: u32,
         hwnd: HWND,
+        message: u32,
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> Option<LRESULT> {
@@ -40,173 +41,229 @@ pub trait WindowMessageHandler: BaseWindowMessageHandler {
     }
 
     // デフォルト実装
+    #[inline(always)]
     fn WM_NCCREATE(&mut self, hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         self.set_hwnd(hwnd);
         None
     }
 
+    #[inline(always)]
     fn WM_CREATE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_DESTROY(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_CLOSE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_LBUTTONUP(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_PAINT(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_ERASEBKGND(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         Some(LRESULT(1)) // DirectCompositionで描画するため、背景消去をスキップ
     }
+    #[inline(always)]
     fn WM_DISPLAYCHANGE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_DPICHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_DPICHANGED_BEFOREPARENT(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_DPICHANGED_AFTERPARENT(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_NCCALCSIZE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_SIZE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_SIZING(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_MOVE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_MOVING(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_WINDOWPOSCHANGING(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_WINDOWPOSCHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_GETMINMAXINFO(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_LBUTTONDOWN(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_RBUTTONDOWN(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_RBUTTONUP(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_MBUTTONDOWN(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_MBUTTONUP(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_LBUTTONDBLCLK(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_RBUTTONDBLCLK(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_MBUTTONDBLCLK(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_MOUSEMOVE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_MOUSEENTER(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_MOUSELEAVE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_MOUSEWHEEL(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_MOUSEHWHEEL(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_XBUTTONDOWN(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_XBUTTONUP(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_XBUTTONDBLCLK(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_KEYDOWN(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_KEYUP(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_SYSKEYDOWN(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_SYSKEYUP(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_CHAR(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_SYSCHAR(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_DEADCHAR(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_SYSDEADCHAR(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_SETFOCUS(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_KILLFOCUS(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_ACTIVATE(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_ACTIVATEAPP(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_TIMER(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_COMMAND(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_SYSCOMMAND(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_MENUCHAR(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_ENTERMENULOOP(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_EXITMENULOOP(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_THEMECHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_DWMCOMPOSITIONCHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
+    #[inline(always)]
     fn WM_CAPTURECHANGED(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         None
     }
@@ -215,12 +272,12 @@ pub trait WindowMessageHandler: BaseWindowMessageHandler {
 impl<T: WindowMessageHandler> BaseWindowMessageHandler for T {
     fn message_handler(
         &mut self,
-        message: u32,
         hwnd: HWND,
+        message: u32,
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> LRESULT {
-        if let Some(handled) = self.raw_message_handler(message, hwnd, wparam, lparam) {
+        if let Some(handled) = self.raw_message_handler(hwnd, message, wparam, lparam) {
             return handled;
         }
 
@@ -380,7 +437,7 @@ pub(crate) extern "system" fn wndproc(
                 let ptr = (*cs).lpCreateParams;
                 if let Some(handler) = get_boxed_ptr(ptr) {
                     SetWindowLongPtrW(hwnd, GWLP_USERDATA, ptr as _);
-                    handler.message_handler(message, hwnd, wparam, lparam);
+                    handler.message_handler(hwnd, message, wparam, lparam);
                 }
                 LRESULT(1)
             }
@@ -394,7 +451,7 @@ pub(crate) extern "system" fn wndproc(
             _ => {
                 let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as _;
                 if let Some(handler) = get_boxed_ptr(ptr) {
-                    handler.message_handler(message, hwnd, wparam, lparam)
+                    handler.message_handler(hwnd, message, wparam, lparam)
                 } else {
                     DefWindowProcW(hwnd, message, wparam, lparam)
                 }
