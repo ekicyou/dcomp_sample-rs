@@ -77,7 +77,7 @@ impl WinThreadMgr {
 
     pub fn create_window(
         &mut self,
-        handler: Rc<dyn WindowMessageHandler>,
+        handler: Rc<dyn BaseWindowMessageHandler>,
         window_name: &str,
         style: WINDOW_STYLE,
         ex_style: WINDOW_EX_STYLE,
