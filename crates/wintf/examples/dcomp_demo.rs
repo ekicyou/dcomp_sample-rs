@@ -599,9 +599,13 @@ fn add_hide_transition(
 
 fn update_animation(dcomp: &IDCompositionDevice3, card: &Card) -> Result<()> {
     unsafe {
+        // 1. 空の DirectComposition アニメーションを作成
         let animation = dcomp.CreateAnimation()?;
+
+        // 2. UI Animation 変数のカーブを DComp アニメーションへコピー
         card.variable.GetCurve(&animation)?;
 
+        // 3. 回転トランスフォームの Angle にセット（以後 DComp 側で自動進行）
         card.rotation
             .as_ref()
             .expect("IDCompositionRotateTransform3D")
