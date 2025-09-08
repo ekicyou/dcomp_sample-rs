@@ -13,7 +13,7 @@ pub trait BaseWindowMessageHandler {
     fn message_handler(
         &mut self,
         hwnd: HWND,
-        message: u32,
+        msg: u32,
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> LRESULT;
@@ -33,7 +33,7 @@ pub trait WindowMessageHandler: BaseWindowMessageHandler {
     fn raw_message_handler(
         &mut self,
         hwnd: HWND,
-        message: u32,
+        msg: u32,
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> Option<LRESULT> {
@@ -270,18 +270,12 @@ pub trait WindowMessageHandler: BaseWindowMessageHandler {
 }
 
 impl<T: WindowMessageHandler> BaseWindowMessageHandler for T {
-    fn message_handler(
-        &mut self,
-        hwnd: HWND,
-        message: u32,
-        wparam: WPARAM,
-        lparam: LPARAM,
-    ) -> LRESULT {
-        if let Some(handled) = self.raw_message_handler(hwnd, message, wparam, lparam) {
+    fn message_handler(&mut self, hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        if let Some(handled) = self.raw_message_handler(hwnd, msg, wparam, lparam) {
             return handled;
         }
 
-        let handled = match message {
+        let handled = match msg {
             // ウィンドウライフサイクル
             WM_NCCREATE => self.WM_NCCREATE(hwnd, wparam, lparam),
             WM_CREATE => self.WM_CREATE(wparam, lparam),
@@ -377,7 +371,7 @@ impl<T: WindowMessageHandler> BaseWindowMessageHandler for T {
         };
         match handled {
             Some(res) => res,
-            None => unsafe { DefWindowProcW(self.hwnd(), message, wparam, lparam) },
+            None => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
         }
     }
 }
