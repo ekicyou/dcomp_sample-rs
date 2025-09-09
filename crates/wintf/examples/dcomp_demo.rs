@@ -27,7 +27,7 @@ fn main() -> Result<()> {
     human_panic::setup_panic!();
 
     let mut mgr = WinThreadMgr::new()?;
-    let window = Rc::new(Window::new()?);
+    let window = Rc::new(DemoWindow::new()?);
     let (style, ex_style) = WinStyle::WS_OVERLAPPED()
         .WS_CAPTION(true)
         .WS_SYSMENU(true)
@@ -66,7 +66,7 @@ struct Card {
     rotation: Option<IDCompositionRotateTransform3D>,
 }
 
-struct Window {
+struct DemoWindow {
     handle: HWND,
     mouse_tracking: bool,
     dpi: (f32, f32),
@@ -81,7 +81,7 @@ struct Window {
     target: Option<IDCompositionTarget>,
 }
 
-impl WindowMessageHandler for Window {
+impl WinState for DemoWindow {
     fn hwnd(&self) -> HWND {
         self.handle
     }
@@ -97,7 +97,9 @@ impl WindowMessageHandler for Window {
     fn set_mouse_tracking(&mut self, tracking: bool) {
         self.mouse_tracking = tracking;
     }
+}
 
+impl WindowMessageHandler for DemoWindow {
     fn WM_CREATE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
         eprintln!("WM_CREATE");
         self.create_handler().expect("WM_CREATE");
@@ -133,7 +135,7 @@ impl WindowMessageHandler for Window {
     }
 }
 
-impl Window {
+impl DemoWindow {
     fn new() -> Result<Self> {
         unsafe {
             let manager: IUIAnimationManager2 =
@@ -179,7 +181,7 @@ impl Window {
             let library =
                 CoCreateInstance(&UIAnimationTransitionLibrary2, None, CLSCTX_INPROC_SERVER)?;
 
-            Ok(Window {
+            Ok(DemoWindow {
                 handle: Default::default(),
                 mouse_tracking: false,
                 dpi: (0.0, 0.0),

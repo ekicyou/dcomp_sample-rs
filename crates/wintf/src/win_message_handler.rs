@@ -2,6 +2,7 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+use crate::win_state::*;
 use std::ffi::c_void;
 use std::rc::*;
 use windows::Win32::{
@@ -14,15 +15,14 @@ pub trait BaseWindowMessageHandler {
     fn message_handler(&mut self, hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT;
 }
 
-pub trait WindowMessageHandler: BaseWindowMessageHandler {
-    fn hwnd(&self) -> HWND;
-    fn set_hwnd(&mut self, hwnd: HWND);
-
-    fn mouse_tracking(&self) -> bool {
-        true
+pub trait WinNcCreate {
+    #[inline(always)]
+    fn WM_NCCREATE(&mut self, hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        None
     }
-    fn set_mouse_tracking(&mut self, tracking: bool) {}
+}
 
+pub trait WindowMessageHandler: BaseWindowMessageHandler + WinNcCreate {
     /// 生のメッセージハンドラ
     #[inline(always)]
     fn raw_message_handler(
@@ -36,12 +36,6 @@ pub trait WindowMessageHandler: BaseWindowMessageHandler {
     }
 
     // デフォルト実装（改定箇所あり）
-
-    #[inline(always)]
-    fn WM_NCCREATE(&mut self, hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
-        self.set_hwnd(hwnd);
-        None
-    }
 
     #[inline(always)]
     fn WM_ERASEBKGND(&mut self, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
@@ -1050,7 +1044,15 @@ pub trait WindowMessageHandler: BaseWindowMessageHandler {
     }
 }
 
-impl<T: WindowMessageHandler> BaseWindowMessageHandler for T {
+impl<T: WindowMessageHandler + WinState> WinNcCreate for T {
+    #[inline(always)]
+    fn WM_NCCREATE(&mut self, hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+        self.set_hwnd(hwnd);
+        None
+    }
+}
+
+impl<T: WindowMessageHandler + WinState> BaseWindowMessageHandler for T {
     fn message_handler(&mut self, hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         if let Some(handled) = self.raw_message_handler(hwnd, msg, wparam, lparam) {
             return handled;
