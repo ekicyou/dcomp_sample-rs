@@ -7,11 +7,11 @@ use std::ffi::c_void;
 use std::rc::*;
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
-pub trait WindowMessageHandlerIntoBoxedPtr {
+pub trait WinMessageHandlerIntoBoxedPtr {
     fn into_boxed_ptr(self) -> *mut c_void;
 }
 
-impl WindowMessageHandlerIntoBoxedPtr for Rc<dyn BaseWinMessageHandler> {
+impl WinMessageHandlerIntoBoxedPtr for Rc<dyn BaseWinMessageHandler> {
     fn into_boxed_ptr(self) -> *mut c_void {
         let boxed = Box::new(self);
         let raw = Box::into_raw(boxed);
