@@ -11,7 +11,7 @@ use windows::Win32::{
     UI::{Controls::*, Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
 };
 
-pub trait BaseWindowMessageHandler {
+pub trait BaseWinMessageHandler {
     fn message_handler(&mut self, hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT;
 }
 
@@ -22,7 +22,7 @@ pub trait WinNcCreate {
     }
 }
 
-pub trait WindowMessageHandler: BaseWindowMessageHandler + WinNcCreate {
+pub trait WinMessageHandler: BaseWinMessageHandler + WinNcCreate {
     /// 生のメッセージハンドラ
     #[inline(always)]
     fn raw_message_handler(
@@ -1044,7 +1044,7 @@ pub trait WindowMessageHandler: BaseWindowMessageHandler + WinNcCreate {
     }
 }
 
-impl<T: WindowMessageHandler + WinState> WinNcCreate for T {
+impl<T: WinMessageHandler + WinState> WinNcCreate for T {
     #[inline(always)]
     fn WM_NCCREATE(&mut self, hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
         self.set_hwnd(hwnd);
@@ -1052,7 +1052,7 @@ impl<T: WindowMessageHandler + WinState> WinNcCreate for T {
     }
 }
 
-impl<T: WindowMessageHandler + WinState> BaseWindowMessageHandler for T {
+impl<T: WinMessageHandler + WinState> BaseWinMessageHandler for T {
     fn message_handler(&mut self, hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
         if let Some(handled) = self.raw_message_handler(hwnd, msg, wparam, lparam) {
             return handled;
@@ -1354,7 +1354,7 @@ pub(crate) trait WindowMessageHandlerIntoBoxedPtr {
     fn into_boxed_ptr(self) -> *mut c_void;
 }
 
-impl WindowMessageHandlerIntoBoxedPtr for Rc<dyn BaseWindowMessageHandler> {
+impl WindowMessageHandlerIntoBoxedPtr for Rc<dyn BaseWinMessageHandler> {
     fn into_boxed_ptr(self) -> *mut c_void {
         let boxed = Box::new(self);
         let raw = Box::into_raw(boxed);
@@ -1363,25 +1363,25 @@ impl WindowMessageHandlerIntoBoxedPtr for Rc<dyn BaseWindowMessageHandler> {
     }
 }
 
-fn get_boxed_ptr<'a>(ptr: *mut c_void) -> Option<&'a mut dyn BaseWindowMessageHandler> {
+fn get_boxed_ptr<'a>(ptr: *mut c_void) -> Option<&'a mut dyn BaseWinMessageHandler> {
     if ptr.is_null() {
         return None;
     }
     unsafe {
-        let raw: *mut Rc<dyn WindowMessageHandler> = ptr as _;
+        let raw: *mut Rc<dyn WinMessageHandler> = ptr as _;
         let handler = &**raw;
         #[allow(mutable_transmutes)]
-        let handler = std::mem::transmute::<_, &mut dyn BaseWindowMessageHandler>(handler);
+        let handler = std::mem::transmute::<_, &mut dyn BaseWinMessageHandler>(handler);
         Some(handler)
     }
 }
 
-fn from_boxed_ptr(ptr: *mut c_void) -> Option<Rc<dyn BaseWindowMessageHandler>> {
+fn from_boxed_ptr(ptr: *mut c_void) -> Option<Rc<dyn BaseWinMessageHandler>> {
     if ptr.is_null() {
         return None;
     }
     unsafe {
-        let raw: *mut Rc<dyn BaseWindowMessageHandler> = ptr as _;
+        let raw: *mut Rc<dyn BaseWinMessageHandler> = ptr as _;
         let boxed = Box::from_raw(raw);
         Some(*boxed)
     }

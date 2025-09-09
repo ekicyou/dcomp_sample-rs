@@ -99,7 +99,7 @@ impl WinState for DemoWindow {
     }
 }
 
-impl WindowMessageHandler for DemoWindow {
+impl WinMessageHandler for DemoWindow {
     fn WM_CREATE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
         eprintln!("WM_CREATE");
         self.create_handler().expect("WM_CREATE");
