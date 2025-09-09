@@ -16,10 +16,7 @@ pub trait BaseWinMessageHandler {
 }
 
 pub trait WinNcCreate {
-    #[inline(always)]
-    fn WM_NCCREATE(&mut self, hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
-        None
-    }
+    fn WM_NCCREATE(&mut self, hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT>;
 }
 
 pub trait WinMessageHandler: BaseWinMessageHandler + WinNcCreate {
