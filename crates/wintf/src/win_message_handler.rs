@@ -4,11 +4,11 @@
 
 use std::ffi::c_void;
 use std::rc::*;
-use windows::Win32::Foundation::*;
-use windows::Win32::Graphics::Dwm::*;
-use windows::Win32::UI::Controls::*;
-use windows::Win32::UI::Input::KeyboardAndMouse::*;
-use windows::Win32::UI::WindowsAndMessaging::*;
+use windows::Win32::{
+    Foundation::*,
+    Graphics::Dwm::*,
+    UI::{Controls::*, Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
+};
 
 pub trait BaseWindowMessageHandler {
     fn message_handler(&mut self, hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT;
