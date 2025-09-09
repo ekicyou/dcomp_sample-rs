@@ -5,6 +5,7 @@
 use std::ffi::c_void;
 use std::rc::*;
 use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Dwm::*;
 use windows::Win32::UI::Controls::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -1332,10 +1333,18 @@ impl<T: WindowMessageHandler> BaseWindowMessageHandler for T {
             // その他
             _ => None,
         };
-        match handled {
-            Some(res) => res,
-            None => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
+        if let Some(res) = handled {
+            return res;
         }
+
+        // DWMのデフォルト
+        let mut res = LRESULT(0);
+        if unsafe { DwmDefWindowProc(hwnd, msg, wparam, lparam, &mut res as *mut _) }.as_bool() {
+            return res;
+        }
+
+        // デフォルト処理
+        unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
     }
 }
 
