@@ -7,7 +7,7 @@ use std::ffi::c_void;
 use std::rc::*;
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
-pub trait WinMessageHandlerIntoBoxedPtr {
+pub(crate) trait WinMessageHandlerIntoBoxedPtr {
     fn into_boxed_ptr(self) -> *mut c_void;
 }
 
