@@ -15,8 +15,11 @@ publish = false
 human-panic = "2.0.3"
 rand = "0.9.2"
 windows-numerics = "0.3.0"
-async-executor = "1.13.3"
 async-task = "4.7.1"
+
+[workspace.dependencies.async-executor]
+version = "1.13.3"
+features = ["static"]
 
 [workspace.dependencies.windows]
 version = "0.62.0"
