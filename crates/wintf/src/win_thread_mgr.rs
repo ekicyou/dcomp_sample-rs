@@ -63,11 +63,11 @@ impl WinProcessSingleton {
     }
 }
 
-pub struct WinThreadMgr<'a> {
-    executor_normal: Executor<'a>,
+pub struct WinThreadMgr {
+    executor_normal: Executor<'static>,
 }
 
-impl<'a> WinThreadMgr<'a> {
+impl WinThreadMgr {
     pub fn new() -> Result<Self> {
         unsafe {
             CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
@@ -121,7 +121,10 @@ impl<'a> WinThreadMgr<'a> {
         }
     }
 
-    pub fn spawn_normal<T: Send + 'a>(&self, fut: impl Future<Output = T> + Send + 'a) -> Task<T> {
+    pub fn spawn_normal<T: Send + 'static>(
+        &self,
+        fut: impl Future<Output = T> + Send + 'static,
+    ) -> Task<T> {
         self.executor_normal.spawn(fut)
     }
 
