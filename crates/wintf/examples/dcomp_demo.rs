@@ -47,7 +47,11 @@ fn main() -> Result<()> {
         CW_USEDEFAULT,
         None,
     )?;
-
+    println!("spawn_normal: set");
+    mgr.spawn_normal(async {
+        println!("spawn_normal: execute");
+    })
+    .detach();
     mgr.run()
 }
 

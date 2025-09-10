@@ -1,11 +1,13 @@
 use crate::win_message_handler::*;
 use crate::winproc::*;
+use async_executor::*;
+use std::future::*;
 use std::rc::*;
 use std::sync::*;
 use windows::core::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::System::Com::*;
-use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::System::LibraryLoader::*;
 use windows::Win32::UI::HiDpi::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -47,6 +49,7 @@ impl WinProcessSingleton {
                 ..Default::default()
             };
             unsafe {
+                let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
                 if RegisterClassExW(&wc) == 0 {
                     panic!("Failed to register window class");
                 }
@@ -60,15 +63,20 @@ impl WinProcessSingleton {
     }
 }
 
-pub struct WinThreadMgr {}
+pub struct WinThreadMgr<'a> {
+    executor_normal: Executor<'a>,
+}
 
-impl WinThreadMgr {
+impl<'a> WinThreadMgr<'a> {
     pub fn new() -> Result<Self> {
         unsafe {
             CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
-            SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         }
-        Ok(WinThreadMgr {})
+        let rc = WinThreadMgr {
+            executor_normal: Executor::new(),
+        };
+        let _ = rc.instance();
+        Ok(rc)
     }
 
     pub fn instance(&self) -> HINSTANCE {
@@ -113,14 +121,35 @@ impl WinThreadMgr {
         }
     }
 
+    pub fn spawn_normal<T: Send + 'a>(&self, fut: impl Future<Output = T> + Send + 'a) -> Task<T> {
+        self.executor_normal.spawn(fut)
+    }
+
     pub fn run(&mut self) -> Result<()> {
         let mut msg = MSG::default();
         unsafe {
-            while GetMessageW(&mut msg, None, 0, 0).into() {
-                let _ = TranslateMessage(&msg);
-                DispatchMessageW(&msg);
+            loop {
+                if PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                    if msg.message == WM_QUIT {
+                        break;
+                    }
+                    let _ = TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                    continue;
+                }
+
+                if self.try_tick_normal() {
+                    continue;
+                }
+
+                // メッセージがない場合は待機
+                let _ = WaitMessage();
             }
         }
         Ok(())
+    }
+
+    fn try_tick_normal(&self) -> bool {
+        self.executor_normal.try_tick()
     }
 }
