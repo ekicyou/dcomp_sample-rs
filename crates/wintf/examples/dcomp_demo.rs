@@ -1,5 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use std::rc::*;
+use std::sync::*;
 
 use windows::{
     core::*,
@@ -27,7 +27,7 @@ fn main() -> Result<()> {
     human_panic::setup_panic!();
 
     let mut mgr = WinThreadMgr::new()?;
-    let window = Rc::new(DemoWindow::new()?);
+    let window = Arc::new(DemoWindow::new()?);
     let (style, ex_style) = WinStyle::WS_OVERLAPPED()
         .WS_CAPTION(true)
         .WS_SYSMENU(true)
@@ -48,8 +48,9 @@ fn main() -> Result<()> {
         None,
     )?;
     println!("spawn_normal: set");
-    mgr.spawn_normal(async {
-        println!("spawn_normal: execute");
+    let move_win = window.clone();
+    mgr.spawn_normal(async move {
+        println!("spawn_normal: execute: hwnd={:?}", move_win.hwnd());
     })
     .detach();
     mgr.run()
@@ -84,6 +85,9 @@ struct DemoWindow {
     dcomp: Option<IDCompositionDevice3>,
     target: Option<IDCompositionTarget>,
 }
+
+unsafe impl Send for DemoWindow {}
+unsafe impl Sync for DemoWindow {}
 
 impl WinState for DemoWindow {
     fn hwnd(&self) -> HWND {

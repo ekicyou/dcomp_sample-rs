@@ -2,7 +2,6 @@ use crate::win_message_handler::*;
 use crate::winproc::*;
 use async_executor::*;
 use std::future::*;
-use std::rc::*;
 use std::sync::*;
 use windows::core::*;
 use windows::Win32::Foundation::*;
@@ -86,7 +85,7 @@ impl WinThreadMgr {
 
     pub fn create_window(
         &mut self,
-        handler: Rc<dyn BaseWinMessageHandler>,
+        handler: Arc<dyn BaseWinMessageHandler>,
         window_name: &str,
         style: WINDOW_STYLE,
         ex_style: WINDOW_EX_STYLE,

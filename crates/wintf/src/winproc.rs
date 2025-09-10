@@ -4,14 +4,14 @@
 
 use crate::win_message_handler::*;
 use std::ffi::c_void;
-use std::rc::*;
+use std::sync::*;
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
 pub(crate) trait WinMessageHandlerIntoBoxedPtr {
     fn into_boxed_ptr(self) -> *mut c_void;
 }
 
-impl WinMessageHandlerIntoBoxedPtr for Rc<dyn BaseWinMessageHandler> {
+impl WinMessageHandlerIntoBoxedPtr for Arc<dyn BaseWinMessageHandler> {
     fn into_boxed_ptr(self) -> *mut c_void {
         let boxed = Box::new(self);
         let raw = Box::into_raw(boxed);
@@ -25,7 +25,7 @@ fn get_boxed_ptr<'a>(ptr: *mut c_void) -> Option<&'a mut dyn BaseWinMessageHandl
         return None;
     }
     unsafe {
-        let raw: *mut Rc<dyn WinMessageHandler> = ptr as _;
+        let raw: *mut Arc<dyn WinMessageHandler> = ptr as _;
         let handler = &**raw;
         #[allow(mutable_transmutes)]
         let handler = std::mem::transmute::<_, &mut dyn BaseWinMessageHandler>(handler);
@@ -33,12 +33,12 @@ fn get_boxed_ptr<'a>(ptr: *mut c_void) -> Option<&'a mut dyn BaseWinMessageHandl
     }
 }
 
-fn from_boxed_ptr(ptr: *mut c_void) -> Option<Rc<dyn BaseWinMessageHandler>> {
+fn from_boxed_ptr(ptr: *mut c_void) -> Option<Arc<dyn BaseWinMessageHandler>> {
     if ptr.is_null() {
         return None;
     }
     unsafe {
-        let raw: *mut Rc<dyn BaseWinMessageHandler> = ptr as _;
+        let raw: *mut Arc<dyn BaseWinMessageHandler> = ptr as _;
         let boxed = Box::from_raw(raw);
         Some(*boxed)
     }
