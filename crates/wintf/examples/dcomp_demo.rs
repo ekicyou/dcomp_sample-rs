@@ -219,21 +219,19 @@ impl DemoWindow {
 
             let bitmap = dc.CreateBitmapFromWicBitmap(&self.image, None)?;
             let dpi = self.dpi();
-            let width = logical_to_physical(CARD_WIDTH, dpi.0);
-            let height = logical_to_physical(CARD_HEIGHT, dpi.1);
+            let width = dpi.x.logical_to_physical(CARD_WIDTH);
+            let height = dpi.y.logical_to_physical(CARD_HEIGHT);
 
             for row in 0..CARD_ROWS {
                 for column in 0..CARD_COLUMNS {
                     let card = &mut self.cards[row * CARD_COLUMNS + column];
 
                     card.offset = (
-                        logical_to_physical(
+                        dpi.x.logical_to_physical(
                             column as f32 * (CARD_WIDTH + CARD_MARGIN) + CARD_MARGIN,
-                            dpi.0,
                         ),
-                        logical_to_physical(
+                        dpi.y.logical_to_physical(
                             row as f32 * (CARD_HEIGHT + CARD_MARGIN) + CARD_MARGIN,
-                            dpi.1,
                         ),
                     );
 
@@ -280,12 +278,13 @@ impl DemoWindow {
     }
 
     fn effective_window_size(&self) -> Result<(i32, i32)> {
+        let dpi = self.dpi();
         unsafe {
             let mut rect = RECT {
                 left: 0,
                 top: 0,
-                right: logical_to_physical(WINDOW_WIDTH, self.dpi().0) as i32,
-                bottom: logical_to_physical(WINDOW_HEIGHT, self.dpi().1) as i32,
+                right: dpi.x.logical_to_physical(WINDOW_WIDTH) as i32,
+                bottom: dpi.y.logical_to_physical(WINDOW_HEIGHT) as i32,
             };
 
             AdjustWindowRect(
@@ -299,12 +298,13 @@ impl DemoWindow {
     }
 
     fn click_handler(&mut self, lparam: LPARAM) -> Result<()> {
+        let dpi = self.dpi();
         unsafe {
             let x = lparam.0 as u16 as f32;
             let y = (lparam.0 >> 16) as f32;
 
-            let width = logical_to_physical(CARD_WIDTH, self.dpi().0);
-            let height = logical_to_physical(CARD_HEIGHT, self.dpi().1);
+            let width = dpi.x.logical_to_physical(CARD_WIDTH);
+            let height = dpi.y.logical_to_physical(CARD_HEIGHT);
             let mut next = None;
 
             for (index, card) in self.cards.iter().enumerate() {
@@ -410,7 +410,7 @@ impl DemoWindow {
 
     fn dpi_changed_handler(&mut self, wparam: WPARAM, lparam: LPARAM) -> Result<()> {
         unsafe {
-            self.set_dpi_from_message(wparam, lparam);
+            self.set_dpi_change_message(wparam, lparam);
 
             if cfg!(debug_assertions) {
                 println!("dpi changed: {:?}", self.dpi());
@@ -439,7 +439,7 @@ impl DemoWindow {
             let monitor = MonitorFromWindow(self.hwnd(), MONITOR_DEFAULTTONEAREST);
             let mut dpi = (0, 0);
             GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi.0, &mut dpi.1)?;
-            self.set_dpi((dpi.0 as f32, dpi.1 as f32));
+            self.set_dpi(Dpi::new((dpi.0 as f32, dpi.1 as f32)));
 
             if cfg!(debug_assertions) {
                 println!("initial dpi: {:?}", self.dpi());
@@ -617,11 +617,11 @@ fn create_effect(
     visual: &IDCompositionVisual3,
     rotation: &IDCompositionRotateTransform3D,
     front: bool,
-    dpi: (f32, f32),
+    dpi: Dpi,
 ) -> Result<()> {
     unsafe {
-        let width = logical_to_physical(CARD_WIDTH, dpi.0);
-        let height = logical_to_physical(CARD_HEIGHT, dpi.1);
+        let width = dpi.x.logical_to_physical(CARD_WIDTH);
+        let height = dpi.y.logical_to_physical(CARD_HEIGHT);
 
         let pre_matrix = Matrix4x4::translation(-width / 2.0, -height / 2.0, 0.0)
             * Matrix4x4::rotation_y(if front { 180.0 } else { 0.0 });
@@ -650,16 +650,16 @@ fn draw_card_front(
     value: u8,
     format: &IDWriteTextFormat,
     brush: &ID2D1SolidColorBrush,
-    dpi: (f32, f32),
+    dpi: Dpi,
 ) -> Result<()> {
     unsafe {
         let mut offset = Default::default();
         let dc: ID2D1DeviceContext = surface.BeginDraw(None, &mut offset)?;
-        dc.SetDpi(dpi.0, dpi.1);
+        dc.SetDpi(dpi.x.get(), dpi.y.get());
 
         dc.SetTransform(&Matrix3x2::translation(
-            physical_to_logical(offset.x as f32, dpi.0),
-            physical_to_logical(offset.y as f32, dpi.1),
+            dpi.x.physical_to_logical(offset.x as f32),
+            dpi.y.physical_to_logical(offset.y as f32),
         ));
 
         dc.Clear(Some(&D2D1_COLOR_F {
@@ -691,20 +691,20 @@ fn draw_card_back(
     surface: &IDCompositionSurface,
     bitmap: &ID2D1Bitmap1,
     offset: (f32, f32),
-    dpi: (f32, f32),
+    dpi: Dpi,
 ) -> Result<()> {
     unsafe {
         let mut dc_offset = Default::default();
         let dc: ID2D1DeviceContext = surface.BeginDraw(None, &mut dc_offset)?;
-        dc.SetDpi(dpi.0, dpi.1);
+        dc.SetDpi(dpi.x.get(), dpi.y.get());
 
         dc.SetTransform(&Matrix3x2::translation(
-            physical_to_logical(dc_offset.x as f32, dpi.0),
-            physical_to_logical(dc_offset.y as f32, dpi.1),
+            dpi.x.physical_to_logical(dc_offset.x as f32),
+            dpi.y.physical_to_logical(dc_offset.y as f32),
         ));
 
-        let left = physical_to_logical(offset.0, dpi.0);
-        let top = physical_to_logical(offset.1, dpi.1);
+        let left = dpi.x.physical_to_logical(offset.0);
+        let top = dpi.y.physical_to_logical(offset.1);
 
         dc.DrawBitmap(
             bitmap,
@@ -722,12 +722,4 @@ fn draw_card_back(
 
         surface.EndDraw()
     }
-}
-
-fn physical_to_logical(pixel: f32, dpi: f32) -> f32 {
-    pixel * 96.0 / dpi
-}
-
-fn logical_to_physical(pixel: f32, dpi: f32) -> f32 {
-    pixel * dpi / 96.0
 }

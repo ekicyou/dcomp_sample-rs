@@ -13,21 +13,16 @@ pub struct Dpi {
 }
 
 impl Dpi {
-    pub fn new(x: f32, y: f32) -> Self {
+    pub fn new(dpi: (f32, f32)) -> Self {
         Self {
-            x: DpiValue(x),
-            y: DpiValue(y),
+            x: DpiValue(dpi.0),
+            y: DpiValue(dpi.1),
         }
     }
 
-    pub fn set(&mut self, dpi: (f32, f32)) {
-        self.x = DpiValue(dpi.0);
-        self.y = DpiValue(dpi.1);
-    }
-
-    pub fn set_dpi_from_message(&mut self, wparam: WPARAM, _lparam: LPARAM) {
+    pub fn from_dpi_change_message(wparam: WPARAM, _lparam: LPARAM) -> Self {
         let dpi = (wparam.0 as u16 as f32, (wparam.0 >> 16) as f32);
-        self.set(dpi);
+        Self::new(dpi)
     }
 }
 
@@ -57,12 +52,12 @@ pub trait WinState {
 
     fn set_mouse_tracking(&mut self, tracking: bool) {}
 
-    fn dpi(&self) -> (f32, f32);
+    fn dpi(&self) -> Dpi;
 
-    fn set_dpi(&mut self, dpi: (f32, f32));
+    fn set_dpi(&mut self, dpi: Dpi);
 
-    fn set_dpi_from_message(&mut self, wparam: WPARAM, _lparam: LPARAM) {
-        let dpi = (wparam.0 as u16 as f32, (wparam.0 >> 16) as f32);
+    fn set_dpi_change_message(&mut self, wparam: WPARAM, _lparam: LPARAM) {
+        let dpi = Dpi::from_dpi_change_message(wparam, _lparam);
         self.set_dpi(dpi);
     }
 }
@@ -71,7 +66,7 @@ pub trait WinState {
 pub struct SimpleWinState {
     hwnd: HWND,
     mouse_tracking: bool,
-    dpi: (f32, f32),
+    dpi: Dpi,
 }
 
 impl WinState for SimpleWinState {
@@ -91,11 +86,11 @@ impl WinState for SimpleWinState {
         self.mouse_tracking = tracking;
     }
 
-    fn dpi(&self) -> (f32, f32) {
+    fn dpi(&self) -> Dpi {
         self.dpi
     }
 
-    fn set_dpi(&mut self, dpi: (f32, f32)) {
+    fn set_dpi(&mut self, dpi: Dpi) {
         self.dpi = dpi;
     }
 }
