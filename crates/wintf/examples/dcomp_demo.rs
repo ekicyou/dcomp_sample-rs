@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use std::sync::*;
 
+use std::sync::*;
 use windows::{
     core::*,
     Win32::{
@@ -12,7 +12,6 @@ use windows::{
     },
 };
 use windows_numerics::*;
-
 use wintf::*;
 
 const CARD_ROWS: usize = 3;
@@ -26,7 +25,7 @@ const WINDOW_HEIGHT: f32 = CARD_ROWS as f32 * (CARD_HEIGHT + CARD_MARGIN) + CARD
 fn main() -> Result<()> {
     human_panic::setup_panic!();
 
-    let mut mgr = WinThreadMgr::new()?;
+    let mgr = WinThreadMgr::new()?;
     let window = Arc::new(DemoWindow::new()?);
     let (style, ex_style) = WinStyle::WS_OVERLAPPED()
         .WS_CAPTION(true)

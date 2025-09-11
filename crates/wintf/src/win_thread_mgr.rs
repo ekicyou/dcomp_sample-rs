@@ -2,6 +2,7 @@ use crate::win_message_handler::*;
 use crate::winproc::*;
 use async_executor::*;
 use std::future::*;
+use std::ops::Deref;
 use std::sync::*;
 use windows::core::*;
 use windows::Win32::Foundation::*;
@@ -62,16 +63,34 @@ impl WinProcessSingleton {
     }
 }
 
-pub struct WinThreadMgr {
-    executor_normal: Executor<'static>,
-}
+#[derive(Clone)]
+pub struct WinThreadMgr(Arc<WinThreadMgrInner>);
 
 impl WinThreadMgr {
     pub fn new() -> Result<Self> {
+        let inner = Arc::new(WinThreadMgrInner::new()?);
+        Ok(Self(inner))
+    }
+}
+
+impl Deref for WinThreadMgr {
+    type Target = Arc<WinThreadMgrInner>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Debug)]
+pub struct WinThreadMgrInner {
+    executor_normal: Executor<'static>,
+}
+
+impl WinThreadMgrInner {
+    fn new() -> Result<Self> {
         unsafe {
             CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
         }
-        let rc = WinThreadMgr {
+        let rc = WinThreadMgrInner {
             executor_normal: Executor::new(),
         };
         let _ = rc.instance();
@@ -84,7 +103,7 @@ impl WinThreadMgr {
     }
 
     pub fn create_window(
-        &mut self,
+        &self,
         handler: Arc<dyn BaseWinMessageHandler>,
         window_name: &str,
         style: WINDOW_STYLE,
@@ -127,7 +146,7 @@ impl WinThreadMgr {
         self.executor_normal.spawn(fut)
     }
 
-    pub fn run(&mut self) -> Result<()> {
+    pub fn run(&self) -> Result<()> {
         let mut msg = MSG::default();
         unsafe {
             loop {
