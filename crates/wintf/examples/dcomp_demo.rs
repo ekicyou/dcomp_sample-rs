@@ -75,7 +75,6 @@ struct Card {
 #[delegate(WinState, target = "win_state")]
 struct DemoWindow {
     win_state: SimpleWinState,
-    dpi: (f32, f32),
     format: IDWriteTextFormat,
     image: IWICFormatConverter,
     manager: IUIAnimationManager2,
@@ -174,7 +173,6 @@ impl DemoWindow {
 
             Ok(DemoWindow {
                 win_state: Default::default(),
-                dpi: (0.0, 0.0),
                 format: create_text_format()?,
                 image: create_image()?,
                 manager,
@@ -220,8 +218,9 @@ impl DemoWindow {
             )?;
 
             let bitmap = dc.CreateBitmapFromWicBitmap(&self.image, None)?;
-            let width = logical_to_physical(CARD_WIDTH, self.dpi.0);
-            let height = logical_to_physical(CARD_HEIGHT, self.dpi.1);
+            let dpi = self.dpi();
+            let width = logical_to_physical(CARD_WIDTH, dpi.0);
+            let height = logical_to_physical(CARD_HEIGHT, dpi.1);
 
             for row in 0..CARD_ROWS {
                 for column in 0..CARD_COLUMNS {
@@ -230,11 +229,11 @@ impl DemoWindow {
                     card.offset = (
                         logical_to_physical(
                             column as f32 * (CARD_WIDTH + CARD_MARGIN) + CARD_MARGIN,
-                            self.dpi.0,
+                            dpi.0,
                         ),
                         logical_to_physical(
                             row as f32 * (CARD_HEIGHT + CARD_MARGIN) + CARD_MARGIN,
-                            self.dpi.1,
+                            dpi.1,
                         ),
                     );
 
@@ -254,11 +253,11 @@ impl DemoWindow {
 
                     let front_surface = create_surface(&dcomp, width, height)?;
                     front_visual.SetContent(&front_surface)?;
-                    draw_card_front(&front_surface, card.value, &self.format, &brush, self.dpi)?;
+                    draw_card_front(&front_surface, card.value, &self.format, &brush, dpi)?;
 
                     let back_surface = create_surface(&dcomp, width, height)?;
                     back_visual.SetContent(&back_surface)?;
-                    draw_card_back(&back_surface, &bitmap, card.offset, self.dpi)?;
+                    draw_card_back(&back_surface, &bitmap, card.offset, dpi)?;
 
                     let rotation = dcomp.CreateRotateTransform3D()?;
 
@@ -268,8 +267,8 @@ impl DemoWindow {
 
                     rotation.SetAxisZ2(0.0)?;
                     rotation.SetAxisY2(1.0)?;
-                    create_effect(&dcomp, &front_visual, &rotation, true, self.dpi)?;
-                    create_effect(&dcomp, &back_visual, &rotation, false, self.dpi)?;
+                    create_effect(&dcomp, &front_visual, &rotation, true, dpi)?;
+                    create_effect(&dcomp, &back_visual, &rotation, false, dpi)?;
                     card.rotation = Some(rotation);
                 }
             }
@@ -285,8 +284,8 @@ impl DemoWindow {
             let mut rect = RECT {
                 left: 0,
                 top: 0,
-                right: logical_to_physical(WINDOW_WIDTH, self.dpi.0) as i32,
-                bottom: logical_to_physical(WINDOW_HEIGHT, self.dpi.1) as i32,
+                right: logical_to_physical(WINDOW_WIDTH, self.dpi().0) as i32,
+                bottom: logical_to_physical(WINDOW_HEIGHT, self.dpi().1) as i32,
             };
 
             AdjustWindowRect(
@@ -304,8 +303,8 @@ impl DemoWindow {
             let x = lparam.0 as u16 as f32;
             let y = (lparam.0 >> 16) as f32;
 
-            let width = logical_to_physical(CARD_WIDTH, self.dpi.0);
-            let height = logical_to_physical(CARD_HEIGHT, self.dpi.1);
+            let width = logical_to_physical(CARD_WIDTH, self.dpi().0);
+            let height = logical_to_physical(CARD_HEIGHT, self.dpi().1);
             let mut next = None;
 
             for (index, card) in self.cards.iter().enumerate() {
@@ -411,10 +410,10 @@ impl DemoWindow {
 
     fn dpi_changed_handler(&mut self, wparam: WPARAM, lparam: LPARAM) -> Result<()> {
         unsafe {
-            self.dpi = (wparam.0 as u16 as f32, (wparam.0 >> 16) as f32);
+            self.set_dpi_from_message(wparam, lparam);
 
             if cfg!(debug_assertions) {
-                println!("dpi changed: {:?}", self.dpi);
+                println!("dpi changed: {:?}", self.dpi());
             }
 
             let rect = &*(lparam.0 as *const RECT);
@@ -440,10 +439,10 @@ impl DemoWindow {
             let monitor = MonitorFromWindow(self.hwnd(), MONITOR_DEFAULTTONEAREST);
             let mut dpi = (0, 0);
             GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi.0, &mut dpi.1)?;
-            self.dpi = (dpi.0 as f32, dpi.1 as f32);
+            self.set_dpi((dpi.0 as f32, dpi.1 as f32));
 
             if cfg!(debug_assertions) {
-                println!("initial dpi: {:?}", self.dpi);
+                println!("initial dpi: {:?}", self.dpi());
             }
 
             let size = self.effective_window_size()?;
