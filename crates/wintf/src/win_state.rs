@@ -31,12 +31,12 @@ impl DpiValue {
         self.0
     }
 
-    pub fn physical_to_logical(&self, pixel: f32) -> f32 {
-        pixel * 96.0 / self.get()
+    pub fn physical_to_logical(&self, physical: f32) -> f32 {
+        physical * 96.0 / self.get()
     }
 
-    pub fn logical_to_physical(&self, pixel: f32) -> f32 {
-        pixel * self.get() / 96.0
+    pub fn logical_to_physical(&self, logical: f32) -> f32 {
+        logical * self.get() / 96.0
     }
 }
 
