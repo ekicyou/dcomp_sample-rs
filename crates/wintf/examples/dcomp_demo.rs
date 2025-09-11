@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use ambassador::*;
 use std::sync::*;
 use windows::{
     core::*,
@@ -70,9 +71,10 @@ struct Card {
     rotation: Option<IDCompositionRotateTransform3D>,
 }
 
+#[derive(Delegate)]
+#[delegate(WinState, target = "win_state")]
 struct DemoWindow {
-    handle: HWND,
-    mouse_tracking: bool,
+    win_state: SimpleWinState,
     dpi: (f32, f32),
     format: IDWriteTextFormat,
     image: IWICFormatConverter,
@@ -87,24 +89,6 @@ struct DemoWindow {
 
 unsafe impl Send for DemoWindow {}
 unsafe impl Sync for DemoWindow {}
-
-impl WinState for DemoWindow {
-    fn hwnd(&self) -> HWND {
-        self.handle
-    }
-
-    fn set_hwnd(&mut self, hwnd: HWND) {
-        self.handle = hwnd;
-    }
-
-    fn mouse_tracking(&self) -> bool {
-        self.mouse_tracking
-    }
-
-    fn set_mouse_tracking(&mut self, tracking: bool) {
-        self.mouse_tracking = tracking;
-    }
-}
 
 impl WinMessageHandler for DemoWindow {
     fn WM_CREATE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
@@ -189,8 +173,7 @@ impl DemoWindow {
                 CoCreateInstance(&UIAnimationTransitionLibrary2, None, CLSCTX_INPROC_SERVER)?;
 
             Ok(DemoWindow {
-                handle: Default::default(),
-                mouse_tracking: false,
+                win_state: Default::default(),
                 dpi: (0.0, 0.0),
                 format: create_text_format()?,
                 image: create_image()?,
@@ -219,7 +202,7 @@ impl DemoWindow {
 
             // 以前のターゲットを最初にリリースします。そうしないと `CreateTargetForHwnd` が HWND が占有されていることを検出します。
             self.target = None;
-            let target = desktop.CreateTargetForHwnd(self.handle, true)?;
+            let target = desktop.CreateTargetForHwnd(self.hwnd(), true)?;
             let root_visual = create_visual(&dcomp)?;
             target.SetRoot(&root_visual)?;
             self.target = Some(target);
@@ -308,7 +291,7 @@ impl DemoWindow {
 
             AdjustWindowRect(
                 &mut rect,
-                WINDOW_STYLE(GetWindowLongW(self.handle, GWL_STYLE) as u32),
+                WINDOW_STYLE(GetWindowLongW(self.hwnd(), GWL_STYLE) as u32),
                 false,
             )?;
 
@@ -422,7 +405,7 @@ impl DemoWindow {
                 self.create_device_resources()?;
             }
 
-            ValidateRect(Some(self.handle), None).ok()
+            ValidateRect(Some(self.hwnd()), None).ok()
         }
     }
 
@@ -438,7 +421,7 @@ impl DemoWindow {
             let size = self.effective_window_size()?;
 
             SetWindowPos(
-                self.handle,
+                self.hwnd(),
                 None,
                 rect.left,
                 rect.top,
@@ -454,7 +437,7 @@ impl DemoWindow {
 
     fn create_handler(&mut self) -> Result<()> {
         unsafe {
-            let monitor = MonitorFromWindow(self.handle, MONITOR_DEFAULTTONEAREST);
+            let monitor = MonitorFromWindow(self.hwnd(), MONITOR_DEFAULTTONEAREST);
             let mut dpi = (0, 0);
             GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi.0, &mut dpi.1)?;
             self.dpi = (dpi.0 as f32, dpi.1 as f32);
@@ -466,7 +449,7 @@ impl DemoWindow {
             let size = self.effective_window_size()?;
 
             SetWindowPos(
-                self.handle,
+                self.hwnd(),
                 None,
                 0,
                 0,

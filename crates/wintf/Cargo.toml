@@ -5,6 +5,7 @@ edition = { workspace = true }
 publish = { workspace = true }
 
 [dependencies]
+ambassador ={ workspace = true }
 async-executor = { workspace = true }
 async-task = { workspace = true }
 windows = { workspace = true }

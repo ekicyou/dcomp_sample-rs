@@ -3,20 +3,24 @@
 #![allow(dead_code)]
 
 use crate::win_state::*;
+use ambassador::*;
 use windows::Win32::{
     Foundation::*,
     Graphics::Dwm::*,
     UI::{Controls::*, Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
 };
 
+#[delegatable_trait]
 pub trait BaseWinMessageHandler {
     fn message_handler(&mut self, hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT;
 }
 
+#[delegatable_trait]
 pub trait WinNcCreate {
     fn WM_NCCREATE(&mut self, hwnd: HWND, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT>;
 }
 
+#[delegatable_trait]
 pub trait WinMessageHandler: BaseWinMessageHandler + WinNcCreate {
     /// 生のメッセージハンドラ
     #[inline(always)]
