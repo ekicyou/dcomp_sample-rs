@@ -54,11 +54,11 @@ pub trait WinState {
 
     fn dpi(&self) -> Dpi;
 
-    fn set_dpi(&mut self, dpi: Dpi);
+    fn set_dpi(&mut self, x: f32, y: f32);
 
     fn set_dpi_change_message(&mut self, wparam: WPARAM, _lparam: LPARAM) {
         let dpi = Dpi::from_dpi_change_message(wparam, _lparam);
-        self.set_dpi(dpi);
+        self.set_dpi(dpi.x.get(), dpi.y.get());
     }
 }
 
@@ -90,7 +90,7 @@ impl WinState for SimpleWinState {
         self.dpi
     }
 
-    fn set_dpi(&mut self, dpi: Dpi) {
-        self.dpi = dpi;
+    fn set_dpi(&mut self, x: f32, y: f32) {
+        self.dpi = Dpi::new((x, y));
     }
 }

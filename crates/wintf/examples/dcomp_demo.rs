@@ -439,7 +439,7 @@ impl DemoWindow {
             let monitor = MonitorFromWindow(self.hwnd(), MONITOR_DEFAULTTONEAREST);
             let mut dpi = (0, 0);
             GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi.0, &mut dpi.1)?;
-            self.set_dpi(Dpi::new((dpi.0 as f32, dpi.1 as f32)));
+            self.set_dpi(dpi.0 as f32, dpi.1 as f32);
 
             if cfg!(debug_assertions) {
                 println!("initial dpi: {:?}", self.dpi());
