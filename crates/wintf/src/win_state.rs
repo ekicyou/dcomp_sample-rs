@@ -1,44 +1,9 @@
+#![allow(non_snake_case)]
 #![allow(unused_variables)]
 
+use crate::dpi::*;
 use ambassador::*;
 use windows::Win32::Foundation::*;
-
-#[derive(Debug, Default, Clone, Copy)]
-pub struct DpiValue(f32);
-
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Dpi {
-    pub x: DpiValue,
-    pub y: DpiValue,
-}
-
-impl Dpi {
-    pub fn new(dpi: (f32, f32)) -> Self {
-        Self {
-            x: DpiValue(dpi.0),
-            y: DpiValue(dpi.1),
-        }
-    }
-
-    pub fn from_dpi_change_message(wparam: WPARAM, _lparam: LPARAM) -> Self {
-        let dpi = (wparam.0 as u16 as f32, (wparam.0 >> 16) as f32);
-        Self::new(dpi)
-    }
-}
-
-impl DpiValue {
-    pub fn get(&self) -> f32 {
-        self.0
-    }
-
-    pub fn physical_to_logical(&self, physical: f32) -> f32 {
-        physical * 96.0 / self.get()
-    }
-
-    pub fn logical_to_physical(&self, logical: f32) -> f32 {
-        logical * self.get() / 96.0
-    }
-}
 
 #[delegatable_trait]
 pub trait WinState {
@@ -54,11 +19,11 @@ pub trait WinState {
 
     fn dpi(&self) -> Dpi;
 
-    fn set_dpi(&mut self, x: f32, y: f32);
+    fn set_dpi(&mut self, dpi: Dpi);
 
-    fn set_dpi_change_message(&mut self, wparam: WPARAM, _lparam: LPARAM) {
-        let dpi = Dpi::from_dpi_change_message(wparam, _lparam);
-        self.set_dpi(dpi.x.get(), dpi.y.get());
+    fn set_dpi_change_message(&mut self, wparam: WPARAM, lparam: LPARAM) {
+        let dpi = Dpi::from_WM_DPICHANGED(wparam, lparam);
+        self.set_dpi(dpi);
     }
 }
 
@@ -90,7 +55,7 @@ impl WinState for SimpleWinState {
         self.dpi
     }
 
-    fn set_dpi(&mut self, x: f32, y: f32) {
-        self.dpi = Dpi::new((x, y));
+    fn set_dpi(&mut self, dpi: Dpi) {
+        self.dpi = dpi;
     }
 }
