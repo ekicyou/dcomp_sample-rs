@@ -11,7 +11,7 @@ fn dpi_to_scale_factor(dpi: f32) -> f32 {
 }
 
 #[delegatable_trait]
-pub trait DpiFactor: Clone + Copy {
+pub trait ScaleFactor: Clone + Copy {
     fn value(&self) -> f32;
 
     #[inline]
@@ -50,7 +50,7 @@ impl Dpi {
     }
 }
 
-impl DpiFactor for Dpi {
+impl ScaleFactor for Dpi {
     #[inline]
     fn value(&self) -> f32 {
         self.dpi
@@ -142,30 +142,30 @@ impl From<D2D_RECT_F> for Rect {
     }
 }
 
-pub trait DpiChange {
-    fn to_physical(self, dpi: impl DpiFactor) -> Self;
-    fn to_logical(self, dpi: impl DpiFactor) -> Self;
+pub trait Scalable {
+    fn to_physical(self, dpi: impl ScaleFactor) -> Self;
+    fn to_logical(self, dpi: impl ScaleFactor) -> Self;
 }
 
-impl DpiChange for f32 {
-    fn to_physical(self, dpi: impl DpiFactor) -> Self {
+impl Scalable for f32 {
+    fn to_physical(self, dpi: impl ScaleFactor) -> Self {
         dpi.to_physical(self)
     }
 
-    fn to_logical(self, dpi: impl DpiFactor) -> Self {
+    fn to_logical(self, dpi: impl ScaleFactor) -> Self {
         dpi.to_logical(self)
     }
 }
 
-impl DpiChange for Vector2 {
-    fn to_physical(self, dpi: impl DpiFactor) -> Self {
+impl Scalable for Vector2 {
+    fn to_physical(self, dpi: impl ScaleFactor) -> Self {
         Self {
             X: dpi.to_physical(self.X),
             Y: dpi.to_physical(self.Y),
         }
     }
 
-    fn to_logical(self, dpi: impl DpiFactor) -> Self {
+    fn to_logical(self, dpi: impl ScaleFactor) -> Self {
         Self {
             X: dpi.to_logical(self.X),
             Y: dpi.to_logical(self.Y),
@@ -173,15 +173,15 @@ impl DpiChange for Vector2 {
     }
 }
 
-impl DpiChange for Rect {
-    fn to_physical(self, dpi: impl DpiFactor) -> Self {
+impl Scalable for Rect {
+    fn to_physical(self, dpi: impl ScaleFactor) -> Self {
         Rect {
             point: self.point.to_physical(dpi),
             size: self.size.to_physical(dpi),
         }
     }
 
-    fn to_logical(self, dpi: impl DpiFactor) -> Self {
+    fn to_logical(self, dpi: impl ScaleFactor) -> Self {
         Rect {
             point: self.point.to_logical(dpi),
             size: self.size.to_logical(dpi),
