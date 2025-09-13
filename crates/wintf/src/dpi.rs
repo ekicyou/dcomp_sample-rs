@@ -12,11 +12,11 @@ fn dpi_to_scale_factor(dpi: f32) -> f32 {
 
 #[delegatable_trait]
 pub trait DpiFactor: Clone + Copy {
-    fn dpi(&self) -> f32;
+    fn value(&self) -> f32;
 
     #[inline]
     fn scale_factor(&self) -> f32 {
-        dpi_to_scale_factor(self.dpi())
+        dpi_to_scale_factor(self.value())
     }
 
     #[inline]
@@ -52,7 +52,7 @@ impl Dpi {
 
 impl DpiFactor for Dpi {
     #[inline]
-    fn dpi(&self) -> f32 {
+    fn value(&self) -> f32 {
         self.dpi
     }
 

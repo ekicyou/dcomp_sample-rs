@@ -652,7 +652,7 @@ fn draw_card_front(
     unsafe {
         let mut offset = Default::default();
         let dc: ID2D1DeviceContext = surface.BeginDraw(None, &mut offset)?;
-        dc.SetDpi(dpi.dpi(), dpi.dpi());
+        dc.SetDpi(dpi.value(), dpi.value());
 
         dc.SetTransform(&Matrix3x2::translation(
             (offset.x as f32).to_logical(dpi),
@@ -693,7 +693,7 @@ fn draw_card_back(
     unsafe {
         let mut dc_offset = Default::default();
         let dc: ID2D1DeviceContext = surface.BeginDraw(None, &mut dc_offset)?;
-        dc.SetDpi(dpi.dpi(), dpi.dpi());
+        dc.SetDpi(dpi.value(), dpi.value());
 
         dc.SetTransform(&Matrix3x2::translation(
             (dc_offset.x as f32).to_logical(dpi),
