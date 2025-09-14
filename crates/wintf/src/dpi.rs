@@ -25,13 +25,13 @@ pub trait ScaleFactor: Clone + Copy {
     }
 
     #[inline]
-    fn to_physical(&self, a: f32) -> f32 {
-        a * self.scale_factor()
+    fn to_physical(&self) -> Scale<f32, Lx, Px> {
+        Scale::new(self.scale_factor())
     }
 
     #[inline]
-    fn to_logical(&self, a: f32) -> f32 {
-        a / self.scale_factor()
+    fn to_logical(&self) -> Scale<f32, Px, Lx> {
+        Scale::new(1.0 / self.scale_factor())
     }
 }
 
@@ -95,52 +95,44 @@ impl<T, U: FromDpi<T>> IntoDpi<U> for T {
 
 impl FromDpi<PxLength> for LxLength {
     fn from_dpi(value: PxLength, dpi: impl ScaleFactor) -> Self {
-        let scale: Scale<f32, Px, Lx> = Scale::new(dpi.scale_factor());
-        value * scale
+        value * dpi.to_logical()
     }
 }
 impl FromDpi<LxLength> for PxLength {
     fn from_dpi(value: LxLength, dpi: impl ScaleFactor) -> Self {
-        let scale: Scale<f32, Lx, Px> = Scale::new(1.0 / dpi.scale_factor());
-        value * scale
+        value * dpi.to_physical()
     }
 }
 
 impl FromDpi<PxPoint> for LxPoint {
     fn from_dpi(value: PxPoint, dpi: impl ScaleFactor) -> Self {
-        let scale: Scale<f32, Px, Lx> = Scale::new(dpi.scale_factor());
-        value * scale
+        value * dpi.to_logical()
     }
 }
 impl FromDpi<LxPoint> for PxPoint {
     fn from_dpi(value: LxPoint, dpi: impl ScaleFactor) -> Self {
-        let scale: Scale<f32, Lx, Px> = Scale::new(1.0 / dpi.scale_factor());
-        value * scale
+        value * dpi.to_physical()
     }
 }
 
 impl FromDpi<PxSize> for LxSize {
     fn from_dpi(value: PxSize, dpi: impl ScaleFactor) -> Self {
-        let scale: Scale<f32, Px, Lx> = Scale::new(dpi.scale_factor());
-        value * scale
+        value * dpi.to_logical()
     }
 }
 impl FromDpi<LxSize> for PxSize {
     fn from_dpi(value: LxSize, dpi: impl ScaleFactor) -> Self {
-        let scale: Scale<f32, Lx, Px> = Scale::new(1.0 / dpi.scale_factor());
-        value * scale
+        value * dpi.to_physical()
     }
 }
 
 impl FromDpi<PxRect> for LxRect {
     fn from_dpi(value: PxRect, dpi: impl ScaleFactor) -> Self {
-        let scale: Scale<f32, Px, Lx> = Scale::new(dpi.scale_factor());
-        value * scale
+        value * dpi.to_logical()
     }
 }
 impl FromDpi<LxRect> for PxRect {
     fn from_dpi(value: LxRect, dpi: impl ScaleFactor) -> Self {
-        let scale: Scale<f32, Lx, Px> = Scale::new(1.0 / dpi.scale_factor());
-        value * scale
+        value * dpi.to_physical()
     }
 }
