@@ -2,9 +2,16 @@
 #![allow(unused_variables)]
 
 use ambassador::*;
+use euclid::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Direct2D::Common::*;
 use windows_numerics::*;
+
+// Physical pixels
+pub struct Px;
+
+// Logical pixels
+pub struct Lx;
 
 fn dpi_to_scale_factor(dpi: f32) -> f32 {
     dpi / 96.0
@@ -62,83 +69,34 @@ impl ScaleFactor for Dpi {
     }
 }
 
-pub type Point = Vector2;
+pub type PxLength = Length<f32, Px>;
+pub type LxLength = Length<f32, Lx>;
 
-pub trait PointExt<T> {
-    fn x(&self) -> T;
-    fn y(&self) -> T;
-}
+pub type PxPoint = Point2D<f32, Px>;
+pub type LxPoint = Point2D<f32, Lx>;
 
-impl PointExt<f32> for Point {
-    fn x(&self) -> f32 {
-        self.X
-    }
-    fn y(&self) -> f32 {
-        self.Y
-    }
-}
+pub type PxSize = Size2D<f32, Px>;
+pub type LxSize = Size2D<f32, Lx>;
 
-pub type Size = Vector2;
+pub type PxRect = Rect<f32, Px>;
+pub type LxRect = Rect<f32, Lx>;
 
-pub trait SizeExt<T> {
-    fn width(&self) -> T;
-    fn height(&self) -> T;
-}
-
-impl SizeExt<f32> for Size {
-    fn width(&self) -> f32 {
-        self.X
-    }
-    fn height(&self) -> f32 {
-        self.Y
-    }
-}
-
-#[repr(C)]
-pub struct Rect {
-    pub point: Point,
-    pub size: Size,
-}
-
-impl Rect {
-    pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
+impl<Unit> From<Rect<f32, Unit>> for D2D_RECT_F {
+    fn from(r: Rect<f32, Unit>) -> Self {
         Self {
-            point: Point { X: x, Y: y },
-            size: Size {
-                X: width,
-                Y: height,
-            },
-        }
-    }
-
-    pub fn new_from_point_size(point: Point, size: Size) -> Self {
-        Self { point, size }
-    }
-}
-
-impl From<Rect> for D2D_RECT_F {
-    fn from(r: Rect) -> Self {
-        Self {
-            left: r.point.X,
-            top: r.point.Y,
-            right: r.point.X + r.size.X,
-            bottom: r.point.Y + r.size.Y,
+            left: r.origin.x,
+            top: r.origin.y,
+            right: r.origin.x + r.size.width,
+            bottom: r.origin.y + r.size.height,
         }
     }
 }
 
-impl From<D2D_RECT_F> for Rect {
+impl<Unit> From<D2D_RECT_F> for Rect<f32, Unit> {
     fn from(r: D2D_RECT_F) -> Self {
-        Self {
-            point: Point {
-                X: r.left,
-                Y: r.top,
-            },
-            size: Size {
-                X: r.right - r.left,
-                Y: r.bottom - r.top,
-            },
-        }
+        let origin = Point2D::new(r.left, r.top);
+        let size = Size2D::new(r.right - r.left, r.bottom - r.top);
+        Self::new(origin, size)
     }
 }
 

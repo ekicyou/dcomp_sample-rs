@@ -17,6 +17,7 @@ rand = "0.9.2"
 windows-numerics = "0.3.0"
 async-task = "4.7.1"
 ambassador = "0.4.2"
+euclid = "0.22.11"
 
 [workspace.dependencies.async-executor]
 version = "1.13.3"
