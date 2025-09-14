@@ -17,11 +17,13 @@ use wintf::*;
 
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 6;
-const CARD_MARGIN: f32 = 15.0;
-const CARD_WIDTH: f32 = 150.0;
-const CARD_HEIGHT: f32 = 210.0;
-const WINDOW_WIDTH: f32 = CARD_COLUMNS as f32 * (CARD_WIDTH + CARD_MARGIN) + CARD_MARGIN;
-const WINDOW_HEIGHT: f32 = CARD_ROWS as f32 * (CARD_HEIGHT + CARD_MARGIN) + CARD_MARGIN;
+const CARD_MARGIN: LxLength = LxLength::new(15.0);
+const CARD_WIDTH: LxLength = LxLength::new(150.0);
+const CARD_HEIGHT: LxLength = LxLength::new(210.0);
+const WINDOW_WIDTH: LxLength =
+    LxLength::new((CARD_WIDTH.0 + CARD_MARGIN.0) * (CARD_COLUMNS as f32) + CARD_MARGIN.0);
+const WINDOW_HEIGHT: LxLength =
+    LxLength::new((CARD_HEIGHT.0 + CARD_MARGIN.0) * (CARD_ROWS as f32) + CARD_MARGIN.0);
 
 fn main() -> Result<()> {
     human_panic::setup_panic!();
@@ -66,7 +68,7 @@ enum Status {
 struct Card {
     status: Status,
     value: u8,
-    offset: Point,
+    offset: PxPoint,
     variable: IUIAnimationVariable2,
     rotation: Option<IDCompositionRotateTransform3D>,
 }
@@ -219,30 +221,30 @@ impl DemoWindow {
 
             let bitmap = dc.CreateBitmapFromWicBitmap(&self.image, None)?;
             let dpi = self.dpi();
-            let width = CARD_WIDTH.to_physical(dpi);
-            let height = CARD_HEIGHT.to_physical(dpi);
+            let width: PxLength = CARD_WIDTH.into_dpi(dpi);
+            let height: PxLength = CARD_HEIGHT.into_dpi(dpi);
 
             for row in 0..CARD_ROWS {
                 for column in 0..CARD_COLUMNS {
                     let card = &mut self.cards[row * CARD_COLUMNS + column];
-                    let offset = Point {
-                        X: column as f32 * (CARD_WIDTH + CARD_MARGIN) + CARD_MARGIN,
-                        Y: row as f32 * (CARD_HEIGHT + CARD_MARGIN) + CARD_MARGIN,
-                    };
-                    card.offset = offset.to_physical(dpi);
+                    let offset = LxPoint::from_lengths(
+                        CARD_WIDTH * (column as f32) + CARD_MARGIN,
+                        CARD_HEIGHT * (row as f32) + CARD_MARGIN,
+                    );
+                    card.offset = offset.into_dpi(dpi);
 
                     if card.status == Status::Matched {
                         continue;
                     }
 
                     let front_visual = create_visual(&dcomp)?;
-                    front_visual.SetOffsetX2(card.offset.x())?;
-                    front_visual.SetOffsetY2(card.offset.y())?;
+                    front_visual.SetOffsetX2(card.offset.x)?;
+                    front_visual.SetOffsetY2(card.offset.y)?;
                     root_visual.AddVisual(&front_visual, false, None)?;
 
                     let back_visual = create_visual(&dcomp)?;
-                    back_visual.SetOffsetX2(card.offset.x())?;
-                    back_visual.SetOffsetY2(card.offset.y())?;
+                    back_visual.SetOffsetX2(card.offset.x)?;
+                    back_visual.SetOffsetY2(card.offset.y)?;
                     root_visual.AddVisual(&back_visual, false, None)?;
 
                     let front_surface = create_surface(&dcomp, width, height)?;
@@ -276,12 +278,12 @@ impl DemoWindow {
     fn effective_window_size(&self) -> Result<(i32, i32)> {
         let dpi = self.dpi();
         unsafe {
-            let size = Size::new(WINDOW_WIDTH, WINDOW_HEIGHT).to_physical(dpi);
+            let size: PxSize = LxSize::from_lengths(WINDOW_WIDTH, WINDOW_HEIGHT).into_dpi(dpi);
             let mut rect = RECT {
                 left: 0,
                 top: 0,
-                right: size.width() as i32,
-                bottom: size.height() as i32,
+                right: size.width as i32,
+                bottom: size.height as i32,
             };
 
             AdjustWindowRect(
@@ -300,15 +302,15 @@ impl DemoWindow {
             let x = lparam.0 as u16 as f32;
             let y = (lparam.0 >> 16) as f32;
 
-            let width = CARD_WIDTH.to_physical(dpi);
-            let height = CARD_HEIGHT.to_physical(dpi);
+            let width: PxLength = CARD_WIDTH.into_dpi(dpi);
+            let height: PxLength = CARD_HEIGHT.into_dpi(dpi);
             let mut next = None;
 
             for (index, card) in self.cards.iter().enumerate() {
-                if x > card.offset.x()
-                    && y > card.offset.y()
-                    && x < card.offset.x() + width
-                    && y < card.offset.y() + height
+                if x > card.offset.x
+                    && y > card.offset.y
+                    && x < card.offset.x + width.0
+                    && y < card.offset.y + height.0
                 {
                     next = Some(index);
                     break;
@@ -467,7 +469,7 @@ fn create_text_format() -> Result<IDWriteTextFormat> {
             DWRITE_FONT_WEIGHT_NORMAL,
             DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL,
-            CARD_HEIGHT / 2.0,
+            CARD_HEIGHT.0 / 2.0,
             w!("en"),
         )?;
 
@@ -546,13 +548,13 @@ fn create_visual(dcomp: &IDCompositionDevice3) -> Result<IDCompositionVisual3> {
 
 fn create_surface(
     dcomp: &IDCompositionDevice3,
-    width: f32,
-    height: f32,
+    width: PxLength,
+    height: PxLength,
 ) -> Result<IDCompositionSurface> {
     unsafe {
         dcomp.CreateSurface(
-            width as u32,
-            height as u32,
+            width.0 as u32,
+            height.0 as u32,
             DXGI_FORMAT_B8G8R8A8_UNORM,
             DXGI_ALPHA_MODE_PREMULTIPLIED,
         )
@@ -617,17 +619,17 @@ fn create_effect(
     dpi: Dpi,
 ) -> Result<()> {
     unsafe {
-        let width = CARD_WIDTH.to_physical(dpi);
-        let height = CARD_HEIGHT.to_physical(dpi);
+        let width: PxLength = CARD_WIDTH.into_dpi(dpi);
+        let height: PxLength = CARD_HEIGHT.into_dpi(dpi);
 
-        let pre_matrix = Matrix4x4::translation(-width / 2.0, -height / 2.0, 0.0)
+        let pre_matrix = Matrix4x4::translation(-width.0 / 2.0, -height.0 / 2.0, 0.0)
             * Matrix4x4::rotation_y(if front { 180.0 } else { 0.0 });
 
         let pre_transform = dcomp.CreateMatrixTransform3D()?;
         pre_transform.SetMatrix(&pre_matrix)?;
 
-        let post_matrix = Matrix4x4::perspective_projection(width * 2.0)
-            * Matrix4x4::translation(width / 2.0, height / 2.0, 0.0);
+        let post_matrix = Matrix4x4::perspective_projection(width.0 * 2.0)
+            * Matrix4x4::translation(width.0 / 2.0, height.0 / 2.0, 0.0);
 
         let post_transform = dcomp.CreateMatrixTransform3D()?;
         post_transform.SetMatrix(&post_matrix)?;
@@ -653,11 +655,8 @@ fn draw_card_front(
         let mut offset = Default::default();
         let dc: ID2D1DeviceContext = surface.BeginDraw(None, &mut offset)?;
         dc.SetDpi(dpi.value(), dpi.value());
-
-        dc.SetTransform(&Matrix3x2::translation(
-            (offset.x as f32).to_logical(dpi),
-            (offset.y as f32).to_logical(dpi),
-        ));
+        let offset: LxPoint = PxPoint::new(offset.x as f32, offset.y as f32).into_dpi(dpi);
+        dc.SetTransform(&Matrix3x2::translation(offset.x, offset.y));
 
         dc.Clear(Some(&D2D1_COLOR_F {
             r: 1.0,
@@ -672,8 +671,8 @@ fn draw_card_front(
             &D2D_RECT_F {
                 left: 0.0,
                 top: 0.0,
-                right: CARD_WIDTH,
-                bottom: CARD_HEIGHT,
+                right: CARD_WIDTH.0,
+                bottom: CARD_HEIGHT.0,
             },
             brush,
             D2D1_DRAW_TEXT_OPTIONS_NONE,
@@ -687,22 +686,19 @@ fn draw_card_front(
 fn draw_card_back(
     surface: &IDCompositionSurface,
     bitmap: &ID2D1Bitmap1,
-    offset: Point,
+    offset: PxPoint,
     dpi: Dpi,
 ) -> Result<()> {
     unsafe {
         let mut dc_offset = Default::default();
         let dc: ID2D1DeviceContext = surface.BeginDraw(None, &mut dc_offset)?;
         dc.SetDpi(dpi.value(), dpi.value());
+        let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
+        dc.SetTransform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
 
-        dc.SetTransform(&Matrix3x2::translation(
-            (dc_offset.x as f32).to_logical(dpi),
-            (dc_offset.y as f32).to_logical(dpi),
-        ));
-
-        let offset = offset.to_logical(dpi);
-        let left = offset.x();
-        let top = offset.y();
+        let offset: LxPoint = offset.into_dpi(dpi);
+        let left = offset.x;
+        let top = offset.y;
 
         dc.DrawBitmap(
             bitmap,
@@ -712,8 +708,8 @@ fn draw_card_back(
             Some(&D2D_RECT_F {
                 left,
                 top,
-                right: left + CARD_WIDTH,
-                bottom: top + CARD_HEIGHT,
+                right: left + CARD_WIDTH.0,
+                bottom: top + CARD_HEIGHT.0,
             }),
             None,
         );

@@ -4,8 +4,6 @@
 use ambassador::*;
 use euclid::*;
 use windows::Win32::Foundation::*;
-use windows::Win32::Graphics::Direct2D::Common::*;
-use windows_numerics::*;
 
 // Physical pixels
 pub struct Px;
@@ -81,68 +79,68 @@ pub type LxSize = Size2D<f32, Lx>;
 pub type PxRect = Rect<f32, Px>;
 pub type LxRect = Rect<f32, Lx>;
 
-impl<Unit> From<Rect<f32, Unit>> for D2D_RECT_F {
-    fn from(r: Rect<f32, Unit>) -> Self {
-        Self {
-            left: r.origin.x,
-            top: r.origin.y,
-            right: r.origin.x + r.size.width,
-            bottom: r.origin.y + r.size.height,
-        }
+pub trait FromDpi<T> {
+    fn from_dpi(value: T, dpi: impl ScaleFactor) -> Self;
+}
+
+pub trait IntoDpi<T> {
+    fn into_dpi(self, dpi: impl ScaleFactor) -> T;
+}
+
+impl<T, U: FromDpi<T>> IntoDpi<U> for T {
+    fn into_dpi(self, dpi: impl ScaleFactor) -> U {
+        U::from_dpi(self, dpi)
     }
 }
 
-impl<Unit> From<D2D_RECT_F> for Rect<f32, Unit> {
-    fn from(r: D2D_RECT_F) -> Self {
-        let origin = Point2D::new(r.left, r.top);
-        let size = Size2D::new(r.right - r.left, r.bottom - r.top);
-        Self::new(origin, size)
+impl FromDpi<PxLength> for LxLength {
+    fn from_dpi(value: PxLength, dpi: impl ScaleFactor) -> Self {
+        let scale: Scale<f32, Px, Lx> = Scale::new(dpi.scale_factor());
+        value * scale
+    }
+}
+impl FromDpi<LxLength> for PxLength {
+    fn from_dpi(value: LxLength, dpi: impl ScaleFactor) -> Self {
+        let scale: Scale<f32, Lx, Px> = Scale::new(1.0 / dpi.scale_factor());
+        value * scale
     }
 }
 
-pub trait Scalable {
-    fn to_physical(self, dpi: impl ScaleFactor) -> Self;
-    fn to_logical(self, dpi: impl ScaleFactor) -> Self;
-}
-
-impl Scalable for f32 {
-    fn to_physical(self, dpi: impl ScaleFactor) -> Self {
-        dpi.to_physical(self)
-    }
-
-    fn to_logical(self, dpi: impl ScaleFactor) -> Self {
-        dpi.to_logical(self)
+impl FromDpi<PxPoint> for LxPoint {
+    fn from_dpi(value: PxPoint, dpi: impl ScaleFactor) -> Self {
+        let scale: Scale<f32, Px, Lx> = Scale::new(dpi.scale_factor());
+        value * scale
     }
 }
-
-impl Scalable for Vector2 {
-    fn to_physical(self, dpi: impl ScaleFactor) -> Self {
-        Self {
-            X: dpi.to_physical(self.X),
-            Y: dpi.to_physical(self.Y),
-        }
-    }
-
-    fn to_logical(self, dpi: impl ScaleFactor) -> Self {
-        Self {
-            X: dpi.to_logical(self.X),
-            Y: dpi.to_logical(self.Y),
-        }
+impl FromDpi<LxPoint> for PxPoint {
+    fn from_dpi(value: LxPoint, dpi: impl ScaleFactor) -> Self {
+        let scale: Scale<f32, Lx, Px> = Scale::new(1.0 / dpi.scale_factor());
+        value * scale
     }
 }
 
-impl Scalable for Rect {
-    fn to_physical(self, dpi: impl ScaleFactor) -> Self {
-        Rect {
-            point: self.point.to_physical(dpi),
-            size: self.size.to_physical(dpi),
-        }
+impl FromDpi<PxSize> for LxSize {
+    fn from_dpi(value: PxSize, dpi: impl ScaleFactor) -> Self {
+        let scale: Scale<f32, Px, Lx> = Scale::new(dpi.scale_factor());
+        value * scale
     }
+}
+impl FromDpi<LxSize> for PxSize {
+    fn from_dpi(value: LxSize, dpi: impl ScaleFactor) -> Self {
+        let scale: Scale<f32, Lx, Px> = Scale::new(1.0 / dpi.scale_factor());
+        value * scale
+    }
+}
 
-    fn to_logical(self, dpi: impl ScaleFactor) -> Self {
-        Rect {
-            point: self.point.to_logical(dpi),
-            size: self.size.to_logical(dpi),
-        }
+impl FromDpi<PxRect> for LxRect {
+    fn from_dpi(value: PxRect, dpi: impl ScaleFactor) -> Self {
+        let scale: Scale<f32, Px, Lx> = Scale::new(dpi.scale_factor());
+        value * scale
+    }
+}
+impl FromDpi<LxRect> for PxRect {
+    fn from_dpi(value: LxRect, dpi: impl ScaleFactor) -> Self {
+        let scale: Scale<f32, Lx, Px> = Scale::new(1.0 / dpi.scale_factor());
+        value * scale
     }
 }
