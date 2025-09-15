@@ -228,8 +228,8 @@ impl DemoWindow {
                 for column in 0..CARD_COLUMNS {
                     let card = &mut self.cards[row * CARD_COLUMNS + column];
                     let offset = LxPoint::from_lengths(
-                        CARD_WIDTH * (column as f32) + CARD_MARGIN,
-                        CARD_HEIGHT * (row as f32) + CARD_MARGIN,
+                        (CARD_WIDTH + CARD_MARGIN) * (column as f32) + CARD_MARGIN,
+                        (CARD_HEIGHT + CARD_MARGIN) * (row as f32) + CARD_MARGIN,
                     );
                     card.offset = offset.into_dpi(dpi);
 
