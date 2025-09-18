@@ -4,6 +4,7 @@
 use ambassador::*;
 use euclid::*;
 use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Direct2D::*;
 
 // Physical pixels
 pub struct Px;
@@ -134,5 +135,17 @@ impl FromDpi<PxRect> for LxRect {
 impl FromDpi<LxRect> for PxRect {
     fn from_dpi(value: LxRect, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_physical()
+    }
+}
+
+pub trait SetDpi {
+    fn set_dpi(&self, dpi: impl ScaleFactor);
+}
+
+impl SetDpi for ID2D1RenderTarget {
+    fn set_dpi(&self, dpi: impl ScaleFactor) {
+        unsafe {
+            self.SetDpi(dpi.value(), dpi.value());
+        }
     }
 }
