@@ -138,6 +138,7 @@ impl FromDpi<LxRect> for PxRect {
     }
 }
 
+#[delegatable_trait]
 pub trait SetDpi {
     fn set_dpi(&self, dpi: impl ScaleFactor);
 }

@@ -221,8 +221,8 @@ impl DemoWindow {
 
             let bitmap = dc.CreateBitmapFromWicBitmap(&self.image, None)?;
             let dpi = self.dpi();
-            let width: PxLength = CARD_WIDTH.into_dpi(dpi);
-            let height: PxLength = CARD_HEIGHT.into_dpi(dpi);
+            let card_width: PxLength = CARD_WIDTH.into_dpi(dpi);
+            let card_height: PxLength = CARD_HEIGHT.into_dpi(dpi);
 
             for row in 0..CARD_ROWS {
                 for column in 0..CARD_COLUMNS {
@@ -247,11 +247,11 @@ impl DemoWindow {
                     back_visual.SetOffsetY2(card.offset.y)?;
                     root_visual.AddVisual(&back_visual, false, None)?;
 
-                    let front_surface = create_surface(&dcomp, width, height)?;
+                    let front_surface = create_surface(&dcomp, card_width, card_height)?;
                     front_visual.SetContent(&front_surface)?;
                     draw_card_front(&front_surface, card.value, &self.format, &brush, dpi)?;
 
-                    let back_surface = create_surface(&dcomp, width, height)?;
+                    let back_surface = create_surface(&dcomp, card_width, card_height)?;
                     back_visual.SetContent(&back_surface)?;
                     draw_card_back(&back_surface, &bitmap, card.offset, dpi)?;
 
@@ -553,8 +553,8 @@ fn create_surface(
 ) -> Result<IDCompositionSurface> {
     unsafe {
         dcomp.CreateSurface(
-            width.0 as u32,
-            height.0 as u32,
+            width.0.ceil() as u32,
+            height.0.ceil() as u32,
             DXGI_FORMAT_B8G8R8A8_UNORM,
             DXGI_ALPHA_MODE_PREMULTIPLIED,
         )
