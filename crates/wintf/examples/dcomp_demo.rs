@@ -632,7 +632,7 @@ fn draw_card_front(
     unsafe {
         let mut offset = Default::default();
         let dc: ID2D1DeviceContext = surface.BeginDraw(None, &mut offset)?;
-        dc.SetDpi(dpi.value(), dpi.value());
+        dc.set_dpi(dpi);
         let offset: LxPoint = PxPoint::new(offset.x as f32, offset.y as f32).into_dpi(dpi);
         dc.SetTransform(&Matrix3x2::translation(offset.x, offset.y));
 
