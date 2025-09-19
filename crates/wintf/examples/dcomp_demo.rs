@@ -24,6 +24,7 @@ const WINDOW_WIDTH: LxLength =
     LxLength::new((CARD_WIDTH.0 + CARD_MARGIN.0) * (CARD_COLUMNS as f32) + CARD_MARGIN.0);
 const WINDOW_HEIGHT: LxLength =
     LxLength::new((CARD_HEIGHT.0 + CARD_MARGIN.0) * (CARD_ROWS as f32) + CARD_MARGIN.0);
+const WINDOW_SIZE: LxSize = LxSize::new(WINDOW_WIDTH.0, WINDOW_HEIGHT.0);
 
 fn main() -> Result<()> {
     human_panic::setup_panic!();
@@ -275,27 +276,6 @@ impl DemoWindow {
         }
     }
 
-    fn effective_window_size(&self) -> Result<(i32, i32)> {
-        let dpi = self.dpi();
-        unsafe {
-            let size: PxSize = LxSize::from_lengths(WINDOW_WIDTH, WINDOW_HEIGHT).into_dpi(dpi);
-            let mut rect = RECT {
-                left: 0,
-                top: 0,
-                right: size.width as i32,
-                bottom: size.height as i32,
-            };
-
-            AdjustWindowRect(
-                &mut rect,
-                WINDOW_STYLE(GetWindowLongW(self.hwnd(), GWL_STYLE) as u32),
-                false,
-            )?;
-
-            Ok((rect.right - rect.left, rect.bottom - rect.top))
-        }
-    }
-
     fn click_handler(&mut self, lparam: LPARAM) -> Result<()> {
         let dpi = self.dpi();
         unsafe {
@@ -416,15 +396,15 @@ impl DemoWindow {
             }
 
             let rect = &*(lparam.0 as *const RECT);
-            let size = self.effective_window_size()?;
+            let size = self.effective_window_size(WINDOW_SIZE)?;
 
             SetWindowPos(
                 self.hwnd(),
                 None,
                 rect.left,
                 rect.top,
-                size.0,
-                size.1,
+                size.width as i32,
+                size.height as i32,
                 SWP_NOACTIVATE | SWP_NOZORDER,
             )?;
 
@@ -444,15 +424,15 @@ impl DemoWindow {
                 println!("initial dpi: {:?}", self.dpi());
             }
 
-            let size = self.effective_window_size()?;
+            let size = self.effective_window_size(WINDOW_SIZE)?;
 
             SetWindowPos(
                 self.hwnd(),
                 None,
                 0,
                 0,
-                size.0,
-                size.1,
+                size.width as i32,
+                size.height as i32,
                 SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER,
             )
         }

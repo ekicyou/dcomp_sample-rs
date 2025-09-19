@@ -69,15 +69,13 @@ impl ScaleFactor for Dpi {
 }
 
 pub type PxLength = Length<f32, Px>;
-pub type LxLength = Length<f32, Lx>;
-
 pub type PxPoint = Point2D<f32, Px>;
-pub type LxPoint = Point2D<f32, Lx>;
-
 pub type PxSize = Size2D<f32, Px>;
-pub type LxSize = Size2D<f32, Lx>;
-
 pub type PxRect = Rect<f32, Px>;
+
+pub type LxLength = Length<f32, Lx>;
+pub type LxPoint = Point2D<f32, Lx>;
+pub type LxSize = Size2D<f32, Lx>;
 pub type LxRect = Rect<f32, Lx>;
 
 pub trait FromDpi<T> {
