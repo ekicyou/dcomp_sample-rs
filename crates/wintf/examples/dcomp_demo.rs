@@ -20,6 +20,8 @@ const CARD_COLUMNS: usize = 6;
 const CARD_MARGIN: LxLength = LxLength::new(15.0);
 const CARD_WIDTH: LxLength = LxLength::new(150.0);
 const CARD_HEIGHT: LxLength = LxLength::new(210.0);
+const CARD_SIZE: LxSize = LxSize::new(CARD_WIDTH.0, CARD_HEIGHT.0);
+
 const WINDOW_WIDTH: LxLength =
     LxLength::new((CARD_WIDTH.0 + CARD_MARGIN.0) * (CARD_COLUMNS as f32) + CARD_MARGIN.0);
 const WINDOW_HEIGHT: LxLength =
@@ -222,8 +224,8 @@ impl DemoWindow {
 
             let bitmap = dc.CreateBitmapFromWicBitmap(&self.image, None)?;
             let dpi = self.dpi();
-            let card_width: PxLength = CARD_WIDTH.into_dpi(dpi);
-            let card_height: PxLength = CARD_HEIGHT.into_dpi(dpi);
+            let card_size: PxSize = CARD_SIZE.into_dpi(dpi);
+            let card_size = card_size.into_raw();
 
             for row in 0..CARD_ROWS {
                 for column in 0..CARD_COLUMNS {
@@ -248,11 +250,11 @@ impl DemoWindow {
                     back_visual.SetOffsetY2(card.offset.y)?;
                     root_visual.AddVisual(&back_visual, false, None)?;
 
-                    let front_surface = create_surface(&dcomp, card_width, card_height)?;
+                    let front_surface = create_surface(&dcomp, card_size)?;
                     front_visual.SetContent(&front_surface)?;
                     draw_card_front(&front_surface, card.value, &self.format, &brush, dpi)?;
 
-                    let back_surface = create_surface(&dcomp, card_width, card_height)?;
+                    let back_surface = create_surface(&dcomp, card_size)?;
                     back_visual.SetContent(&back_surface)?;
                     draw_card_back(&back_surface, &bitmap, card.offset, dpi)?;
 
@@ -396,15 +398,15 @@ impl DemoWindow {
             }
 
             let rect = &*(lparam.0 as *const RECT);
-            let size = self.effective_window_size(WINDOW_SIZE)?;
+            let size = self.effective_window_size(WINDOW_SIZE)?.into_raw();
 
             SetWindowPos(
                 self.hwnd(),
                 None,
                 rect.left,
                 rect.top,
-                size.width as i32,
-                size.height as i32,
+                size.width,
+                size.height,
                 SWP_NOACTIVATE | SWP_NOZORDER,
             )?;
 
@@ -424,15 +426,15 @@ impl DemoWindow {
                 println!("initial dpi: {:?}", self.dpi());
             }
 
-            let size = self.effective_window_size(WINDOW_SIZE)?;
+            let size = self.effective_window_size(WINDOW_SIZE)?.into_raw();
 
             SetWindowPos(
                 self.hwnd(),
                 None,
                 0,
                 0,
-                size.width as i32,
-                size.height as i32,
+                size.width,
+                size.height,
                 SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER,
             )
         }
@@ -526,15 +528,11 @@ fn create_visual(dcomp: &IDCompositionDevice3) -> Result<IDCompositionVisual3> {
     }
 }
 
-fn create_surface(
-    dcomp: &IDCompositionDevice3,
-    width: PxLength,
-    height: PxLength,
-) -> Result<IDCompositionSurface> {
+fn create_surface(dcomp: &IDCompositionDevice3, size: RawSize) -> Result<IDCompositionSurface> {
     unsafe {
         dcomp.CreateSurface(
-            width.0.ceil() as u32,
-            height.0.ceil() as u32,
+            size.width as u32,
+            size.height as u32,
             DXGI_FORMAT_B8G8R8A8_UNORM,
             DXGI_ALPHA_MODE_PREMULTIPLIED,
         )

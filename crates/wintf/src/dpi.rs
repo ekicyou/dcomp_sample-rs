@@ -78,6 +78,11 @@ pub type LxPoint = Point2D<f32, Lx>;
 pub type LxSize = Size2D<f32, Lx>;
 pub type LxRect = Rect<f32, Lx>;
 
+pub type RawLength = Length<i32, Px>;
+pub type RawPoint = Point2D<i32, Px>;
+pub type RawSize = Size2D<i32, Px>;
+pub type RawRect = Rect<i32, Px>;
+
 pub trait FromDpi<T> {
     fn from_dpi(value: T, dpi: impl ScaleFactor) -> Self;
 }
@@ -146,5 +151,33 @@ impl SetDpi for ID2D1RenderTarget {
         unsafe {
             self.SetDpi(dpi.value(), dpi.value());
         }
+    }
+}
+
+pub trait ToRaw<T> {
+    fn into_raw(self) -> T;
+}
+
+impl ToRaw<RawLength> for PxLength {
+    fn into_raw(self) -> RawLength {
+        RawLength::new(self.0.ceil() as i32)
+    }
+}
+
+impl ToRaw<RawPoint> for PxPoint {
+    fn into_raw(self) -> RawPoint {
+        RawPoint::new(self.x.ceil() as i32, self.y.ceil() as i32)
+    }
+}
+
+impl ToRaw<RawSize> for PxSize {
+    fn into_raw(self) -> RawSize {
+        RawSize::new(self.width.ceil() as i32, self.height.ceil() as i32)
+    }
+}
+
+impl ToRaw<RawRect> for PxRect {
+    fn into_raw(self) -> RawRect {
+        RawRect::new(self.origin.into_raw(), self.size.into_raw())
     }
 }
