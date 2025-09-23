@@ -10,6 +10,11 @@ use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 pub struct WinStyle {
     style: WINDOW_STYLE,
     ex_style: WINDOW_EX_STYLE,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    parent: Option<HWND>,
 }
 
 impl WinStyle {
@@ -29,7 +34,28 @@ impl WinStyle {
     pub fn new(hwnd: HWND) -> Result<Self> {
         let style = WINDOW_STYLE(get_window_long_ptr(hwnd, GWL_STYLE)? as _);
         let ex_style = WINDOW_EX_STYLE(get_window_long_ptr(hwnd, GWL_EXSTYLE)? as _);
-        Ok(Self { style, ex_style })
+        Ok(Self {
+            style,
+            ex_style,
+            x: CW_USEDEFAULT,
+            y: CW_USEDEFAULT,
+            width: CW_USEDEFAULT,
+            height: CW_USEDEFAULT,
+            parent: None,
+        })
+    }
+
+    #[inline(always)]
+    fn with_style(style: WINDOW_STYLE) -> WinStyle {
+        WinStyle {
+            style,
+            x: CW_USEDEFAULT,
+            y: CW_USEDEFAULT,
+            width: CW_USEDEFAULT,
+            height: CW_USEDEFAULT,
+            parent: None,
+            ..Default::default()
+        }
     }
 
     //================================================================================
@@ -38,17 +64,17 @@ impl WinStyle {
 
     /// 標準的なトップレベルウィンドウを作成するための複合スタイルです。`WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX` の組み合わせです。
     pub fn WS_OVERLAPPEDWINDOW() -> Self {
-        with_style(WS_OVERLAPPEDWINDOW)
+        WinStyle::with_style(WS_OVERLAPPEDWINDOW)
     }
 
     /// `WS_OVERLAPPEDWINDOW` と同じです。
     pub fn WS_TILEDWINDOW() -> Self {
-        with_style(WS_TILEDWINDOW)
+        WinStyle::with_style(WS_TILEDWINDOW)
     }
 
     /// 標準的なポップアップウィンドウを作成するための複合スタイルです。`WS_POPUP | WS_BORDER | WS_SYSMENU` の組み合わせです。
     pub fn WS_POPUPWINDOW() -> Self {
-        with_style(WS_POPUPWINDOW)
+        WinStyle::with_style(WS_POPUPWINDOW)
     }
 
     //================================================================================
@@ -57,12 +83,12 @@ impl WinStyle {
 
     /// オーバーラップウィンドウを作成します。オーバーラップウィンドウは、タイトルバーと境界線を持つトップレベルウィンドウです。`WS_TILED` と同じです。
     pub fn WS_OVERLAPPED() -> Self {
-        with_style(WS_OVERLAPPED)
+        WinStyle::with_style(WS_OVERLAPPED)
     }
 
     /// ポップアップウィンドウを作成します。`WS_CHILD` とは併用できません。
     pub fn WS_POPUP() -> Self {
-        with_style(WS_POPUP)
+        WinStyle::with_style(WS_POPUP)
     }
 
     //================================================================================
@@ -303,14 +329,6 @@ impl WinStyle {
     /// ウィンドウのレイアウトを右から左（RTL）にします。
     pub fn WS_EX_LAYOUTRTL(self) -> Self {
         set_ex(self, WS_EX_LAYOUTRTL, true)
-    }
-}
-
-#[inline(always)]
-fn with_style(style: WINDOW_STYLE) -> WinStyle {
-    WinStyle {
-        style,
-        ..Default::default()
     }
 }
 
