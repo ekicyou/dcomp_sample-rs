@@ -22,11 +22,6 @@ impl WinStyle {
     // コミット
     //================================================================================
 
-    /// 値の取り出し
-    pub fn get_style(&self) -> (WINDOW_STYLE, WINDOW_EX_STYLE) {
-        (self.style, self.ex_style)
-    }
-
     /// SetWindowLongWへ反映
     pub fn commit(&self, hwnd: HWND) -> Result<()> {
         set_window_long_ptr(hwnd, GWL_STYLE, self.style.0 as _)?;

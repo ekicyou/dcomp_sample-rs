@@ -33,25 +33,14 @@ fn main() -> Result<()> {
 
     let mgr = WinThreadMgr::new()?;
     let window = Arc::new(DemoWindow::new()?);
-    let (style, ex_style) = WinStyle::WS_OVERLAPPED()
+    let style = WinStyle::WS_OVERLAPPED()
         .WS_CAPTION(true)
         .WS_SYSMENU(true)
         .WS_MINIMIZEBOX(true)
         .WS_VISIBLE(true)
-        .WS_EX_NOREDIRECTIONBITMAP(true)
-        .get_style();
+        .WS_EX_NOREDIRECTIONBITMAP(true);
 
-    let _ = mgr.create_window(
-        window.clone(),
-        &"Sample Window",
-        style,
-        ex_style,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        None,
-    )?;
+    let _ = mgr.create_window(window.clone(), &"Sample Window", style)?;
     println!("spawn_normal: set");
     let move_win = window.clone();
     mgr.spawn_normal(async move {

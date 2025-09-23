@@ -1,4 +1,5 @@
 use crate::win_message_handler::*;
+use crate::win_style::*;
 use crate::winproc::*;
 use async_executor::*;
 use std::future::*;
@@ -106,13 +107,7 @@ impl WinThreadMgrInner {
         &self,
         handler: Arc<dyn BaseWinMessageHandler>,
         window_name: &str,
-        style: WINDOW_STYLE,
-        ex_style: WINDOW_EX_STYLE,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-        parent: Option<HWND>,
+        style: WinStyle,
     ) -> Result<HWND> {
         let singleton = WinProcessSingleton::get_or_init();
         let window_name_hstring = HSTRING::from(window_name);
@@ -121,15 +116,15 @@ impl WinThreadMgrInner {
         unsafe {
             eprintln!("Window creation...");
             let rc = CreateWindowExW(
-                ex_style,
+                style.ex_style,
                 singleton.window_class_name(),
                 &window_name_hstring,
-                style,
-                x,
-                y,
-                width,
-                height,
-                parent,
+                style.style,
+                style.x,
+                style.y,
+                style.width,
+                style.height,
+                style.parent,
                 None,
                 None,
                 Some(boxed_ptr),
