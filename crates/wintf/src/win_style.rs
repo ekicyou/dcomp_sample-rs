@@ -8,13 +8,13 @@ use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct WinStyle {
-    style: WINDOW_STYLE,
-    ex_style: WINDOW_EX_STYLE,
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-    parent: Option<HWND>,
+    pub(crate) style: WINDOW_STYLE,
+    pub(crate) ex_style: WINDOW_EX_STYLE,
+    pub(crate) x: i32,
+    pub(crate) y: i32,
+    pub(crate) width: i32,
+    pub(crate) height: i32,
+    pub(crate) parent: Option<HWND>,
 }
 
 impl WinStyle {
@@ -64,6 +64,27 @@ impl WinStyle {
             parent: None,
             ..Default::default()
         }
+    }
+
+    //================================================================================
+    // 座標値、親ウィンドウ
+    //================================================================================
+
+    pub fn position(mut self, x: i32, y: i32) -> Self {
+        self.x = x;
+        self.y = y;
+        self
+    }
+
+    pub fn size(mut self, width: i32, height: i32) -> Self {
+        self.width = width;
+        self.height = height;
+        self
+    }
+
+    pub fn parent(mut self, parent: HWND) -> Self {
+        self.parent = Some(parent);
+        self
     }
 
     //================================================================================
