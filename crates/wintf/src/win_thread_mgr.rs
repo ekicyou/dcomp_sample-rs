@@ -103,14 +103,17 @@ impl WinThreadMgrInner {
         singleton.instance()
     }
 
-    pub fn create_window(
+    pub fn create_window<S1>(
         &self,
         handler: Arc<dyn BaseWinMessageHandler>,
-        window_name: &str,
+        window_name: S1,
         style: WinStyle,
-    ) -> Result<HWND> {
+    ) -> Result<HWND>
+    where
+        S1: Into<HSTRING>,
+    {
         let singleton = WinProcessSingleton::get_or_init();
-        let window_name_hstring = HSTRING::from(window_name);
+        let window_name_hstring: HSTRING = window_name.into();
         let boxed_ptr = handler.into_boxed_ptr();
 
         unsafe {

@@ -40,7 +40,7 @@ fn main() -> Result<()> {
         .WS_VISIBLE(true)
         .WS_EX_NOREDIRECTIONBITMAP(true);
 
-    let _ = mgr.create_window(window.clone(), &"Sample Window", style)?;
+    let _ = mgr.create_window(window.clone(), "Sample Window", style)?;
     println!("spawn_normal: set");
     let move_win = window.clone();
     mgr.spawn_normal(async move {
