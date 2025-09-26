@@ -14,7 +14,7 @@ use windows::{
     },
 };
 use windows_numerics::*;
-use wintf::{com::wic::*, *};
+use wintf::{com::d2d::*, com::d3d11::*, com::dcomp::*, com::wic::*, *};
 
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 6;
@@ -185,13 +185,11 @@ impl DemoWindow {
         unsafe {
             debug_assert!(self.d3d.is_none());
             let d3d = create_device_3d()?;
-            let d2d = create_device_2d(&d3d)?;
+            let dxgi = d3d.cast()?;
+            let d2d = d2d_create_device(&dxgi)?;
             self.d3d = Some(d3d);
-
-            // DCompositionCreateDevice3でIDCompositionDevice3は直接取り出せません。
-            // IDCompositionDesktopDeviceを取り出した後にキャストする必要があります。
-            let desktop: IDCompositionDesktopDevice = DCompositionCreateDevice3(&d2d)?;
-            let dcomp: IDCompositionDevice3 = desktop.cast()?;
+            let desktop = dcomp_create_desktop_device(&d2d)?;
+            let dcomp = desktop.cast()?;
 
             // 以前のターゲットを最初にリリースします。そうしないと `CreateTargetForHwnd` が HWND が占有されていることを検出します。
             self.target = None;
@@ -478,27 +476,16 @@ fn create_image() -> Result<IWICFormatConverter> {
 }
 
 fn create_device_3d() -> Result<ID3D11Device> {
-    let mut device = None;
-
-    unsafe {
-        D3D11CreateDevice(
-            None,
-            D3D_DRIVER_TYPE_HARDWARE,
-            HMODULE::default(),
-            D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-            None,
-            D3D11_SDK_VERSION,
-            Some(&mut device),
-            None,
-            None,
-        )
-        .map(|()| device.unwrap())
-    }
-}
-
-fn create_device_2d(device_3d: &ID3D11Device) -> Result<ID2D1Device> {
-    let dxgi: IDXGIDevice3 = device_3d.cast()?;
-    unsafe { D2D1CreateDevice(&dxgi, None) }
+    d3d11_create_device(
+        None,
+        D3D_DRIVER_TYPE_HARDWARE,
+        HMODULE::default(),
+        D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+        None,
+        D3D11_SDK_VERSION,
+        None,
+        None,
+    )
 }
 
 fn create_visual(dcomp: &IDCompositionDevice3) -> Result<IDCompositionVisual3> {
