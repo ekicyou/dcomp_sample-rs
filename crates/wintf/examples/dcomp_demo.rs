@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use ambassador::*;
+use std::path::*;
 use std::sync::*;
 use windows::{
     core::*,
@@ -13,7 +14,7 @@ use windows::{
     },
 };
 use windows_numerics::*;
-use wintf::*;
+use wintf::{com::wic::*, *};
 
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 6;
@@ -451,38 +452,29 @@ fn create_text_format() -> Result<IDWriteTextFormat> {
 }
 
 fn create_image() -> Result<IWICFormatConverter> {
-    unsafe {
-        let factory: IWICImagingFactory2 =
-            CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
-
-        // ワークスペースのルートからサンプルを実行しやすくするための小さなハック。
-        let path = if PathFileExistsW(w!("dcomp_demo.jpg")).is_ok() {
-            w!("dcomp_demo.jpg")
-        } else {
-            w!("crates/wintf/examples/dcomp_demo.jpg")
-        };
-
-        let decoder = factory.CreateDecoderFromFilename(
-            path,
-            None,
-            GENERIC_READ,
-            WICDecodeMetadataCacheOnDemand,
-        )?;
-
-        let source = decoder.GetFrame(0)?;
-        let image = factory.CreateFormatConverter()?;
-
-        image.Initialize(
-            &source,
-            &GUID_WICPixelFormat32bppBGR,
-            WICBitmapDitherTypeNone,
-            None,
-            0.0,
-            WICBitmapPaletteTypeMedianCut,
-        )?;
-
-        Ok(image)
-    }
+    let factory = wic_factory()?;
+    let path = if Path::new("dcomp_demo.jpg").exists() {
+        h!("dcomp_demo.jpg")
+    } else {
+        h!("crates/wintf/examples/dcomp_demo.jpg")
+    };
+    let decoder = factory.create_decoder_from_filename(
+        path,
+        None,
+        GENERIC_READ,
+        WICDecodeMetadataCacheOnDemand,
+    )?;
+    let source = decoder.frame(0)?;
+    let image = factory.create_format_converter()?;
+    image.init(
+        &source,
+        &GUID_WICPixelFormat32bppBGR,
+        WICBitmapDitherTypeNone,
+        None,
+        0.0,
+        WICBitmapPaletteTypeMedianCut,
+    )?;
+    Ok(image)
 }
 
 fn create_device_3d() -> Result<ID3D11Device> {
