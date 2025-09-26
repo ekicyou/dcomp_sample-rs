@@ -193,7 +193,7 @@ impl DemoWindow {
 
             // 以前のターゲットを最初にリリースします。そうしないと `CreateTargetForHwnd` が HWND が占有されていることを検出します。
             self.target = None;
-            let target = desktop.CreateTargetForHwnd(self.hwnd(), true)?;
+            let target = desktop.create_target_for_hwnd(self.hwnd(), true)?;
             let root_visual = create_visual(&dcomp)?;
             target.SetRoot(&root_visual)?;
             self.target = Some(target);
