@@ -11,6 +11,14 @@ pub fn d2d_create_device(dxgi: &IDXGIDevice4) -> Result<ID2D1Device> {
     unsafe { D2D1CreateDevice(dxgi, None) }
 }
 
+#[inline(always)]
+fn dup_com<T: Interface>(com_ref: &T) -> ManuallyDrop<T> {
+    // SAFETY: This function is unsafe because it duplicates a COM pointer without incrementing its reference count.
+    // The caller must ensure that the original COM object outlives the returned `ManuallyDrop<T>`.
+    // The `ManuallyDrop` wrapper will prevent `Release` from being called when it's dropped.
+    unsafe { ManuallyDrop::new(core::mem::transmute_copy(com_ref)) }
+}
+
 #[derive(Clone, Debug)]
 pub struct BlendImage {
     pub image: ManuallyDrop<ID2D1Image>,
@@ -28,13 +36,8 @@ impl BlendImage {
         imagerectangle: Option<D2D_RECT_F>,
         interpolationmode: D2D1_INTERPOLATION_MODE,
     ) -> Self {
-        // SAFETY: The caller must ensure that the lifetime of the `image` COM object
-        // is longer than the lifetime of this `BlendImage` struct.
-        // We are duplicating the COM pointer without calling AddRef,
-        // and ManuallyDrop will prevent calling Release on drop.
-        let image = unsafe { ManuallyDrop::new(core::mem::transmute_copy(image)) };
         Self {
-            image,
+            image: dup_com(image),
             blendmode,
             targetoffset,
             imagerectangle,
@@ -71,13 +74,11 @@ impl DrawSpriteBatch {
         interpolationmode: D2D1_BITMAP_INTERPOLATION_MODE,
         spriteoptions: D2D1_SPRITE_OPTIONS,
     ) -> Self {
-        let spritebatch = unsafe { ManuallyDrop::new(core::mem::transmute_copy(spritebatch)) };
-        let bitmap = unsafe { ManuallyDrop::new(core::mem::transmute_copy(bitmap)) };
         Self {
-            spritebatch,
+            spritebatch: dup_com(spritebatch),
             startindex,
             spritecount,
-            bitmap,
+            bitmap: dup_com(bitmap),
             interpolationmode,
             spriteoptions,
         }
@@ -93,13 +94,10 @@ pub struct DrawInk {
 
 impl DrawInk {
     pub fn new(ink: &ID2D1Ink, brush: &ID2D1Brush, inkstyle: &ID2D1InkStyle) -> Self {
-        let ink = unsafe { ManuallyDrop::new(core::mem::transmute_copy(ink)) };
-        let brush = unsafe { ManuallyDrop::new(core::mem::transmute_copy(brush)) };
-        let inkstyle = unsafe { ManuallyDrop::new(core::mem::transmute_copy(inkstyle)) };
         Self {
-            ink,
-            brush,
-            inkstyle,
+            ink: dup_com(ink),
+            brush: dup_com(brush),
+            inkstyle: dup_com(inkstyle),
         }
     }
 }
@@ -109,8 +107,7 @@ pub struct DrawGradientMesh(pub ManuallyDrop<ID2D1GradientMesh>);
 
 impl DrawGradientMesh {
     pub fn new(gradient_mesh: &ID2D1GradientMesh) -> Self {
-        let gradient_mesh = unsafe { ManuallyDrop::new(core::mem::transmute_copy(gradient_mesh)) };
-        Self(gradient_mesh)
+        Self(dup_com(gradient_mesh))
     }
 }
 
@@ -127,9 +124,8 @@ impl DrawGdiMetafile {
         destinationrectangle: Option<D2D_RECT_F>,
         sourcerectangle: Option<D2D_RECT_F>,
     ) -> Self {
-        let gdimetafile = unsafe { ManuallyDrop::new(core::mem::transmute_copy(gdimetafile)) };
         Self {
-            gdimetafile,
+            gdimetafile: dup_com(gdimetafile),
             destinationrectangle,
             sourcerectangle,
         }
@@ -182,10 +178,8 @@ pub struct SetTextRenderingParams {
 
 impl SetTextRenderingParams {
     pub fn new(textrenderingparams: &IDWriteRenderingParams) -> Self {
-        let textrenderingparams =
-            unsafe { ManuallyDrop::new(core::mem::transmute_copy(textrenderingparams)) };
         Self {
-            textrenderingparams,
+            textrenderingparams: dup_com(textrenderingparams),
         }
     }
 }
@@ -257,12 +251,9 @@ impl DrawGlyphRun {
         foregroundbrush: &ID2D1Brush,
         measuringmode: DWRITE_MEASURING_MODE,
     ) -> Self {
-        let font_face = unsafe { ManuallyDrop::new(core::mem::transmute_copy(font_face)) };
-        let foregroundbrush =
-            unsafe { ManuallyDrop::new(core::mem::transmute_copy(foregroundbrush)) };
         Self {
             baselineorigin,
-            font_face,
+            font_face: dup_com(font_face),
             font_em_size,
             glyph_indices,
             glyph_advances,
@@ -270,7 +261,7 @@ impl DrawGlyphRun {
             is_sideways,
             bidi_level,
             glyphrundescription,
-            foregroundbrush,
+            foregroundbrush: dup_com(foregroundbrush),
             measuringmode,
         }
     }
@@ -293,14 +284,12 @@ impl DrawLine {
         strokewidth: f32,
         strokestyle: &ID2D1StrokeStyle,
     ) -> Self {
-        let brush = unsafe { ManuallyDrop::new(core::mem::transmute_copy(brush)) };
-        let strokestyle = unsafe { ManuallyDrop::new(core::mem::transmute_copy(strokestyle)) };
         Self {
             point0,
             point1,
-            brush,
+            brush: dup_com(brush),
             strokewidth,
-            strokestyle,
+            strokestyle: dup_com(strokestyle),
         }
     }
 }
@@ -320,14 +309,11 @@ impl DrawGeometry {
         strokewidth: f32,
         strokestyle: &ID2D1StrokeStyle,
     ) -> Self {
-        let geometry = unsafe { ManuallyDrop::new(core::mem::transmute_copy(geometry)) };
-        let brush = unsafe { ManuallyDrop::new(core::mem::transmute_copy(brush)) };
-        let strokestyle = unsafe { ManuallyDrop::new(core::mem::transmute_copy(strokestyle)) };
         Self {
-            geometry,
-            brush,
+            geometry: dup_com(geometry),
+            brush: dup_com(brush),
             strokewidth,
-            strokestyle,
+            strokestyle: dup_com(strokestyle),
         }
     }
 }
@@ -347,13 +333,11 @@ impl DrawRectangle {
         strokewidth: f32,
         strokestyle: &ID2D1StrokeStyle,
     ) -> Self {
-        let brush = unsafe { ManuallyDrop::new(core::mem::transmute_copy(brush)) };
-        let strokestyle = unsafe { ManuallyDrop::new(core::mem::transmute_copy(strokestyle)) };
         Self {
             rect,
-            brush,
+            brush: dup_com(brush),
             strokewidth,
-            strokestyle,
+            strokestyle: dup_com(strokestyle),
         }
     }
 }
@@ -377,9 +361,8 @@ impl DrawBitmap {
         sourcerectangle: Option<D2D_RECT_F>,
         perspectivetransform: Option<Matrix4x4>,
     ) -> Self {
-        let bitmap = unsafe { ManuallyDrop::new(core::mem::transmute_copy(bitmap)) };
         Self {
-            bitmap,
+            bitmap: dup_com(bitmap),
             destinationrectangle,
             opacity,
             interpolationmode,
@@ -406,9 +389,8 @@ impl DrawImage {
         interpolationmode: D2D1_INTERPOLATION_MODE,
         compositemode: D2D1_COMPOSITE_MODE,
     ) -> Self {
-        let image = unsafe { ManuallyDrop::new(core::mem::transmute_copy(image)) };
         Self {
-            image,
+            image: dup_com(image),
             targetoffset,
             imagerectangle,
             interpolationmode,
@@ -425,9 +407,8 @@ pub struct DrawGdiMetafile2 {
 
 impl DrawGdiMetafile2 {
     pub fn new(gdimetafile: &ID2D1GdiMetafile, targetoffset: Option<Vector2>) -> Self {
-        let gdimetafile = unsafe { ManuallyDrop::new(core::mem::transmute_copy(gdimetafile)) };
         Self {
-            gdimetafile,
+            gdimetafile: dup_com(gdimetafile),
             targetoffset,
         }
     }
@@ -441,9 +422,10 @@ pub struct FillMesh {
 
 impl FillMesh {
     pub fn new(mesh: &ID2D1Mesh, brush: &ID2D1Brush) -> Self {
-        let mesh = unsafe { ManuallyDrop::new(core::mem::transmute_copy(mesh)) };
-        let brush = unsafe { ManuallyDrop::new(core::mem::transmute_copy(brush)) };
-        Self { mesh, brush }
+        Self {
+            mesh: dup_com(mesh),
+            brush: dup_com(brush),
+        }
     }
 }
 
@@ -462,11 +444,9 @@ impl FillOpacityMask {
         destinationrectangle: Option<D2D_RECT_F>,
         sourcerectangle: Option<D2D_RECT_F>,
     ) -> Self {
-        let opacitymask = unsafe { ManuallyDrop::new(core::mem::transmute_copy(opacitymask)) };
-        let brush = unsafe { ManuallyDrop::new(core::mem::transmute_copy(brush)) };
         Self {
-            opacitymask,
-            brush,
+            opacitymask: dup_com(opacitymask),
+            brush: dup_com(brush),
             destinationrectangle,
             sourcerectangle,
         }
@@ -482,13 +462,10 @@ pub struct FillGeometry {
 
 impl FillGeometry {
     pub fn new(geometry: &ID2D1Geometry, brush: &ID2D1Brush, opacitybrush: &ID2D1Brush) -> Self {
-        let geometry = unsafe { ManuallyDrop::new(core::mem::transmute_copy(geometry)) };
-        let brush = unsafe { ManuallyDrop::new(core::mem::transmute_copy(brush)) };
-        let opacitybrush = unsafe { ManuallyDrop::new(core::mem::transmute_copy(opacitybrush)) };
         Self {
-            geometry,
-            brush,
-            opacitybrush,
+            geometry: dup_com(geometry),
+            brush: dup_com(brush),
+            opacitybrush: dup_com(opacitybrush),
         }
     }
 }
@@ -501,8 +478,10 @@ pub struct FillRectangle {
 
 impl FillRectangle {
     pub fn new(rect: D2D_RECT_F, brush: &ID2D1Brush) -> Self {
-        let brush = unsafe { ManuallyDrop::new(core::mem::transmute_copy(brush)) };
-        Self { rect, brush }
+        Self {
+            rect,
+            brush: dup_com(brush),
+        }
     }
 }
 
@@ -529,10 +508,9 @@ pub struct PushLayer {
 
 impl PushLayer {
     pub fn new(layerparameters1: D2D1_LAYER_PARAMETERS1, layer: &ID2D1Layer) -> Self {
-        let layer = unsafe { ManuallyDrop::new(core::mem::transmute_copy(layer)) };
         Self {
             layerparameters1,
-            layer,
+            layer: dup_com(layer),
         }
     }
 }
