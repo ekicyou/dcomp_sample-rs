@@ -10,6 +10,7 @@ async-executor = { workspace = true }
 async-task = { workspace = true }
 euclid = { workspace = true }
 windows = { workspace = true }
+windows-core = { workspace = true }
 windows-numerics = { workspace = true }
 
 [dev-dependencies]
