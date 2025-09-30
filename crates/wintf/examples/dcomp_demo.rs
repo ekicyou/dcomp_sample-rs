@@ -576,10 +576,10 @@ fn draw_card_front(
     brush: &ID2D1SolidColorBrush,
     dpi: Dpi,
 ) -> Result<()> {
-    let (dc, offset) = surface.begin_draw(None)?;
+    let (dc, dc_offset) = surface.begin_draw(None)?;
     dc.set_dpi(dpi);
-    let offset: LxPoint = PxPoint::new(offset.x as f32, offset.y as f32).into_dpi(dpi);
-    dc.set_transform(&Matrix3x2::translation(offset.x, offset.y));
+    let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
+    dc.set_transform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
 
     dc.clear(Some(&D2D1_COLOR_F {
         r: 1.0,
