@@ -508,14 +508,35 @@ impl PushAxisAlignedClip {
 
 #[derive(Clone, Debug)]
 pub struct PushLayer {
-    pub layerparameters1: D2D1_LAYER_PARAMETERS1,
+    pub content_bounds: D2D_RECT_F,
+    pub geometric_mask: Option<ManuallyDrop<ID2D1Geometry>>,
+    pub mask_antialias_mode: D2D1_ANTIALIAS_MODE,
+    pub mask_transform: Matrix3x2,
+    pub opacity: f32,
+    pub opacity_brush: Option<ManuallyDrop<ID2D1Brush>>,
+    pub layer_options: D2D1_LAYER_OPTIONS1,
     pub layer: Option<ManuallyDrop<ID2D1Layer>>,
 }
 
 impl PushLayer {
-    pub fn new(layerparameters1: D2D1_LAYER_PARAMETERS1, layer: Option<&ID2D1Layer>) -> Self {
+    pub fn new(
+        content_bounds: D2D_RECT_F,
+        geometric_mask: Option<&ID2D1Geometry>,
+        mask_antialias_mode: D2D1_ANTIALIAS_MODE,
+        mask_transform: Matrix3x2,
+        opacity: f32,
+        opacity_brush: Option<&ID2D1Brush>,
+        layer_options: D2D1_LAYER_OPTIONS1,
+        layer: Option<&ID2D1Layer>,
+    ) -> Self {
         Self {
-            layerparameters1,
+            content_bounds,
+            geometric_mask: geometric_mask.map(dup_com),
+            mask_antialias_mode,
+            mask_transform,
+            opacity,
+            opacity_brush: opacity_brush.map(dup_com),
+            layer_options,
             layer: layer.map(dup_com),
         }
     }
@@ -873,17 +894,14 @@ impl ID2D1CommandSink_Impl for RecCommandSink_Impl {
         layer: Ref<ID2D1Layer>,
     ) -> Result<()> {
         let params = unsafe { &*layerparameters1 };
-        let new_params = D2D1_LAYER_PARAMETERS1 {
-            contentBounds: params.contentBounds,
-            geometricMask: params.geometricMask.clone(),
-            maskAntialiasMode: params.maskAntialiasMode,
-            maskTransform: params.maskTransform,
-            opacity: params.opacity,
-            opacityBrush: params.opacityBrush.clone(),
-            layerOptions: params.layerOptions,
-        };
         self.push(DrawCommand::PushLayer(PushLayer::new(
-            new_params,
+            params.contentBounds,
+            params.geometricMask.as_ref(),
+            params.maskAntialiasMode,
+            params.maskTransform,
+            params.opacity,
+            params.opacityBrush.as_ref(),
+            params.layerOptions,
             layer.as_ref(),
         )));
         Ok(())
