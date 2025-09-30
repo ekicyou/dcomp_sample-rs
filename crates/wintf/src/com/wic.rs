@@ -1,5 +1,6 @@
 use windows::core::*;
 use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Direct2D::*;
 use windows::Win32::Graphics::Imaging::{D2D::*, *};
 use windows::Win32::System::Com::*;
 
@@ -97,5 +98,22 @@ impl WICFormatConverterExt for IWICFormatConverter {
                 palette_translate,
             )
         }
+    }
+}
+
+pub trait D2D1DeviceContextExt {
+    /// CreateBitmapFromWicBitmap
+    fn create_bitmap_from_wic_bitmap<P0>(&self, wicbitmapsource: P0) -> Result<ID2D1Bitmap1>
+    where
+        P0: Param<IWICBitmapSource>;
+}
+
+impl D2D1DeviceContextExt for ID2D1DeviceContext {
+    #[inline(always)]
+    fn create_bitmap_from_wic_bitmap<P0>(&self, wicbitmapsource: P0) -> Result<ID2D1Bitmap1>
+    where
+        P0: Param<IWICBitmapSource>,
+    {
+        unsafe { self.CreateBitmapFromWicBitmap(wicbitmapsource, None) }
     }
 }

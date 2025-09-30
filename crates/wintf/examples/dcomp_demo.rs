@@ -210,7 +210,7 @@ impl DemoWindow {
             )
         }?;
 
-        let bitmap = unsafe { dc.CreateBitmapFromWicBitmap(&self.image, None) }?;
+        let bitmap = dc.create_bitmap_from_wic_bitmap(&self.image)?;
         let dpi = self.dpi();
         let card_size: PxSize = CARD_SIZE.into_dpi(dpi);
         let card_size = card_size.into_raw();
