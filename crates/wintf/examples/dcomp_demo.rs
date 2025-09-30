@@ -188,13 +188,14 @@ impl DemoWindow {
             let d2d = d2d_create_device(&dxgi)?;
             self.d3d = Some(d3d);
             let desktop = dcomp_create_desktop_device(&d2d)?;
-            let dcomp = desktop.cast()?;
+            let dcomp: IDCompositionDevice3 = desktop.cast()?;
 
             // 以前のターゲットを最初にリリースします。そうしないと `CreateTargetForHwnd` が HWND が占有されていることを検出します。
             self.target = None;
             let target = desktop.create_target_for_hwnd(self.hwnd(), true)?;
-            let root_visual = create_visual(&dcomp)?;
-            target.SetRoot(&root_visual)?;
+            let root_visual = dcomp.create_visual()?;
+            root_visual.set_backface_visibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
+            target.set_root(&root_visual)?;
             self.target = Some(target);
 
             let dc = d2d.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
@@ -227,22 +228,35 @@ impl DemoWindow {
                         continue;
                     }
 
-                    let front_visual = create_visual(&dcomp)?;
-                    front_visual.SetOffsetX2(card.offset.x)?;
-                    front_visual.SetOffsetY2(card.offset.y)?;
-                    root_visual.AddVisual(&front_visual, false, None)?;
+                    let front_visual = dcomp.create_visual()?;
+                    front_visual
+                        .set_backface_visibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
+                    front_visual.set_offset_x(card.offset.x)?;
+                    front_visual.set_offset_y(card.offset.y)?;
+                    root_visual.add_visual(&front_visual, false, None)?;
 
-                    let back_visual = create_visual(&dcomp)?;
-                    back_visual.SetOffsetX2(card.offset.x)?;
-                    back_visual.SetOffsetY2(card.offset.y)?;
-                    root_visual.AddVisual(&back_visual, false, None)?;
+                    let back_visual = dcomp.create_visual()?;
+                    back_visual.set_backface_visibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
+                    back_visual.set_offset_x(card.offset.x)?;
+                    back_visual.set_offset_y(card.offset.y)?;
+                    root_visual.add_visual(&back_visual, false, None)?;
 
-                    let front_surface = create_surface(&dcomp, card_size)?;
-                    front_visual.SetContent(&front_surface)?;
+                    let front_surface = dcomp.create_surface(
+                        card_size.width as u32,
+                        card_size.height as u32,
+                        DXGI_FORMAT_B8G8R8A8_UNORM,
+                        DXGI_ALPHA_MODE_PREMULTIPLIED,
+                    )?;
+                    front_visual.set_content(&front_surface)?;
                     draw_card_front(&front_surface, card.value, &self.format, &brush, dpi)?;
 
-                    let back_surface = create_surface(&dcomp, card_size)?;
-                    back_visual.SetContent(&back_surface)?;
+                    let back_surface = dcomp.create_surface(
+                        card_size.width as u32,
+                        card_size.height as u32,
+                        DXGI_FORMAT_B8G8R8A8_UNORM,
+                        DXGI_ALPHA_MODE_PREMULTIPLIED,
+                    )?;
+                    back_visual.set_content(&back_surface)?;
                     draw_card_back(&back_surface, &bitmap, card.offset, dpi)?;
 
                     let rotation = dcomp.CreateRotateTransform3D()?;
@@ -259,7 +273,7 @@ impl DemoWindow {
                 }
             }
 
-            dcomp.Commit()?;
+            dcomp.commit()?;
             self.dcomp = Some(dcomp);
             Ok(())
         }
@@ -302,7 +316,7 @@ impl DemoWindow {
                 }
 
                 let dcomp = self.dcomp.as_ref().expect("IDCompositionDesktopDevice");
-                let stats = dcomp.GetFrameStatistics()?;
+                let stats = dcomp.get_frame_statistics()?;
 
                 let next_frame: f64 =
                     stats.nextEstimatedFrameTime as f64 / stats.timeFrequency as f64;
@@ -349,7 +363,7 @@ impl DemoWindow {
                     update_animation(dcomp, &self.cards[next])?;
                 }
 
-                dcomp.Commit()?;
+                dcomp.commit()?;
             } else if cfg!(debug_assertions) {
                 println!("missed");
             }
@@ -487,25 +501,6 @@ fn create_device_3d() -> Result<ID3D11Device> {
     )
 }
 
-fn create_visual(dcomp: &IDCompositionDevice3) -> Result<IDCompositionVisual3> {
-    unsafe {
-        let visual = dcomp.CreateVisual()?;
-        visual.SetBackFaceVisibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
-        Ok(visual.cast()?)
-    }
-}
-
-fn create_surface(dcomp: &IDCompositionDevice3, size: RawSize) -> Result<IDCompositionSurface> {
-    unsafe {
-        dcomp.CreateSurface(
-            size.width as u32,
-            size.height as u32,
-            DXGI_FORMAT_B8G8R8A8_UNORM,
-            DXGI_ALPHA_MODE_PREMULTIPLIED,
-        )
-    }
-}
-
 fn add_show_transition(
     library: &IUIAnimationTransitionLibrary2,
     storyboard: &IUIAnimationStoryboard2,
@@ -533,19 +528,17 @@ fn add_hide_transition(
 }
 
 fn update_animation(dcomp: &IDCompositionDevice3, card: &Card) -> Result<()> {
-    unsafe {
-        // 1. 空の DirectComposition アニメーションを作成
-        let animation = dcomp.CreateAnimation()?;
+    // 1. 空の DirectComposition アニメーションを作成
+    let animation = dcomp.create_animation()?;
 
-        // 2. UI Animation 変数のカーブを DComp アニメーションへコピー
-        card.variable.GetCurve(&animation)?;
+    // 2. UI Animation 変数のカーブを DComp アニメーションへコピー
+    card.variable.get_curve(&animation)?;
 
-        // 3. 回転トランスフォームの Angle にセット（以後 DComp 側で自動進行）
-        card.rotation
-            .as_ref()
-            .expect("IDCompositionRotateTransform3D")
-            .SetAngle(&animation)
-    }
+    // 3. 回転トランスフォームの Angle にセット（以後 DComp 側で自動進行）
+    card.rotation
+        .as_ref()
+        .expect("IDCompositionRotateTransform3D")
+        .set_angle(&animation)
 }
 
 fn create_transition(
@@ -563,30 +556,28 @@ fn create_effect(
     front: bool,
     dpi: Dpi,
 ) -> Result<()> {
-    unsafe {
-        let width: PxLength = CARD_WIDTH.into_dpi(dpi);
-        let height: PxLength = CARD_HEIGHT.into_dpi(dpi);
+    let width: PxLength = CARD_WIDTH.into_dpi(dpi);
+    let height: PxLength = CARD_HEIGHT.into_dpi(dpi);
 
-        let pre_matrix = Matrix4x4::translation(-width.0 / 2.0, -height.0 / 2.0, 0.0)
-            * Matrix4x4::rotation_y(if front { 180.0 } else { 0.0 });
+    let pre_matrix = Matrix4x4::translation(-width.0 / 2.0, -height.0 / 2.0, 0.0)
+        * Matrix4x4::rotation_y(if front { 180.0 } else { 0.0 });
 
-        let pre_transform = dcomp.CreateMatrixTransform3D()?;
-        pre_transform.SetMatrix(&pre_matrix)?;
+    let pre_transform = dcomp.create_matrix_transform_3d()?;
+    pre_transform.set_matrix(&pre_matrix)?;
 
-        let post_matrix = Matrix4x4::perspective_projection(width.0 * 2.0)
-            * Matrix4x4::translation(width.0 / 2.0, height.0 / 2.0, 0.0);
+    let post_matrix = Matrix4x4::perspective_projection(width.0 * 2.0)
+        * Matrix4x4::translation(width.0 / 2.0, height.0 / 2.0, 0.0);
 
-        let post_transform = dcomp.CreateMatrixTransform3D()?;
-        post_transform.SetMatrix(&post_matrix)?;
+    let post_transform = dcomp.create_matrix_transform_3d()?;
+    post_transform.set_matrix(&post_matrix)?;
 
-        let transform = dcomp.CreateTransform3DGroup(&[
-            pre_transform.cast().ok(),
-            rotation.cast().ok(),
-            post_transform.cast().ok(),
-        ])?;
+    let transform = dcomp.create_transform_3d_group(&[
+        pre_transform.cast().ok(),
+        rotation.cast().ok(),
+        post_transform.cast().ok(),
+    ])?;
 
-        visual.SetEffect(&transform)
-    }
+    visual.set_effect(&transform)
 }
 
 fn draw_card_front(
