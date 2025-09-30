@@ -314,24 +314,23 @@ impl DemoWindow {
             let dcomp = self.dcomp.as_ref().expect("IDCompositionDesktopDevice");
             let stats = dcomp.get_frame_statistics()?;
 
-            let next_frame: f64 =
-                stats.nextEstimatedFrameTime as f64 / stats.timeFrequency as f64;
+            let next_frame: f64 = stats.nextEstimatedFrameTime as f64 / stats.timeFrequency as f64;
 
             self.manager.update(next_frame)?;
             let storyboard = self.manager.create_storyboard()?;
             let key_frame = add_show_transition(&self.library, &storyboard, &self.cards[next])?;
 
             if let Some(first) = self.first.take() {
-                let final_value =
-                    if b'a' - b'A' == u8::abs_diff(self.cards[first].value, self.cards[next].value)
-                    {
-                        self.cards[first].status = Status::Matched;
-                        self.cards[next].status = Status::Matched;
-                        90.0
-                    } else {
-                        self.cards[first].status = Status::Hidden;
-                        0.0
-                    };
+                let final_value = if b'a' - b'A'
+                    == u8::abs_diff(self.cards[first].value, self.cards[next].value)
+                {
+                    self.cards[first].status = Status::Matched;
+                    self.cards[next].status = Status::Matched;
+                    90.0
+                } else {
+                    self.cards[first].status = Status::Hidden;
+                    0.0
+                };
 
                 add_hide_transition(
                     &self.library,
@@ -436,8 +435,7 @@ impl DemoWindow {
 }
 
 fn create_text_format() -> Result<IDWriteTextFormat> {
-    let factory: IDWriteFactory2 =
-        unsafe { DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED) }?;
+    let factory: IDWriteFactory2 = unsafe { DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED) }?;
 
     let format = unsafe {
         factory.CreateTextFormat(
