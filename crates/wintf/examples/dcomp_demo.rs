@@ -196,17 +196,19 @@ impl DemoWindow {
         target.set_root(&root_visual)?;
         self.target = Some(target);
 
-        let dc = d2d.create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
+        let dc = unsafe { d2d.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE) }?;
 
-        let brush = dc.create_solid_color_brush(
-            &D2D1_COLOR_F {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 1.0,
-            },
-            None,
-        )?;
+        let brush = unsafe {
+            dc.CreateSolidColorBrush(
+                &D2D1_COLOR_F {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                    a: 1.0,
+                },
+                None,
+            )
+        }?;
 
         let bitmap = dc.create_bitmap_from_wic_bitmap(&self.image)?;
         let dpi = self.dpi();
@@ -259,13 +261,11 @@ impl DemoWindow {
                 let rotation = dcomp.create_rotate_transform_3d()?;
 
                 if card.status == Status::Selected {
-                    unsafe { rotation.SetAngle2(180.0) }?;
+                    rotation.set_angle2(180.0)?;
                 }
 
-                unsafe {
-                    rotation.SetAxisZ2(0.0)?;
-                    rotation.SetAxisY2(1.0)?;
-                }
+                rotation.set_axis_z2(0.0)?;
+                rotation.set_axis_y2(1.0)?;
                 create_effect(&dcomp, &front_visual, &rotation, true, dpi)?;
                 create_effect(&dcomp, &back_visual, &rotation, false, dpi)?;
                 card.rotation = Some(rotation);
@@ -590,20 +590,21 @@ fn draw_card_front(
         a: 1.0,
     }));
 
-    let string = HSTRING::from_wide(&[value as _]);
-    dc.draw_text(
-        &string,
-        format,
-        &D2D_RECT_F {
-            left: 0.0,
-            top: 0.0,
-            right: CARD_WIDTH.0,
-            bottom: CARD_HEIGHT.0,
-        },
-        brush,
-        D2D1_DRAW_TEXT_OPTIONS_NONE,
-        DWRITE_MEASURING_MODE_NATURAL,
-    );
+    unsafe {
+        dc.DrawText(
+            &[value as _],
+            format,
+            &D2D_RECT_F {
+                left: 0.0,
+                top: 0.0,
+                right: CARD_WIDTH.0,
+                bottom: CARD_HEIGHT.0,
+            },
+            brush,
+            D2D1_DRAW_TEXT_OPTIONS_NONE,
+            DWRITE_MEASURING_MODE_NATURAL,
+        )
+    };
 
     unsafe { surface.EndDraw() }
 }
@@ -614,28 +615,32 @@ fn draw_card_back(
     offset: PxPoint,
     dpi: Dpi,
 ) -> Result<()> {
-    let (dc, dc_offset) = surface.begin_draw(None)?;
+    let mut dc_offset = Default::default();
+    let dc: ID2D1DeviceContext = unsafe { surface.BeginDraw(None, &mut dc_offset) }?;
+    let dc: ID2D1DeviceContext7 = dc.cast()?;
     dc.set_dpi(dpi);
     let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
-    dc.set_transform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
+    unsafe { dc.SetTransform(&Matrix3x2::translation(dc_offset.x, dc_offset.y)) };
 
     let offset: LxPoint = offset.into_dpi(dpi);
     let left = offset.x;
     let top = offset.y;
 
-    dc.draw_bitmap(
-        bitmap,
-        None,
-        1.0,
-        D2D1_INTERPOLATION_MODE_LINEAR,
-        Some(&D2D_RECT_F {
-            left,
-            top,
-            right: left + CARD_WIDTH.0,
-            bottom: top + CARD_HEIGHT.0,
-        }),
-        None,
-    );
+    unsafe {
+        dc.DrawBitmap(
+            bitmap,
+            None,
+            1.0,
+            D2D1_INTERPOLATION_MODE_LINEAR,
+            Some(&D2D_RECT_F {
+                left,
+                top,
+                right: left + CARD_WIDTH.0,
+                bottom: top + CARD_HEIGHT.0,
+            }),
+            None,
+        )
+    };
 
-    surface.end_draw()
+    unsafe { surface.EndDraw() }
 }
