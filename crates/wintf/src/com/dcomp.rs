@@ -105,23 +105,6 @@ impl IDCompositionVisualExt for IDCompositionVisual3 {
     }
 }
 
-pub trait IDCompositionAnimationExt {
-    /// GetCurve
-    fn get_curve<P0>(&self, animation: P0) -> Result<()>
-    where
-        P0: Param<IDCompositionAnimation>;
-}
-
-impl IDCompositionAnimationExt for IUIAnimationVariable2 {
-    #[inline(always)]
-    fn get_curve<P0>(&self, animation: P0) -> Result<()>
-    where
-        P0: Param<IDCompositionAnimation>,
-    {
-        unsafe { self.GetCurve(animation) }
-    }
-}
-
 pub trait IDCompositionRotateTransform3DExt {
     /// SetAngle
     fn set_angle<P0>(&self, animation: P0) -> Result<()>

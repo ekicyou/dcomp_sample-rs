@@ -3,14 +3,14 @@ use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::System::Com::*;
 use windows::Win32::UI::Animation::*;
 
-pub trait IDCompositionAnimationExt {
+pub trait UIAnimationVariableExt {
     /// GetCurve
     fn get_curve<P0>(&self, animation: P0) -> Result<()>
     where
         P0: Param<IDCompositionAnimation>;
 }
 
-impl IDCompositionAnimationExt for IUIAnimationVariable2 {
+impl UIAnimationVariableExt for IUIAnimationVariable2 {
     #[inline(always)]
     fn get_curve<P0>(&self, animation: P0) -> Result<()>
     where
