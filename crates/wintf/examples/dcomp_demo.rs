@@ -535,7 +535,7 @@ fn create_transition(
     duration: f64,
     final_value: f64,
 ) -> Result<IUIAnimationTransition2> {
-    unsafe { library.CreateAccelerateDecelerateTransition(duration, final_value, 0.2, 0.8) }
+    library.create_accelerate_decelerate_transition(duration, final_value, 0.2, 0.8)
 }
 
 fn create_effect(

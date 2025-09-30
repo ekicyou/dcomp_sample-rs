@@ -54,6 +54,12 @@ pub trait UIAnimationTransitionLibraryExt {
         accelerationratio: f64,
         decelerationratio: f64,
     ) -> Result<IUIAnimationTransition2>;
+    fn create_cubic_transition(
+        &self,
+        duration: f64,
+        finalvalue: f64,
+        finalvelocity: f64,
+    ) -> Result<IUIAnimationTransition2>;
 }
 
 impl UIAnimationTransitionLibraryExt for IUIAnimationTransitionLibrary2 {
@@ -73,6 +79,16 @@ impl UIAnimationTransitionLibraryExt for IUIAnimationTransitionLibrary2 {
                 decelerationratio,
             )
         }
+    }
+
+    #[inline(always)]
+    fn create_cubic_transition(
+        &self,
+        duration: f64,
+        finalvalue: f64,
+        finalvelocity: f64,
+    ) -> Result<IUIAnimationTransition2> {
+        unsafe { self.CreateCubicTransition(duration, finalvalue, finalvelocity) }
     }
 }
 
