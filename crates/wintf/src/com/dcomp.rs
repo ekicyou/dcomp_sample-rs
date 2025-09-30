@@ -5,6 +5,7 @@ use windows::Win32::Graphics::Dxgi::Common::*;
 use windows::Win32::System::Com::*;
 use windows_numerics::*;
 
+/// DCompositionCreateDevice3
 pub fn dcomp_create_desktop_device<P0>(renderingdevice: P0) -> Result<IDCompositionDesktopDevice>
 where
     P0: Param<IUnknown>,
