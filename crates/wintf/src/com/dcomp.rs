@@ -25,6 +25,7 @@ impl DCompositionDesktopDeviceExt for IDCompositionDesktopDevice {
 }
 
 pub trait IDCompositionTargetExt {
+    /// SetRoot
     fn set_root<P0>(&self, visual: P0) -> Result<()>
     where
         P0: Param<IDCompositionVisual>;
@@ -41,16 +42,22 @@ impl IDCompositionTargetExt for IDCompositionTarget {
 }
 
 pub trait IDCompositionVisualExt {
+    /// SetBackFaceVisibility
     fn set_backface_visibility(&self, visibility: DCOMPOSITION_BACKFACE_VISIBILITY) -> Result<()>;
+    /// SetOffsetX
     fn set_offset_x(&self, offset: f32) -> Result<()>;
+    /// SetOffsetY
     fn set_offset_y(&self, offset: f32) -> Result<()>;
+    /// AddVisual
     fn add_visual<P0, P1>(&self, visual: P0, insertabove: bool, referencevisual: P1) -> Result<()>
     where
         P0: Param<IDCompositionVisual>,
         P1: Param<IDCompositionVisual>;
+    /// SetContent
     fn set_content<P0>(&self, content: P0) -> Result<()>
     where
         P0: Param<IUnknown>;
+    /// SetEffect
     fn set_effect<P0>(&self, effect: P0) -> Result<()>
     where
         P0: Param<IDCompositionEffect>;
@@ -99,6 +106,7 @@ impl IDCompositionVisualExt for IDCompositionVisual3 {
 }
 
 pub trait IDCompositionAnimationExt {
+    /// GetCurve
     fn get_curve<P0>(&self, animation: P0) -> Result<()>
     where
         P0: Param<IDCompositionAnimation>;
@@ -115,6 +123,7 @@ impl IDCompositionAnimationExt for IUIAnimationVariable2 {
 }
 
 pub trait IDCompositionRotateTransform3DExt {
+    /// SetAngle
     fn set_angle<P0>(&self, animation: P0) -> Result<()>
     where
         P0: Param<IDCompositionAnimation>;
@@ -131,6 +140,7 @@ impl IDCompositionRotateTransform3DExt for IDCompositionRotateTransform3D {
 }
 
 pub trait IDCompositionMatrixTransform3DExt {
+    /// SetMatrix
     fn set_matrix(&self, matrix: &Matrix4x4) -> Result<()>;
 }
 
@@ -142,8 +152,11 @@ impl IDCompositionMatrixTransform3DExt for IDCompositionMatrixTransform3D {
 }
 
 pub trait IDCompositionDeviceExt {
+    /// CreateVisual
     fn create_visual(&self) -> Result<IDCompositionVisual3>;
+    /// Commit
     fn commit(&self) -> Result<()>;
+    /// CreateSurface
     fn create_surface(
         &self,
         width: u32,
@@ -151,9 +164,13 @@ pub trait IDCompositionDeviceExt {
         pixelformat: DXGI_FORMAT,
         alphamode: DXGI_ALPHA_MODE,
     ) -> Result<IDCompositionSurface>;
+    /// GetFrameStatistics
     fn get_frame_statistics(&self) -> Result<DCOMPOSITION_FRAME_STATISTICS>;
+    /// CreateAnimation
     fn create_animation(&self) -> Result<IDCompositionAnimation>;
+    /// CreateMatrixTransform3D
     fn create_matrix_transform_3d(&self) -> Result<IDCompositionMatrixTransform3D>;
+    /// CreateTransform3DGroup
     fn create_transform_3d_group(
         &self,
         transforms: &[Option<IDCompositionTransform3D>],
