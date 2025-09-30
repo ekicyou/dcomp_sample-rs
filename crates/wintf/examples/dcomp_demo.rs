@@ -590,7 +590,7 @@ fn draw_card_front(
         g: 1.0,
         b: 1.0,
         a: 1.0,
-    } as *const D2D1_COLOR_F));
+    }));
 
     unsafe {
         dc.DrawText(

@@ -38,7 +38,7 @@ pub trait D2D1DeviceContextExt {
     /// SetTransform
     fn set_transform(&self, transform: &Matrix3x2);
     /// Clear
-    fn clear(&self, color: Option<*const D2D1_COLOR_F>);
+    fn clear(&self, color: Option<&D2D1_COLOR_F>);
 }
 
 impl D2D1DeviceContextExt for ID2D1DeviceContext {
@@ -54,7 +54,7 @@ impl D2D1DeviceContextExt for ID2D1DeviceContext {
         unsafe { self.SetTransform(transform) }
     }
     #[inline(always)]
-    fn clear(&self, color: Option<*const D2D1_COLOR_F>) {
+    fn clear(&self, color: Option<&D2D1_COLOR_F>) {
         let color_ptr = color.map(|c| c as *const D2D1_COLOR_F);
         unsafe { self.Clear(color_ptr) }
     }
