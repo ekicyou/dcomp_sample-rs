@@ -4,6 +4,7 @@ pub use command::*;
 use windows::core::*;
 use windows::Win32::Graphics::Direct2D::*;
 use windows::Win32::Graphics::Dxgi::*;
+use windows::Win32::Graphics::Imaging::*;
 
 /// D2D1CreateDevice
 pub fn d2d_create_device(dxgi: &IDXGIDevice4) -> Result<ID2D1Device> {
@@ -24,5 +25,22 @@ impl ID2D1DeviceExt for ID2D1Device {
         options: D2D1_DEVICE_CONTEXT_OPTIONS,
     ) -> Result<ID2D1DeviceContext> {
         unsafe { self.CreateDeviceContext(options) }
+    }
+}
+
+pub trait D2D1DeviceContextExt {
+    /// CreateBitmapFromWicBitmap
+    fn create_bitmap_from_wic_bitmap<P0>(&self, wicbitmapsource: P0) -> Result<ID2D1Bitmap1>
+    where
+        P0: Param<IWICBitmapSource>;
+}
+
+impl D2D1DeviceContextExt for ID2D1DeviceContext {
+    #[inline(always)]
+    fn create_bitmap_from_wic_bitmap<P0>(&self, wicbitmapsource: P0) -> Result<ID2D1Bitmap1>
+    where
+        P0: Param<IWICBitmapSource>,
+    {
+        unsafe { self.CreateBitmapFromWicBitmap(wicbitmapsource, None) }
     }
 }
