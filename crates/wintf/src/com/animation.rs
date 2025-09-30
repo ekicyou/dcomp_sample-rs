@@ -45,3 +45,61 @@ pub fn create_animation_manager() -> Result<IUIAnimationManager2> {
 pub fn create_animation_transition_library() -> Result<IUIAnimationTransitionLibrary2> {
     unsafe { CoCreateInstance(&UIAnimationTransitionLibrary2, None, CLSCTX_INPROC_SERVER) }
 }
+
+pub trait IUIAnimationStoryboard2Ext {
+    fn schedule(&self, time: f64) -> Result<()>;
+    fn add_transition<P0, P1>(&self, variable: P0, transition: P1) -> Result<()>
+    where
+        P0: Param<IUIAnimationVariable2>,
+        P1: Param<IUIAnimationTransition2>;
+    fn add_keyframe_after_transition<P0>(&self, transition: P0) -> Result<UI_ANIMATION_KEYFRAME>
+    where
+        P0: Param<IUIAnimationTransition2>;
+    fn add_transition_at_keyframe<P0, P1>(
+        &self,
+        variable: P0,
+        transition: P1,
+        startkeyframe: UI_ANIMATION_KEYFRAME,
+    ) -> Result<()>
+    where
+        P0: Param<IUIAnimationVariable2>,
+        P1: Param<IUIAnimationTransition2>;
+}
+
+impl IUIAnimationStoryboard2Ext for IUIAnimationStoryboard2 {
+    #[inline(always)]
+    fn schedule(&self, time: f64) -> Result<()> {
+        unsafe { self.Schedule(time, None) }
+    }
+
+    #[inline(always)]
+    fn add_transition<P0, P1>(&self, variable: P0, transition: P1) -> Result<()>
+    where
+        P0: Param<IUIAnimationVariable2>,
+        P1: Param<IUIAnimationTransition2>,
+    {
+        unsafe { self.AddTransition(variable, transition) }
+    }
+
+    #[inline(always)]
+    fn add_keyframe_after_transition<P0>(&self, transition: P0) -> Result<UI_ANIMATION_KEYFRAME>
+    where
+        P0: Param<IUIAnimationTransition2>,
+    {
+        unsafe { self.AddKeyframeAfterTransition(transition) }
+    }
+
+    #[inline(always)]
+    fn add_transition_at_keyframe<P0, P1>(
+        &self,
+        variable: P0,
+        transition: P1,
+        startkeyframe: UI_ANIMATION_KEYFRAME,
+    ) -> Result<()>
+    where
+        P0: Param<IUIAnimationVariable2>,
+        P1: Param<IUIAnimationTransition2>,
+    {
+        unsafe { self.AddTransitionAtKeyframe(variable, transition, startkeyframe) }
+    }
+}
