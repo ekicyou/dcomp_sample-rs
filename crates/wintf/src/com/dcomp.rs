@@ -2,7 +2,6 @@ use windows::core::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
-use windows::Win32::System::Com::*;
 use windows::Win32::UI::Animation::*;
 use windows_numerics::*;
 
