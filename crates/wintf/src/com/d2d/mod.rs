@@ -5,6 +5,7 @@ use windows::core::*;
 use windows::Win32::Graphics::Direct2D::*;
 use windows::Win32::Graphics::Dxgi::*;
 use windows::Win32::Graphics::Imaging::*;
+use windows_numerics::*;
 
 /// D2D1CreateDevice
 pub fn d2d_create_device(dxgi: &IDXGIDevice4) -> Result<ID2D1Device> {
@@ -33,6 +34,8 @@ pub trait D2D1DeviceContextExt {
     fn create_bitmap_from_wic_bitmap<P0>(&self, wicbitmapsource: P0) -> Result<ID2D1Bitmap1>
     where
         P0: Param<IWICBitmapSource>;
+    /// SetTransform
+    fn set_transform(&self, transform: &Matrix3x2);
 }
 
 impl D2D1DeviceContextExt for ID2D1DeviceContext {
@@ -42,5 +45,9 @@ impl D2D1DeviceContextExt for ID2D1DeviceContext {
         P0: Param<IWICBitmapSource>,
     {
         unsafe { self.CreateBitmapFromWicBitmap(wicbitmapsource, None) }
+    }
+    #[inline(always)]
+    fn set_transform(&self, transform: &Matrix3x2) {
+        unsafe { self.SetTransform(transform) }
     }
 }
