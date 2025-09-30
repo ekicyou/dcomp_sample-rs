@@ -20,13 +20,13 @@ impl UIAnimationVariableExt for IUIAnimationVariable2 {
     }
 }
 
-pub trait IUIAnimationManagerExt {
+pub trait UIAnimationManagerExt {
     fn create_animation_variable(&self, initialvalue: f64) -> Result<IUIAnimationVariable2>;
     fn update(&self, time: f64) -> Result<()>;
     fn create_storyboard(&self) -> Result<IUIAnimationStoryboard2>;
 }
 
-impl IUIAnimationManagerExt for IUIAnimationManager2 {
+impl UIAnimationManagerExt for IUIAnimationManager2 {
     fn create_animation_variable(&self, initialvalue: f64) -> Result<IUIAnimationVariable2> {
         unsafe { self.CreateAnimationVariable(initialvalue) }
     }
@@ -46,7 +46,7 @@ pub fn create_animation_transition_library() -> Result<IUIAnimationTransitionLib
     unsafe { CoCreateInstance(&UIAnimationTransitionLibrary2, None, CLSCTX_INPROC_SERVER) }
 }
 
-pub trait IUIAnimationStoryboard2Ext {
+pub trait UIAnimationStoryboardExt {
     fn schedule(&self, time: f64) -> Result<()>;
     fn add_transition<P0, P1>(&self, variable: P0, transition: P1) -> Result<()>
     where
@@ -66,7 +66,7 @@ pub trait IUIAnimationStoryboard2Ext {
         P1: Param<IUIAnimationTransition2>;
 }
 
-impl IUIAnimationStoryboard2Ext for IUIAnimationStoryboard2 {
+impl UIAnimationStoryboardExt for IUIAnimationStoryboard2 {
     #[inline(always)]
     fn schedule(&self, time: f64) -> Result<()> {
         unsafe { self.Schedule(time, None) }

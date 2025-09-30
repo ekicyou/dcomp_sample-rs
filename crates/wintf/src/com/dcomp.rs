@@ -2,7 +2,6 @@ use windows::core::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
-use windows::Win32::UI::Animation::*;
 use windows_numerics::*;
 
 pub fn dcomp_create_desktop_device<P0>(renderingdevice: P0) -> Result<IDCompositionDesktopDevice>
@@ -10,6 +9,84 @@ where
     P0: Param<IUnknown>,
 {
     unsafe { DCompositionCreateDevice3(renderingdevice) }
+}
+
+pub trait DCompositionDeviceExt {
+    /// CreateVisual
+    fn create_visual(&self) -> Result<IDCompositionVisual3>;
+    /// Commit
+    fn commit(&self) -> Result<()>;
+    /// CreateSurface
+    fn create_surface(
+        &self,
+        width: u32,
+        height: u32,
+        pixelformat: DXGI_FORMAT,
+        alphamode: DXGI_ALPHA_MODE,
+    ) -> Result<IDCompositionSurface>;
+    /// GetFrameStatistics
+    fn get_frame_statistics(&self) -> Result<DCOMPOSITION_FRAME_STATISTICS>;
+    /// CreateAnimation
+    fn create_animation(&self) -> Result<IDCompositionAnimation>;
+    /// CreateMatrixTransform3D
+    fn create_matrix_transform_3d(&self) -> Result<IDCompositionMatrixTransform3D>;
+    /// CreateTransform3DGroup
+    fn create_transform_3d_group(
+        &self,
+        transforms: &[Option<IDCompositionTransform3D>],
+    ) -> Result<IDCompositionTransform3D>;
+    fn create_rotate_transform_3d(&self) -> Result<IDCompositionRotateTransform3D>;
+}
+
+impl DCompositionDeviceExt for IDCompositionDevice3 {
+    #[inline(always)]
+    fn create_visual(&self) -> Result<IDCompositionVisual3> {
+        unsafe { self.CreateVisual()?.cast() }
+    }
+
+    #[inline(always)]
+    fn commit(&self) -> Result<()> {
+        unsafe { self.Commit() }
+    }
+
+    #[inline(always)]
+    fn create_surface(
+        &self,
+        width: u32,
+        height: u32,
+        pixelformat: DXGI_FORMAT,
+        alphamode: DXGI_ALPHA_MODE,
+    ) -> Result<IDCompositionSurface> {
+        unsafe { self.CreateSurface(width, height, pixelformat, alphamode) }
+    }
+
+    #[inline(always)]
+    fn get_frame_statistics(&self) -> Result<DCOMPOSITION_FRAME_STATISTICS> {
+        unsafe { self.GetFrameStatistics() }
+    }
+
+    #[inline(always)]
+    fn create_animation(&self) -> Result<IDCompositionAnimation> {
+        unsafe { self.CreateAnimation() }
+    }
+
+    #[inline(always)]
+    fn create_matrix_transform_3d(&self) -> Result<IDCompositionMatrixTransform3D> {
+        unsafe { self.CreateMatrixTransform3D() }
+    }
+
+    #[inline(always)]
+    fn create_transform_3d_group(
+        &self,
+        transforms: &[Option<IDCompositionTransform3D>],
+    ) -> Result<IDCompositionTransform3D> {
+        unsafe { self.CreateTransform3DGroup(transforms) }
+    }
+
+    #[inline(always)]
+    fn create_rotate_transform_3d(&self) -> Result<IDCompositionRotateTransform3D> {
+        unsafe { self.CreateRotateTransform3D() }
+    }
 }
 
 pub trait DCompositionDesktopDeviceExt {
@@ -105,14 +182,14 @@ impl DCompositionVisualExt for IDCompositionVisual3 {
     }
 }
 
-pub trait IDCompositionRotateTransform3DExt {
+pub trait DCompositionRotateTransform3DExt {
     /// SetAngle
     fn set_angle<P0>(&self, animation: P0) -> Result<()>
     where
         P0: Param<IDCompositionAnimation>;
 }
 
-impl IDCompositionRotateTransform3DExt for IDCompositionRotateTransform3D {
+impl DCompositionRotateTransform3DExt for IDCompositionRotateTransform3D {
     #[inline(always)]
     fn set_angle<P0>(&self, animation: P0) -> Result<()>
     where
@@ -122,110 +199,14 @@ impl IDCompositionRotateTransform3DExt for IDCompositionRotateTransform3D {
     }
 }
 
-pub trait IDCompositionMatrixTransform3DExt {
+pub trait DCompositionMatrixTransform3DExt {
     /// SetMatrix
     fn set_matrix(&self, matrix: &Matrix4x4) -> Result<()>;
 }
 
-impl IDCompositionMatrixTransform3DExt for IDCompositionMatrixTransform3D {
+impl DCompositionMatrixTransform3DExt for IDCompositionMatrixTransform3D {
     #[inline(always)]
     fn set_matrix(&self, matrix: &Matrix4x4) -> Result<()> {
         unsafe { self.SetMatrix(matrix) }
-    }
-}
-
-pub trait IDCompositionDeviceExt {
-    /// CreateVisual
-    fn create_visual(&self) -> Result<IDCompositionVisual3>;
-    /// Commit
-    fn commit(&self) -> Result<()>;
-    /// CreateSurface
-    fn create_surface(
-        &self,
-        width: u32,
-        height: u32,
-        pixelformat: DXGI_FORMAT,
-        alphamode: DXGI_ALPHA_MODE,
-    ) -> Result<IDCompositionSurface>;
-    /// GetFrameStatistics
-    fn get_frame_statistics(&self) -> Result<DCOMPOSITION_FRAME_STATISTICS>;
-    /// CreateAnimation
-    fn create_animation(&self) -> Result<IDCompositionAnimation>;
-    /// CreateMatrixTransform3D
-    fn create_matrix_transform_3d(&self) -> Result<IDCompositionMatrixTransform3D>;
-    /// CreateTransform3DGroup
-    fn create_transform_3d_group(
-        &self,
-        transforms: &[Option<IDCompositionTransform3D>],
-    ) -> Result<IDCompositionTransform3D>;
-    fn create_rotate_transform_3d(&self) -> Result<IDCompositionRotateTransform3D>;
-}
-
-impl IDCompositionDeviceExt for IDCompositionDevice3 {
-    #[inline(always)]
-    fn create_visual(&self) -> Result<IDCompositionVisual3> {
-        unsafe { self.CreateVisual()?.cast() }
-    }
-
-    #[inline(always)]
-    fn commit(&self) -> Result<()> {
-        unsafe { self.Commit() }
-    }
-
-    #[inline(always)]
-    fn create_surface(
-        &self,
-        width: u32,
-        height: u32,
-        pixelformat: DXGI_FORMAT,
-        alphamode: DXGI_ALPHA_MODE,
-    ) -> Result<IDCompositionSurface> {
-        unsafe { self.CreateSurface(width, height, pixelformat, alphamode) }
-    }
-
-    #[inline(always)]
-    fn get_frame_statistics(&self) -> Result<DCOMPOSITION_FRAME_STATISTICS> {
-        unsafe { self.GetFrameStatistics() }
-    }
-
-    #[inline(always)]
-    fn create_animation(&self) -> Result<IDCompositionAnimation> {
-        unsafe { self.CreateAnimation() }
-    }
-
-    #[inline(always)]
-    fn create_matrix_transform_3d(&self) -> Result<IDCompositionMatrixTransform3D> {
-        unsafe { self.CreateMatrixTransform3D() }
-    }
-
-    #[inline(always)]
-    fn create_transform_3d_group(
-        &self,
-        transforms: &[Option<IDCompositionTransform3D>],
-    ) -> Result<IDCompositionTransform3D> {
-        unsafe { self.CreateTransform3DGroup(transforms) }
-    }
-
-    #[inline(always)]
-    fn create_rotate_transform_3d(&self) -> Result<IDCompositionRotateTransform3D> {
-        unsafe { self.CreateRotateTransform3D() }
-    }
-}
-
-pub trait IUIAnimationManagerExt {
-    fn create_animation_variable(&self, initialvalue: f64) -> Result<IUIAnimationVariable2>;
-    fn update(&self, time: f64) -> Result<()>;
-    fn create_storyboard(&self) -> Result<IUIAnimationStoryboard2>;
-}
-
-impl IUIAnimationManagerExt for IUIAnimationManager2 {
-    fn create_animation_variable(&self, initialvalue: f64) -> Result<IUIAnimationVariable2> {
-        unsafe { self.CreateAnimationVariable(initialvalue) }
-    }
-    fn update(&self, time: f64) -> Result<()> {
-        unsafe { self.Update(time, None).map(|_| ()) }
-    }
-    fn create_storyboard(&self) -> Result<IUIAnimationStoryboard2> {
-        unsafe { self.CreateStoryboard() }
     }
 }
