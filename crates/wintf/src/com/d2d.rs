@@ -508,6 +508,7 @@ impl PushAxisAlignedClip {
 
 #[derive(Clone, Debug)]
 pub struct PushLayer {
+    // --- D2D1_LAYER_PARAMETERS1 START ---
     pub content_bounds: D2D_RECT_F,
     pub geometric_mask: Option<ManuallyDrop<ID2D1Geometry>>,
     pub mask_antialias_mode: D2D1_ANTIALIAS_MODE,
@@ -515,6 +516,7 @@ pub struct PushLayer {
     pub opacity: f32,
     pub opacity_brush: Option<ManuallyDrop<ID2D1Brush>>,
     pub layer_options: D2D1_LAYER_OPTIONS1,
+    // --- D2D1_LAYER_PARAMETERS1 END ---
     pub layer: Option<ManuallyDrop<ID2D1Layer>>,
 }
 
