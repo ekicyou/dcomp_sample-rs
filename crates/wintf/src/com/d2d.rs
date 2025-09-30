@@ -563,7 +563,7 @@ pub enum DrawCommand {
     PopLayer,
 }
 
-#[implement(ID2D1CommandSink3)]
+#[implement(ID2D1CommandSink5)]
 #[derive(Clone, Debug)]
 pub struct RecCommandSink {
     commands: Vec<DrawCommand>,
@@ -796,6 +796,25 @@ impl ID2D1CommandSink3_Impl for RecCommandSink_Impl {
         bitmap: windows_core::Ref<ID2D1Bitmap>,
         interpolationmode: D2D1_BITMAP_INTERPOLATION_MODE,
         spriteoptions: D2D1_SPRITE_OPTIONS,
+    ) -> windows_core::Result<()> {
+        Ok(())
+    }
+}
+
+impl ID2D1CommandSink4_Impl for RecCommandSink_Impl {
+    fn SetPrimitiveBlend2(&self, primitiveblend: D2D1_PRIMITIVE_BLEND) -> windows_core::Result<()> {
+        Ok(())
+    }
+}
+
+impl ID2D1CommandSink5_Impl for RecCommandSink_Impl {
+    fn BlendImage(
+        &self,
+        image: windows_core::Ref<ID2D1Image>,
+        blendmode: D2D1_BLEND_MODE,
+        targetoffset: *const Vector2,
+        imagerectangle: *const D2D_RECT_F,
+        interpolationmode: D2D1_INTERPOLATION_MODE,
     ) -> windows_core::Result<()> {
         Ok(())
     }
