@@ -258,13 +258,11 @@ impl DemoWindow {
                 let rotation = dcomp.create_rotate_transform_3d()?;
 
                 if card.status == Status::Selected {
-                    unsafe { rotation.SetAngle2(180.0) }?;
+                    rotation.set_angle2(180.0)?;
                 }
 
-                unsafe {
-                    rotation.SetAxisZ2(0.0)?;
-                    rotation.SetAxisY2(1.0)?;
-                }
+                rotation.set_axis_z(0.0)?;
+                rotation.set_axis_y(1.0)?;
                 create_effect(&dcomp, &front_visual, &rotation, true, dpi)?;
                 create_effect(&dcomp, &back_visual, &rotation, false, dpi)?;
                 card.rotation = Some(rotation);

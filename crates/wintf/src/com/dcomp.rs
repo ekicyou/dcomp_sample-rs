@@ -128,6 +128,12 @@ pub trait IDCompositionRotateTransform3DExt {
     fn set_angle<P0>(&self, animation: P0) -> Result<()>
     where
         P0: Param<IDCompositionAnimation>;
+    /// SetAngle2
+    fn set_angle2(&self, angle: f32) -> Result<()>;
+    /// SetAxisZ2
+    fn set_axis_z(&self, z: f32) -> Result<()>;
+    /// SetAxisY2
+    fn set_axis_y(&self, y: f32) -> Result<()>;
 }
 
 impl IDCompositionRotateTransform3DExt for IDCompositionRotateTransform3D {
@@ -137,6 +143,21 @@ impl IDCompositionRotateTransform3DExt for IDCompositionRotateTransform3D {
         P0: Param<IDCompositionAnimation>,
     {
         unsafe { self.SetAngle(animation) }
+    }
+
+    #[inline(always)]
+    fn set_angle2(&self, angle: f32) -> Result<()> {
+        unsafe { self.SetAngle2(angle) }
+    }
+
+    #[inline(always)]
+    fn set_axis_z(&self, z: f32) -> Result<()> {
+        unsafe { self.SetAxisZ2(z) }
+    }
+
+    #[inline(always)]
+    fn set_axis_y(&self, y: f32) -> Result<()> {
+        unsafe { self.SetAxisY2(y) }
     }
 }
 
