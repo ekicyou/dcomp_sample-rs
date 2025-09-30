@@ -46,6 +46,36 @@ pub fn create_animation_transition_library() -> Result<IUIAnimationTransitionLib
     unsafe { CoCreateInstance(&UIAnimationTransitionLibrary2, None, CLSCTX_INPROC_SERVER) }
 }
 
+pub trait UIAnimationTransitionLibraryExt {
+    fn create_accelerate_decelerate_transition(
+        &self,
+        duration: f64,
+        finalvalue: f64,
+        accelerationratio: f64,
+        decelerationratio: f64,
+    ) -> Result<IUIAnimationTransition2>;
+}
+
+impl UIAnimationTransitionLibraryExt for IUIAnimationTransitionLibrary2 {
+    #[inline(always)]
+    fn create_accelerate_decelerate_transition(
+        &self,
+        duration: f64,
+        finalvalue: f64,
+        accelerationratio: f64,
+        decelerationratio: f64,
+    ) -> Result<IUIAnimationTransition2> {
+        unsafe {
+            self.CreateAccelerateDecelerateTransition(
+                duration,
+                finalvalue,
+                accelerationratio,
+                decelerationratio,
+            )
+        }
+    }
+}
+
 pub trait UIAnimationStoryboardExt {
     fn schedule(&self, time: f64) -> Result<()>;
     fn add_transition<P0, P1>(&self, variable: P0, transition: P1) -> Result<()>

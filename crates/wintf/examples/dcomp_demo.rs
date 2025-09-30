@@ -14,7 +14,7 @@ use windows::{
 };
 use windows_numerics::*;
 use wintf::{
-    com::{animation::*, d2d::*, d3d11::*, dcomp::*, dwrite::*, wic::*},
+    com::{animation::*, d2d::*, d3d11::*, dcomp::*, wic::*},
     *,
 };
 
@@ -436,20 +436,24 @@ impl DemoWindow {
 }
 
 fn create_text_format() -> Result<IDWriteTextFormat> {
-    let factory: IDWriteFactory2 = dwrite_create_factory(DWRITE_FACTORY_TYPE_SHARED)?;
+    let factory: IDWriteFactory2 = unsafe { DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED) }?;
 
-    let format = factory.create_text_format(
-        w!("Candara"),
-        None,
-        DWRITE_FONT_WEIGHT_NORMAL,
-        DWRITE_FONT_STYLE_NORMAL,
-        DWRITE_FONT_STRETCH_NORMAL,
-        CARD_HEIGHT.0 / 2.0,
-        w!("en"),
-    )?;
+    let format = unsafe {
+        factory.CreateTextFormat(
+            w!("Candara"),
+            None,
+            DWRITE_FONT_WEIGHT_NORMAL,
+            DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL,
+            CARD_HEIGHT.0 / 2.0,
+            w!("en"),
+        )
+    }?;
 
-    format.set_text_alignment(DWRITE_TEXT_ALIGNMENT_CENTER)?;
-    format.set_paragraph_alignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
+    unsafe {
+        format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER)?;
+        format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
+    }
     Ok(format)
 }
 
@@ -533,7 +537,7 @@ fn create_transition(
     duration: f64,
     final_value: f64,
 ) -> Result<IUIAnimationTransition2> {
-    unsafe { library.CreateAccelerateDecelerateTransition(duration, final_value, 0.2, 0.8) }
+    library.create_accelerate_decelerate_transition(duration, final_value, 0.2, 0.8)
 }
 
 fn create_effect(
@@ -586,22 +590,23 @@ fn draw_card_front(
         a: 1.0,
     }));
 
-    let s = String::from(value as char);
-    dc.draw_text(
-        &s.into(),
-        format,
-        &D2D_RECT_F {
-            left: 0.0,
-            top: 0.0,
-            right: CARD_WIDTH.0,
-            bottom: CARD_HEIGHT.0,
-        },
-        brush,
-        D2D1_DRAW_TEXT_OPTIONS_NONE,
-        DWRITE_MEASURING_MODE_NATURAL,
-    );
+    unsafe {
+        dc.DrawText(
+            &[value as _],
+            format,
+            &D2D_RECT_F {
+                left: 0.0,
+                top: 0.0,
+                right: CARD_WIDTH.0,
+                bottom: CARD_HEIGHT.0,
+            },
+            brush,
+            D2D1_DRAW_TEXT_OPTIONS_NONE,
+            DWRITE_MEASURING_MODE_NATURAL,
+        )
+    };
 
-    surface.end_draw()
+    unsafe { surface.EndDraw() }
 }
 
 fn draw_card_back(
@@ -610,29 +615,32 @@ fn draw_card_back(
     offset: PxPoint,
     dpi: Dpi,
 ) -> Result<()> {
-    let (dc, dc_offset) = surface.begin_draw(None)?;
+    let mut dc_offset = Default::default();
+    let dc: ID2D1DeviceContext = unsafe { surface.BeginDraw(None, &mut dc_offset) }?;
     let dc: ID2D1DeviceContext7 = dc.cast()?;
     dc.set_dpi(dpi);
     let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
-    dc.set_transform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
+    unsafe { dc.SetTransform(&Matrix3x2::translation(dc_offset.x, dc_offset.y)) };
 
     let offset: LxPoint = offset.into_dpi(dpi);
     let left = offset.x;
     let top = offset.y;
 
-    dc.draw_bitmap(
-        bitmap,
-        None,
-        1.0,
-        D2D1_INTERPOLATION_MODE_LINEAR,
-        Some(&D2D_RECT_F {
-            left,
-            top,
-            right: left + CARD_WIDTH.0,
-            bottom: top + CARD_HEIGHT.0,
-        }),
-        None,
-    );
+    unsafe {
+        dc.DrawBitmap(
+            bitmap,
+            None,
+            1.0,
+            D2D1_INTERPOLATION_MODE_LINEAR,
+            Some(&D2D_RECT_F {
+                left,
+                top,
+                right: left + CARD_WIDTH.0,
+                bottom: top + CARD_HEIGHT.0,
+            }),
+            None,
+        )
+    };
 
-    surface.end_draw()
+    unsafe { surface.EndDraw() }
 }
