@@ -121,86 +121,82 @@ impl WinMessageHandler for DemoWindow {
 
 impl DemoWindow {
     fn new() -> Result<Self> {
-        unsafe {
-            let manager: IUIAnimationManager2 =
-                CoCreateInstance(&UIAnimationManager2, None, CLSCTX_INPROC_SERVER)?;
+        let manager = create_animation_manager()?;
 
-            use rand::{seq::*, *};
-            let mut rng = rand::rng();
-            let mut values = [b'?'; CARD_ROWS * CARD_COLUMNS];
+        use rand::{seq::*, *};
+        let mut rng = rand::rng();
+        let mut values = [b'?'; CARD_ROWS * CARD_COLUMNS];
 
-            for i in 0..values.len() / 2 {
-                let value = rng.random_range(b'A'..=b'Z');
-                values[i * 2] = value;
-                values[i * 2 + 1] = value + b'a' - b'A';
-            }
-
-            values.shuffle(&mut rng);
-            let mut cards = Vec::new();
-
-            for value in values {
-                cards.push(Card {
-                    status: Status::Hidden,
-                    value,
-                    offset: Default::default(),
-                    variable: manager.CreateAnimationVariable(0.0)?,
-                    rotation: None,
-                });
-            }
-
-            if cfg!(debug_assertions) {
-                println!("deck:");
-                for row in 0..CARD_ROWS {
-                    for column in 0..CARD_COLUMNS {
-                        print!(
-                            " {}",
-                            char::from_u32(cards[row * CARD_COLUMNS + column].value as u32)
-                                .expect("char")
-                        );
-                    }
-                    println!();
-                }
-            }
-
-            let library =
-                CoCreateInstance(&UIAnimationTransitionLibrary2, None, CLSCTX_INPROC_SERVER)?;
-
-            Ok(DemoWindow {
-                win_state: Default::default(),
-                format: create_text_format()?,
-                image: create_image()?,
-                manager,
-                library,
-                first: None,
-                cards,
-                d3d: None,
-                dcomp: None,
-                target: None,
-            })
+        for i in 0..values.len() / 2 {
+            let value = rng.random_range(b'A'..=b'Z');
+            values[i * 2] = value;
+            values[i * 2 + 1] = value + b'a' - b'A';
         }
+
+        values.shuffle(&mut rng);
+        let mut cards = Vec::new();
+
+        for value in values {
+            cards.push(Card {
+                status: Status::Hidden,
+                value,
+                offset: Default::default(),
+                variable: manager.create_animation_variable(0.0)?,
+                rotation: None,
+            });
+        }
+
+        if cfg!(debug_assertions) {
+            println!("deck:");
+            for row in 0..CARD_ROWS {
+                for column in 0..CARD_COLUMNS {
+                    print!(
+                        " {}",
+                        char::from_u32(cards[row * CARD_COLUMNS + column].value as u32)
+                            .expect("char")
+                    );
+                }
+                println!();
+            }
+        }
+
+        let library = create_animation_transition_library()?;
+
+        Ok(DemoWindow {
+            win_state: Default::default(),
+            format: create_text_format()?,
+            image: create_image()?,
+            manager,
+            library,
+            first: None,
+            cards,
+            d3d: None,
+            dcomp: None,
+            target: None,
+        })
     }
 
     fn create_device_resources(&mut self) -> Result<()> {
-        unsafe {
-            debug_assert!(self.d3d.is_none());
-            let d3d = create_device_3d()?;
-            let dxgi = d3d.cast()?;
-            let d2d = d2d_create_device(&dxgi)?;
-            self.d3d = Some(d3d);
-            let desktop = dcomp_create_desktop_device(&d2d)?;
-            let dcomp: IDCompositionDevice3 = desktop.cast()?;
+        debug_assert!(self.d3d.is_none());
+        let d3d = create_device_3d()?;
+        let dxgi = d3d.cast()?;
+        let d2d = d2d_create_device(&dxgi)?;
+        self.d3d = Some(d3d);
+        let desktop = dcomp_create_desktop_device(&d2d)?;
+        let dcomp: IDCompositionDevice3 = desktop.cast()?;
 
-            // 以前のターゲットを最初にリリースします。そうしないと `CreateTargetForHwnd` が HWND が占有されていることを検出します。
-            self.target = None;
-            let target = desktop.create_target_for_hwnd(self.hwnd(), true)?;
-            let root_visual = dcomp.create_visual()?;
-            root_visual.set_backface_visibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
-            target.set_root(&root_visual)?;
-            self.target = Some(target);
+        // 以前のターゲットを最初にリリースします。そうしないと `CreateTargetForHwnd` が HWND が占有されていることを検出します。
+        self.target = None;
+        let target = desktop.create_target_for_hwnd(self.hwnd(), true)?;
+        let root_visual = dcomp.create_visual()?;
+        root_visual.set_backface_visibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
+        target.set_root(&root_visual)?;
+        self.target = Some(target);
 
-            let dc = d2d.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
+        let dc = unsafe { d2d.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE) }?;
 
-            let brush = dc.CreateSolidColorBrush(
+        let brush = unsafe {
+            dc.CreateSolidColorBrush(
                 &D2D1_COLOR_F {
                     r: 0.0,
                     g: 0.0,
@@ -208,126 +204,126 @@ impl DemoWindow {
                     a: 1.0,
                 },
                 None,
-            )?;
+            )
+        }?;
 
-            let bitmap = dc.CreateBitmapFromWicBitmap(&self.image, None)?;
-            let dpi = self.dpi();
-            let card_size: PxSize = CARD_SIZE.into_dpi(dpi);
-            let card_size = card_size.into_raw();
+        let bitmap = unsafe { dc.CreateBitmapFromWicBitmap(&self.image, None) }?;
+        let dpi = self.dpi();
+        let card_size: PxSize = CARD_SIZE.into_dpi(dpi);
+        let card_size = card_size.into_raw();
 
-            for row in 0..CARD_ROWS {
-                for column in 0..CARD_COLUMNS {
-                    let card = &mut self.cards[row * CARD_COLUMNS + column];
-                    let offset = LxPoint::from_lengths(
-                        (CARD_WIDTH + CARD_MARGIN) * (column as f32) + CARD_MARGIN,
-                        (CARD_HEIGHT + CARD_MARGIN) * (row as f32) + CARD_MARGIN,
-                    );
-                    card.offset = offset.into_dpi(dpi);
+        for row in 0..CARD_ROWS {
+            for column in 0..CARD_COLUMNS {
+                let card = &mut self.cards[row * CARD_COLUMNS + column];
+                let offset = LxPoint::from_lengths(
+                    (CARD_WIDTH + CARD_MARGIN) * (column as f32) + CARD_MARGIN,
+                    (CARD_HEIGHT + CARD_MARGIN) * (row as f32) + CARD_MARGIN,
+                );
+                card.offset = offset.into_dpi(dpi);
 
-                    if card.status == Status::Matched {
-                        continue;
-                    }
+                if card.status == Status::Matched {
+                    continue;
+                }
 
-                    let front_visual = dcomp.create_visual()?;
-                    front_visual
-                        .set_backface_visibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
-                    front_visual.set_offset_x(card.offset.x)?;
-                    front_visual.set_offset_y(card.offset.y)?;
-                    root_visual.add_visual(&front_visual, false, None)?;
+                let front_visual = dcomp.create_visual()?;
+                front_visual.set_backface_visibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
+                front_visual.set_offset_x(card.offset.x)?;
+                front_visual.set_offset_y(card.offset.y)?;
+                root_visual.add_visual(&front_visual, false, None)?;
 
-                    let back_visual = dcomp.create_visual()?;
-                    back_visual.set_backface_visibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
-                    back_visual.set_offset_x(card.offset.x)?;
-                    back_visual.set_offset_y(card.offset.y)?;
-                    root_visual.add_visual(&back_visual, false, None)?;
+                let back_visual = dcomp.create_visual()?;
+                back_visual.set_backface_visibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
+                back_visual.set_offset_x(card.offset.x)?;
+                back_visual.set_offset_y(card.offset.y)?;
+                root_visual.add_visual(&back_visual, false, None)?;
 
-                    let front_surface = dcomp.create_surface(
-                        card_size.width as u32,
-                        card_size.height as u32,
-                        DXGI_FORMAT_B8G8R8A8_UNORM,
-                        DXGI_ALPHA_MODE_PREMULTIPLIED,
-                    )?;
-                    front_visual.set_content(&front_surface)?;
-                    draw_card_front(&front_surface, card.value, &self.format, &brush, dpi)?;
+                let front_surface = dcomp.create_surface(
+                    card_size.width as u32,
+                    card_size.height as u32,
+                    DXGI_FORMAT_B8G8R8A8_UNORM,
+                    DXGI_ALPHA_MODE_PREMULTIPLIED,
+                )?;
+                front_visual.set_content(&front_surface)?;
+                draw_card_front(&front_surface, card.value, &self.format, &brush, dpi)?;
 
-                    let back_surface = dcomp.create_surface(
-                        card_size.width as u32,
-                        card_size.height as u32,
-                        DXGI_FORMAT_B8G8R8A8_UNORM,
-                        DXGI_ALPHA_MODE_PREMULTIPLIED,
-                    )?;
-                    back_visual.set_content(&back_surface)?;
-                    draw_card_back(&back_surface, &bitmap, card.offset, dpi)?;
+                let back_surface = dcomp.create_surface(
+                    card_size.width as u32,
+                    card_size.height as u32,
+                    DXGI_FORMAT_B8G8R8A8_UNORM,
+                    DXGI_ALPHA_MODE_PREMULTIPLIED,
+                )?;
+                back_visual.set_content(&back_surface)?;
+                draw_card_back(&back_surface, &bitmap, card.offset, dpi)?;
 
-                    let rotation = dcomp.CreateRotateTransform3D()?;
+                let rotation = dcomp.create_rotate_transform_3d()?;
 
-                    if card.status == Status::Selected {
-                        rotation.SetAngle2(180.0)?;
-                    }
+                if card.status == Status::Selected {
+                    unsafe { rotation.SetAngle2(180.0) }?;
+                }
 
+                unsafe {
                     rotation.SetAxisZ2(0.0)?;
                     rotation.SetAxisY2(1.0)?;
-                    create_effect(&dcomp, &front_visual, &rotation, true, dpi)?;
-                    create_effect(&dcomp, &back_visual, &rotation, false, dpi)?;
-                    card.rotation = Some(rotation);
                 }
+                create_effect(&dcomp, &front_visual, &rotation, true, dpi)?;
+                create_effect(&dcomp, &back_visual, &rotation, false, dpi)?;
+                card.rotation = Some(rotation);
             }
-
-            dcomp.commit()?;
-            self.dcomp = Some(dcomp);
-            Ok(())
         }
+
+        dcomp.commit()?;
+        self.dcomp = Some(dcomp);
+        Ok(())
     }
 
     fn click_handler(&mut self, lparam: LPARAM) -> Result<()> {
         let dpi = self.dpi();
-        unsafe {
-            let x = lparam.0 as u16 as f32;
-            let y = (lparam.0 >> 16) as f32;
+        let x = lparam.0 as u16 as f32;
+        let y = (lparam.0 >> 16) as f32;
 
-            let width: PxLength = CARD_WIDTH.into_dpi(dpi);
-            let height: PxLength = CARD_HEIGHT.into_dpi(dpi);
-            let mut next = None;
+        let width: PxLength = CARD_WIDTH.into_dpi(dpi);
+        let height: PxLength = CARD_HEIGHT.into_dpi(dpi);
+        let mut next = None;
 
-            for (index, card) in self.cards.iter().enumerate() {
-                if x > card.offset.x
-                    && y > card.offset.y
-                    && x < card.offset.x + width.0
-                    && y < card.offset.y + height.0
-                {
-                    next = Some(index);
-                    break;
+        for (index, card) in self.cards.iter().enumerate() {
+            if x > card.offset.x
+                && y > card.offset.y
+                && x < card.offset.x + width.0
+                && y < card.offset.y + height.0
+            {
+                next = Some(index);
+                break;
+            }
+        }
+
+        if let Some(next) = next {
+            if Some(next) == self.first {
+                if cfg!(debug_assertions) {
+                    println!("same card");
                 }
+                return Ok(());
             }
 
-            if let Some(next) = next {
-                if Some(next) == self.first {
-                    if cfg!(debug_assertions) {
-                        println!("same card");
-                    }
-                    return Ok(());
+            if self.cards[next].status == Status::Matched {
+                if cfg!(debug_assertions) {
+                    println!("previous match");
                 }
+                return Ok(());
+            }
 
-                if self.cards[next].status == Status::Matched {
-                    if cfg!(debug_assertions) {
-                        println!("previous match");
-                    }
-                    return Ok(());
-                }
+            let dcomp = self.dcomp.as_ref().expect("IDCompositionDesktopDevice");
+            let stats = dcomp.get_frame_statistics()?;
 
-                let dcomp = self.dcomp.as_ref().expect("IDCompositionDesktopDevice");
-                let stats = dcomp.get_frame_statistics()?;
+            let next_frame: f64 =
+                stats.nextEstimatedFrameTime as f64 / stats.timeFrequency as f64;
 
-                let next_frame: f64 =
-                    stats.nextEstimatedFrameTime as f64 / stats.timeFrequency as f64;
+            self.manager.update(next_frame)?;
+            let storyboard = self.manager.create_storyboard()?;
+            let key_frame = add_show_transition(&self.library, &storyboard, &self.cards[next])?;
 
-                self.manager.Update(next_frame, None)?;
-                let storyboard = self.manager.CreateStoryboard()?;
-                let key_frame = add_show_transition(&self.library, &storyboard, &self.cards[next])?;
-
-                if let Some(first) = self.first.take() {
-                    let final_value = if b'a' - b'A'
-                        == u8::abs_diff(self.cards[first].value, self.cards[next].value)
+            if let Some(first) = self.first.take() {
+                let final_value =
+                    if b'a' - b'A' == u8::abs_diff(self.cards[first].value, self.cards[next].value)
                     {
                         self.cards[first].status = Status::Matched;
                         self.cards[next].status = Status::Matched;
@@ -337,70 +333,67 @@ impl DemoWindow {
                         0.0
                     };
 
-                    add_hide_transition(
-                        &self.library,
-                        &storyboard,
-                        key_frame,
-                        final_value,
-                        &self.cards[first],
-                    )?;
+                add_hide_transition(
+                    &self.library,
+                    &storyboard,
+                    key_frame,
+                    final_value,
+                    &self.cards[first],
+                )?;
 
-                    add_hide_transition(
-                        &self.library,
-                        &storyboard,
-                        key_frame,
-                        final_value,
-                        &self.cards[next],
-                    )?;
+                add_hide_transition(
+                    &self.library,
+                    &storyboard,
+                    key_frame,
+                    final_value,
+                    &self.cards[next],
+                )?;
 
-                    storyboard.Schedule(next_frame, None)?;
-                    update_animation(dcomp, &self.cards[first])?;
-                    update_animation(dcomp, &self.cards[next])?;
-                } else {
-                    self.first = Some(next);
-                    self.cards[next].status = Status::Selected;
-                    storyboard.Schedule(next_frame, None)?;
-                    update_animation(dcomp, &self.cards[next])?;
-                }
-
-                dcomp.commit()?;
-            } else if cfg!(debug_assertions) {
-                println!("missed");
+                unsafe { storyboard.Schedule(next_frame, None) }?;
+                update_animation(dcomp, &self.cards[first])?;
+                update_animation(dcomp, &self.cards[next])?;
+            } else {
+                self.first = Some(next);
+                self.cards[next].status = Status::Selected;
+                unsafe { storyboard.Schedule(next_frame, None) }?;
+                update_animation(dcomp, &self.cards[next])?;
             }
 
-            Ok(())
+            dcomp.commit()?;
+        } else if cfg!(debug_assertions) {
+            println!("missed");
         }
+
+        Ok(())
     }
 
     fn paint_handler(&mut self) -> Result<()> {
-        unsafe {
-            if let Some(device) = &self.d3d {
-                if cfg!(debug_assertions) {
-                    println!("check device");
-                }
-                device.GetDeviceRemovedReason()?;
-            } else {
-                if cfg!(debug_assertions) {
-                    println!("build device");
-                }
-                self.create_device_resources()?;
+        if let Some(device) = &self.d3d {
+            if cfg!(debug_assertions) {
+                println!("check device");
             }
-
-            ValidateRect(Some(self.hwnd()), None).ok()
+            unsafe { device.GetDeviceRemovedReason() }?;
+        } else {
+            if cfg!(debug_assertions) {
+                println!("build device");
+            }
+            self.create_device_resources()?;
         }
+
+        unsafe { ValidateRect(Some(self.hwnd()), None).ok() }
     }
 
     fn dpi_changed_handler(&mut self, wparam: WPARAM, lparam: LPARAM) -> Result<()> {
+        self.set_dpi_change_message(wparam, lparam);
+
+        if cfg!(debug_assertions) {
+            println!("dpi changed: {:?}", self.dpi());
+        }
+
+        let rect = unsafe { &*(lparam.0 as *const RECT) };
+        let size = self.effective_window_size(WINDOW_SIZE)?.into_raw();
+
         unsafe {
-            self.set_dpi_change_message(wparam, lparam);
-
-            if cfg!(debug_assertions) {
-                println!("dpi changed: {:?}", self.dpi());
-            }
-
-            let rect = &*(lparam.0 as *const RECT);
-            let size = self.effective_window_size(WINDOW_SIZE)?.into_raw();
-
             SetWindowPos(
                 self.hwnd(),
                 None,
@@ -409,26 +402,26 @@ impl DemoWindow {
                 size.width,
                 size.height,
                 SWP_NOACTIVATE | SWP_NOZORDER,
-            )?;
+            )
+        }?;
 
-            self.d3d = None;
-            Ok(())
-        }
+        self.d3d = None;
+        Ok(())
     }
 
     fn create_handler(&mut self) -> Result<()> {
+        let monitor = unsafe { MonitorFromWindow(self.hwnd(), MONITOR_DEFAULTTONEAREST) };
+        let mut dpi = (0, 0);
+        unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi.0, &mut dpi.1) }?;
+        self.set_dpi(Dpi::new(dpi.0 as f32));
+
+        if cfg!(debug_assertions) {
+            println!("initial dpi: {:?}", self.dpi());
+        }
+
+        let size = self.effective_window_size(WINDOW_SIZE)?.into_raw();
+
         unsafe {
-            let monitor = MonitorFromWindow(self.hwnd(), MONITOR_DEFAULTTONEAREST);
-            let mut dpi = (0, 0);
-            GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi.0, &mut dpi.1)?;
-            self.set_dpi(Dpi::new(dpi.0 as f32));
-
-            if cfg!(debug_assertions) {
-                println!("initial dpi: {:?}", self.dpi());
-            }
-
-            let size = self.effective_window_size(WINDOW_SIZE)?.into_raw();
-
             SetWindowPos(
                 self.hwnd(),
                 None,
@@ -443,10 +436,11 @@ impl DemoWindow {
 }
 
 fn create_text_format() -> Result<IDWriteTextFormat> {
-    unsafe {
-        let factory: IDWriteFactory2 = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
+    let factory: IDWriteFactory2 =
+        unsafe { DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED) }?;
 
-        let format = factory.CreateTextFormat(
+    let format = unsafe {
+        factory.CreateTextFormat(
             w!("Candara"),
             None,
             DWRITE_FONT_WEIGHT_NORMAL,
@@ -454,12 +448,14 @@ fn create_text_format() -> Result<IDWriteTextFormat> {
             DWRITE_FONT_STRETCH_NORMAL,
             CARD_HEIGHT.0 / 2.0,
             w!("en"),
-        )?;
+        )
+    }?;
 
+    unsafe {
         format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER)?;
         format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
-        Ok(format)
     }
+    Ok(format)
 }
 
 fn create_image() -> Result<IWICFormatConverter> {
@@ -506,12 +502,10 @@ fn add_show_transition(
     storyboard: &IUIAnimationStoryboard2,
     card: &Card,
 ) -> Result<UI_ANIMATION_KEYFRAME> {
-    unsafe {
-        let duration = (180.0 - card.variable.GetValue()?) / 180.0;
-        let transition = create_transition(library, duration, 180.0)?;
-        storyboard.AddTransition(&card.variable, &transition)?;
-        storyboard.AddKeyframeAfterTransition(&transition)
-    }
+    let duration = unsafe { (180.0 - card.variable.GetValue()?) / 180.0 };
+    let transition = create_transition(library, duration, 180.0)?;
+    unsafe { storyboard.AddTransition(&card.variable, &transition) }?;
+    unsafe { storyboard.AddKeyframeAfterTransition(&transition) }
 }
 
 fn add_hide_transition(
@@ -521,10 +515,8 @@ fn add_hide_transition(
     final_value: f64,
     card: &Card,
 ) -> Result<()> {
-    unsafe {
-        let transition = create_transition(library, 1.0, final_value)?;
-        storyboard.AddTransitionAtKeyframe(&card.variable, &transition, key_frame)
-    }
+    let transition = create_transition(library, 1.0, final_value)?;
+    unsafe { storyboard.AddTransitionAtKeyframe(&card.variable, &transition, key_frame) }
 }
 
 fn update_animation(dcomp: &IDCompositionDevice3, card: &Card) -> Result<()> {
@@ -587,20 +579,22 @@ fn draw_card_front(
     brush: &ID2D1SolidColorBrush,
     dpi: Dpi,
 ) -> Result<()> {
-    unsafe {
-        let mut offset = Default::default();
-        let dc: ID2D1DeviceContext = surface.BeginDraw(None, &mut offset)?;
-        dc.set_dpi(dpi);
-        let offset: LxPoint = PxPoint::new(offset.x as f32, offset.y as f32).into_dpi(dpi);
-        dc.SetTransform(&Matrix3x2::translation(offset.x, offset.y));
+    let mut offset = Default::default();
+    let dc: ID2D1DeviceContext = unsafe { surface.BeginDraw(None, &mut offset) }?;
+    dc.set_dpi(dpi);
+    let offset: LxPoint = PxPoint::new(offset.x as f32, offset.y as f32).into_dpi(dpi);
+    unsafe { dc.SetTransform(&Matrix3x2::translation(offset.x, offset.y)) };
 
+    unsafe {
         dc.Clear(Some(&D2D1_COLOR_F {
             r: 1.0,
             g: 1.0,
             b: 1.0,
             a: 1.0,
-        }));
+        }))
+    };
 
+    unsafe {
         dc.DrawText(
             &[value as _],
             format,
@@ -613,10 +607,10 @@ fn draw_card_front(
             brush,
             D2D1_DRAW_TEXT_OPTIONS_NONE,
             DWRITE_MEASURING_MODE_NATURAL,
-        );
+        )
+    };
 
-        surface.EndDraw()
-    }
+    unsafe { surface.EndDraw() }
 }
 
 fn draw_card_back(
@@ -625,18 +619,18 @@ fn draw_card_back(
     offset: PxPoint,
     dpi: Dpi,
 ) -> Result<()> {
+    let mut dc_offset = Default::default();
+    let dc: ID2D1DeviceContext = unsafe { surface.BeginDraw(None, &mut dc_offset) }?;
+    let dc: ID2D1DeviceContext7 = dc.cast()?;
+    dc.set_dpi(dpi);
+    let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
+    unsafe { dc.SetTransform(&Matrix3x2::translation(dc_offset.x, dc_offset.y)) };
+
+    let offset: LxPoint = offset.into_dpi(dpi);
+    let left = offset.x;
+    let top = offset.y;
+
     unsafe {
-        let mut dc_offset = Default::default();
-        let dc: ID2D1DeviceContext = surface.BeginDraw(None, &mut dc_offset)?;
-        let dc: ID2D1DeviceContext7 = dc.cast()?;
-        dc.set_dpi(dpi);
-        let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
-        dc.SetTransform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
-
-        let offset: LxPoint = offset.into_dpi(dpi);
-        let left = offset.x;
-        let top = offset.y;
-
         dc.DrawBitmap(
             bitmap,
             None,
@@ -649,8 +643,8 @@ fn draw_card_back(
                 bottom: top + CARD_HEIGHT.0,
             }),
             None,
-        );
+        )
+    };
 
-        surface.EndDraw()
-    }
+    unsafe { surface.EndDraw() }
 }

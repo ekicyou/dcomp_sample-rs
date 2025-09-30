@@ -3,6 +3,7 @@ use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
 use windows::Win32::UI::Animation::*;
+use windows::Win32::System::Com::*;
 use windows_numerics::*;
 
 pub fn dcomp_create_desktop_device<P0>(renderingdevice: P0) -> Result<IDCompositionDesktopDevice>
@@ -175,6 +176,7 @@ pub trait IDCompositionDeviceExt {
         &self,
         transforms: &[Option<IDCompositionTransform3D>],
     ) -> Result<IDCompositionTransform3D>;
+    fn create_rotate_transform_3d(&self) -> Result<IDCompositionRotateTransform3D>;
 }
 
 impl IDCompositionDeviceExt for IDCompositionDevice3 {
@@ -221,4 +223,35 @@ impl IDCompositionDeviceExt for IDCompositionDevice3 {
     ) -> Result<IDCompositionTransform3D> {
         unsafe { self.CreateTransform3DGroup(transforms) }
     }
+
+    #[inline(always)]
+    fn create_rotate_transform_3d(&self) -> Result<IDCompositionRotateTransform3D> {
+        unsafe { self.CreateRotateTransform3D() }
+    }
+}
+
+pub trait IUIAnimationManagerExt {
+    fn create_animation_variable(&self, initialvalue: f64) -> Result<IUIAnimationVariable2>;
+    fn update(&self, time: f64) -> Result<()>;
+    fn create_storyboard(&self) -> Result<IUIAnimationStoryboard2>;
+}
+
+impl IUIAnimationManagerExt for IUIAnimationManager2 {
+    fn create_animation_variable(&self, initialvalue: f64) -> Result<IUIAnimationVariable2> {
+        unsafe { self.CreateAnimationVariable(initialvalue) }
+    }
+    fn update(&self, time: f64) -> Result<()> {
+        unsafe { self.Update(time, None).map(|_| ()) }
+    }
+    fn create_storyboard(&self) -> Result<IUIAnimationStoryboard2> {
+        unsafe { self.CreateStoryboard() }
+    }
+}
+
+pub fn create_animation_manager() -> Result<IUIAnimationManager2> {
+    unsafe { CoCreateInstance(&UIAnimationManager2, None, CLSCTX_INPROC_SERVER) }
+}
+
+pub fn create_animation_transition_library() -> Result<IUIAnimationTransitionLibrary2> {
+    unsafe { CoCreateInstance(&UIAnimationTransitionLibrary2, None, CLSCTX_INPROC_SERVER) }
 }
