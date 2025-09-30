@@ -621,21 +621,19 @@ fn draw_card_back(
     let left = offset.x;
     let top = offset.y;
 
-    unsafe {
-        dc.DrawBitmap(
-            bitmap,
-            None,
-            1.0,
-            D2D1_INTERPOLATION_MODE_LINEAR,
-            Some(&D2D_RECT_F {
-                left,
-                top,
-                right: left + CARD_WIDTH.0,
-                bottom: top + CARD_HEIGHT.0,
-            }),
-            None,
-        )
-    };
+    dc.draw_bitmap(
+        bitmap,
+        None,
+        1.0,
+        D2D1_INTERPOLATION_MODE_LINEAR,
+        Some(&D2D_RECT_F {
+            left,
+            top,
+            right: left + CARD_WIDTH.0,
+            bottom: top + CARD_HEIGHT.0,
+        }),
+        None,
+    );
 
     surface.end_draw()
 }
