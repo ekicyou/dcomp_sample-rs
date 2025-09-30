@@ -59,6 +59,17 @@ pub trait D2D1DeviceContextExt {
         P0: Param<HSTRING>,
         P1: Param<IDWriteTextFormat>,
         P2: Param<ID2D1Brush>;
+
+    fn draw_bitmap<P0>(
+        &self,
+        bitmap: P0,
+        destinationrectangle: Option<&D2D_RECT_F>,
+        opacity: f32,
+        interpolationmode: D2D1_INTERPOLATION_MODE,
+        sourcerectangle: Option<&D2D_RECT_F>,
+        perspectivetransform: Option<&Matrix4x4>,
+    ) where
+        P0: Param<ID2D1Bitmap>;
 }
 
 impl D2D1DeviceContextExt for ID2D1DeviceContext {
@@ -114,6 +125,33 @@ impl D2D1DeviceContextExt for ID2D1DeviceContext {
                 default_fill_brush,
                 options,
                 measuring_mode,
+            )
+        }
+    }
+
+    #[inline(always)]
+    fn draw_bitmap<P0>(
+        &self,
+        bitmap: P0,
+        destinationrectangle: Option<&D2D_RECT_F>,
+        opacity: f32,
+        interpolationmode: D2D1_INTERPOLATION_MODE,
+        sourcerectangle: Option<&D2D_RECT_F>,
+        perspectivetransform: Option<&Matrix4x4>,
+    ) where
+        P0: Param<ID2D1Bitmap>,
+    {
+        let destinationrectangle = destinationrectangle.map(|r| r as *const _);
+        let sourcerectangle = sourcerectangle.map(|r| r as *const _);
+        let perspectivetransform = perspectivetransform.map(|r| r as *const _);
+        unsafe {
+            self.DrawBitmap(
+                bitmap,
+                destinationrectangle,
+                opacity,
+                interpolationmode,
+                sourcerectangle,
+                perspectivetransform,
             )
         }
     }
