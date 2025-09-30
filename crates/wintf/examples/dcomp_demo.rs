@@ -535,7 +535,7 @@ fn create_transition(
     duration: f64,
     final_value: f64,
 ) -> Result<IUIAnimationTransition2> {
-    library.create_accelerate_decelerate_transition(duration, final_value, 0.2, 0.8)
+    unsafe { library.CreateAccelerateDecelerateTransition(duration, final_value, 0.2, 0.8) }
 }
 
 fn create_effect(
@@ -624,21 +624,19 @@ fn draw_card_back(
     let left = offset.x;
     let top = offset.y;
 
-    unsafe {
-        dc.DrawBitmap(
-            bitmap,
-            None,
-            1.0,
-            D2D1_INTERPOLATION_MODE_LINEAR,
-            Some(&D2D_RECT_F {
-                left,
-                top,
-                right: left + CARD_WIDTH.0,
-                bottom: top + CARD_HEIGHT.0,
-            }),
-            None,
-        )
-    };
+    dc.draw_bitmap(
+        bitmap,
+        None,
+        1.0,
+        D2D1_INTERPOLATION_MODE_LINEAR,
+        Some(&D2D_RECT_F {
+            left,
+            top,
+            right: left + CARD_WIDTH.0,
+            bottom: top + CARD_HEIGHT.0,
+        }),
+        None,
+    );
 
     unsafe { surface.EndDraw() }
 }
