@@ -616,7 +616,7 @@ fn draw_card_back(
     let dc: ID2D1DeviceContext7 = dc.cast()?;
     dc.set_dpi(dpi);
     let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
-    unsafe { dc.SetTransform(&Matrix3x2::translation(dc_offset.x, dc_offset.y)) };
+    dc.set_transform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
 
     let offset: LxPoint = offset.into_dpi(dpi);
     let left = offset.x;
