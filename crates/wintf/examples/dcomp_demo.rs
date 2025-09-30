@@ -639,5 +639,5 @@ fn draw_card_back(
         None,
     );
 
-    unsafe { surface.EndDraw() }
+    surface.end_draw()
 }
