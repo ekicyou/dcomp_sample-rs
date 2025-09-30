@@ -8,8 +8,8 @@ use windows::{
     Win32::{
         Foundation::*, Graphics::Direct2D::Common::*, Graphics::Direct2D::*, Graphics::Direct3D::*,
         Graphics::Direct3D11::*, Graphics::DirectComposition::*, Graphics::DirectWrite::*,
-        Graphics::Dxgi::Common::*, Graphics::Gdi::*, Graphics::Imaging::*,
-        UI::Animation::*, UI::HiDpi::*, UI::WindowsAndMessaging::*,
+        Graphics::Dxgi::Common::*, Graphics::Gdi::*, Graphics::Imaging::*, UI::Animation::*,
+        UI::HiDpi::*, UI::WindowsAndMessaging::*,
     },
 };
 use windows_numerics::*;
@@ -193,7 +193,7 @@ impl DemoWindow {
         target.set_root(&root_visual)?;
         self.target = Some(target);
 
-        let dc = unsafe { d2d.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE) }?;
+        let dc = d2d.create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
 
         let brush = unsafe {
             dc.CreateSolidColorBrush(
@@ -258,11 +258,13 @@ impl DemoWindow {
                 let rotation = dcomp.create_rotate_transform_3d()?;
 
                 if card.status == Status::Selected {
-                    rotation.set_angle2(180.0)?;
+                    unsafe { rotation.SetAngle2(180.0) }?;
                 }
 
-                rotation.set_axis_z(0.0)?;
-                rotation.set_axis_y(1.0)?;
+                unsafe {
+                    rotation.SetAxisZ2(0.0)?;
+                    rotation.SetAxisY2(1.0)?;
+                }
                 create_effect(&dcomp, &front_visual, &rotation, true, dpi)?;
                 create_effect(&dcomp, &back_visual, &rotation, false, dpi)?;
                 card.rotation = Some(rotation);
