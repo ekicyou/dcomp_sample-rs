@@ -13,7 +13,10 @@ use windows::{
     },
 };
 use windows_numerics::*;
-use wintf::{com::d2d::*, com::d3d11::*, com::dcomp::*, com::wic::*, *};
+use wintf::{
+    com::{animation::*, d2d::*, d3d11::*, dcomp::*, wic::*},
+    *,
+};
 
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 6;

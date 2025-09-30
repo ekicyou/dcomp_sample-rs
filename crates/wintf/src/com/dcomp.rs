@@ -248,14 +248,6 @@ impl IUIAnimationManagerExt for IUIAnimationManager2 {
     }
 }
 
-pub fn create_animation_manager() -> Result<IUIAnimationManager2> {
-    unsafe { CoCreateInstance(&UIAnimationManager2, None, CLSCTX_INPROC_SERVER) }
-}
-
-pub fn create_animation_transition_library() -> Result<IUIAnimationTransitionLibrary2> {
-    unsafe { CoCreateInstance(&UIAnimationTransitionLibrary2, None, CLSCTX_INPROC_SERVER) }
-}
-
 pub trait IUIAnimationStoryboardExt {
     fn schedule(&self, time: f64) -> Result<()>;
     fn add_transition<P0, P1>(&self, variable: P0, transition: P1) -> Result<()>
