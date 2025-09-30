@@ -561,3 +561,202 @@ pub enum DrawCommand {
     PushLayer(PushLayer),
     PopLayer,
 }
+
+#[implement(ID2D1CommandSink1)]
+#[derive(Clone, Debug)]
+pub struct RecCommandSink {
+    commands: Vec<DrawCommand>,
+}
+
+impl RecCommandSink {
+    pub fn new() -> Self {
+        Self {
+            commands: Vec::new(),
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.commands.clear();
+    }
+
+    pub fn push(&mut self, command: DrawCommand) {
+        self.commands.push(command);
+    }
+
+    pub fn commands(&self) -> &Vec<DrawCommand> {
+        &self.commands
+    }
+}
+
+impl ID2D1CommandSink_Impl for RecCommandSink_Impl {
+    fn BeginDraw(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn EndDraw(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn SetAntialiasMode(&self, antialiasmode: D2D1_ANTIALIAS_MODE) -> Result<()> {
+        Ok(())
+    }
+    fn SetTags(&self, tag1: u64, tag2: u64) -> Result<()> {
+        Ok(())
+    }
+    fn SetTextAntialiasMode(&self, textantialiasmode: D2D1_TEXT_ANTIALIAS_MODE) -> Result<()> {
+        Ok(())
+    }
+
+    fn SetTextRenderingParams(
+        &self,
+        textrenderingparams: Ref<IDWriteRenderingParams>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn SetTransform(&self, transform: *const Matrix3x2) -> Result<()> {
+        Ok(())
+    }
+
+    fn SetPrimitiveBlend(&self, primitiveblend: D2D1_PRIMITIVE_BLEND) -> Result<()> {
+        Ok(())
+    }
+
+    fn SetUnitMode(&self, unitmode: D2D1_UNIT_MODE) -> Result<()> {
+        Ok(())
+    }
+
+    fn Clear(&self, color: *const D2D1_COLOR_F) -> Result<()> {
+        Ok(())
+    }
+
+    fn DrawGlyphRun(
+        &self,
+        baselineorigin: &windows_numerics::Vector2,
+        glyphrun: *const DWRITE_GLYPH_RUN,
+        glyphrundescription: *const DWRITE_GLYPH_RUN_DESCRIPTION,
+        foregroundbrush: Ref<ID2D1Brush>,
+        measuringmode: DWRITE_MEASURING_MODE,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn DrawLine(
+        &self,
+        point0: &windows_numerics::Vector2,
+        point1: &windows_numerics::Vector2,
+        brush: Ref<ID2D1Brush>,
+        strokewidth: f32,
+        strokestyle: Ref<ID2D1StrokeStyle>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn DrawGeometry(
+        &self,
+        geometry: Ref<ID2D1Geometry>,
+        brush: Ref<ID2D1Brush>,
+        strokewidth: f32,
+        strokestyle: Ref<ID2D1StrokeStyle>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn DrawRectangle(
+        &self,
+        rect: *const D2D_RECT_F,
+        brush: Ref<ID2D1Brush>,
+        strokewidth: f32,
+        strokestyle: Ref<ID2D1StrokeStyle>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn DrawBitmap(
+        &self,
+        bitmap: Ref<ID2D1Bitmap>,
+        destinationrectangle: *const D2D_RECT_F,
+        opacity: f32,
+        interpolationmode: D2D1_INTERPOLATION_MODE,
+        sourcerectangle: *const D2D_RECT_F,
+        perspectivetransform: *const windows_numerics::Matrix4x4,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn DrawImage(
+        &self,
+        image: Ref<ID2D1Image>,
+        targetoffset: *const windows_numerics::Vector2,
+        imagerectangle: *const D2D_RECT_F,
+        interpolationmode: D2D1_INTERPOLATION_MODE,
+        compositemode: D2D1_COMPOSITE_MODE,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn DrawGdiMetafile(
+        &self,
+        gdimetafile: Ref<ID2D1GdiMetafile>,
+        targetoffset: *const Vector2,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn FillMesh(&self, mesh: Ref<ID2D1Mesh>, brush: Ref<ID2D1Brush>) -> Result<()> {
+        Ok(())
+    }
+
+    fn FillOpacityMask(
+        &self,
+        opacitymask: Ref<ID2D1Bitmap>,
+        brush: Ref<ID2D1Brush>,
+        destinationrectangle: *const D2D_RECT_F,
+        sourcerectangle: *const D2D_RECT_F,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn FillGeometry(
+        &self,
+        geometry: Ref<ID2D1Geometry>,
+        brush: Ref<ID2D1Brush>,
+        opacitybrush: Ref<ID2D1Brush>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn FillRectangle(&self, rect: *const D2D_RECT_F, brush: Ref<ID2D1Brush>) -> Result<()> {
+        Ok(())
+    }
+
+    fn PushAxisAlignedClip(
+        &self,
+        cliprect: *const D2D_RECT_F,
+        antialiasmode: D2D1_ANTIALIAS_MODE,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn PushLayer(
+        &self,
+        layerparameters1: *const D2D1_LAYER_PARAMETERS1,
+        layer: Ref<ID2D1Layer>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn PopAxisAlignedClip(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn PopLayer(&self) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl ID2D1CommandSink1_Impl for RecCommandSink_Impl {
+    fn SetPrimitiveBlend1(&self, primitiveblend: D2D1_PRIMITIVE_BLEND) -> windows_core::Result<()> {
+        Ok(())
+    }
+}
