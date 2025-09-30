@@ -1,5 +1,6 @@
 use windows::core::*;
 use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Direct2D::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
 use windows_numerics::*;
@@ -179,6 +180,62 @@ impl DCompositionVisualExt for IDCompositionVisual3 {
         P0: Param<IDCompositionEffect>,
     {
         unsafe { self.SetEffect(effect) }
+    }
+}
+
+pub trait DCompositionSurfaceExt {
+    /// BeginDraw
+    fn begin_draw(&self, updaterect: Option<&RECT>) -> Result<(ID2D1DeviceContext, POINT)>;
+    /// EndDraw
+    fn end_draw(&self) -> Result<()>;
+    /// SuspendDraw
+    fn suspend_draw(&self) -> Result<()>;
+    /// ResumeDraw
+    fn resume_draw(&self) -> Result<()>;
+    /// Scroll
+    fn scroll(
+        &self,
+        scrollrect: Option<&RECT>,
+        cliprect: Option<&RECT>,
+        offsetx: i32,
+        offsety: i32,
+    ) -> windows_core::Result<()>;
+}
+
+impl DCompositionSurfaceExt for IDCompositionSurface {
+    #[inline(always)]
+    fn begin_draw(&self, updaterect: Option<&RECT>) -> Result<(ID2D1DeviceContext, POINT)> {
+        let updaterect = updaterect.map(|r| r as *const _);
+        let mut updateoffset = POINT::default();
+        unsafe {
+            let dc = self.BeginDraw(updaterect, &mut updateoffset)?;
+            Ok((dc, updateoffset))
+        }
+    }
+
+    #[inline(always)]
+    fn end_draw(&self) -> Result<()> {
+        unsafe { self.EndDraw() }
+    }
+    #[inline(always)]
+    fn suspend_draw(&self) -> Result<()> {
+        unsafe { self.SuspendDraw() }
+    }
+    #[inline(always)]
+    fn resume_draw(&self) -> Result<()> {
+        unsafe { self.ResumeDraw() }
+    }
+    #[inline(always)]
+    fn scroll(
+        &self,
+        scrollrect: Option<&RECT>,
+        cliprect: Option<&RECT>,
+        offsetx: i32,
+        offsety: i32,
+    ) -> windows_core::Result<()> {
+        let scrollrect = scrollrect.map(|r| r as *const _);
+        let cliprect = cliprect.map(|r| r as *const _);
+        unsafe { self.Scroll(scrollrect, cliprect, offsetx, offsety) }
     }
 }
 

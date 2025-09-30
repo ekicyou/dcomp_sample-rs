@@ -580,8 +580,7 @@ fn draw_card_front(
     brush: &ID2D1SolidColorBrush,
     dpi: Dpi,
 ) -> Result<()> {
-    let mut offset = Default::default();
-    let dc: ID2D1DeviceContext = unsafe { surface.BeginDraw(None, &mut offset) }?;
+    let (dc, offset) = surface.begin_draw(None)?;
     dc.set_dpi(dpi);
     let offset: LxPoint = PxPoint::new(offset.x as f32, offset.y as f32).into_dpi(dpi);
     unsafe { dc.SetTransform(&Matrix3x2::translation(offset.x, offset.y)) };
