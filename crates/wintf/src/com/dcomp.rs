@@ -3,9 +3,9 @@ use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
 use windows::Win32::System::Com::*;
+use windows::Win32::UI::Animation::*;
 use windows_numerics::*;
 
-/// DCompositionCreateDevice3
 pub fn dcomp_create_desktop_device<P0>(renderingdevice: P0) -> Result<IDCompositionDesktopDevice>
 where
     P0: Param<IUnknown>,
@@ -103,6 +103,23 @@ impl IDCompositionVisualExt for IDCompositionVisual3 {
         P0: Param<IDCompositionEffect>,
     {
         unsafe { self.SetEffect(effect) }
+    }
+}
+
+pub trait IDCompositionAnimationExt {
+    /// GetCurve
+    fn get_curve<P0>(&self, animation: P0) -> Result<()>
+    where
+        P0: Param<IDCompositionAnimation>;
+}
+
+impl IDCompositionAnimationExt for IUIAnimationVariable2 {
+    #[inline(always)]
+    fn get_curve<P0>(&self, animation: P0) -> Result<()>
+    where
+        P0: Param<IDCompositionAnimation>,
+    {
+        unsafe { self.GetCurve(animation) }
     }
 }
 
@@ -210,5 +227,86 @@ impl IDCompositionDeviceExt for IDCompositionDevice3 {
     #[inline(always)]
     fn create_rotate_transform_3d(&self) -> Result<IDCompositionRotateTransform3D> {
         unsafe { self.CreateRotateTransform3D() }
+    }
+}
+
+pub trait IUIAnimationManagerExt {
+    fn create_animation_variable(&self, initialvalue: f64) -> Result<IUIAnimationVariable2>;
+    fn update(&self, time: f64) -> Result<()>;
+    fn create_storyboard(&self) -> Result<IUIAnimationStoryboard2>;
+}
+
+impl IUIAnimationManagerExt for IUIAnimationManager2 {
+    fn create_animation_variable(&self, initialvalue: f64) -> Result<IUIAnimationVariable2> {
+        unsafe { self.CreateAnimationVariable(initialvalue) }
+    }
+    fn update(&self, time: f64) -> Result<()> {
+        unsafe { self.Update(time, None).map(|_| ()) }
+    }
+    fn create_storyboard(&self) -> Result<IUIAnimationStoryboard2> {
+        unsafe { self.CreateStoryboard() }
+    }
+}
+
+pub fn create_animation_manager() -> Result<IUIAnimationManager2> {
+    unsafe { CoCreateInstance(&UIAnimationManager2, None, CLSCTX_INPROC_SERVER) }
+}
+
+pub fn create_animation_transition_library() -> Result<IUIAnimationTransitionLibrary2> {
+    unsafe { CoCreateInstance(&UIAnimationTransitionLibrary2, None, CLSCTX_INPROC_SERVER) }
+}
+
+pub trait IUIAnimationStoryboardExt {
+    fn schedule(&self, time: f64) -> Result<()>;
+    fn add_transition<P0, P1>(&self, variable: P0, transition: P1) -> Result<()>
+    where
+        P0: Param<IUIAnimationVariable2>,
+        P1: Param<IUIAnimationTransition2>;
+    fn add_keyframe_after_transition<P0>(&self, transition: P0) -> Result<UI_ANIMATION_KEYFRAME>
+    where
+        P0: Param<IUIAnimationTransition2>;
+    fn add_transition_at_keyframe<P0, P1>(
+        &self,
+        variable: P0,
+        transition: P1,
+        startkeyframe: UI_ANIMATION_KEYFRAME,
+    ) -> Result<()>
+    where
+        P0: Param<IUIAnimationVariable2>,
+        P1: Param<IUIAnimationTransition2>;
+}
+
+impl IUIAnimationStoryboardExt for IUIAnimationStoryboard2 {
+    #[inline(always)]
+    fn schedule(&self, time: f64) -> Result<()> {
+        unsafe { self.Schedule(time, None).map(|_| ()) }
+    }
+    #[inline(always)]
+    fn add_transition<P0, P1>(&self, variable: P0, transition: P1) -> Result<()>
+    where
+        P0: Param<IUIAnimationVariable2>,
+        P1: Param<IUIAnimationTransition2>,
+    {
+        unsafe { self.AddTransition(variable, transition) }
+    }
+    #[inline(always)]
+    fn add_keyframe_after_transition<P0>(&self, transition: P0) -> Result<UI_ANIMATION_KEYFRAME>
+    where
+        P0: Param<IUIAnimationTransition2>,
+    {
+        unsafe { self.AddKeyframeAfterTransition(transition) }
+    }
+    #[inline(always)]
+    fn add_transition_at_keyframe<P0, P1>(
+        &self,
+        variable: P0,
+        transition: P1,
+        startkeyframe: UI_ANIMATION_KEYFRAME,
+    ) -> Result<()>
+    where
+        P0: Param<IUIAnimationVariable2>,
+        P1: Param<IUIAnimationTransition2>,
+    {
+        unsafe { self.AddTransitionAtKeyframe(variable, transition, startkeyframe) }
     }
 }

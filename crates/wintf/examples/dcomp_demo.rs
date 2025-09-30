@@ -13,7 +13,7 @@ use windows::{
     },
 };
 use windows_numerics::*;
-use wintf::{com::animation::*, com::d2d::*, com::d3d11::*, com::dcomp::*, com::wic::*, *};
+use wintf::{com::d2d::*, com::d3d11::*, com::dcomp::*, com::wic::*, *};
 
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 6;
@@ -348,13 +348,13 @@ impl DemoWindow {
                     &self.cards[next],
                 )?;
 
-                unsafe { storyboard.Schedule(next_frame, None) }?;
+                storyboard.schedule(next_frame)?;
                 update_animation(dcomp, &self.cards[first])?;
                 update_animation(dcomp, &self.cards[next])?;
             } else {
                 self.first = Some(next);
                 self.cards[next].status = Status::Selected;
-                unsafe { storyboard.Schedule(next_frame, None) }?;
+                storyboard.schedule(next_frame)?;
                 update_animation(dcomp, &self.cards[next])?;
             }
 
@@ -502,8 +502,8 @@ fn add_show_transition(
 ) -> Result<UI_ANIMATION_KEYFRAME> {
     let duration = unsafe { (180.0 - card.variable.GetValue()?) / 180.0 };
     let transition = create_transition(library, duration, 180.0)?;
-    unsafe { storyboard.AddTransition(&card.variable, &transition) }?;
-    unsafe { storyboard.AddKeyframeAfterTransition(&transition) }
+    storyboard.add_transition(&card.variable, &transition)?;
+    storyboard.add_keyframe_after_transition(&transition)
 }
 
 fn add_hide_transition(
@@ -514,7 +514,7 @@ fn add_hide_transition(
     card: &Card,
 ) -> Result<()> {
     let transition = create_transition(library, 1.0, final_value)?;
-    unsafe { storyboard.AddTransitionAtKeyframe(&card.variable, &transition, key_frame) }
+    storyboard.add_transition_at_keyframe(&card.variable, &transition, key_frame)
 }
 
 fn update_animation(dcomp: &IDCompositionDevice3, card: &Card) -> Result<()> {
