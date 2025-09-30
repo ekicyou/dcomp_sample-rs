@@ -47,17 +47,18 @@ pub trait D2D1DeviceContextExt {
         brush_properties: Option<&D2D1_BRUSH_PROPERTIES>,
     ) -> Result<ID2D1SolidColorBrush>;
     /// DrawText
-    fn draw_text<P0, P1>(
+    fn draw_text<P0, P1, P2>(
         &self,
-        text: &[u16],
-        text_format: P0,
+        string: P0,
+        text_format: P1,
         layout_rect: &D2D_RECT_F,
-        default_fill_brush: P1,
+        default_fill_brush: P2,
         options: D2D1_DRAW_TEXT_OPTIONS,
         measuring_mode: DWRITE_MEASURING_MODE,
     ) where
-        P0: Param<IDWriteTextFormat>,
-        P1: Param<ID2D1Brush>;
+        P0: Param<HSTRING>,
+        P1: Param<IDWriteTextFormat>,
+        P2: Param<ID2D1Brush>;
 }
 
 impl D2D1DeviceContextExt for ID2D1DeviceContext {
@@ -89,21 +90,25 @@ impl D2D1DeviceContextExt for ID2D1DeviceContext {
     }
 
     #[inline(always)]
-    fn draw_text<P0, P1>(
+    fn draw_text<P0, P1, P2>(
         &self,
-        text: &[u16],
-        text_format: P0,
+        string: P0,
+        text_format: P1,
         layout_rect: &D2D_RECT_F,
-        default_fill_brush: P1,
+        default_fill_brush: P2,
         options: D2D1_DRAW_TEXT_OPTIONS,
         measuring_mode: DWRITE_MEASURING_MODE,
     ) where
-        P0: Param<IDWriteTextFormat>,
-        P1: Param<ID2D1Brush>,
+        P0: Param<HSTRING>,
+        P1: Param<IDWriteTextFormat>,
+        P2: Param<ID2D1Brush>,
     {
         unsafe {
+            let hstring = string.param();
+            let hstring_borrow = hstring.borrow();
+            let string = hstring_borrow.as_ref().unwrap();
             self.DrawText(
-                text,
+                &string,
                 text_format,
                 layout_rect,
                 default_fill_brush,

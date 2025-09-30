@@ -590,8 +590,9 @@ fn draw_card_front(
         a: 1.0,
     }));
 
+    let string = HSTRING::from_wide(&[value as _]);
     dc.draw_text(
-        &[value as _],
+        &string,
         format,
         &D2D_RECT_F {
             left: 0.0,
