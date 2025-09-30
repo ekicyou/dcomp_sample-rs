@@ -585,14 +585,12 @@ fn draw_card_front(
     let offset: LxPoint = PxPoint::new(offset.x as f32, offset.y as f32).into_dpi(dpi);
     dc.set_transform(&Matrix3x2::translation(offset.x, offset.y));
 
-    unsafe {
-        dc.Clear(Some(&D2D1_COLOR_F {
-            r: 1.0,
-            g: 1.0,
-            b: 1.0,
-            a: 1.0,
-        }))
-    };
+    dc.clear(Some(&D2D1_COLOR_F {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    } as *const D2D1_COLOR_F));
 
     unsafe {
         dc.DrawText(
