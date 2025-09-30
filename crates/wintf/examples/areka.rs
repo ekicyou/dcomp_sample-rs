@@ -8,7 +8,7 @@ fn main() -> Result<()> {
     human_panic::setup_panic!();
 
     let mgr = WinThreadMgr::new()?;
-    let weak = Arc::downgrade(&mgr);
+    let _weak = Arc::downgrade(&mgr);
     mgr.run()?;
     Ok(())
 }

@@ -8,9 +8,8 @@ use windows::{
     Win32::{
         Foundation::*, Graphics::Direct2D::Common::*, Graphics::Direct2D::*, Graphics::Direct3D::*,
         Graphics::Direct3D11::*, Graphics::DirectComposition::*, Graphics::DirectWrite::*,
-        Graphics::Dxgi::Common::*, Graphics::Dxgi::*, Graphics::Gdi::*,
-        Graphics::Imaging::*, System::Com::*, UI::Animation::*, UI::HiDpi::*, UI::Shell::*,
-        UI::WindowsAndMessaging::*,
+        Graphics::Dxgi::Common::*, Graphics::Gdi::*, Graphics::Imaging::*, System::Com::*,
+        UI::Animation::*, UI::HiDpi::*, UI::WindowsAndMessaging::*,
     },
 };
 use windows_numerics::*;
