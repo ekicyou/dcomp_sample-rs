@@ -185,7 +185,7 @@ impl DCompositionVisualExt for IDCompositionVisual3 {
 
 pub trait DCompositionSurfaceExt {
     /// BeginDraw
-    fn begin_draw(&self, updaterect: Option<&RECT>) -> Result<(ID2D1DeviceContext, POINT)>;
+    fn begin_draw(&self, updaterect: Option<&RECT>) -> Result<(ID2D1DeviceContext3, POINT)>;
     /// EndDraw
     fn end_draw(&self) -> Result<()>;
     /// SuspendDraw
@@ -204,13 +204,11 @@ pub trait DCompositionSurfaceExt {
 
 impl DCompositionSurfaceExt for IDCompositionSurface {
     #[inline(always)]
-    fn begin_draw(&self, updaterect: Option<&RECT>) -> Result<(ID2D1DeviceContext, POINT)> {
+    fn begin_draw(&self, updaterect: Option<&RECT>) -> Result<(ID2D1DeviceContext3, POINT)> {
         let updaterect = updaterect.map(|r| r as *const _);
         let mut updateoffset = POINT::default();
-        unsafe {
-            let dc = self.BeginDraw(updaterect, &mut updateoffset)?;
-            Ok((dc, updateoffset))
-        }
+        let dc: ID2D1DeviceContext = unsafe { self.BeginDraw(updaterect, &mut updateoffset)? };
+        Ok((dc.cast()?, updateoffset))
     }
 
     #[inline(always)]
