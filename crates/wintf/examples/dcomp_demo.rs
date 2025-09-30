@@ -586,23 +586,22 @@ fn draw_card_front(
         a: 1.0,
     }));
 
-    unsafe {
-        dc.DrawText(
-            &[value as _],
-            format,
-            &D2D_RECT_F {
-                left: 0.0,
-                top: 0.0,
-                right: CARD_WIDTH.0,
-                bottom: CARD_HEIGHT.0,
-            },
-            brush,
-            D2D1_DRAW_TEXT_OPTIONS_NONE,
-            DWRITE_MEASURING_MODE_NATURAL,
-        )
-    };
+    let s = String::from(value as char);
+    dc.draw_text(
+        &s.into(),
+        format,
+        &D2D_RECT_F {
+            left: 0.0,
+            top: 0.0,
+            right: CARD_WIDTH.0,
+            bottom: CARD_HEIGHT.0,
+        },
+        brush,
+        D2D1_DRAW_TEXT_OPTIONS_NONE,
+        DWRITE_MEASURING_MODE_NATURAL,
+    );
 
-    unsafe { surface.EndDraw() }
+    surface.end_draw()
 }
 
 fn draw_card_back(
