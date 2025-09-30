@@ -14,7 +14,7 @@ use windows::{
 };
 use windows_numerics::*;
 use wintf::{
-    com::{animation::*, d2d::*, d3d11::*, dcomp::*, wic::*},
+    com::{animation::*, d2d::*, d3d11::*, dcomp::*, dwrite::*, wic::*},
     *,
 };
 
@@ -196,17 +196,19 @@ impl DemoWindow {
         target.set_root(&root_visual)?;
         self.target = Some(target);
 
-        let dc = d2d.create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
+        let dc = unsafe { d2d.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE) }?;
 
-        let brush = dc.create_solid_color_brush(
-            &D2D1_COLOR_F {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 1.0,
-            },
-            None,
-        )?;
+        let brush = unsafe {
+            dc.CreateSolidColorBrush(
+                &D2D1_COLOR_F {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                    a: 1.0,
+                },
+                None,
+            )
+        }?;
 
         let bitmap = dc.create_bitmap_from_wic_bitmap(&self.image)?;
         let dpi = self.dpi();
@@ -434,24 +436,20 @@ impl DemoWindow {
 }
 
 fn create_text_format() -> Result<IDWriteTextFormat> {
-    let factory: IDWriteFactory2 = unsafe { DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED) }?;
+    let factory: IDWriteFactory2 = dwrite_create_factory(DWRITE_FACTORY_TYPE_SHARED)?;
 
-    let format = unsafe {
-        factory.CreateTextFormat(
-            w!("Candara"),
-            None,
-            DWRITE_FONT_WEIGHT_NORMAL,
-            DWRITE_FONT_STYLE_NORMAL,
-            DWRITE_FONT_STRETCH_NORMAL,
-            CARD_HEIGHT.0 / 2.0,
-            w!("en"),
-        )
-    }?;
+    let format = factory.create_text_format(
+        w!("Candara"),
+        None,
+        DWRITE_FONT_WEIGHT_NORMAL,
+        DWRITE_FONT_STYLE_NORMAL,
+        DWRITE_FONT_STRETCH_NORMAL,
+        CARD_HEIGHT.0 / 2.0,
+        w!("en"),
+    )?;
 
-    unsafe {
-        format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER)?;
-        format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
-    }
+    format.set_text_alignment(DWRITE_TEXT_ALIGNMENT_CENTER)?;
+    format.set_paragraph_alignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
     Ok(format)
 }
 
