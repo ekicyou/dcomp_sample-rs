@@ -21,13 +21,6 @@ fn dup_com<T: Interface>(com_ref: &T) -> ManuallyDrop<T> {
     unsafe { ManuallyDrop::new(core::mem::transmute_copy(com_ref)) }
 }
 
-#[inline(always)]
-fn dup_ref<T: Interface>(ref_com: &Ref<T>) -> Option<ManuallyDrop<T>> {
-    // `Ref<T>`を`Option<&T>`に変換し、`Some`の場合に`dup_com`を適用して
-    // `Option<ManuallyDrop<T>>`を生成します。
-    ref_com.as_ref().map(dup_com)
-}
-
 #[derive(Clone, Debug)]
 pub struct BlendImage {
     pub image: ManuallyDrop<ID2D1Image>,
@@ -102,15 +95,11 @@ pub struct DrawInk {
 }
 
 impl DrawInk {
-    pub fn new(
-        ink: &ID2D1Ink,
-        brush: &ID2D1Brush,
-        inkstyle: Option<ManuallyDrop<ID2D1InkStyle>>,
-    ) -> Self {
+    pub fn new(ink: &ID2D1Ink, brush: &ID2D1Brush, inkstyle: Option<&ID2D1InkStyle>) -> Self {
         Self {
             ink: dup_com(ink),
             brush: dup_com(brush),
-            inkstyle,
+            inkstyle: inkstyle.map(dup_com),
         }
     }
 }
@@ -190,9 +179,9 @@ pub struct SetTextRenderingParams {
 }
 
 impl SetTextRenderingParams {
-    pub fn new(textrenderingparams: Option<ManuallyDrop<IDWriteRenderingParams>>) -> Self {
+    pub fn new(textrenderingparams: Option<&IDWriteRenderingParams>) -> Self {
         Self {
-            textrenderingparams,
+            textrenderingparams: textrenderingparams.map(dup_com),
         }
     }
 }
@@ -295,14 +284,14 @@ impl DrawLine {
         point1: Vector2,
         brush: &ID2D1Brush,
         strokewidth: f32,
-        strokestyle: Option<ManuallyDrop<ID2D1StrokeStyle>>,
+        strokestyle: Option<&ID2D1StrokeStyle>,
     ) -> Self {
         Self {
             point0,
             point1,
             brush: dup_com(brush),
             strokewidth,
-            strokestyle,
+            strokestyle: strokestyle.map(dup_com),
         }
     }
 }
@@ -320,13 +309,13 @@ impl DrawGeometry {
         geometry: &ID2D1Geometry,
         brush: &ID2D1Brush,
         strokewidth: f32,
-        strokestyle: Option<ManuallyDrop<ID2D1StrokeStyle>>,
+        strokestyle: Option<&ID2D1StrokeStyle>,
     ) -> Self {
         Self {
             geometry: dup_com(geometry),
             brush: dup_com(brush),
             strokewidth,
-            strokestyle,
+            strokestyle: strokestyle.map(dup_com),
         }
     }
 }
@@ -344,13 +333,13 @@ impl DrawRectangle {
         rect: D2D_RECT_F,
         brush: &ID2D1Brush,
         strokewidth: f32,
-        strokestyle: Option<ManuallyDrop<ID2D1StrokeStyle>>,
+        strokestyle: Option<&ID2D1StrokeStyle>,
     ) -> Self {
         Self {
             rect,
             brush: dup_com(brush),
             strokewidth,
-            strokestyle,
+            strokestyle: strokestyle.map(dup_com),
         }
     }
 }
@@ -477,12 +466,12 @@ impl FillGeometry {
     pub fn new(
         geometry: &ID2D1Geometry,
         brush: &ID2D1Brush,
-        opacitybrush: Option<ManuallyDrop<ID2D1Brush>>,
+        opacitybrush: Option<&ID2D1Brush>,
     ) -> Self {
         Self {
             geometry: dup_com(geometry),
             brush: dup_com(brush),
-            opacitybrush,
+            opacitybrush: opacitybrush.map(dup_com),
         }
     }
 }
@@ -524,13 +513,10 @@ pub struct PushLayer {
 }
 
 impl PushLayer {
-    pub fn new(
-        layerparameters1: D2D1_LAYER_PARAMETERS1,
-        layer: Option<ManuallyDrop<ID2D1Layer>>,
-    ) -> Self {
+    pub fn new(layerparameters1: D2D1_LAYER_PARAMETERS1, layer: Option<&ID2D1Layer>) -> Self {
         Self {
             layerparameters1,
-            layer,
+            layer: layer.map(dup_com),
         }
     }
 }
@@ -648,7 +634,7 @@ impl ID2D1CommandSink_Impl for RecCommandSink_Impl {
         textrenderingparams: Ref<IDWriteRenderingParams>,
     ) -> Result<()> {
         self.push(DrawCommand::SetTextRenderingParams(
-            SetTextRenderingParams::new(dup_ref(&textrenderingparams)),
+            SetTextRenderingParams::new(textrenderingparams.as_ref()),
         ));
         Ok(())
     }
@@ -733,7 +719,7 @@ impl ID2D1CommandSink_Impl for RecCommandSink_Impl {
             *point1,
             brush.as_ref().unwrap(),
             strokewidth,
-            dup_ref(&strokestyle),
+            strokestyle.as_ref(),
         )));
         Ok(())
     }
@@ -749,7 +735,7 @@ impl ID2D1CommandSink_Impl for RecCommandSink_Impl {
             geometry.as_ref().unwrap(),
             brush.as_ref().unwrap(),
             strokewidth,
-            dup_ref(&strokestyle),
+            strokestyle.as_ref(),
         )));
         Ok(())
     }
@@ -766,7 +752,7 @@ impl ID2D1CommandSink_Impl for RecCommandSink_Impl {
             rect,
             brush.as_ref().unwrap(),
             strokewidth,
-            dup_ref(&strokestyle),
+            strokestyle.as_ref(),
         )));
         Ok(())
     }
@@ -854,7 +840,7 @@ impl ID2D1CommandSink_Impl for RecCommandSink_Impl {
         self.push(DrawCommand::FillGeometry(FillGeometry::new(
             geometry.as_ref().unwrap(),
             brush.as_ref().unwrap(),
-            dup_ref(&opacitybrush),
+            opacitybrush.as_ref(),
         )));
         Ok(())
     }
@@ -898,7 +884,7 @@ impl ID2D1CommandSink_Impl for RecCommandSink_Impl {
         };
         self.push(DrawCommand::PushLayer(PushLayer::new(
             new_params,
-            dup_ref(&layer),
+            layer.as_ref(),
         )));
         Ok(())
     }
@@ -933,7 +919,7 @@ impl ID2D1CommandSink2_Impl for RecCommandSink_Impl {
         self.push(DrawCommand::DrawInk(DrawInk::new(
             ink.as_ref().unwrap(),
             brush.as_ref().unwrap(),
-            dup_ref(&inkstyle),
+            inkstyle.as_ref(),
         )));
         Ok(())
     }
