@@ -1,3 +1,4 @@
+#![allow(unused_variables)]
 use std::mem::*;
 use windows::core::*;
 use windows::Win32::Graphics::Direct2D::Common::*;
@@ -562,7 +563,7 @@ pub enum DrawCommand {
     PopLayer,
 }
 
-#[implement(ID2D1CommandSink1)]
+#[implement(ID2D1CommandSink3)]
 #[derive(Clone, Debug)]
 pub struct RecCommandSink {
     commands: Vec<DrawCommand>,
@@ -757,6 +758,45 @@ impl ID2D1CommandSink_Impl for RecCommandSink_Impl {
 
 impl ID2D1CommandSink1_Impl for RecCommandSink_Impl {
     fn SetPrimitiveBlend1(&self, primitiveblend: D2D1_PRIMITIVE_BLEND) -> windows_core::Result<()> {
+        Ok(())
+    }
+}
+
+impl ID2D1CommandSink2_Impl for RecCommandSink_Impl {
+    fn DrawInk(
+        &self,
+        ink: windows_core::Ref<ID2D1Ink>,
+        brush: windows_core::Ref<ID2D1Brush>,
+        inkstyle: windows_core::Ref<ID2D1InkStyle>,
+    ) -> windows_core::Result<()> {
+        Ok(())
+    }
+    fn DrawGradientMesh(
+        &self,
+        gradientmesh: windows_core::Ref<ID2D1GradientMesh>,
+    ) -> windows_core::Result<()> {
+        Ok(())
+    }
+    fn DrawGdiMetafile(
+        &self,
+        gdimetafile: windows_core::Ref<ID2D1GdiMetafile>,
+        destinationrectangle: *const D2D_RECT_F,
+        sourcerectangle: *const D2D_RECT_F,
+    ) -> windows_core::Result<()> {
+        Ok(())
+    }
+}
+
+impl ID2D1CommandSink3_Impl for RecCommandSink_Impl {
+    fn DrawSpriteBatch(
+        &self,
+        spritebatch: windows_core::Ref<ID2D1SpriteBatch>,
+        startindex: u32,
+        spritecount: u32,
+        bitmap: windows_core::Ref<ID2D1Bitmap>,
+        interpolationmode: D2D1_BITMAP_INTERPOLATION_MODE,
+        spriteoptions: D2D1_SPRITE_OPTIONS,
+    ) -> windows_core::Result<()> {
         Ok(())
     }
 }
