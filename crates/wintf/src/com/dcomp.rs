@@ -3,7 +3,6 @@ use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
 use windows::Win32::System::Com::*;
-use windows::Win32::UI::Animation::*;
 use windows_numerics::*;
 
 pub fn dcomp_create_desktop_device<P0>(renderingdevice: P0) -> Result<IDCompositionDesktopDevice>
@@ -103,23 +102,6 @@ impl IDCompositionVisualExt for IDCompositionVisual3 {
         P0: Param<IDCompositionEffect>,
     {
         unsafe { self.SetEffect(effect) }
-    }
-}
-
-pub trait IDCompositionAnimationExt {
-    /// GetCurve
-    fn get_curve<P0>(&self, animation: P0) -> Result<()>
-    where
-        P0: Param<IDCompositionAnimation>;
-}
-
-impl IDCompositionAnimationExt for IUIAnimationVariable2 {
-    #[inline(always)]
-    fn get_curve<P0>(&self, animation: P0) -> Result<()>
-    where
-        P0: Param<IDCompositionAnimation>,
-    {
-        unsafe { self.GetCurve(animation) }
     }
 }
 
@@ -228,30 +210,4 @@ impl IDCompositionDeviceExt for IDCompositionDevice3 {
     fn create_rotate_transform_3d(&self) -> Result<IDCompositionRotateTransform3D> {
         unsafe { self.CreateRotateTransform3D() }
     }
-}
-
-pub trait IUIAnimationManagerExt {
-    fn create_animation_variable(&self, initialvalue: f64) -> Result<IUIAnimationVariable2>;
-    fn update(&self, time: f64) -> Result<()>;
-    fn create_storyboard(&self) -> Result<IUIAnimationStoryboard2>;
-}
-
-impl IUIAnimationManagerExt for IUIAnimationManager2 {
-    fn create_animation_variable(&self, initialvalue: f64) -> Result<IUIAnimationVariable2> {
-        unsafe { self.CreateAnimationVariable(initialvalue) }
-    }
-    fn update(&self, time: f64) -> Result<()> {
-        unsafe { self.Update(time, None).map(|_| ()) }
-    }
-    fn create_storyboard(&self) -> Result<IUIAnimationStoryboard2> {
-        unsafe { self.CreateStoryboard() }
-    }
-}
-
-pub fn create_animation_manager() -> Result<IUIAnimationManager2> {
-    unsafe { CoCreateInstance(&UIAnimationManager2, None, CLSCTX_INPROC_SERVER) }
-}
-
-pub fn create_animation_transition_library() -> Result<IUIAnimationTransitionLibrary2> {
-    unsafe { CoCreateInstance(&UIAnimationTransitionLibrary2, None, CLSCTX_INPROC_SERVER) }
 }

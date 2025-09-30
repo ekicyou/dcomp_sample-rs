@@ -13,7 +13,7 @@ use windows::{
     },
 };
 use windows_numerics::*;
-use wintf::{com::d2d::*, com::d3d11::*, com::dcomp::*, com::wic::*, *};
+use wintf::{com::animation::*, com::d2d::*, com::d3d11::*, com::dcomp::*, com::wic::*, *};
 
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 6;
@@ -193,7 +193,7 @@ impl DemoWindow {
         target.set_root(&root_visual)?;
         self.target = Some(target);
 
-        let dc = d2d.create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
+        let dc = unsafe { d2d.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE) }?;
 
         let brush = unsafe {
             dc.CreateSolidColorBrush(
