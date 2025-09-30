@@ -1,6 +1,5 @@
 use windows::core::*;
 use windows::Win32::Foundation::*;
-use windows::Win32::Graphics::Direct2D::*;
 use windows::Win32::Graphics::Imaging::{D2D::*, *};
 use windows::Win32::System::Com::*;
 
