@@ -615,7 +615,6 @@ fn draw_card_back(
     dpi: Dpi,
 ) -> Result<()> {
     let (dc, dc_offset) = surface.begin_draw(None)?;
-    let dc: ID2D1DeviceContext7 = dc.cast()?;
     dc.set_dpi(dpi);
     let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
     dc.set_transform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
