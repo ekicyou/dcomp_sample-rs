@@ -24,14 +24,14 @@ impl DCompositionDesktopDeviceExt for IDCompositionDesktopDevice {
     }
 }
 
-pub trait IDCompositionTargetExt {
+pub trait DCompositionTargetExt {
     /// SetRoot
     fn set_root<P0>(&self, visual: P0) -> Result<()>
     where
         P0: Param<IDCompositionVisual>;
 }
 
-impl IDCompositionTargetExt for IDCompositionTarget {
+impl DCompositionTargetExt for IDCompositionTarget {
     #[inline(always)]
     fn set_root<P0>(&self, visual: P0) -> Result<()>
     where
@@ -41,7 +41,7 @@ impl IDCompositionTargetExt for IDCompositionTarget {
     }
 }
 
-pub trait IDCompositionVisualExt {
+pub trait DCompositionVisualExt {
     /// SetBackFaceVisibility
     fn set_backface_visibility(&self, visibility: DCOMPOSITION_BACKFACE_VISIBILITY) -> Result<()>;
     /// SetOffsetX
@@ -63,7 +63,7 @@ pub trait IDCompositionVisualExt {
         P0: Param<IDCompositionEffect>;
 }
 
-impl IDCompositionVisualExt for IDCompositionVisual3 {
+impl DCompositionVisualExt for IDCompositionVisual3 {
     #[inline(always)]
     fn set_backface_visibility(&self, visibility: DCOMPOSITION_BACKFACE_VISIBILITY) -> Result<()> {
         unsafe { self.SetBackFaceVisibility(visibility) }
