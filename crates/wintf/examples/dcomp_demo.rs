@@ -14,7 +14,7 @@ use windows::{
 };
 use windows_numerics::*;
 use wintf::{
-    com::{animation::*, d2d::*, d3d11::*, dcomp::*, wic::*},
+    com::{animation::*, d2d::*, d3d11::*, dcomp::*, dwrite::*, wic::*},
     *,
 };
 
@@ -261,11 +261,13 @@ impl DemoWindow {
                 let rotation = dcomp.create_rotate_transform_3d()?;
 
                 if card.status == Status::Selected {
-                    rotation.set_angle2(180.0)?;
+                    unsafe { rotation.SetAngle2(180.0) }?;
                 }
 
-                rotation.set_axis_z2(0.0)?;
-                rotation.set_axis_y2(1.0)?;
+                unsafe {
+                    rotation.SetAxisZ2(0.0)?;
+                    rotation.SetAxisY2(1.0)?;
+                }
                 create_effect(&dcomp, &front_visual, &rotation, true, dpi)?;
                 create_effect(&dcomp, &back_visual, &rotation, false, dpi)?;
                 card.rotation = Some(rotation);
@@ -436,24 +438,20 @@ impl DemoWindow {
 }
 
 fn create_text_format() -> Result<IDWriteTextFormat> {
-    let factory: IDWriteFactory2 = unsafe { DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED) }?;
+    let factory = dwrite_create_factory(DWRITE_FACTORY_TYPE_SHARED)?;
 
-    let format = unsafe {
-        factory.CreateTextFormat(
-            w!("Candara"),
-            None,
-            DWRITE_FONT_WEIGHT_NORMAL,
-            DWRITE_FONT_STYLE_NORMAL,
-            DWRITE_FONT_STRETCH_NORMAL,
-            CARD_HEIGHT.0 / 2.0,
-            w!("en"),
-        )
-    }?;
+    let format = factory.create_text_format(
+        w!("Candara"),
+        None,
+        DWRITE_FONT_WEIGHT_NORMAL,
+        DWRITE_FONT_STYLE_NORMAL,
+        DWRITE_FONT_STRETCH_NORMAL,
+        CARD_HEIGHT.0 / 2.0,
+        w!("en"),
+    )?;
 
-    unsafe {
-        format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER)?;
-        format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
-    }
+    format.set_text_alignment(DWRITE_TEXT_ALIGNMENT_CENTER)?;
+    format.set_paragraph_alignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
     Ok(format)
 }
 
@@ -537,7 +535,7 @@ fn create_transition(
     duration: f64,
     final_value: f64,
 ) -> Result<IUIAnimationTransition2> {
-    library.create_accelerate_decelerate_transition(duration, final_value, 0.2, 0.8)
+    unsafe { library.CreateAccelerateDecelerateTransition(duration, final_value, 0.2, 0.8) }
 }
 
 fn create_effect(
