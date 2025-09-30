@@ -4,6 +4,7 @@ pub use command::*;
 use windows::core::*;
 use windows::Win32::Graphics::Direct2D::Common::*;
 use windows::Win32::Graphics::Direct2D::*;
+use windows::Win32::Graphics::DirectWrite::*;
 use windows::Win32::Graphics::Dxgi::*;
 use windows::Win32::Graphics::Imaging::*;
 use windows_numerics::*;
@@ -39,6 +40,24 @@ pub trait D2D1DeviceContextExt {
     fn set_transform(&self, transform: &Matrix3x2);
     /// Clear
     fn clear(&self, color: Option<&D2D1_COLOR_F>);
+    /// CreateSolidColorBrush
+    fn create_solid_color_brush(
+        &self,
+        color: &D2D1_COLOR_F,
+        brush_properties: Option<&D2D1_BRUSH_PROPERTIES>,
+    ) -> Result<ID2D1SolidColorBrush>;
+    /// DrawText
+    fn draw_text<P0, P1>(
+        &self,
+        text: &[u16],
+        text_format: P0,
+        layout_rect: &D2D_RECT_F,
+        default_fill_brush: P1,
+        options: D2D1_DRAW_TEXT_OPTIONS,
+        measuring_mode: DWRITE_MEASURING_MODE,
+    ) where
+        P0: Param<IDWriteTextFormat>,
+        P1: Param<ID2D1Brush>;
 }
 
 impl D2D1DeviceContextExt for ID2D1DeviceContext {
@@ -57,5 +76,40 @@ impl D2D1DeviceContextExt for ID2D1DeviceContext {
     fn clear(&self, color: Option<&D2D1_COLOR_F>) {
         let color_ptr = color.map(|c| c as *const D2D1_COLOR_F);
         unsafe { self.Clear(color_ptr) }
+    }
+
+    #[inline(always)]
+    fn create_solid_color_brush(
+        &self,
+        color: &D2D1_COLOR_F,
+        brush_properties: Option<&D2D1_BRUSH_PROPERTIES>,
+    ) -> Result<ID2D1SolidColorBrush> {
+        let brush_properties_ptr = brush_properties.map(|p| p as *const D2D1_BRUSH_PROPERTIES);
+        unsafe { self.CreateSolidColorBrush(color, brush_properties_ptr) }
+    }
+
+    #[inline(always)]
+    fn draw_text<P0, P1>(
+        &self,
+        text: &[u16],
+        text_format: P0,
+        layout_rect: &D2D_RECT_F,
+        default_fill_brush: P1,
+        options: D2D1_DRAW_TEXT_OPTIONS,
+        measuring_mode: DWRITE_MEASURING_MODE,
+    ) where
+        P0: Param<IDWriteTextFormat>,
+        P1: Param<ID2D1Brush>,
+    {
+        unsafe {
+            self.DrawText(
+                text,
+                text_format,
+                layout_rect,
+                default_fill_brush,
+                options,
+                measuring_mode,
+            )
+        }
     }
 }
