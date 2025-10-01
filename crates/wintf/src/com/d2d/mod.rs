@@ -16,6 +16,7 @@ pub fn d2d_create_device(dxgi: &IDXGIDevice4) -> Result<ID2D1Device> {
 }
 
 pub trait D2D1DeviceExt {
+    /// CreateDeviceContext
     fn create_device_context(
         &self,
         options: D2D1_DEVICE_CONTEXT_OPTIONS,

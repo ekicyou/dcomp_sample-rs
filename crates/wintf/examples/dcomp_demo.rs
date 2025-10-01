@@ -94,8 +94,7 @@ impl WinMessageHandler for DemoWindow {
     }
 
     fn WM_DESTROY(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
-        unsafe { PostQuitMessage(0) };
-        Some(LRESULT(0))
+        self.post_quit_message(0)
     }
 
     fn WM_LBUTTONUP(&mut self, _wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {

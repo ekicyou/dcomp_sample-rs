@@ -9,6 +9,7 @@ use windows::Win32::{
     Graphics::Dwm::*,
     UI::{Controls::*, Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
 };
+use windows_core::*;
 
 #[delegatable_trait]
 pub trait BaseWinMessageHandler {
@@ -32,6 +33,36 @@ pub trait WinMessageHandler: BaseWinMessageHandler + WinNcCreate {
         lparam: LPARAM,
     ) -> Option<LRESULT> {
         None
+    }
+
+    /// PostQuitMessage
+    #[inline(always)]
+    fn post_quit_message(&self, nexitcode: i32) -> Option<LRESULT> {
+        unsafe { PostQuitMessage(nexitcode) };
+        Some(LRESULT(0))
+    }
+
+    /// PostMessageW
+    #[inline(always)]
+    fn post_message(
+        &self,
+        hwnd: Option<HWND>,
+        msg: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> Result<()> {
+        unsafe { PostMessageW(hwnd, msg, wparam, lparam) }
+    }
+
+    /// SendMessageW
+    fn send_message(
+        &self,
+        hwnd: HWND,
+        msg: u32,
+        wparam: Option<WPARAM>,
+        lparam: Option<LPARAM>,
+    ) -> LRESULT {
+        unsafe { SendMessageW(hwnd, msg, wparam, lparam) }
     }
 
     // デフォルト実装（改定箇所あり）
