@@ -197,7 +197,7 @@ impl DemoWindow {
         self.target = Some(target);
 
         // 描画リソースの作成
-        let dc = unsafe { d2d.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE) }?;
+        let dc = d2d.create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
 
         let brush = dc.create_solid_color_brush(
             &D2D1_COLOR_F {
