@@ -372,7 +372,7 @@ impl DemoWindow {
             if cfg!(debug_assertions) {
                 println!("check device");
             }
-            unsafe { device.GetDeviceRemovedReason() }?;
+            device.get_device_removed_reason()?;
         } else {
             if cfg!(debug_assertions) {
                 println!("build device");
@@ -497,7 +497,7 @@ fn add_show_transition(
     storyboard: &IUIAnimationStoryboard2,
     card: &Card,
 ) -> Result<UI_ANIMATION_KEYFRAME> {
-    let duration = unsafe { (180.0 - card.variable.GetValue()?) / 180.0 };
+    let duration = (180.0 - card.variable.get_value()?) / 180.0;
     let transition = create_transition(library, duration, 180.0)?;
     storyboard.add_transition(&card.variable, &transition)?;
     storyboard.add_keyframe_after_transition(&transition)

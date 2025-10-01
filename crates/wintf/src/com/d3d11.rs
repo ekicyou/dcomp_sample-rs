@@ -36,3 +36,35 @@ where
         .map(|()| device.unwrap())
     }
 }
+
+pub trait D3D11DeviceExt {
+    /// GetDeviceRemovedReason
+    fn get_device_removed_reason(&self) -> Result<()>;
+    /// CreateTexture2D
+    fn create_texture2d(
+        &self,
+        pdesc: &D3D11_TEXTURE2D_DESC,
+        pinitialdata: Option<&D3D11_SUBRESOURCE_DATA>,
+    ) -> Result<ID3D11Texture2D>;
+}
+
+impl D3D11DeviceExt for ID3D11Device {
+    #[inline(always)]
+    fn get_device_removed_reason(&self) -> Result<()> {
+        unsafe { self.GetDeviceRemovedReason() }
+    }
+
+    #[inline(always)]
+    fn create_texture2d(
+        &self,
+        pdesc: &D3D11_TEXTURE2D_DESC,
+        pinitialdata: Option<&D3D11_SUBRESOURCE_DATA>,
+    ) -> Result<ID3D11Texture2D> {
+        let pdesc = pdesc as *const _;
+        let pinitialdata = pinitialdata.map(|data| data as *const _);
+        let mut texture2d: Option<ID3D11Texture2D> = None;
+        let pptexture2d = Some(&mut texture2d as *mut _);
+        unsafe { self.CreateTexture2D(pdesc, pinitialdata, pptexture2d)? }
+        Ok(texture2d.unwrap())
+    }
+}
