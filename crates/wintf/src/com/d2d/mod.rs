@@ -1,6 +1,7 @@
 pub mod command;
 pub use command::*;
 
+use ambassador::*;
 use windows::core::*;
 use windows::Win32::Graphics::Direct2D::Common::*;
 use windows::Win32::Graphics::Direct2D::*;
@@ -31,6 +32,7 @@ impl D2D1DeviceExt for ID2D1Device {
     }
 }
 
+#[delegatable_trait]
 pub trait D2D1DeviceContextExt {
     /// CreateBitmapFromWicBitmap
     fn create_bitmap_from_wic_bitmap<P0>(&self, wicbitmapsource: P0) -> Result<ID2D1Bitmap1>

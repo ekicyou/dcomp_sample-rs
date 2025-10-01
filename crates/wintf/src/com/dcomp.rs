@@ -239,20 +239,20 @@ impl DCompositionSurfaceExt for IDCompositionSurface {
 
 pub trait DCompositionRotateTransform3DExt {
     /// SetAngle
-    fn set_angle<P0>(&self, animation: P0) -> Result<()>
+    fn set_angle_animation<P0>(&self, animation: P0) -> Result<()>
     where
         P0: Param<IDCompositionAnimation>;
     /// SetAngle2
-    fn set_angle2(&self, angle: f32) -> Result<()>;
+    fn set_angle(&self, angle: f32) -> Result<()>;
     /// SetAxisZ2
-    fn set_axis_z2(&self, axis_z: f32) -> Result<()>;
+    fn set_axis_z(&self, axis_z: f32) -> Result<()>;
     /// SetAxisY2
-    fn set_axis_y2(&self, axis_y: f32) -> Result<()>;
+    fn set_axis_y(&self, axis_y: f32) -> Result<()>;
 }
 
 impl DCompositionRotateTransform3DExt for IDCompositionRotateTransform3D {
     #[inline(always)]
-    fn set_angle<P0>(&self, animation: P0) -> Result<()>
+    fn set_angle_animation<P0>(&self, animation: P0) -> Result<()>
     where
         P0: Param<IDCompositionAnimation>,
     {
@@ -260,17 +260,17 @@ impl DCompositionRotateTransform3DExt for IDCompositionRotateTransform3D {
     }
 
     #[inline(always)]
-    fn set_angle2(&self, angle: f32) -> Result<()> {
+    fn set_angle(&self, angle: f32) -> Result<()> {
         unsafe { self.SetAngle2(angle) }
     }
 
     #[inline(always)]
-    fn set_axis_z2(&self, axis_z: f32) -> Result<()> {
+    fn set_axis_z(&self, axis_z: f32) -> Result<()> {
         unsafe { self.SetAxisZ2(axis_z) }
     }
 
     #[inline(always)]
-    fn set_axis_y2(&self, axis_y: f32) -> Result<()> {
+    fn set_axis_y(&self, axis_y: f32) -> Result<()> {
         unsafe { self.SetAxisY2(axis_y) }
     }
 }

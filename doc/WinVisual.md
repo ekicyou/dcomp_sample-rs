@@ -1,6 +1,6 @@
 # ビジュアルツリー描画
 
-## trait WinVisual
-
+## trait WtfVisual
+ビジュアルを管理する最小単位。
 
 
