@@ -6,10 +6,10 @@ use euclid::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Direct2D::*;
 
-// Physical pixels
+// Physical pixels。デバイス依存ピクセル
 pub struct Px;
 
-// Logical pixels
+// Logical pixels。論理ピクセル（96DPI）
 pub struct Lx;
 
 fn dpi_to_scale_factor(dpi: f32) -> f32 {
@@ -68,15 +68,39 @@ impl ScaleFactor for Dpi {
     }
 }
 
+/// デバイス依存ピクセル長
 pub type PxLength = Length<f32, Px>;
+
+/// デバイス依存座標
 pub type PxPoint = Point2D<f32, Px>;
+
+/// デバイス依存サイズ
 pub type PxSize = Size2D<f32, Px>;
+
+/// デバイス依存矩形
 pub type PxRect = Rect<f32, Px>;
 
+/// 96DPI（論理ピクセル）長
 pub type LxLength = Length<f32, Lx>;
+
+/// 96DPI（論理ピクセル）座標
 pub type LxPoint = Point2D<f32, Lx>;
+
+/// 96DPI（論理ピクセル）サイズ
 pub type LxSize = Size2D<f32, Lx>;
+
+/// 96DPI（論理ピクセル）矩形
 pub type LxRect = Rect<f32, Lx>;
+
+pub type LxPoint3D = Point3D<f32, Lx>;
+pub type LxVector2D = Vector2D<f32, Lx>;
+pub type LxVector3D = Vector3D<f32, Lx>;
+
+pub type LxTransform2D = Transform2D<f32, Lx, Lx>;
+pub type LxTransform3D = Transform3D<f32, Lx, Lx>;
+
+/// ４次数（3D回転）
+pub type LxRotation3D = Rotation3D<f32, Lx, Lx>;
 
 pub type RawLength = Length<i32, Px>;
 pub type RawPoint = Point2D<i32, Px>;
