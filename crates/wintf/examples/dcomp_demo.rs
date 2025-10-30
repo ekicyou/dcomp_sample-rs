@@ -20,16 +20,16 @@ use wintf::{
 
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 6;
-const CARD_MARGIN: LxLength = LxLength::new(15.0);
-const CARD_WIDTH: LxLength = LxLength::new(150.0);
-const CARD_HEIGHT: LxLength = LxLength::new(210.0);
-const CARD_SIZE: LxSize = LxSize::new(CARD_WIDTH.0, CARD_HEIGHT.0);
+const CARD_MARGIN: DipLength = DipLength::new(15.0);
+const CARD_WIDTH: DipLength = DipLength::new(150.0);
+const CARD_HEIGHT: DipLength = DipLength::new(210.0);
+const CARD_SIZE: DipSize = DipSize::new(CARD_WIDTH.0, CARD_HEIGHT.0);
 
-const WINDOW_WIDTH: LxLength =
-    LxLength::new((CARD_WIDTH.0 + CARD_MARGIN.0) * (CARD_COLUMNS as f32) + CARD_MARGIN.0);
-const WINDOW_HEIGHT: LxLength =
-    LxLength::new((CARD_HEIGHT.0 + CARD_MARGIN.0) * (CARD_ROWS as f32) + CARD_MARGIN.0);
-const WINDOW_SIZE: LxSize = LxSize::new(WINDOW_WIDTH.0, WINDOW_HEIGHT.0);
+const WINDOW_WIDTH: DipLength =
+    DipLength::new((CARD_WIDTH.0 + CARD_MARGIN.0) * (CARD_COLUMNS as f32) + CARD_MARGIN.0);
+const WINDOW_HEIGHT: DipLength =
+    DipLength::new((CARD_HEIGHT.0 + CARD_MARGIN.0) * (CARD_ROWS as f32) + CARD_MARGIN.0);
+const WINDOW_SIZE: DipSize = DipSize::new(WINDOW_WIDTH.0, WINDOW_HEIGHT.0);
 
 fn main() -> Result<()> {
     human_panic::setup_panic!();
@@ -63,7 +63,7 @@ enum Status {
 struct Card {
     status: Status,
     value: u8,
-    offset: PxPoint,
+    offset: PpxPoint,
     variable: IUIAnimationVariable2,
     rotation: Option<IDCompositionRotateTransform3D>,
 }
@@ -210,13 +210,13 @@ impl DemoWindow {
 
         let bitmap = dc.create_bitmap_from_wic_bitmap(&self.image)?;
         let dpi = self.dpi();
-        let card_size: PxSize = CARD_SIZE.into_dpi(dpi);
+        let card_size: PpxSize = CARD_SIZE.into_dpi(dpi);
         let card_size = card_size.into_raw();
 
         for row in 0..CARD_ROWS {
             for column in 0..CARD_COLUMNS {
                 let card = &mut self.cards[row * CARD_COLUMNS + column];
-                let offset = LxPoint::from_lengths(
+                let offset = DipPoint::from_lengths(
                     (CARD_WIDTH + CARD_MARGIN) * (column as f32) + CARD_MARGIN,
                     (CARD_HEIGHT + CARD_MARGIN) * (row as f32) + CARD_MARGIN,
                 );
@@ -280,8 +280,8 @@ impl DemoWindow {
         let x = lparam.0 as u16 as f32;
         let y = (lparam.0 >> 16) as f32;
 
-        let width: PxLength = CARD_WIDTH.into_dpi(dpi);
-        let height: PxLength = CARD_HEIGHT.into_dpi(dpi);
+        let width: PpxLength = CARD_WIDTH.into_dpi(dpi);
+        let height: PpxLength = CARD_HEIGHT.into_dpi(dpi);
         let mut next = None;
 
         for (index, card) in self.cards.iter().enumerate() {
@@ -541,8 +541,8 @@ fn create_effect(
     front: bool,
     dpi: Dpi,
 ) -> Result<()> {
-    let width: PxLength = CARD_WIDTH.into_dpi(dpi);
-    let height: PxLength = CARD_HEIGHT.into_dpi(dpi);
+    let width: PpxLength = CARD_WIDTH.into_dpi(dpi);
+    let height: PpxLength = CARD_HEIGHT.into_dpi(dpi);
 
     let pre_matrix = Matrix4x4::translation(-width.0 / 2.0, -height.0 / 2.0, 0.0)
         * Matrix4x4::rotation_y(if front { 180.0 } else { 0.0 });
@@ -574,7 +574,7 @@ fn draw_card_front(
 ) -> Result<()> {
     let (dc, dc_offset) = surface.begin_draw(None)?;
     dc.set_dpi(dpi);
-    let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
+    let dc_offset: DipPoint = PpxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
     dc.set_transform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
 
     dc.clear(Some(&D2D1_COLOR_F {
@@ -605,16 +605,16 @@ fn draw_card_front(
 fn draw_card_back(
     surface: &IDCompositionSurface,
     bitmap: &ID2D1Bitmap1,
-    offset: PxPoint,
+    offset: PpxPoint,
     dpi: Dpi,
 ) -> Result<()> {
     let (dc, dc_offset) = surface.begin_draw(None)?;
     let dc: ID2D1DeviceContext7 = dc.cast()?;
     dc.set_dpi(dpi);
-    let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
+    let dc_offset: DipPoint = PpxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
     dc.set_transform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
 
-    let offset: LxPoint = offset.into_dpi(dpi);
+    let offset: DipPoint = offset.into_dpi(dpi);
     let left = offset.x;
     let top = offset.y;
 
