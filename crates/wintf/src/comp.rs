@@ -45,11 +45,11 @@ pub trait CompVisual {
 
     // =====================================================================
     // 変換
-    fn set_transform(&self, matrix: DipTransform3D) -> Result<()>;
+    fn set_transform(&self, matrix: DxTransform3D) -> Result<()>;
 
     // =====================================================================
     // クリップ
-    fn set_clip(&self, clip: Option<DipRect>) -> Result<()>;
+    fn set_clip(&self, clip: Option<DxRect>) -> Result<()>;
 
     // =====================================================================
     // エフェクト
@@ -58,7 +58,7 @@ pub trait CompVisual {
     // =====================================================================
     // ヒットテスト
     fn set_is_hit_test_visible(&self, hit_test: bool) -> Result<()>;
-    fn set_size(&self, size: DipSize) -> Result<()>;
+    fn set_size(&self, size: DxSize) -> Result<()>;
 
     // =====================================================================
     // 確定

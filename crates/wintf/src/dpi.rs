@@ -6,11 +6,11 @@ use euclid::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Direct2D::*;
 
-// Physical pixels (PPX)。デバイス依存ピクセル
-pub struct Ppx;
+// Physical pixels (PX)。デバイス依存ピクセル
+pub struct Px;
 
-// Device Independent Pixels (DIP)。論理ピクセル（96DPI）
-pub struct Dip;
+// Device Independent Pixels (DX)。論理ピクセル（96DPI）
+pub struct Dx;
 
 fn dpi_to_scale_factor(dpi: f32) -> f32 {
     dpi / 96.0
@@ -26,12 +26,12 @@ pub trait ScaleFactor: Clone + Copy {
     }
 
     #[inline]
-    fn to_physical(&self) -> Scale<f32, Dip, Ppx> {
+    fn to_physical(&self) -> Scale<f32, Dx, Px> {
         Scale::new(self.scale_factor())
     }
 
     #[inline]
-    fn to_logical(&self) -> Scale<f32, Ppx, Dip> {
+    fn to_logical(&self) -> Scale<f32, Px, Dx> {
         Scale::new(1.0 / self.scale_factor())
     }
 }
@@ -69,43 +69,43 @@ impl ScaleFactor for Dpi {
 }
 
 /// デバイス依存ピクセル長 (Physical Pixels)
-pub type PpxLength = Length<f32, Ppx>;
+pub type PxLength = Length<f32, Px>;
 
 /// デバイス依存座標 (Physical Pixels)
-pub type PpxPoint = Point2D<f32, Ppx>;
+pub type PxPoint = Point2D<f32, Px>;
 
 /// デバイス依存サイズ (Physical Pixels)
-pub type PpxSize = Size2D<f32, Ppx>;
+pub type PxSize = Size2D<f32, Px>;
 
 /// デバイス依存矩形 (Physical Pixels)
-pub type PpxRect = Rect<f32, Ppx>;
+pub type PxRect = Rect<f32, Px>;
 
 /// 96DPI（論理ピクセル）長 (Device Independent Pixels)
-pub type DipLength = Length<f32, Dip>;
+pub type DxLength = Length<f32, Dx>;
 
 /// 96DPI（論理ピクセル）座標 (Device Independent Pixels)
-pub type DipPoint = Point2D<f32, Dip>;
+pub type DxPoint = Point2D<f32, Dx>;
 
 /// 96DPI（論理ピクセル）サイズ (Device Independent Pixels)
-pub type DipSize = Size2D<f32, Dip>;
+pub type DxSize = Size2D<f32, Dx>;
 
 /// 96DPI（論理ピクセル）矩形 (Device Independent Pixels)
-pub type DipRect = Rect<f32, Dip>;
+pub type DxRect = Rect<f32, Dx>;
 
-pub type DipPoint3D = Point3D<f32, Dip>;
-pub type DipVector2D = Vector2D<f32, Dip>;
-pub type DipVector3D = Vector3D<f32, Dip>;
+pub type DxPoint3D = Point3D<f32, Dx>;
+pub type DxVector2D = Vector2D<f32, Dx>;
+pub type DxVector3D = Vector3D<f32, Dx>;
 
-pub type DipTransform2D = Transform2D<f32, Dip, Dip>;
-pub type DipTransform3D = Transform3D<f32, Dip, Dip>;
+pub type DxTransform2D = Transform2D<f32, Dx, Dx>;
+pub type DxTransform3D = Transform3D<f32, Dx, Dx>;
 
 /// ４次数（3D回転）
-pub type DipRotation3D = Rotation3D<f32, Dip, Dip>;
+pub type DxRotation3D = Rotation3D<f32, Dx, Dx>;
 
-pub type RawLength = Length<i32, Ppx>;
-pub type RawPoint = Point2D<i32, Ppx>;
-pub type RawSize = Size2D<i32, Ppx>;
-pub type RawRect = Rect<i32, Ppx>;
+pub type RawLength = Length<i32, Px>;
+pub type RawPoint = Point2D<i32, Px>;
+pub type RawSize = Size2D<i32, Px>;
+pub type RawRect = Rect<i32, Px>;
 
 pub trait FromDpi<T> {
     fn from_dpi(value: T, dpi: impl ScaleFactor) -> Self;
@@ -121,46 +121,46 @@ impl<T, U: FromDpi<T>> IntoDpi<U> for T {
     }
 }
 
-impl FromDpi<PpxLength> for DipLength {
-    fn from_dpi(value: PpxLength, dpi: impl ScaleFactor) -> Self {
+impl FromDpi<PxLength> for DxLength {
+    fn from_dpi(value: PxLength, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_logical()
     }
 }
-impl FromDpi<DipLength> for PpxLength {
-    fn from_dpi(value: DipLength, dpi: impl ScaleFactor) -> Self {
+impl FromDpi<DxLength> for PxLength {
+    fn from_dpi(value: DxLength, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_physical()
     }
 }
 
-impl FromDpi<PpxPoint> for DipPoint {
-    fn from_dpi(value: PpxPoint, dpi: impl ScaleFactor) -> Self {
+impl FromDpi<PxPoint> for DxPoint {
+    fn from_dpi(value: PxPoint, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_logical()
     }
 }
-impl FromDpi<DipPoint> for PpxPoint {
-    fn from_dpi(value: DipPoint, dpi: impl ScaleFactor) -> Self {
+impl FromDpi<DxPoint> for PxPoint {
+    fn from_dpi(value: DxPoint, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_physical()
     }
 }
 
-impl FromDpi<PpxSize> for DipSize {
-    fn from_dpi(value: PpxSize, dpi: impl ScaleFactor) -> Self {
+impl FromDpi<PxSize> for DxSize {
+    fn from_dpi(value: PxSize, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_logical()
     }
 }
-impl FromDpi<DipSize> for PpxSize {
-    fn from_dpi(value: DipSize, dpi: impl ScaleFactor) -> Self {
+impl FromDpi<DxSize> for PxSize {
+    fn from_dpi(value: DxSize, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_physical()
     }
 }
 
-impl FromDpi<PpxRect> for DipRect {
-    fn from_dpi(value: PpxRect, dpi: impl ScaleFactor) -> Self {
+impl FromDpi<PxRect> for DxRect {
+    fn from_dpi(value: PxRect, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_logical()
     }
 }
-impl FromDpi<DipRect> for PpxRect {
-    fn from_dpi(value: DipRect, dpi: impl ScaleFactor) -> Self {
+impl FromDpi<DxRect> for PxRect {
+    fn from_dpi(value: DxRect, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_physical()
     }
 }
@@ -182,25 +182,25 @@ pub trait ToRaw<T> {
     fn into_raw(self) -> T;
 }
 
-impl ToRaw<RawLength> for PpxLength {
+impl ToRaw<RawLength> for PxLength {
     fn into_raw(self) -> RawLength {
         RawLength::new(self.0.ceil() as i32)
     }
 }
 
-impl ToRaw<RawPoint> for PpxPoint {
+impl ToRaw<RawPoint> for PxPoint {
     fn into_raw(self) -> RawPoint {
         RawPoint::new(self.x.ceil() as i32, self.y.ceil() as i32)
     }
 }
 
-impl ToRaw<RawSize> for PpxSize {
+impl ToRaw<RawSize> for PxSize {
     fn into_raw(self) -> RawSize {
         RawSize::new(self.width.ceil() as i32, self.height.ceil() as i32)
     }
 }
 
-impl ToRaw<RawRect> for PpxRect {
+impl ToRaw<RawRect> for PxRect {
     fn into_raw(self) -> RawRect {
         RawRect::new(self.origin.into_raw(), self.size.into_raw())
     }
