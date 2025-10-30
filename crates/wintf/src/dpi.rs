@@ -6,11 +6,11 @@ use euclid::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Direct2D::*;
 
-// Physical pixels (PX)。デバイス依存ピクセル
+// Physical pixels。デバイス依存ピクセル
 pub struct Px;
 
-// Device Independent Pixels (DX)。論理ピクセル（96DPI）
-pub struct Dx;
+// Logical pixels。論理ピクセル（96DPI）
+pub struct Lx;
 
 fn dpi_to_scale_factor(dpi: f32) -> f32 {
     dpi / 96.0
@@ -26,12 +26,12 @@ pub trait ScaleFactor: Clone + Copy {
     }
 
     #[inline]
-    fn to_physical(&self) -> Scale<f32, Dx, Px> {
+    fn to_physical(&self) -> Scale<f32, Lx, Px> {
         Scale::new(self.scale_factor())
     }
 
     #[inline]
-    fn to_logical(&self) -> Scale<f32, Px, Dx> {
+    fn to_logical(&self) -> Scale<f32, Px, Lx> {
         Scale::new(1.0 / self.scale_factor())
     }
 }
@@ -68,39 +68,39 @@ impl ScaleFactor for Dpi {
     }
 }
 
-/// デバイス依存ピクセル長 (Physical Pixels)
+/// デバイス依存ピクセル長
 pub type PxLength = Length<f32, Px>;
 
-/// デバイス依存座標 (Physical Pixels)
+/// デバイス依存座標
 pub type PxPoint = Point2D<f32, Px>;
 
-/// デバイス依存サイズ (Physical Pixels)
+/// デバイス依存サイズ
 pub type PxSize = Size2D<f32, Px>;
 
-/// デバイス依存矩形 (Physical Pixels)
+/// デバイス依存矩形
 pub type PxRect = Rect<f32, Px>;
 
-/// 96DPI（論理ピクセル）長 (Device Independent Pixels)
-pub type DxLength = Length<f32, Dx>;
+/// 96DPI（論理ピクセル）長
+pub type LxLength = Length<f32, Lx>;
 
-/// 96DPI（論理ピクセル）座標 (Device Independent Pixels)
-pub type DxPoint = Point2D<f32, Dx>;
+/// 96DPI（論理ピクセル）座標
+pub type LxPoint = Point2D<f32, Lx>;
 
-/// 96DPI（論理ピクセル）サイズ (Device Independent Pixels)
-pub type DxSize = Size2D<f32, Dx>;
+/// 96DPI（論理ピクセル）サイズ
+pub type LxSize = Size2D<f32, Lx>;
 
-/// 96DPI（論理ピクセル）矩形 (Device Independent Pixels)
-pub type DxRect = Rect<f32, Dx>;
+/// 96DPI（論理ピクセル）矩形
+pub type LxRect = Rect<f32, Lx>;
 
-pub type DxPoint3D = Point3D<f32, Dx>;
-pub type DxVector2D = Vector2D<f32, Dx>;
-pub type DxVector3D = Vector3D<f32, Dx>;
+pub type LxPoint3D = Point3D<f32, Lx>;
+pub type LxVector2D = Vector2D<f32, Lx>;
+pub type LxVector3D = Vector3D<f32, Lx>;
 
-pub type DxTransform2D = Transform2D<f32, Dx, Dx>;
-pub type DxTransform3D = Transform3D<f32, Dx, Dx>;
+pub type LxTransform2D = Transform2D<f32, Lx, Lx>;
+pub type LxTransform3D = Transform3D<f32, Lx, Lx>;
 
 /// ４次数（3D回転）
-pub type DxRotation3D = Rotation3D<f32, Dx, Dx>;
+pub type LxRotation3D = Rotation3D<f32, Lx, Lx>;
 
 pub type RawLength = Length<i32, Px>;
 pub type RawPoint = Point2D<i32, Px>;
@@ -121,46 +121,46 @@ impl<T, U: FromDpi<T>> IntoDpi<U> for T {
     }
 }
 
-impl FromDpi<PxLength> for DxLength {
+impl FromDpi<PxLength> for LxLength {
     fn from_dpi(value: PxLength, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_logical()
     }
 }
-impl FromDpi<DxLength> for PxLength {
-    fn from_dpi(value: DxLength, dpi: impl ScaleFactor) -> Self {
+impl FromDpi<LxLength> for PxLength {
+    fn from_dpi(value: LxLength, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_physical()
     }
 }
 
-impl FromDpi<PxPoint> for DxPoint {
+impl FromDpi<PxPoint> for LxPoint {
     fn from_dpi(value: PxPoint, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_logical()
     }
 }
-impl FromDpi<DxPoint> for PxPoint {
-    fn from_dpi(value: DxPoint, dpi: impl ScaleFactor) -> Self {
+impl FromDpi<LxPoint> for PxPoint {
+    fn from_dpi(value: LxPoint, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_physical()
     }
 }
 
-impl FromDpi<PxSize> for DxSize {
+impl FromDpi<PxSize> for LxSize {
     fn from_dpi(value: PxSize, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_logical()
     }
 }
-impl FromDpi<DxSize> for PxSize {
-    fn from_dpi(value: DxSize, dpi: impl ScaleFactor) -> Self {
+impl FromDpi<LxSize> for PxSize {
+    fn from_dpi(value: LxSize, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_physical()
     }
 }
 
-impl FromDpi<PxRect> for DxRect {
+impl FromDpi<PxRect> for LxRect {
     fn from_dpi(value: PxRect, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_logical()
     }
 }
-impl FromDpi<DxRect> for PxRect {
-    fn from_dpi(value: DxRect, dpi: impl ScaleFactor) -> Self {
+impl FromDpi<LxRect> for PxRect {
+    fn from_dpi(value: LxRect, dpi: impl ScaleFactor) -> Self {
         value * dpi.to_physical()
     }
 }

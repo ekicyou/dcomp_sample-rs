@@ -45,11 +45,11 @@ pub trait CompVisual {
 
     // =====================================================================
     // 変換
-    fn set_transform(&self, matrix: DxTransform3D) -> Result<()>;
+    fn set_transform(&self, matrix: LxTransform3D) -> Result<()>;
 
     // =====================================================================
     // クリップ
-    fn set_clip(&self, clip: Option<DxRect>) -> Result<()>;
+    fn set_clip(&self, clip: Option<LxRect>) -> Result<()>;
 
     // =====================================================================
     // エフェクト
@@ -58,7 +58,7 @@ pub trait CompVisual {
     // =====================================================================
     // ヒットテスト
     fn set_is_hit_test_visible(&self, hit_test: bool) -> Result<()>;
-    fn set_size(&self, size: DxSize) -> Result<()>;
+    fn set_size(&self, size: LxSize) -> Result<()>;
 
     // =====================================================================
     // 確定
@@ -87,9 +87,8 @@ impl<T: CompVisual> VisualHandle<T> {
         a
     }
 
-    // Note: dyn_cast is not currently implementable due to trait object conversion limitations
-    // pub fn dyn_cast(&self) -> Rc<RefCell<dyn CompVisual>> {
-    //     // Requires coercion which is not straightforward with Rc<RefCell<T>>
-    //     unimplemented!()
-    // }
+    pub fn dyn_cast(&self) -> Rc<RefCell<dyn CompVisual>> {
+        let a = self.0.clone();
+        a.into()
+    }
 }

@@ -37,7 +37,7 @@ pub trait WinState {
 
     /// Calculate the effective window size (including borders, title bar, etc) for a given client area size.
     /// This is useful when creating a window with a specific client area size.
-    fn effective_window_size(&self, client_size: DxSize) -> Result<PxSize> {
+    fn effective_window_size(&self, client_size: LxSize) -> Result<PxSize> {
         let dpi = self.dpi();
         let client_size: PxSize = client_size.into_dpi(dpi);
         let mut rect = RECT {

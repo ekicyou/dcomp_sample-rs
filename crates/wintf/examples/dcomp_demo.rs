@@ -20,16 +20,16 @@ use wintf::{
 
 const CARD_ROWS: usize = 3;
 const CARD_COLUMNS: usize = 6;
-const CARD_MARGIN: DxLength = DxLength::new(15.0);
-const CARD_WIDTH: DxLength = DxLength::new(150.0);
-const CARD_HEIGHT: DxLength = DxLength::new(210.0);
-const CARD_SIZE: DxSize = DxSize::new(CARD_WIDTH.0, CARD_HEIGHT.0);
+const CARD_MARGIN: LxLength = LxLength::new(15.0);
+const CARD_WIDTH: LxLength = LxLength::new(150.0);
+const CARD_HEIGHT: LxLength = LxLength::new(210.0);
+const CARD_SIZE: LxSize = LxSize::new(CARD_WIDTH.0, CARD_HEIGHT.0);
 
-const WINDOW_WIDTH: DxLength =
-    DxLength::new((CARD_WIDTH.0 + CARD_MARGIN.0) * (CARD_COLUMNS as f32) + CARD_MARGIN.0);
-const WINDOW_HEIGHT: DxLength =
-    DxLength::new((CARD_HEIGHT.0 + CARD_MARGIN.0) * (CARD_ROWS as f32) + CARD_MARGIN.0);
-const WINDOW_SIZE: DxSize = DxSize::new(WINDOW_WIDTH.0, WINDOW_HEIGHT.0);
+const WINDOW_WIDTH: LxLength =
+    LxLength::new((CARD_WIDTH.0 + CARD_MARGIN.0) * (CARD_COLUMNS as f32) + CARD_MARGIN.0);
+const WINDOW_HEIGHT: LxLength =
+    LxLength::new((CARD_HEIGHT.0 + CARD_MARGIN.0) * (CARD_ROWS as f32) + CARD_MARGIN.0);
+const WINDOW_SIZE: LxSize = LxSize::new(WINDOW_WIDTH.0, WINDOW_HEIGHT.0);
 
 fn main() -> Result<()> {
     human_panic::setup_panic!();
@@ -216,7 +216,7 @@ impl DemoWindow {
         for row in 0..CARD_ROWS {
             for column in 0..CARD_COLUMNS {
                 let card = &mut self.cards[row * CARD_COLUMNS + column];
-                let offset = DxPoint::from_lengths(
+                let offset = LxPoint::from_lengths(
                     (CARD_WIDTH + CARD_MARGIN) * (column as f32) + CARD_MARGIN,
                     (CARD_HEIGHT + CARD_MARGIN) * (row as f32) + CARD_MARGIN,
                 );
@@ -574,7 +574,7 @@ fn draw_card_front(
 ) -> Result<()> {
     let (dc, dc_offset) = surface.begin_draw(None)?;
     dc.set_dpi(dpi);
-    let dc_offset: DxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
+    let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
     dc.set_transform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
 
     dc.clear(Some(&D2D1_COLOR_F {
@@ -611,10 +611,10 @@ fn draw_card_back(
     let (dc, dc_offset) = surface.begin_draw(None)?;
     let dc: ID2D1DeviceContext7 = dc.cast()?;
     dc.set_dpi(dpi);
-    let dc_offset: DxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
+    let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
     dc.set_transform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
 
-    let offset: DxPoint = offset.into_dpi(dpi);
+    let offset: LxPoint = offset.into_dpi(dpi);
     let left = offset.x;
     let top = offset.y;
 
