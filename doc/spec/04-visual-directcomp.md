@@ -1,103 +1,75 @@
-# Visual: DirectCompositionとの統合
+# Visual: DirectCompositionとbevy_ecsの統合
 
+## bevy_ecsによる変更伝播
 
-このアプローチのメリット：
+bevy_ecsでは、システムチェーンと`Changed<T>`フィルタで自動的に変更を伝播します。
 
-1. **メモリ効率**: 設定されたプロパティのみメモリを使用
-2. **柔軟性**: 各プロパティを独立して変更可能
-3. **依存関係プロパティと同じ思想**: WPFのDependencyPropertyと同様の設計
-4. **デフォルト値**: SecondaryMapにない場合は暗黙のデフォルト値を使用
-
-**LayoutSystemの主な操作**:
-- `set_width()` / `get_width()`: Width プロパティの設定・取得
-- `set_height()` / `get_height()`: Height プロパティの設定・取得
-- `set_margin()` / `get_margin()`: Margin プロパティの設定・取得（デフォルト値付き）
-- `set_padding()` / `get_padding()`: Padding プロパティの設定・取得
-- `get_final_rect()`: レイアウト計算後の最終矩形を取得
-
-### ダーティ伝搬戦略
-
-#### 課題
-各システムは独立したダーティフラグを持ちますが、システム間には依存関係があります：
+### 変更伝播の流れ
 
 ```text
-Layout変更 → DrawingContent再生成 → Visual更新
-Text変更   → DrawingContent再生成 → Visual更新
+TextContent変更 → LayoutInvalidated → Layout再計算 → Visual更新 → NeedsRedraw → 描画
 ```
 
-#### 実装戦略: Pull型（遅延評価・推奨）
-
-各システムが更新時に必要な情報を**取りに行く**アプローチ。ECSの原則にもっとも適合。
-
-**処理の流れ**:
-1. レイアウトパス実行
-2. 描画コンテンツを更新（レイアウト情報をPull）
-3. Visualを更新（描画コンテンツをPull）
-4. ダーティフラグをクリア
-5. DirectCompositionにコミット
-
-**メリット**:
-- ECS原則に忠実（システム間の結合度が低い）
-- データフローが明確でデバッグしやすい
-- 実装がシンプル
-
-**デメリット**:
-- UiRuntimeが依存関係を知る必要がある
-
-#### 段階的実装アプローチ
-
-**初期実装**: 単純Pull（UiRuntimeが依存関係を直接記述）
+このフローはシステムの実行順序で制御されます：
 
 ```rust
-impl UiRuntime {
-    pub fn update_frame(&mut self, root_id: WidgetId) {
-        // 1. レイアウトパス
-        self.layout.update(&self.widget, root_id, window_size);
+use bevy_ecs::prelude::*;
+
+pub fn setup_update_systems(app: &mut App) {
+    app.add_systems(Update, (
+        // 1. プロパティ変更検知
+        text_content_changed_system,
+        size_changed_system,
         
-        // 2. 描画コンテンツパス（Text/Image/ContainerStyleのダーティを統合）
-        let mut drawing_dirty = HashSet::new();
-        drawing_dirty.extend(self.text.dirty.drain());
-        drawing_dirty.extend(self.image.dirty.drain());
-        drawing_dirty.extend(self.layout.dirty.iter().copied());
+        // 2. レイアウト無効化
+        invalidate_layout_system,
         
-        for widget_id in &drawing_dirty {
-            self.rebuild_drawing_content(*widget_id);
-        }
+        // 3. レイアウト計算
+        compute_layout_system,
         
-        // 3. Visualパス
-        for widget_id in drawing_dirty {
-            self.apply_visual_update(widget_id);
-        }
+        // 4. Visual更新
+        layout_to_visual_system,
+        ensure_visual_system,
         
-        // 4. コミット
-        self.clear_all_dirty();
-        self.visual.commit().ok();
-    }
+        // 5. 描画マーク
+        visual_changed_system,
+        
+        // 6. 実際の描画
+        draw_visual_system,
+        
+        // 7. コミット
+        commit_dcomp_system,
+    ).chain()); // 順番に実行
 }
 ```
 
 ### プロパティ変更の流れ
 
-各システムが自分のダーティフラグを管理し、変更を追跡する：
+bevy_ecsでは`Changed<T>`で自動追跡、マーカーコンポーネントで状態管理：
 
 ```rust
-impl LayoutSystem {
-    /// レイアウト情報を更新
-    pub fn set_layout(&mut self, widget_id: WidgetId, layout: Layout) {
-        self.layouts.insert(widget_id, layout);
-        self.dirty.insert(widget_id);
-        // 子孫もダーティにする（レイアウト伝播）
-        self.mark_descendants_dirty(widget_id);
+use bevy_ecs::prelude::*;
+
+/// テキストが変更されたらレイアウト無効化
+pub fn text_content_changed_system(
+    mut commands: Commands,
+    query: Query<Entity, Changed<TextContent>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).insert(LayoutInvalidated);
     }
 }
 
-impl TextSystem {
-    /// テキスト内容を更新
-    pub fn set_text(&mut self, widget_id: WidgetId, text: String) {
-        if let Some(content) = self.texts.get_mut(widget_id) {
-            content.text = text;
-            content.invalidate_layout();
-            self.dirty.insert(widget_id);
+/// レイアウトが変更されたらVisual更新
+pub fn layout_to_visual_system(
+    mut query: Query<(&ComputedLayout, &mut Visual), Changed<ComputedLayout>>,
+) {
+    for (layout, mut visual) in query.iter_mut() {
+        visual.offset = layout.final_rect.origin;
+        visual.size = layout.final_rect.size;
+        // visualを変更したので、自動的にChanged<Visual>になる
+    }
+}
         }
     }
 }
@@ -126,74 +98,136 @@ impl TextSystem {
 - 背景色・枠線を持つ（Container with background）
 - カスタム描画を行う
 
-### Visualが不要なWidget
+```
+
+### Visual変更時に再描画をマーク
+pub fn visual_changed_system(
+    mut commands: Commands,
+    query: Query<Entity, Changed<Visual>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).insert(NeedsRedraw);
+    }
+}
+```
+
+## Visualの動的作成
+
+### Visualが必要なEntity
+- テキストを表示する要素（`TextContent`コンポーネント）
+- 画像を表示する要素（`ImageContent`コンポーネント）
+- 背景や枠線を持つ要素（`ContainerStyle`コンポーネント）
+
+### Visualが不要なEntity
 - 純粋なレイアウトコンテナー（透明、背景なし）
 - 論理的なグループ化のみ
 
-### Visual の定義
+### Visual コンポーネントの定義
 
 ```rust
+use bevy_ecs::prelude::*;
+
+#[derive(Component)]
 pub struct Visual {
-    widget_id: WidgetId, // 対応するWidget
-    
     // DirectCompositionオブジェクト（内部実装）
-    dcomp_visual: IDCompositionVisual,
+    pub dcomp_visual: IDCompositionVisual,
     
     // トランスフォーム（Visualが管理）
-    offset: Point2D,
-    opacity: f32,
+    pub offset: Point2D,
+    pub opacity: f32,
     
     // DrawingContentへの参照
-    drawing_content: Option<ID2D1Image>,
+    pub drawing_content: Option<ID2D1Image>,
 }
 ```
 
 ## システムの統合と更新フロー
-                    dirty.insert(widget_id);
-                }
-            }
+
+bevy_ecsでは、システムの実行順序で依存関係を制御します。
+
+```rust
+use bevy_ecs::prelude::*;
+
+/// Visualを必要に応じて追加
+pub fn ensure_visual_system(
+    mut commands: Commands,
+    query: Query<Entity, (
+        Or<(
+            With<TextContent>,
+            With<ImageContent>,
+            With<ContainerStyle>,
+        )>,
+        Without<Visual>
+    )>,
+    dcomp_context: Res<DCompContext>,
+) {
+    for entity in query.iter() {
+        let visual = Visual::new(&dcomp_context);
+        commands.entity(entity).insert(visual);
+    }
+}
+
+/// 描画コンテンツを再構築
+pub fn rebuild_drawing_content_system(
+    mut query: Query<(Entity, &mut Visual, &ComputedLayout), With<NeedsRedraw>>,
+    text_query: Query<&TextContent>,
+    image_query: Query<&ImageContent>,
+    style_query: Query<&ContainerStyle>,
+    dcomp_context: Res<DCompContext>,
+) {
+    for (entity, mut visual, layout) in query.iter_mut() {
+        // Direct2Dコンテキストで描画
+        let dc = create_drawing_context(&dcomp_context);
+        
+        // 各コンポーネントに応じて描画
+        if let Ok(text) = text_query.get(entity) {
+            draw_text(&dc, text, layout);
+        }
+        if let Ok(image) = image_query.get(entity) {
+            draw_image(&dc, image, layout);
+        }
+        if let Ok(style) = style_query.get(entity) {
+            draw_container_style(&dc, style, layout);
         }
         
-        dirty
-    }
-    
-    fn rebuild_drawing_content(&mut self, widget_id: WidgetId) {
-        let Some(widget) = self.widget.get(widget_id) else { return };
-        let Some(rect) = self.layout.get_final_rect(widget_id) else { return };
-        
-        self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
-            // フラグに応じて描画
-            if widget.render_flags.contains(RenderFlags::USES_TEXT) {
-                self.text.draw_to_context(widget_id, dc, &brush, Point2D::zero())?;
-            }
-            if widget.render_flags.contains(RenderFlags::USES_IMAGE) {
-                self.image.draw_to_context(widget_id, dc, rect)?;
-            }
-            if widget.render_flags.contains(RenderFlags::USES_CONTAINER) {
-                self.container_style.draw_to_context(widget_id, dc, rect)?;
-            }
-            Ok(())
-        }).ok();
+        // 描画結果をVisualに設定
+        visual.drawing_content = Some(finalize_drawing(&dc));
     }
 }
 ```
 
-**メリット**:
-- ✅ メモリ効率が良い（bitflags）
-- ✅ 高速（ビット演算）
-- ✅ 複数システムの組み合わせが簡単
+### bevy_ecsによる型ベースのディスパッチ
 
-**デメリット**:
-- ⚠️ 描画順序の制御が難しい
+bevy_ecsでは、クエリシステムが自動的に適切なEntityを選択します：
 
-#### 最終推奨：戦略A（Widget型による静的ディスパッチ）
+```rust
+// TextContentを持つEntityだけ処理
+pub fn process_text_system(query: Query<&TextContent>) {
+    for text in query.iter() {
+        // TextContentがあるEntityだけ自動選択
+    }
+}
 
-**理由**:
-1. **依存関係が明確**: match文で一目瞭然、コンパイル時に検証可能
-2. **ECS原則に適合**: データ（Widget）とシステム（描画ロジック）の分離
-3. **パフォーマンス**: 仮想ディスパッチなし、最適化しやすい
-4. **拡張性**: 新しいWidgetTypeを追加するだけ
-5. **Rustらしい**: enumのパターンマッチを活用
+// ImageContentを持つEntityだけ処理
+pub fn process_image_system(query: Query<&ImageContent>) {
+    for image in query.iter() {
+        // ImageContentがあるEntityだけ自動選択
+    }
+}
 
-**WinUI3との違い**:
-- WinUI3: OOP + 仮想メソッド（C#の得意分野）
+// 両方持つEntityを処理
+pub fn process_text_and_image_system(
+    query: Query<(&TextContent, &ImageContent)>
+) {
+    for (text, image) in query.iter() {
+        // 両方のコンポーネントを持つEntityのみ
+    }
+}
+```
+
+**bevy_ecsの利点**:
+- ✅ コンポーネントの有無で自動フィルタリング
+- ✅ 型安全：コンパイル時に検証
+- ✅ パフォーマンス：クエリは最適化されている
+- ✅ 柔軟性：コンポーネントの組み合わせを自由に指定
+- ✅ 並列実行：独立したクエリは自動的に並列化

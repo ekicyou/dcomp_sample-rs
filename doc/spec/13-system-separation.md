@@ -1,83 +1,152 @@
-# ECSシステム分離設計
+# システム設計 (bevy_ecs版)
 
-### 設計原則
+## 設計原則
 
-ECSアーキテクチャの基本原則に従い、関心事を明確に分離：
+bevy_ecsアーキテクチャの基本原則に従い、関心事を明確に分離：
 
-1. **Entity（実体）**: `WidgetId` - 全システムで共通のID
-2. **Component（コンポーネント）**: 各システムが独自のデータを`SecondaryMap`で管理
-3. **System（システム）**: 特定のコンポーネントに対する処理ロジック
+1. **Entity（実体）**: `Entity` - bevy_ecsが自動管理する一意のID
+2. **Component（コンポーネント）**: 各機能を独立したComponentとして定義
+3. **System（システム）**: Componentに対する処理ロジックを関数として実装
+4. **Query**: 必要なComponentを持つEntityだけを効率的に抽出
 
-### 1. WidgetSystem - ツリー構造管理（コア）
+## 1. 親子関係管理（bevy_hierarchy）
 
-すべてのWidgetの親子関係を管理する基盤。他のシステムはこれを参照してツリーを走査する。
-rootは持たず、WindowSystemが管理するWindowがroot Widgetを所有する。
+すべてのEntityの親子関係を管理する基盤。bevy_hierarchyが標準で提供。
 
 ```rust
-/// ツリー構造管理（もっとも基本的なシステム）
-pub struct WidgetSystem {
-    /// 全Widgetの親子関係
-    widget: SlotMap<WidgetId, Widget>,
-}
+use bevy_ecs::prelude::*;
+
+/// 親への参照
+#[derive(Component)]
+pub struct Parent(pub Entity);
+
+/// 子への参照
+#[derive(Component)]
+pub struct Children(pub Vec<Entity>);
 ```
 
 **主な操作**:
-- `create_widget()`: 新しいWidgetを作成
-- `append_child()`: 子Widgetを親に追加（連結リスト操作）
-- `detach_widget()`: ツリーから切り離す（再利用可能）
-- `delete_widget()`: 完全に削除（子も再帰的に削除）
-- `children()`: 子Widgetのイテレータ
-- `parent()`: 親Widgetを取得
-- `contains()`: Widgetの存在確認
+- `commands.entity(parent).add_child(child)`: 子Entityを追加
+- `commands.entity(parent).push_children(&[child1, child2])`: 複数の子を追加
+- `commands.entity(child).remove_parent()`: 親子関係を切断
+- `commands.entity(entity).despawn_recursive()`: Entityと子を再帰的に削除
 
-### 2. LayoutSystem - レイアウト計算
-
-Widgetのサイズと位置を計算する。2パスレイアウト（Measure/Arrange）を実装。
-各プロパティは個別のSecondaryMapで管理（ECS/依存関係プロパティの原則）。
-
+**走査**:
 ```rust
-pub struct LayoutSystem {
-    // サイズ制約（個別管理）
-    width: SecondaryMap<WidgetId, Length>,
-    height: SecondaryMap<WidgetId, Length>,
-    min_width: SecondaryMap<WidgetId, f32>,
-    max_width: SecondaryMap<WidgetId, f32>,
-    min_height: SecondaryMap<WidgetId, f32>,
-    max_height: SecondaryMap<WidgetId, f32>,
-    
-    // 間隔（個別管理）
-    margin: SecondaryMap<WidgetId, Margin>,
-    padding: SecondaryMap<WidgetId, Padding>,
-    
-    // 配置（個別管理）
-    horizontal_alignment: SecondaryMap<WidgetId, Alignment>,
-    vertical_alignment: SecondaryMap<WidgetId, Alignment>,
-    
-    // レイアウトタイプ（個別管理）
-    layout_type: SecondaryMap<WidgetId, LayoutType>,
-    
-    // 計算結果（キャッシュ、個別管理）
-    desired_size: SecondaryMap<WidgetId, Size2D>,
-    final_rect: SecondaryMap<WidgetId, Rect>,
-    
-    // ダーティフラグ
-    dirty: HashSet<WidgetId>,
-}
-```
-
-**主な操作**:
-- `set_width()` / `get_width()`: Widthプロパティの設定・取得
-- `set_height()` / `get_height()`: Heightプロパティの設定・取得
-- `set_margin()` / `get_margin()`: Marginプロパティの設定・取得
-- `set_padding()` / `get_padding()`: Paddingプロパティの設定・取得
-- `set_layout_type()` / `get_layout_type()`: レイアウトタイプの設定・取得
-- `mark_dirty()`: ダーティマーク（子孫も再帰的に）
-- `update()`: レイアウト更新（Measure/Arrange）
-        if self.dirty.is_empty() {
-            return; // 変更なし
+pub fn traverse_system(
+    parent_query: Query<&Children>,
+    entity_query: Query<&Name>,
+) {
+    fn visit(entity: Entity, parent_query: &Query<&Children>, entity_query: &Query<&Name>) {
+        if let Ok(name) = entity_query.get(entity) {
+            println!("Entity: {}", name.value);
         }
-        
-        // Measureパス（子から親へ、必要なサイズを計算）
+        if let Ok(children) = parent_query.get(entity) {
+            for child in children.iter() {
+                visit(*child, parent_query, entity_query);
+            }
+        }
+    }
+}
+```
+
+## 2. レイアウトシステム
+
+Entityのサイズと位置を計算する。2パスレイアウト（Measure/Arrange）を実装。
+各プロパティは独立したComponentとして定義。
+
+```rust
+use bevy_ecs::prelude::*;
+
+/// サイズ指定
+#[derive(Component)]
+pub struct Size {
+    pub width: Length,
+    pub height: Length,
+}
+
+/// サイズ制約
+#[derive(Component)]
+pub struct SizeConstraints {
+    pub min_width: Option<f32>,
+    pub max_width: Option<f32>,
+    pub min_height: Option<f32>,
+    pub max_height: Option<f32>,
+}
+
+/// 余白
+#[derive(Component)]
+pub struct Margin {
+    pub left: f32,
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+}
+
+#[derive(Component)]
+pub struct Padding {
+    pub left: f32,
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+}
+
+/// 配置
+#[derive(Component)]
+pub struct Alignment {
+    pub horizontal: HorizontalAlignment,
+    pub vertical: VerticalAlignment,
+}
+
+/// レイアウトタイプ
+#[derive(Component)]
+pub enum LayoutType {
+    None,
+    Stack(StackLayout),
+    // Grid, Flexなど将来追加
+}
+
+/// 計算結果
+#[derive(Component)]
+pub struct ComputedLayout {
+    pub desired_size: Size2D,
+    pub final_rect: Rect,
+}
+
+/// ダーティマーカー
+#[derive(Component)]
+pub struct LayoutInvalidated;
+```
+
+**主なシステム**:
+```rust
+/// プロパティ変更検知
+pub fn invalidate_layout_on_change(
+    mut commands: Commands,
+    query: Query<Entity, Or<(
+        Changed<Size>,
+        Changed<Margin>,
+        Changed<Padding>,
+        Changed<LayoutType>,
+    )>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).insert(LayoutInvalidated);
+    }
+}
+
+/// レイアウト計算
+pub fn compute_layout_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &Size, &mut ComputedLayout), With<LayoutInvalidated>>,
+) {
+    for (entity, size, mut layout) in query.iter_mut() {
+        // Measure/Arrange処理
+        layout.compute(size);
+        commands.entity(entity).remove::<LayoutInvalidated>();
+    }
+}
+```
         self.measure_recursive(widget_system, root_id, available_size);
         
         // Arrangeパス（親から子へ、最終位置を決定）

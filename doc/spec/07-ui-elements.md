@@ -1,99 +1,328 @@
-# 基本的なUI要素
+# 基本的なUI要素 (bevy_ecs版)
 
+## UI要素の構成
+
+bevy_ecsでは、UI要素を複数のComponentの組み合わせで表現します。
+
+### コンポーネントの組み合わせパターン
+
+| UI要素 | 必須コンポーネント | オプションコンポーネント |
+|--------|------------------|----------------------|
+| **Container** | `Parent`, `Children` | `ContainerStyle`, `Size`, `Padding` |
+| **TextBlock** | `TextContent` | `Size`, `Margin`, `TextStyle` |
+| **Image** | `ImageContent` | `Size`, `Margin`, `Stretch` |
+| **Button** | `Clickable`, `InteractionState` | `ContainerStyle`, `TextContent` |
+| **StackPanel** | `LayoutType::Stack`, `Children` | `Orientation`, `Spacing` |
+
+### Container（コンテナ）
+
+```rust
+use bevy_ecs::prelude::*;
+
+/// コンテナを作成
+pub fn create_container(mut commands: Commands) -> Entity {
+    commands.spawn((
+        // レイアウト
+        Size {
+            width: Length::Pixels(400.0),
+            height: Length::Auto,
+        },
+        Padding {
+            left: 10.0,
+            top: 10.0,
+            right: 10.0,
+            bottom: 10.0,
+        },
+        
+        // スタイル
+        ContainerStyle {
+            background: Some(Brush::SolidColor(Color::WHITE)),
+            border: Some(Border {
+                thickness: 1.0,
+                color: Color::GRAY,
+            }),
+            corner_radius: 5.0,
+        },
+        
+        // 計算結果
+        ComputedLayout::default(),
+        
+        // デバッグ用
+        Name::new("Container"),
+    )).id()
+}
+```
+
+### TextBlock（テキスト）
+
+```rust
+/// TextBlockを作成
+pub fn create_text_block(mut commands: Commands, text: &str) -> Entity {
+    commands.spawn((
+        // テキストコンテンツ
+        TextContent {
+            text: text.to_string(),
+            font_family: "Segoe UI".to_string(),
+            font_size: 14.0,
+            color: Color::BLACK,
+            text_layout: None,
+        },
+        
+        // レイアウト
+        Size {
+            width: Length::Auto,
+            height: Length::Auto,
+        },
+        Margin {
+            left: 0.0,
+            top: 5.0,
+            right: 0.0,
+            bottom: 5.0,
+        },
+        
+        // 計算結果
+        ComputedLayout::default(),
+        
+        // Visual（自動追加される）
+        // ensure_visual_systemが追加
+        
+        Name::new("TextBlock"),
+    )).id()
+}
+```
+
+### Image（画像）
+
+```rust
+/// Imageを作成
+pub fn create_image(mut commands: Commands, source: &str) -> Entity {
+    commands.spawn((
+        // 画像コンテンツ
+        ImageContent {
+            source: source.to_string(),
+            bitmap: None, // 後でロード
+            stretch: Stretch::Uniform,
+        },
+        
+        // サイズ
+        Size {
+            width: Length::Pixels(100.0),
+            height: Length::Pixels(100.0),
+        },
+        SizeConstraints {
+            min_width: Some(50.0),
+            max_width: Some(200.0),
+            min_height: Some(50.0),
+            max_height: Some(200.0),
+        },
+        
+        ComputedLayout::default(),
+        Name::new("Image"),
+    )).id()
+}
+```
+
+### Button（ボタン）
+
+```rust
+/// Buttonを作成
+pub fn create_button(
+    mut commands: Commands,
+    label: &str,
+    on_click: impl Fn() + Send + Sync + 'static,
+) -> Entity {
+    commands.spawn((
+        // インタラクション
+        Clickable {
+            on_click: Some(Box::new(on_click)),
+        },
+        InteractionState {
+            is_hovered: false,
+            is_pressed: false,
+            is_focused: false,
+        },
+        
+        // スタイル
+        ContainerStyle {
+            background: Some(Brush::SolidColor(Color::BUTTON_FACE)),
+            border: Some(Border {
+                thickness: 1.0,
+                color: Color::BUTTON_SHADOW,
+            }),
+            corner_radius: 3.0,
+        },
+        
+        // レイアウト
+        Size {
+            width: Length::Pixels(100.0),
+            height: Length::Pixels(30.0),
+        },
+        Padding::uniform(10.0),
+        
+        ComputedLayout::default(),
+        Name::new("Button"),
+    ))
+    .with_children(|parent| {
+        // ボタンラベル
+        parent.spawn((
+            TextContent {
+                text: label.to_string(),
+                font_size: 14.0,
+                color: Color::BUTTON_TEXT,
+                ..default()
+            },
+            Size::auto(),
+            ComputedLayout::default(),
+        ));
+    })
+    .id()
+}
+```
+
+### StackPanel（スタックパネル）
+
+```rust
+/// StackPanelを作成
+pub fn create_stack_panel(
+    mut commands: Commands,
+    orientation: Orientation,
+) -> Entity {
+    commands.spawn((
+        // レイアウトタイプ
+        LayoutType::Stack(StackLayout {
+            orientation,
+            spacing: 5.0,
+        }),
+        
+        // サイズ
+        Size {
+            width: Length::Auto,
+            height: Length::Auto,
+        },
+        
+        ComputedLayout::default(),
+        Name::new("StackPanel"),
+    )).id()
+}
+```
+
+## 複雑なUI要素の構築
+
+### 複数コンポーネントの組み合わせ
+
+bevy_ecsでは、必要なコンポーネントを自由に組み合わせられます：
+
+```rust
+/// 背景+テキスト+画像アイコンを持つ複雑な要素
+pub fn create_rich_content(mut commands: Commands) -> Entity {
+    commands.spawn((
+        // 背景
+        ContainerStyle {
+            background: Some(Brush::LinearGradient {
+                start: Color::LIGHT_BLUE,
+                end: Color::DARK_BLUE,
+            }),
+            corner_radius: 10.0,
+            ..default()
+        },
+        
+        // テキスト（同じEntityに複数のコンテンツは不可なので子として追加）
+        Size {
+            width: Length::Pixels(300.0),
+            height: Length::Auto,
+        },
+        Padding::uniform(15.0),
+        
+        ComputedLayout::default(),
+    ))
+    .with_children(|parent| {
+        // アイコン
+        parent.spawn((
+            ImageContent {
+                source: "icon.png".to_string(),
+                bitmap: None,
+                stretch: Stretch::None,
+            },
+            Size {
+                width: Length::Pixels(32.0),
+                height: Length::Pixels(32.0),
+            },
+            Margin {
+                right: 10.0,
+                ..default()
+            },
+            ComputedLayout::default(),
+        ));
+        
+        // テキスト
+        parent.spawn((
+            TextContent {
+                text: "Title".to_string(),
+                font_size: 16.0,
+                color: Color::WHITE,
+                ..default()
+            },
+            Size::auto(),
+            ComputedLayout::default(),
+        ));
+    })
+    .id()
+}
+```
+
+## ECS原則の利点
+
+### 1. データとロジックの完全分離
+
+```rust
+// データ（Component）
+#[derive(Component)]
+pub struct TextContent {
+    pub text: String,
+    pub font_size: f32,
+}
+
+// ロジック（System）
+pub fn render_text_system(query: Query<&TextContent>) {
+    for text in query.iter() {
+        // 描画ロジック
     }
 }
 ```
 
-#### DrawingContentSystemの実装
+### 2. 組み合わせ可能性
+
+1つのEntityが複数の機能を持てる：
 
 ```rust
-pub struct DrawingContentSystem {
-    content: SecondaryMap<WidgetId, ID2D1Image>,
-    dirty: HashSet<WidgetId>,
-    
-    // 各Widgetが持つ描画コンポーネントのマップ
-    widget_components: SecondaryMap<WidgetId, Vec<RenderComponentType>>,
-}
+// Container + Clickable + Hoverable
+commands.spawn((
+    ContainerStyle::default(),
+    Clickable::default(),
+    InteractionState::default(),
+    // ...
+));
 ```
 
-**主な操作**:
-- `add_render_component()`: 描画コンポーネントを追加（例: Text, Image, Background）
-- `get_dependencies()`: Widgetの依存システムを動的に計算
-- `rebuild_content()`: ID2D1CommandListに描画コマンドを記録
-
-**使用例**: 複雑なWidget（背景+テキスト+画像アイコン）を構築可能
-
-#### このアプローチの利点（ECS原則）
-
-1. **データとロジックの完全分離**: `RenderComponent`（データ）と`DrawingContentSystem`（ロジック）
-2. **組み合わせ可能性**: 1つのWidgetが複数の描画コンポーネントを持てる
-   - 例: Background + Text + Image の組み合わせ
-3. **静的な依存宣言**: 各`RenderComponent`が`const DEPENDENCIES`を持つ
-4. **動的な依存解決**: Widgetが持つコンポーネントから依存を動的に計算
-5. **拡張性**: 新しい`RenderComponent`を追加するだけ
-6. **型安全**: `RenderComponentType` enumでコンパイル時チェック
-
-#### 比較まとめ
-
-| 観点 | Widget型アプローチ | ECS的コンポーネントアプローチ |
-|------|-------------------|---------------------------|
-| **依存宣言** | WidgetTypeごと | RenderComponentごと |
-| **組み合わせ** | 難しい（型が固定） | 容易（複数コンポーネント） |
-| **拡張性** | enumに追加必要 | 新コンポーネント追加のみ |
-| **ECS原則** | 🟡 部分的 | ✅ 完全 |
-
-このアプローチは、ECS原則にもっとも忠実で、かつ実用的な解決策です。
-
-#### Visual（ビジュアルツリー管理）
-描画が必要なWidgetのみ。DirectCompositionを使用するが、それと同一ではない。
+### 3. 動的な機能追加/削除
 
 ```rust
-pub struct Visual {
-    // DirectCompositionオブジェクト
-    dcomp_visual: IDCompositionVisual,
-    
-    // トランスフォーム
-    offset: Point2D,
-    scale: Vector2D,
-    rotation: f32,
-    opacity: f32,
-    
-    // 状態
-    visible: bool,
-    clip_rect: Option<Rect>,
-}
+// 実行時にコンポーネントを追加
+commands.entity(entity).insert(Visual::default());
+
+// 実行時にコンポーネントを削除
+commands.entity(entity).remove::<Visual>();
 ```
 
-#### DrawingContent（描画コマンド）
-**ID2D1Imageベースで統一管理**。ほぼすべての描画要素が持つ。
+### 4. クエリによる効率的な処理
 
 ```rust
-pub struct DrawingContent {
-    // 描画コンテンツ（ID2D1Imageで統一）
-    content: ID2D1Image,
-    
-    // コンテンツの種類
-    content_type: ContentType,
-    
-    // キャッシュ情報
-    is_cached: bool,
-    cache_valid: bool,
-    last_update: Instant,
-}
+// TextContentを持つEntityだけ処理
+Query<&TextContent>
 
-pub enum ContentType {
-    // ID2D1Bitmap（画像ファイルなど）
-    Bitmap,
-    
-    // ID2D1CommandList（描画コマンド記録）
-    CommandList,
-    
-    // ID2D1Effect（エフェクト適用）
-    Effect,
-    
-    // DirectWriteから生成
-    Text,
-}
+// TextContent + Visualを持つEntityだけ処理
+Query<(&TextContent, &Visual)>
+
+// TextContentを持つが、Visualを持たないEntityを処理
+Query<&TextContent, Without<Visual>>
 ```
-
-### ID2D1Imageによる描画コマンド管理の利点
