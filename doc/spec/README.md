@@ -1078,132 +1078,46 @@ impl UiRuntime {
 - ✅ 複雑化したときのリファクタリングパスが明確
 - ✅ 各フェーズで動作するコードを維持
 
-### DrawingContentの動的依存問題
+### プロパティ変更の流れ
 
-#### 問題の本質
-
-`DrawingContent`の依存関係は**Widgetごとに異なる**：
+各システムが自分のダーティフラグを管理し、変更を追跡する：
 
 ```rust
-// Widgetによって依存が変わる
-Widget #1 (テキスト)      → Text + Layout に依存
-Widget #2 (画像)         → Image + Layout に依存
-Widget #3 (背景+テキスト) → ContainerStyle + Text + Layout に依存
-Widget #4 (カスタム描画)  → CustomRenderer + Layout に依存
-```
-
-これは**静的な依存宣言では表現できない**問題です。
-
-#### WinUI3/WPFの実装戦略
-
-WinUI3/WPFは**依存関係プロパティ(Dependency Property)システム**で解決していますが、動的コンパイルはしていません。実装は以下の通り：
-
-##### 1. プロパティメタデータによる影響範囲の宣言
-
-```csharp
-// WPFの例
-public static readonly DependencyProperty TextProperty = 
-    DependencyProperty.Register(
-        "Text", 
-        typeof(string), 
-        typeof(TextBlock),
-        new FrameworkPropertyMetadata(
-            defaultValue: "",
-            flags: FrameworkPropertyMetadataOptions.AffectsRender | 
-                   FrameworkPropertyMetadataOptions.AffectsMeasure
-        )
-    );
-```
-
-`AffectsRender`フラグにより、このプロパティ変更が**描画に影響する**ことを宣言。
-
-##### 2. Invalidationパターン
-
-プロパティ変更時に**段階的な無効化**を行う：
-
-```csharp
-// WPFの内部実装（概念）
-void OnTextPropertyChanged(string newValue) {
-    // 1. 測定を無効化（AffectsMeasure）
-    InvalidateMeasure();
-    
-    // 2. 描画を無効化（AffectsRender）
-    InvalidateVisual();
-    
-    // 無効化フラグが立つだけで、即座には処理しない
+impl LayoutSystem {
+    /// レイアウト情報を更新
+    pub fn set_layout(&mut self, widget_id: WidgetId, layout: Layout) {
+        self.layouts.insert(widget_id, layout);
+        self.dirty.insert(widget_id);
+        // 子孫もダーティにする（レイアウト伝播）
+        self.mark_descendants_dirty(widget_id);
+    }
 }
 
-// レンダリングパス（後で一括処理）
-void RenderPass() {
-    foreach (var element in visualTree) {
-        if (element.IsMeasureDirty) {
-            element.Measure(availableSize);
-        }
-        if (element.IsArrangeDirty) {
-            element.Arrange(finalRect);
-        }
-        if (element.IsRenderDirty) {
-            element.OnRender(drawingContext);
+impl TextSystem {
+    /// テキスト内容を更新
+    pub fn set_text(&mut self, widget_id: WidgetId, text: String) {
+        if let Some(content) = self.texts.get_mut(widget_id) {
+            content.text = text;
+            content.invalidate_layout();
+            self.dirty.insert(widget_id);
         }
     }
 }
 ```
 
-##### 3. Widget型による描画パス分岐（実行時判定）
+## Visual: DirectCompositionとの統合
 
-WinUI3/WPFは**仮想メソッド**で描画を実装：
+### コンポーネントの分離
 
-```csharp
-// 基底クラス
-abstract class Visual {
-    protected abstract void OnRender(DrawingContext dc);
-}
+描画に関わる要素を3つのコンポーネントに分離：
 
-// 具象クラス（型ごとに実装）
-class TextBlock : Visual {
-    protected override void OnRender(DrawingContext dc) {
-        // テキストシステム + レイアウトシステムを使用
-        dc.DrawText(formattedText, origin);
-    }
-}
+1. **Visual** - ビジュアルツリーの管理（DirectCompositionを使用）
+2. **DrawingContent** - 描画コマンド（ID2D1Image）
+3. **Layout** - サイズ・配置情報
 
-class Image : Visual {
-    protected override void OnRender(DrawingContext dc) {
-        // 画像システム + レイアウトシステムを使用
-        dc.DrawImage(imageSource, rect);
-    }
-}
+これらは独立して存在し、異なるタイミングで更新される。
 
-class Border : Visual {
-    protected override void OnRender(DrawingContext dc) {
-        // コンテナスタイル + レイアウトシステムを使用
-        dc.DrawRectangle(background, pen, rect);
-        // 子要素も描画
-        foreach (var child in children) {
-            child.Render(dc);
-        }
-    }
-}
-```
-
-つまり、**静的な型システム**と**仮想ディスパッチ**で解決しています。
-
-#### Rustでの実装戦略
-
-WPFの知見を活かした3つのアプローチ：
-
-##### 戦略A: Widget型による静的ディスパッチ（推奨）
-
-各Widgetが「どのシステムを使うか」を型で表現：
-
-```rust
-/// Widget型の定義
-pub enum WidgetType {
-    Text,           // TextSystem + LayoutSystem
-    Image,          // ImageSystem + LayoutSystem
-    Container,      // ContainerStyleSystem + LayoutSystem
-    Custom(TypeId), // CustomRendererSystem + LayoutSystem
-}
+### Visual の役割
 
 pub struct Widget {
     id: WidgetId,
