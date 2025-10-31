@@ -139,10 +139,266 @@ pub struct LayoutSystem {
     // ... その他のレイアウトプロパティ
     
     dirty: HashSet<WidgetId>,
+    
+    // ★ 依存関係登録: このシステムに依存するWidgetとその影響先
+    dependents: DependencyMap,
 }
 
 // ビジュアル管理システム
 pub struct VisualSystem {
+    visual: SecondaryMap<WidgetId, Visual>,
+    dirty: HashSet<WidgetId>,
+    
+    dependents: DependencyMap,
+}
+
+// 描画コンテンツ管理システム
+pub struct DrawingContentSystem {
+    drawing_content: SecondaryMap<WidgetId, DrawingContent>,
+    dirty: HashSet<WidgetId>,
+    
+    dependents: DependencyMap,
+}
+
+// テキスト管理システム
+pub struct TextSystem {
+    text: SecondaryMap<WidgetId, TextContent>,
+    dirty: HashSet<WidgetId>,
+    
+    dependents: DependencyMap,
+}
+
+// 画像管理システム
+pub struct ImageSystem {
+    image: SecondaryMap<WidgetId, ImageContent>,
+    dirty: HashSet<WidgetId>,
+    
+    dependents: DependencyMap,
+}
+
+// コンテナスタイル管理システム
+pub struct ContainerStyleSystem {
+    container: SecondaryMap<WidgetId, ContainerStyle>,
+    dirty: HashSet<WidgetId>,
+    
+    dependents: DependencyMap,
+}
+
+// インタラクション管理システム
+pub struct InteractionSystem {
+    interaction: SecondaryMap<WidgetId, InteractionState>,
+    dirty: HashSet<WidgetId>,
+    
+    dependents: DependencyMap,
+}
+
+/// 依存関係マップ
+/// Widget単位で「どのシステムが影響を受けるか」を登録
+pub struct DependencyMap {
+    // WidgetId -> 影響を受けるシステムのフラグ
+    dependencies: SecondaryMap<WidgetId, DependencyFlags>,
+}
+
+bitflags::bitflags! {
+    /// 影響を受けるシステムのフラグ
+    pub struct DependencyFlags: u32 {
+        const LAYOUT          = 0b0000_0001;
+        const VISUAL          = 0b0000_0010;
+        const DRAWING_CONTENT = 0b0000_0100;
+        const TEXT            = 0b0000_1000;
+        const IMAGE           = 0b0001_0000;
+        const CONTAINER_STYLE = 0b0010_0000;
+        const INTERACTION     = 0b0100_0000;
+    }
+}
+
+impl DependencyMap {
+    pub fn new() -> Self {
+        Self {
+            dependencies: SecondaryMap::new(),
+        }
+    }
+    
+    /// 依存関係を登録
+    pub fn register(&mut self, widget_id: WidgetId, flags: DependencyFlags) {
+        self.dependencies.insert(widget_id, flags);
+    }
+    
+    /// 依存関係を追加
+    pub fn add_dependency(&mut self, widget_id: WidgetId, flags: DependencyFlags) {
+        self.dependencies
+            .entry(widget_id)
+            .and_modify(|existing| *existing |= flags)
+            .or_insert(flags);
+    }
+    
+    /// 依存関係を取得
+    pub fn get(&self, widget_id: WidgetId) -> Option<DependencyFlags> {
+        self.dependencies.get(widget_id).copied()
+    }
+    
+    /// 特定のフラグを持つすべてのWidgetを取得
+    pub fn get_widgets_with_flag(&self, flag: DependencyFlags) -> Vec<WidgetId> {
+        self.dependencies
+            .iter()
+            .filter_map(|(id, flags)| {
+                if flags.contains(flag) {
+                    Some(id)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+}
+
+// 統合ランタイム（すべてのシステムを保持）
+pub struct UiRuntime {
+    pub widget: WidgetSystem,
+    pub layout: LayoutSystem,
+    pub visual: VisualSystem,
+    pub drawing_content: DrawingContentSystem,
+    pub text: TextSystem,
+    pub image: ImageSystem,
+    pub container_style: ContainerStyleSystem,
+    pub interaction: InteractionSystem,
+}
+```
+
+### 依存関係登録システムの仕組み
+
+この設計は、あなたの提案通り**Widgetごとに依存を登録し、変更時に自動的にダーティを配布**します。
+
+#### 核心的な流れ
+
+```
+1. Widget作成時に依存を登録
+   widget_id → Layout変更でDRAWING_CONTENTに影響
+   widget_id → Text変更でDRAWING_CONTENTに影響
+
+2. システム変更時にdirtyマーク
+   LayoutSystem.dirty.insert(widget_id)
+
+3. フレーム更新時にダーティ伝搬
+   LayoutSystem → dependentsを見る
+   → DRAWING_CONTENTフラグを持つwidget_id
+   → DrawingContentSystemにダーティを配布
+```
+
+#### 1. Widget作成時に依存を登録
+
+```rust
+impl UiRuntime {
+    /// テキストWidgetを作成
+    pub fn create_text_widget(&mut self, text: String) -> WidgetId {
+        let widget_id = self.widget.create_widget();
+        
+        // テキストコンテンツを設定
+        self.text.set_text(widget_id, text);
+        
+        // ★ 依存関係を登録
+        // このWidgetはLayoutに依存する
+        self.layout.dependents.register(
+            widget_id,
+            DependencyFlags::DRAWING_CONTENT,  // Layout変更でDrawingContentに影響
+        );
+        
+        // このWidgetはTextに依存する
+        self.text.dependents.register(
+            widget_id,
+            DependencyFlags::DRAWING_CONTENT,  // Text変更でDrawingContentに影響
+        );
+        
+        widget_id
+    }
+    
+    /// 複雑なWidget（背景 + テキスト）
+    pub fn create_button(&mut self, text: String) -> WidgetId {
+        let widget_id = self.widget.create_widget();
+        
+        self.container_style.set_background(widget_id, Color::BLUE);
+        self.text.set_text(widget_id, text);
+        
+        // ★ 複数のシステムに依存を登録
+        self.layout.dependents.register(widget_id, DependencyFlags::DRAWING_CONTENT);
+        self.container_style.dependents.register(widget_id, DependencyFlags::DRAWING_CONTENT);
+        self.text.dependents.register(widget_id, DependencyFlags::DRAWING_CONTENT);
+        
+        widget_id
+    }
+}
+```
+
+#### 2. システム変更時にダーティを伝搬
+
+```rust
+impl LayoutSystem {
+    pub fn set_width(&mut self, widget_id: WidgetId, width: Length) {
+        self.width.insert(widget_id, width);
+        self.dirty.insert(widget_id);
+        // 伝搬は後でpropagate_dirty()で一括処理
+    }
+    
+    /// ★ ダーティを依存先に伝搬
+    pub fn propagate_dirty(&self, target_systems: &mut PropagationTargets) {
+        for widget_id in &self.dirty {
+            if let Some(flags) = self.dependents.get(*widget_id) {
+                if flags.contains(DependencyFlags::DRAWING_CONTENT) {
+                    target_systems.drawing_content.insert(*widget_id);
+                }
+                if flags.contains(DependencyFlags::VISUAL) {
+                    target_systems.visual.insert(*widget_id);
+                }
+            }
+        }
+    }
+}
+
+/// ダーティ伝搬のターゲット
+pub struct PropagationTargets {
+    pub layout: HashSet<WidgetId>,
+    pub visual: HashSet<WidgetId>,
+    pub drawing_content: HashSet<WidgetId>,
+    pub text: HashSet<WidgetId>,
+    pub image: HashSet<WidgetId>,
+    pub container_style: HashSet<WidgetId>,
+    pub interaction: HashSet<WidgetId>,
+}
+```
+
+#### 3. update_frame()での統合処理
+
+```rust
+impl UiRuntime {
+    pub fn update_frame(&mut self, root_id: WidgetId) {
+        let mut targets = PropagationTargets::default();
+        
+        // 1. レイアウトパス
+        self.layout.update(&self.widget, root_id, window_size);
+        
+        // 2. ★ 各システムからダーティを伝搬
+        self.layout.propagate_dirty(&mut targets);
+        self.text.propagate_dirty(&mut targets);
+        self.image.propagate_dirty(&mut targets);
+        self.container_style.propagate_dirty(&mut targets);
+        
+        // 3. 影響を受けるシステムを更新
+        for widget_id in targets.drawing_content.drain() {
+            self.rebuild_drawing_content(widget_id);
+        }
+        
+        for widget_id in targets.visual.drain() {
+            self.apply_visual_update(widget_id);
+        }
+        
+        // 4. クリア
+        self.clear_all_dirty();
+        
+        // 5. コミット
+        self.visual.commit().ok();
+    }
+}
+```
     visual: SecondaryMap<WidgetId, Visual>,
     dirty: HashSet<WidgetId>,
 }
@@ -1203,6 +1459,742 @@ impl UiRuntime {
 - この設計: ECS + パターンマッチ（Rustの得意分野）
 
 同じ問題を、それぞれの言語の強みを活かして解決しています。
+
+### 他のUIフレームワークの依存管理戦略
+
+WPFの「プロパティごとに影響範囲フラグ」は確かに簡素化されたアプローチです。他のフレームワークはどう解決しているか見てみましょう。
+
+#### 1. Flutter（Google）
+
+**戦略**: **RenderObjectツリー + 明示的なマーキング**
+
+```dart
+class RenderText extends RenderBox {
+  String _text;
+  
+  set text(String value) {
+    if (_text == value) return;
+    _text = value;
+    
+    // 明示的に影響範囲を指定
+    markNeedsLayout();      // レイアウト再計算が必要
+    markNeedsPaint();       // 再描画が必要
+    markNeedsSemanticsUpdate(); // アクセシビリティ更新が必要
+  }
+  
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    // カスタム描画ロジック
+    final textPainter = TextPainter(text: _text, ...);
+    textPainter.paint(context.canvas, offset);
+  }
+}
+
+// カスタム描画の例
+class CustomRenderer extends RenderBox {
+  Color _color;
+  
+  set color(Color value) {
+    if (_color == value) return;
+    _color = value;
+    // 再描画のみ必要（レイアウトには影響しない）
+    markNeedsPaint();  // ← 開発者が判断して呼ぶ
+  }
+  
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    // 複雑なカスタム描画
+    context.canvas.drawCustom(...);
+  }
+}
+```
+
+**特徴**:
+- ✅ **開発者が明示的に影響範囲を指定**（`markNeedsLayout()`, `markNeedsPaint()`）
+- ✅ カスタム描画でも細かく制御可能
+- ⚠️ 開発者が間違えると描画バグ（呼び忘れ、過剰な呼び出し）
+
+**依存解決**: セッター内で明示的にマーク → フレームワークが自動収集
+
+#### 2. React（Meta/Facebook）
+
+**戦略**: **仮想DOM + Reconciliation + 保守的な再描画**
+
+```javascript
+function TextComponent({ text, color, fontSize }) {
+  return <div style={{ color, fontSize }}>{text}</div>;
+}
+
+// React内部（概念）
+function reconcile(oldProps, newProps) {
+  // propsの差分を検出
+  const hasChanged = 
+    oldProps.text !== newProps.text ||
+    oldProps.color !== newProps.color ||
+    oldProps.fontSize !== newProps.fontSize;
+  
+  if (hasChanged) {
+    // 影響範囲を推測せず、コンポーネント全体を再描画
+    return UPDATE_ENTIRE_COMPONENT;
+  }
+  
+  return NO_UPDATE;
+}
+
+// カスタム描画（Canvas）
+function CustomCanvas({ data }) {
+  const canvasRef = useRef();
+  
+  useEffect(() => {
+    // 依存配列に基づいて再描画
+    const ctx = canvasRef.current.getContext('2d');
+    drawCustom(ctx, data);
+  }, [data]); // ← 開発者が依存を明示
+  
+  return <canvas ref={canvasRef} />;
+}
+```
+
+**特徴**:
+- ✅ **保守的アプローチ**：何か変わったら該当コンポーネント全体を再描画
+- ✅ **useEffect依存配列**：カスタム描画の依存を明示
+- ⚠️ 過剰な再描画が起きやすい（最適化が必要）
+- 💡 **React Compiler（新機能）**: 自動的に依存を追跡・最適化
+
+**依存解決**: 基本は「変更があったら全体を再レンダリング」、最適化は開発者の責任
+
+#### 3. SwiftUI（Apple）
+
+**戦略**: **@State/@Binding + 自動依存追跡**
+
+```swift
+struct TextView: View {
+    @State private var text: String
+    @State private var color: Color
+    
+    var body: some View {
+        Text(text)
+            .foregroundColor(color)  // ← color変更で自動的に再描画
+            .font(.system(size: 16))
+    }
+}
+
+// カスタム描画
+struct CustomShape: Shape {
+    var size: CGFloat
+    var animatableData: CGFloat {
+        get { size }
+        set { size = newValue }
+    }
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        // size を使った複雑な描画
+        path.addCustom(...)
+        return path
+    }
+}
+
+struct CustomView: View {
+    @State var size: CGFloat = 10.0
+    
+    var body: some View {
+        CustomShape(size: size)  // ← size変更で自動的に再描画
+            .fill(.blue)
+    }
+}
+```
+
+**特徴**:
+- ✅ **自動依存追跡**：プロパティ変更を自動検出（`@State`, `@Binding`）
+- ✅ カスタム描画でも`animatableData`で依存を宣言
+- ✅ コンパイラが最適化（不要な再描画を削減）
+- 💡 **差分更新**: 変更された部分のみ再描画
+
+**依存解決**: プロパティラッパー（`@State`等）がアクセスを追跡 → 自動的にダーティマーク
+
+#### 4. Jetpack Compose（Google/Android）
+
+**戦略**: **再コンポーズ + スマートな依存追跡**
+
+```kotlin
+@Composable
+fun TextComponent(text: String, color: Color, fontSize: TextUnit) {
+    Text(
+        text = text,
+        color = color,  // ← colorの変更を自動追跡
+        fontSize = fontSize
+    )
+}
+
+// カスタム描画
+@Composable
+fun CustomCanvas(data: DrawData) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        // data変更で自動的に再描画
+        drawCustomShape(data)
+    }
+}
+
+// 最適化：依存の一部のみ追跡
+@Composable
+fun OptimizedComponent(user: User) {
+    // user全体ではなく、nameのみに依存
+    val name = remember(user.id) { user.name }
+    Text(text = name)
+}
+```
+
+**特徴**:
+- ✅ **自動依存追跡**：コンポーザブル関数が使用する値を自動追跡
+- ✅ **スキップ可能性**：依存が変わってなければスキップ
+- ✅ カスタム描画でも自動追跡（`Canvas`内で使う値を検出）
+- 💡 **Compiler Plugin**: コンパイル時に依存グラフを生成
+
+**依存解決**: コンパイラが関数内で読まれる値を解析 → 自動的に依存グラフ構築
+
+#### 5. Godot Engine（ゲームエンジン）
+
+**戦略**: **ノードシステム + 通知メッセージ**
+
+```gdscript
+extends Node2D
+
+var color: Color:
+    set(value):
+        if color != value:
+            color = value
+            queue_redraw()  # ← 明示的に再描画をリクエスト
+
+var text: String:
+    set(value):
+        if text != value:
+            text = value
+            queue_redraw()  # 再描画
+            update_minimum_size()  # レイアウト更新
+
+func _draw():
+    # カスタム描画ロジック
+    draw_rect(Rect2(0, 0, 100, 100), color)
+    draw_text(position, text)
+```
+
+**特徴**:
+- ✅ **明示的マーキング**：`queue_redraw()`, `update_minimum_size()`
+- ✅ ゲームエンジンらしくパフォーマンス重視
+- ⚠️ 開発者の責任（Flutterと同様）
+
+**依存解決**: 開発者が明示的にマーク → エンジンが次フレームで処理
+
+#### 6. Dear ImGui（即時モードGUI）
+
+**戦略**: **毎フレーム全再描画 + 差分なし**
+
+```cpp
+void RenderUI() {
+    // 毎フレーム呼ばれる
+    ImGui::Begin("Window");
+    
+    ImGui::Text("Hello: %s", text.c_str());
+    ImGui::ColorEdit3("Color", color);
+    
+    // カスタム描画
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    draw_list->AddRect(pos, pos + size, ImColor(color));
+    
+    ImGui::End();
+}
+
+// メインループ
+while (running) {
+    RenderUI();  // ← 毎フレーム全UIを再構築
+}
+```
+
+**特徴**:
+- ✅ **依存管理不要**：毎フレーム全部再描画
+- ✅ 実装が超シンプル
+- ⚠️ パフォーマンス：複雑なUIには向かない
+
+**依存解決**: そもそも依存を追跡しない（毎回全部作り直す）
+
+#### 比較まとめ
+
+| フレームワーク | 依存追跡方法 | カスタム描画の制御 | 実装複雑度 | パフォーマンス |
+|--------------|-------------|------------------|-----------|-------------|
+| **WPF/WinUI3** | プロパティメタデータ | 簡素化（フラグ） | 🟡 中 | 🟢 良好 |
+| **Flutter** | 明示的マーキング | 細かく制御可能 | 🟡 中 | 🟢 良好 |
+| **React** | 仮想DOM差分 | 保守的（全体再描画） | 🟢 低 | 🟡 中（最適化必要） |
+| **SwiftUI** | 自動追跡（@State） | 自動 + 宣言的 | 🟢 低 | 🟢 良好 |
+| **Compose** | コンパイラ解析 | 自動追跡 | 🟢 低 | 🟢 良好 |
+| **Godot** | 明示的マーキング | 細かく制御可能 | 🟡 中 | 🟢 良好 |
+| **ImGui** | 追跡なし（毎フレーム） | 不要（常に再描画） | 🟢 超低 | 🔴 複雑UIで低下 |
+
+#### この設計への示唆
+
+あなたの設計（Rust + ECS）に最適なアプローチは：
+
+##### 推奨：**Flutter/Godotスタイル（明示的マーキング）+ Widget型**
+
+```rust
+impl TextSystem {
+    pub fn set_text(&mut self, widget_id: WidgetId, text: String) {
+        self.text.insert(widget_id, text);
+        
+        // 明示的に影響範囲を指定（Flutter/Godotスタイル）
+        self.mark_dirty(widget_id);  // 自分のシステムのダーティ
+        // UiRuntimeが後で依存チェーンを解決
+    }
+}
+
+// Widget型で静的に依存を表現（前述の戦略A）
+pub enum WidgetType {
+    Text,      // Text + Layout に依存
+    Image,     // Image + Layout に依存
+    Container, // ContainerStyle + Layout に依存
+    Custom {   // カスタム描画
+        renderer_id: TypeId,
+        // カスタムレンダラーが依存を宣言
+        dependencies: &'static [SystemId],
+    },
+}
+
+// カスタムレンダラーの例
+pub trait CustomRenderer: Send + Sync {
+    /// 依存するシステム（コンパイル時定数）
+    const DEPENDENCIES: &'static [SystemId];
+    
+    /// 描画処理
+    fn render(&self, ctx: &RenderContext, widget_id: WidgetId) -> Result<()>;
+}
+
+struct GradientRenderer;
+impl CustomRenderer for GradientRenderer {
+    const DEPENDENCIES: &'static [SystemId] = &[
+        SystemId::Layout,  // サイズ情報が必要
+        // Textなどは不要
+    ];
+    
+    fn render(&self, ctx: &RenderContext, widget_id: WidgetId) -> Result<()> {
+        let rect = ctx.layout.get_final_rect(widget_id)?;
+        // グラデーション描画
+        Ok(())
+    }
+}
+```
+
+**この設計の利点**:
+1. ✅ **静的な依存宣言**：`WidgetType`と`CustomRenderer::DEPENDENCIES`
+2. ✅ **Rustの型システム活用**：コンパイル時に検証
+3. ✅ **拡張性**：カスタムレンダラーが自分の依存を宣言
+4. ✅ **パフォーマンス**：不要な再描画を回避
+5. ✅ **シンプル**：SwiftUI/Composeのような複雑なコンパイラ不要
+
+**結論**:
+- **標準Widget**：`WidgetType` enumで静的に依存を表現
+- **カスタム描画**：`CustomRenderer::DEPENDENCIES`定数で依存を宣言
+- **依存解決**：UiRuntimeが型情報とDEPENDENCIESから自動構築
+
+これにより、WPFの「プロパティごとのフラグ」よりも細かく、SwiftUI/Composeのような複雑なコンパイラなしで、カスタム描画の依存を厳密に制御できます。
+
+### ECS原則による革新的な依存管理
+
+従来のUIフレームワークは「Widgetが中心」ですが、ECSでは**コンポーネント（データ）とシステム（ロジック）の完全分離**が原則です。この原則を活かした新しいアプローチを提案します。
+
+#### アプローチ: コンポーネントタグによる依存宣言
+
+**核心的アイデア**: Widgetが「どの描画コンポーネントを持つか」で依存関係が決まる。
+
+```rust
+/// 描画コンポーネント（マーカートレイト）
+pub trait RenderComponent: 'static {
+    /// このコンポーネントが依存するシステム
+    const DEPENDENCIES: &'static [SystemId];
+}
+
+/// テキスト描画コンポーネント
+#[derive(Clone)]
+pub struct TextRender {
+    pub text: String,
+    pub font_size: f32,
+    pub color: Color,
+}
+
+impl RenderComponent for TextRender {
+    const DEPENDENCIES: &'static [SystemId] = &[
+        SystemId::Text,
+        SystemId::Layout,
+    ];
+}
+
+/// 画像描画コンポーネント
+#[derive(Clone)]
+pub struct ImageRender {
+    pub image_id: ImageId,
+    pub stretch: Stretch,
+}
+
+impl RenderComponent for ImageRender {
+    const DEPENDENCIES: &'static [SystemId] = &[
+        SystemId::Image,
+        SystemId::Layout,
+    ];
+}
+
+/// 背景描画コンポーネント
+#[derive(Clone)]
+pub struct BackgroundRender {
+    pub fill: Brush,
+    pub border: Option<Border>,
+}
+
+impl RenderComponent for BackgroundRender {
+    const DEPENDENCIES: &'static [SystemId] = &[
+        SystemId::ContainerStyle,
+        SystemId::Layout,
+    ];
+}
+
+/// カスタム描画コンポーネント
+pub struct CustomRender {
+    pub renderer: Box<dyn CustomRenderer>,
+}
+
+impl RenderComponent for CustomRender {
+    const DEPENDENCIES: &'static [SystemId] = &[
+        SystemId::Layout,  // 最小限の依存
+        // カスタムレンダラーが追加の依存を持つ場合は動的に処理
+    ];
+}
+```
+
+#### コンポーネントの組み合わせで複雑な描画を表現
+
+```rust
+/// Widgetは複数の描画コンポーネントを持てる
+pub struct Widget {
+    id: WidgetId,
+    // 描画コンポーネントのリスト（動的）
+    render_components: Vec<RenderComponentType>,
+}
+
+/// 型安全なコンポーネント列挙
+pub enum RenderComponentType {
+    Text(TextRender),
+    Image(ImageRender),
+    Background(BackgroundRender),
+    Custom(CustomRender),
+}
+
+impl RenderComponentType {
+    /// このコンポーネントの依存を取得
+    fn dependencies(&self) -> &'static [SystemId] {
+        match self {
+            Self::Text(_) => TextRender::DEPENDENCIES,
+            Self::Image(_) => ImageRender::DEPENDENCIES,
+            Self::Background(_) => BackgroundRender::DEPENDENCIES,
+            Self::Custom(_) => CustomRender::DEPENDENCIES,
+        }
+    }
+}
+```
+
+#### DrawingContentSystemの実装
+
+```rust
+pub struct DrawingContentSystem {
+    content: SecondaryMap<WidgetId, ID2D1Image>,
+    dirty: HashSet<WidgetId>,
+    
+    // 各Widgetが持つ描画コンポーネントのマップ
+    widget_components: SecondaryMap<WidgetId, Vec<RenderComponentType>>,
+}
+
+impl DrawingContentSystem {
+    /// 描画コンポーネントを追加
+    pub fn add_render_component(
+        &mut self,
+        widget_id: WidgetId,
+        component: RenderComponentType,
+    ) {
+        self.widget_components
+            .entry(widget_id)
+            .or_insert_with(Vec::new)
+            .push(component);
+        
+        self.dirty.insert(widget_id);
+    }
+    
+    /// Widgetの依存システムを取得（動的に計算）
+    pub fn get_dependencies(&self, widget_id: WidgetId) -> HashSet<SystemId> {
+        let mut deps = HashSet::new();
+        
+        if let Some(components) = self.widget_components.get(widget_id) {
+            for component in components {
+                deps.extend(component.dependencies().iter().copied());
+            }
+        }
+        
+        deps
+    }
+    
+    /// 描画コンテンツを再構築
+    pub fn rebuild_content(
+        &mut self,
+        widget_id: WidgetId,
+        context: &RenderContext,
+    ) -> Result<()> {
+        let Some(components) = self.widget_components.get(widget_id) else {
+            return Ok(());
+        };
+        
+        // CommandListに描画を記録
+        let command_list = context.dc.CreateCommandList()?;
+        context.dc.SetTarget(&command_list);
+        context.dc.BeginDraw()?;
+        context.dc.Clear(None);
+        
+        // すべての描画コンポーネントを順番に実行
+        for component in components {
+            self.render_component(component, widget_id, context)?;
+        }
+        
+        context.dc.EndDraw(None, None)?;
+        command_list.Close()?;
+        
+        // ID2D1Imageとして保存
+        self.content.insert(widget_id, command_list.cast()?);
+        
+        Ok(())
+    }
+    
+    fn render_component(
+        &self,
+        component: &RenderComponentType,
+        widget_id: WidgetId,
+        context: &RenderContext,
+    ) -> Result<()> {
+        match component {
+            RenderComponentType::Text(text_render) => {
+                context.text.draw_text(
+                    widget_id,
+                    context.dc,
+                    &text_render.text,
+                    text_render.font_size,
+                    &text_render.color,
+                )?;
+            }
+            RenderComponentType::Image(image_render) => {
+                context.image.draw_image(
+                    widget_id,
+                    context.dc,
+                    image_render.image_id,
+                )?;
+            }
+            RenderComponentType::Background(bg_render) => {
+                context.container_style.draw_background(
+                    widget_id,
+                    context.dc,
+                    &bg_render.fill,
+                    bg_render.border.as_ref(),
+                )?;
+            }
+            RenderComponentType::Custom(custom_render) => {
+                custom_render.renderer.render(context, widget_id)?;
+            }
+        }
+        Ok(())
+    }
+}
+```
+
+#### UiRuntimeでの依存解決
+
+```rust
+impl UiRuntime {
+    pub fn update_frame(&mut self, root_id: WidgetId) {
+        // 1. レイアウト更新
+        self.layout.update(&self.widget, root_id, window_size);
+        let layout_dirty = self.layout.dirty.clone();
+        
+        // 2. 描画コンテンツ更新（ECS的な依存解決）
+        let drawing_dirty = self.collect_drawing_dirty(&layout_dirty);
+        for widget_id in drawing_dirty {
+            self.rebuild_drawing_content(widget_id);
+        }
+        
+        // 3. Visual更新
+        self.update_visuals();
+        
+        self.clear_all_dirty();
+        self.visual.commit().ok();
+    }
+    
+    /// ECS的な依存収集
+    fn collect_drawing_dirty(&self, layout_dirty: &HashSet<WidgetId>) -> HashSet<WidgetId> {
+        let mut dirty = HashSet::new();
+        
+        // 各システムのダーティをチェック
+        dirty.extend(&self.text.dirty);
+        dirty.extend(&self.image.dirty);
+        dirty.extend(&self.container_style.dirty);
+        dirty.extend(&self.drawing_content.dirty);
+        
+        // レイアウト変更の影響を受けるWidgetを収集（ECS的アプローチ）
+        for &widget_id in layout_dirty {
+            // このWidgetの描画コンポーネントが持つ依存を確認
+            let deps = self.drawing_content.get_dependencies(widget_id);
+            
+            // Layoutに依存していれば影響を受ける
+            if deps.contains(&SystemId::Layout) {
+                dirty.insert(widget_id);
+            }
+        }
+        
+        dirty
+    }
+}
+```
+
+#### 使用例: 複雑なWidgetの構築
+
+```rust
+// 例: 背景 + テキスト + 画像アイコンを持つWidget
+impl UiRuntime {
+    pub fn create_rich_button(&mut self, text: &str, icon: ImageId) -> WidgetId {
+        let widget_id = self.widget.create_widget();
+        
+        // 1. 背景を追加
+        self.drawing_content.add_render_component(
+            widget_id,
+            RenderComponentType::Background(BackgroundRender {
+                fill: Brush::Solid(Color::rgb(0.2, 0.5, 0.9)),
+                border: Some(Border {
+                    thickness: 1.0,
+                    color: Color::rgb(0.1, 0.3, 0.7),
+                }),
+            }),
+        );
+        
+        // 2. アイコン画像を追加
+        self.drawing_content.add_render_component(
+            widget_id,
+            RenderComponentType::Image(ImageRender {
+                image_id: icon,
+                stretch: Stretch::Uniform,
+            }),
+        );
+        
+        // 3. テキストを追加
+        self.drawing_content.add_render_component(
+            widget_id,
+            RenderComponentType::Text(TextRender {
+                text: text.to_string(),
+                font_size: 14.0,
+                color: Color::WHITE,
+            }),
+        );
+        
+        // レイアウト設定
+        self.layout.set_width(widget_id, Length::Pixels(120.0));
+        self.layout.set_height(widget_id, Length::Pixels(40.0));
+        
+        widget_id
+    }
+    
+    // カスタム描画の例
+    pub fn create_gradient_box(&mut self) -> WidgetId {
+        let widget_id = self.widget.create_widget();
+        
+        struct GradientRenderer {
+            start_color: Color,
+            end_color: Color,
+        }
+        
+        impl CustomRenderer for GradientRenderer {
+            fn render(&self, ctx: &RenderContext, widget_id: WidgetId) -> Result<()> {
+                let rect = ctx.layout.get_final_rect(widget_id)?;
+                // グラデーション描画ロジック
+                // ...
+                Ok(())
+            }
+        }
+        
+        self.drawing_content.add_render_component(
+            widget_id,
+            RenderComponentType::Custom(CustomRender {
+                renderer: Box::new(GradientRenderer {
+                    start_color: Color::RED,
+                    end_color: Color::BLUE,
+                }),
+            }),
+        );
+        
+        widget_id
+    }
+}
+```
+
+#### このアプローチの利点（ECS原則）
+
+1. **✅ データとロジックの完全分離**
+   - データ: `RenderComponent`（Text, Image, Backgroundなど）
+   - ロジック: `DrawingContentSystem`が描画を処理
+
+2. **✅ 組み合わせ可能性（Composability）**
+   - 1つのWidgetが複数の描画コンポーネントを持てる
+   - 例: Background + Text + Image の組み合わせ
+
+3. **✅ 静的な依存宣言**
+   - 各`RenderComponent`が`const DEPENDENCIES`を持つ
+   - コンパイル時に検証可能
+
+4. **✅ 動的な依存解決**
+   - Widgetが持つコンポーネントから依存を動的に計算
+   - `get_dependencies(widget_id)`で取得
+
+5. **✅ 拡張性**
+   - 新しい`RenderComponent`を追加するだけ
+   - 既存コードの変更不要
+
+6. **✅ パフォーマンス**
+   - 不要なWidgetは影響を受けない
+   - 依存を持つWidgetのみ更新
+
+7. **✅ 型安全**
+   - `RenderComponentType` enumでコンパイル時チェック
+   - パターンマッチで網羅性保証
+
+#### 比較: 従来アプローチ vs ECS的アプローチ
+
+| 観点 | Widget型アプローチ | ECS的コンポーネントアプローチ |
+|------|-------------------|---------------------------|
+| **依存宣言** | WidgetTypeごと | RenderComponentごと |
+| **組み合わせ** | 難しい（型が固定） | 容易（複数コンポーネント） |
+| **拡張性** | enumに追加必要 | 新コンポーネント追加のみ |
+| **ECS原則** | 🟡 部分的 | ✅ 完全 |
+| **複雑な描画** | カスタムWidget必要 | コンポーネント組み合わせ |
+| **依存解決** | 静的（match文） | 動的（依存計算） |
+| **型安全性** | ✅ 高い | ✅ 高い |
+| **パフォーマンス** | 🟢 良好 | 🟢 良好 |
+
+#### 最終推奨: ECS的コンポーネントアプローチ
+
+**理由**:
+1. **真のECS**: データ（コンポーネント）とロジック（システム）の完全分離
+2. **Composability**: 複雑なUIを単純なコンポーネントの組み合わせで表現
+3. **静的 + 動的のハイブリッド**: 各コンポーネントは静的に依存を宣言、Widgetレベルで動的に解決
+4. **拡張性**: 新しい描画タイプを追加しても既存コードに影響なし
+5. **保守性**: 依存関係が`const DEPENDENCIES`に集約
+
+**実装の段階**:
+1. **Phase 1**: シンプルな`RenderComponent`（Text, Image, Background）
+2. **Phase 2**: コンポーネント組み合わせの最適化
+3. **Phase 3**: カスタムレンダラーの高度な依存管理
+
+このアプローチは、ECS原則に最も忠実で、かつ実用的な解決策です。
+
+
 
 
 - ✅ 初期実装がシンプル（オーバーエンジニアリング回避）
