@@ -822,6 +822,393 @@ impl UiRuntime {
 - ✅ 複雑化したときのリファクタリングパスが明確
 - ✅ 各フェーズで動作するコードを維持
 
+### DrawingContentの動的依存問題
+
+#### 問題の本質
+
+`DrawingContent`の依存関係は**Widgetごとに異なる**：
+
+```rust
+// Widgetによって依存が変わる
+Widget #1 (テキスト)      → Text + Layout に依存
+Widget #2 (画像)         → Image + Layout に依存
+Widget #3 (背景+テキスト) → ContainerStyle + Text + Layout に依存
+Widget #4 (カスタム描画)  → CustomRenderer + Layout に依存
+```
+
+これは**静的な依存宣言では表現できない**問題です。
+
+#### WinUI3/WPFの実装戦略
+
+WinUI3/WPFは**依存関係プロパティ(Dependency Property)システム**で解決していますが、動的コンパイルはしていません。実装は以下の通り：
+
+##### 1. プロパティメタデータによる影響範囲の宣言
+
+```csharp
+// WPFの例
+public static readonly DependencyProperty TextProperty = 
+    DependencyProperty.Register(
+        "Text", 
+        typeof(string), 
+        typeof(TextBlock),
+        new FrameworkPropertyMetadata(
+            defaultValue: "",
+            flags: FrameworkPropertyMetadataOptions.AffectsRender | 
+                   FrameworkPropertyMetadataOptions.AffectsMeasure
+        )
+    );
+```
+
+`AffectsRender`フラグにより、このプロパティ変更が**描画に影響する**ことを宣言。
+
+##### 2. Invalidationパターン
+
+プロパティ変更時に**段階的な無効化**を行う：
+
+```csharp
+// WPFの内部実装（概念）
+void OnTextPropertyChanged(string newValue) {
+    // 1. 測定を無効化（AffectsMeasure）
+    InvalidateMeasure();
+    
+    // 2. 描画を無効化（AffectsRender）
+    InvalidateVisual();
+    
+    // 無効化フラグが立つだけで、即座には処理しない
+}
+
+// レンダリングパス（後で一括処理）
+void RenderPass() {
+    foreach (var element in visualTree) {
+        if (element.IsMeasureDirty) {
+            element.Measure(availableSize);
+        }
+        if (element.IsArrangeDirty) {
+            element.Arrange(finalRect);
+        }
+        if (element.IsRenderDirty) {
+            element.OnRender(drawingContext);
+        }
+    }
+}
+```
+
+##### 3. Widget型による描画パス分岐（実行時判定）
+
+WinUI3/WPFは**仮想メソッド**で描画を実装：
+
+```csharp
+// 基底クラス
+abstract class Visual {
+    protected abstract void OnRender(DrawingContext dc);
+}
+
+// 具象クラス（型ごとに実装）
+class TextBlock : Visual {
+    protected override void OnRender(DrawingContext dc) {
+        // テキストシステム + レイアウトシステムを使用
+        dc.DrawText(formattedText, origin);
+    }
+}
+
+class Image : Visual {
+    protected override void OnRender(DrawingContext dc) {
+        // 画像システム + レイアウトシステムを使用
+        dc.DrawImage(imageSource, rect);
+    }
+}
+
+class Border : Visual {
+    protected override void OnRender(DrawingContext dc) {
+        // コンテナスタイル + レイアウトシステムを使用
+        dc.DrawRectangle(background, pen, rect);
+        // 子要素も描画
+        foreach (var child in children) {
+            child.Render(dc);
+        }
+    }
+}
+```
+
+つまり、**静的な型システム**と**仮想ディスパッチ**で解決しています。
+
+#### Rustでの実装戦略
+
+WPFの知見を活かした3つのアプローチ：
+
+##### 戦略A: Widget型による静的ディスパッチ（推奨）
+
+各Widgetが「どのシステムを使うか」を型で表現：
+
+```rust
+/// Widget型の定義
+pub enum WidgetType {
+    Text,           // TextSystem + LayoutSystem
+    Image,          // ImageSystem + LayoutSystem
+    Container,      // ContainerStyleSystem + LayoutSystem
+    Custom(TypeId), // CustomRendererSystem + LayoutSystem
+}
+
+pub struct Widget {
+    id: WidgetId,
+    widget_type: WidgetType,
+    // ... その他のフィールド
+}
+
+impl UiRuntime {
+    fn rebuild_drawing_content(&mut self, widget_id: WidgetId) {
+        let Some(widget) = self.widget.get(widget_id) else { return };
+        let Some(rect) = self.layout.get_final_rect(widget_id) else { return };
+        
+        // Widget型で分岐（静的に解決可能）
+        match widget.widget_type {
+            WidgetType::Text => {
+                // Text + Layout に依存（明示的）
+                if self.text.has_text(widget_id) {
+                    self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
+                        let brush = create_brush(dc)?;
+                        self.text.draw_to_context(widget_id, dc, &brush, Point2D::zero())
+                    }).ok();
+                }
+            }
+            WidgetType::Image => {
+                // Image + Layout に依存（明示的）
+                if self.image.has_image(widget_id) {
+                    self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
+                        self.image.draw_to_context(widget_id, dc, rect)
+                    }).ok();
+                }
+            }
+            WidgetType::Container => {
+                // ContainerStyle + Layout に依存（明示的）
+                if self.container_style.has_style(widget_id) {
+                    self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
+                        self.container_style.draw_to_context(widget_id, dc, rect)
+                    }).ok();
+                }
+            }
+            WidgetType::Custom(type_id) => {
+                // カスタムレンダラーシステム（拡張可能）
+                self.render_custom(widget_id, type_id, rect);
+            }
+        }
+    }
+    
+    /// ダーティ収集（Widget型を考慮）
+    fn collect_drawing_dirty(&self, layout_dirty: &HashSet<WidgetId>) -> HashSet<WidgetId> {
+        let mut dirty = HashSet::new();
+        
+        // 各システムのダーティ + レイアウト変更の影響
+        for widget_id in self.text.dirty.iter().copied() {
+            dirty.insert(widget_id);
+        }
+        for widget_id in self.image.dirty.iter().copied() {
+            dirty.insert(widget_id);
+        }
+        for widget_id in self.container_style.dirty.iter().copied() {
+            dirty.insert(widget_id);
+        }
+        
+        // レイアウト変更の影響（Widget型でフィルタリング）
+        for &widget_id in layout_dirty {
+            if let Some(widget) = self.widget.get(widget_id) {
+                // このWidget型が描画を持つか判定
+                match widget.widget_type {
+                    WidgetType::Text | WidgetType::Image | WidgetType::Container | WidgetType::Custom(_) => {
+                        dirty.insert(widget_id);
+                    }
+                }
+            }
+        }
+        
+        dirty
+    }
+}
+```
+
+**メリット**:
+- ✅ 依存関係が**コンパイル時に明確**（match文で一目瞭然）
+- ✅ 拡張しやすい（新しいWidgetTypeを追加するだけ）
+- ✅ 型安全
+- ✅ パフォーマンス良好（仮想ディスパッチなし）
+
+**デメリット**:
+- ⚠️ Widget型が増えるとmatch文が長くなる
+
+##### 戦略B: トレイトベースの動的ディスパッチ
+
+WPFスタイルの仮想メソッド：
+
+```rust
+/// 描画可能なWidgetのトレイト
+pub trait Renderable {
+    /// 描画に必要なシステムIDを返す
+    fn required_systems(&self) -> &[SystemId];
+    
+    /// 描画処理
+    fn render(&self, context: &mut RenderContext) -> Result<()>;
+}
+
+pub struct RenderContext<'a> {
+    widget_id: WidgetId,
+    dc: &'a ID2D1DeviceContext,
+    rect: Rect,
+    // 各システムへの参照
+    text: &'a TextSystem,
+    image: &'a ImageSystem,
+    container_style: &'a ContainerStyleSystem,
+}
+
+/// テキストWidget
+pub struct TextWidget;
+impl Renderable for TextWidget {
+    fn required_systems(&self) -> &[SystemId] {
+        &[SystemId::Text, SystemId::Layout]
+    }
+    
+    fn render(&self, ctx: &mut RenderContext) -> Result<()> {
+        let brush = create_brush(ctx.dc)?;
+        ctx.text.draw_to_context(ctx.widget_id, ctx.dc, &brush, Point2D::zero())
+    }
+}
+
+/// 画像Widget
+pub struct ImageWidget;
+impl Renderable for ImageWidget {
+    fn required_systems(&self) -> &[SystemId] {
+        &[SystemId::Image, SystemId::Layout]
+    }
+    
+    fn render(&self, ctx: &mut RenderContext) -> Result<()> {
+        ctx.image.draw_to_context(ctx.widget_id, ctx.dc, ctx.rect)
+    }
+}
+
+pub struct Widget {
+    id: WidgetId,
+    renderable: Box<dyn Renderable>,
+}
+
+impl UiRuntime {
+    fn rebuild_drawing_content(&mut self, widget_id: WidgetId) {
+        let Some(widget) = self.widget.get(widget_id) else { return };
+        let Some(rect) = self.layout.get_final_rect(widget_id) else { return };
+        
+        self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
+            let mut ctx = RenderContext {
+                widget_id,
+                dc,
+                rect,
+                text: &self.text,
+                image: &self.image,
+                container_style: &self.container_style,
+            };
+            widget.renderable.render(&mut ctx)
+        }).ok();
+    }
+}
+```
+
+**メリット**:
+- ✅ WPFスタイルで直感的
+- ✅ 拡張が非常に容易（新しいRenderableを実装するだけ）
+- ✅ 依存関係が各型で宣言される
+
+**デメリット**:
+- ❌ ヒープアロケーション（`Box<dyn Renderable>`）
+- ❌ 仮想ディスパッチのコスト
+- ❌ ECS原則から外れる
+
+##### 戦略C: フラグベースの依存管理
+
+各Widgetに「どのシステムを使うか」のフラグを持たせる：
+
+```rust
+bitflags! {
+    pub struct RenderFlags: u32 {
+        const USES_TEXT           = 0b0000_0001;
+        const USES_IMAGE          = 0b0000_0010;
+        const USES_CONTAINER      = 0b0000_0100;
+        const USES_CUSTOM         = 0b0000_1000;
+    }
+}
+
+pub struct Widget {
+    id: WidgetId,
+    render_flags: RenderFlags,
+}
+
+impl UiRuntime {
+    fn collect_drawing_dirty(&self, layout_dirty: &HashSet<WidgetId>) -> HashSet<WidgetId> {
+        let mut dirty = HashSet::new();
+        
+        // Textシステムのダーティ
+        for &widget_id in &self.text.dirty {
+            dirty.insert(widget_id);
+        }
+        
+        // レイアウト変更の影響（フラグでフィルタリング）
+        for &widget_id in layout_dirty {
+            if let Some(widget) = self.widget.get(widget_id) {
+                // 描画を持つWidgetのみ影響を受ける
+                if !widget.render_flags.is_empty() {
+                    dirty.insert(widget_id);
+                }
+            }
+        }
+        
+        dirty
+    }
+    
+    fn rebuild_drawing_content(&mut self, widget_id: WidgetId) {
+        let Some(widget) = self.widget.get(widget_id) else { return };
+        let Some(rect) = self.layout.get_final_rect(widget_id) else { return };
+        
+        self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
+            // フラグに応じて描画
+            if widget.render_flags.contains(RenderFlags::USES_TEXT) {
+                self.text.draw_to_context(widget_id, dc, &brush, Point2D::zero())?;
+            }
+            if widget.render_flags.contains(RenderFlags::USES_IMAGE) {
+                self.image.draw_to_context(widget_id, dc, rect)?;
+            }
+            if widget.render_flags.contains(RenderFlags::USES_CONTAINER) {
+                self.container_style.draw_to_context(widget_id, dc, rect)?;
+            }
+            Ok(())
+        }).ok();
+    }
+}
+```
+
+**メリット**:
+- ✅ メモリ効率が良い（bitflags）
+- ✅ 高速（ビット演算）
+- ✅ 複数システムの組み合わせが簡単
+
+**デメリット**:
+- ⚠️ 描画順序の制御が難しい
+
+#### 最終推奨：戦略A（Widget型による静的ディスパッチ）
+
+**理由**:
+1. **依存関係が明確**: match文で一目瞭然、コンパイル時に検証可能
+2. **ECS原則に適合**: データ（Widget）とシステム（描画ロジック）の分離
+3. **パフォーマンス**: 仮想ディスパッチなし、最適化しやすい
+4. **拡張性**: 新しいWidgetTypeを追加するだけ
+5. **Rustらしい**: enumのパターンマッチを活用
+
+**WinUI3との違い**:
+- WinUI3: OOP + 仮想メソッド（C#の得意分野）
+- この設計: ECS + パターンマッチ（Rustの得意分野）
+
+同じ問題を、それぞれの言語の強みを活かして解決しています。
+
+
+- ✅ 初期実装がシンプル（オーバーエンジニアリング回避）
+- ✅ 複雑化したときのリファクタリングパスが明確
+- ✅ 各フェーズで動作するコードを維持
+
 #### Visual（ビジュアルツリー管理）
 描画が必要なWidgetのみ。DirectCompositionを使用するが、それと同一ではない。
 
