@@ -16,13 +16,13 @@ bevy_ecsでは、UI要素を複数のComponentの組み合わせで表現しま�
 
 ### Container（コンテナ）
 
+レイアウトコンテナの作成例：
+
 ```rust
 use bevy_ecs::prelude::*;
 
-/// コンテナを作成
 pub fn create_container(mut commands: Commands) -> Entity {
     commands.spawn((
-        // レイアウト
         Size {
             width: Length::Pixels(400.0),
             height: Length::Auto,
@@ -33,8 +33,6 @@ pub fn create_container(mut commands: Commands) -> Entity {
             right: 10.0,
             bottom: 10.0,
         },
-        
-        // スタイル
         ContainerStyle {
             background: Some(Brush::SolidColor(Color::WHITE)),
             border: Some(Border {
@@ -43,11 +41,7 @@ pub fn create_container(mut commands: Commands) -> Entity {
             }),
             corner_radius: 5.0,
         },
-        
-        // 計算結果
         ComputedLayout::default(),
-        
-        // デバッグ用
         Name::new("Container"),
     )).id()
 }
@@ -55,11 +49,11 @@ pub fn create_container(mut commands: Commands) -> Entity {
 
 ### TextBlock（テキスト）
 
+テキスト表示要素の作成例：
+
 ```rust
-/// TextBlockを作成
 pub fn create_text_block(mut commands: Commands, text: &str) -> Entity {
     commands.spawn((
-        // テキストコンテンツ
         TextContent {
             text: text.to_string(),
             font_family: "Segoe UI".to_string(),
@@ -67,8 +61,6 @@ pub fn create_text_block(mut commands: Commands, text: &str) -> Entity {
             color: Color::BLACK,
             text_layout: None,
         },
-        
-        // レイアウト
         Size {
             width: Length::Auto,
             height: Length::Auto,

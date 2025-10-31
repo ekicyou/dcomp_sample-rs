@@ -39,6 +39,8 @@ pub fn create_simple_window(mut commands: Commands, dcomp_context: Res<DCompCont
 
 ### ボタン付きのUI
 
+Window、Container、複数のボタンを含むUI例：
+
 ```rust
 pub fn create_button_example(mut commands: Commands) {
     let window = commands.spawn((
@@ -46,7 +48,6 @@ pub fn create_button_example(mut commands: Commands) {
         Name::new("ButtonWindow"),
     )).id();
     
-    // コンテナ
     let container = commands.spawn((
         Size {
             width: Length::Pixels(400.0),
@@ -62,12 +63,10 @@ pub fn create_button_example(mut commands: Commands) {
     
     commands.entity(window).add_child(container);
     
-    // ボタン1
     let button1 = create_button_with_label(&mut commands, "Click Me!", || {
         println!("Button 1 clicked!");
     });
     
-    // ボタン2
     let button2 = create_button_with_label(&mut commands, "Another Button", || {
         println!("Button 2 clicked!");
     });
@@ -75,7 +74,11 @@ pub fn create_button_example(mut commands: Commands) {
     commands.entity(container)
         .push_children(&[button1, button2]);
 }
+```
 
+ボタンの作成ヘルパー関数：
+
+```rust
 fn create_button_with_label(
     commands: &mut Commands,
     label: &str,
@@ -121,52 +124,52 @@ fn create_button_with_label(
 
 ### 2パスレイアウト
 
-bevy_ecsでは、システムの順序制御で2パスレイアウトを実現：
+bevy_ecsでは、システムの順序制御で2パスレイアウトを実現します。
+
+**システムセットアップ**:
 
 ```rust
 use bevy_ecs::prelude::*;
 
 pub fn setup_layout_systems(app: &mut App) {
     app.add_systems(Update, (
-        // パス1: Measure（子から親へ、必要なサイズを計算）
         measure_system,
         propagate_measure_to_parent_system,
-        
-        // パス2: Arrange（親から子へ、最終位置を決定）
         arrange_system,
         propagate_arrange_to_children_system,
-        
-        // パス3: Visualに反映
         layout_to_visual_system,
     ).chain());
 }
+```
 
-/// Measureパス：子から親へ
+**Measureパス**（子から親へ、必要なサイズを計算）:
+
+```rust
 pub fn measure_system(
     mut query: Query<(&mut ComputedLayout, &Size, Option<&Children>), With<LayoutInvalidated>>,
     children_query: Query<&ComputedLayout>,
 ) {
     for (mut layout, size, children) in query.iter_mut() {
-        // 子のサイズを合計
         let children_size = if let Some(children) = children {
             calculate_children_desired_size(children, &children_query)
         } else {
             Size2D::zero()
         };
         
-        // 制約を適用
         layout.desired_size = apply_size_constraints(size, children_size);
     }
 }
+```
 
-/// Arrangeパス：親から子へ
+**Arrangeパス**（親から子へ、最終位置を決定）:
+
+```rust
 pub fn arrange_system(
     mut query: Query<(&mut ComputedLayout, &Size, &ComputedLayout, &Parent)>,
     parent_query: Query<&ComputedLayout>,
 ) {
     for (mut layout, size, computed, parent) in query.iter_mut() {
         if let Ok(parent_layout) = parent_query.get(parent.get()) {
-            // 親の領域内で配置
             layout.final_rect = calculate_final_rect(
                 parent_layout.final_rect,
                 computed.desired_size,
@@ -178,6 +181,8 @@ pub fn arrange_system(
 ```
 
 ### StackPanelの実装例
+
+StackLayoutの子サイズ計算ロジック：
 
 ```rust
 pub fn measure_stack_panel(
@@ -203,7 +208,6 @@ pub fn measure_stack_panel(
                 }
             }
             
-            // 最後のspacingを削除
             if !children.is_empty() {
                 match stack.orientation {
                     Orientation::Vertical => total_size.height -= stack.spacing,
@@ -219,6 +223,10 @@ pub fn measure_stack_panel(
 
 ## 完全な例：カウンターアプリ
 
+インタラクティブなカウンターアプリケーションの実装例です。
+
+**コンポーネント定義**:
+
 ```rust
 use bevy_ecs::prelude::*;
 
@@ -229,7 +237,11 @@ struct Counter {
 
 #[derive(Component)]
 struct CounterDisplay;
+```
 
+**UI構築**:
+
+```rust
 pub fn create_counter_app(mut commands: Commands) {
     let window = commands.spawn((
         Window { hwnd: create_hwnd() },
@@ -249,7 +261,6 @@ pub fn create_counter_app(mut commands: Commands) {
         ComputedLayout::default(),
     )).id();
     
-    // カウンター表示
     let display = commands.spawn((
         TextContent {
             text: "Count: 0".to_string(),
@@ -263,13 +274,10 @@ pub fn create_counter_app(mut commands: Commands) {
         Counter { value: 0 },
     )).id();
     
-    // インクリメントボタン
     let inc_button = create_button_with_label(&mut commands, "+1", move || {
-        // イベント送信（別システムで処理）
         increment_counter(display);
     });
     
-    // デクリメントボタン
     let dec_button = create_button_with_label(&mut commands, "-1", move || {
         decrement_counter(display);
     });
@@ -277,8 +285,11 @@ pub fn create_counter_app(mut commands: Commands) {
     commands.entity(window).add_child(container);
     commands.entity(container).push_children(&[display, inc_button, dec_button]);
 }
+```
 
-/// カウンター更新システム
+**カウンター更新システム**（`Changed<Counter>`で自動検知）:
+
+```rust
 pub fn update_counter_display_system(
     mut query: Query<(&Counter, &mut TextContent), (Changed<Counter>, With<CounterDisplay>)>,
 ) {
@@ -287,7 +298,6 @@ pub fn update_counter_display_system(
     }
 }
 
-// システム登録
 pub fn setup_counter_systems(app: &mut App) {
     app.add_systems(Update, update_counter_display_system);
 }
@@ -295,49 +305,30 @@ pub fn setup_counter_systems(app: &mut App) {
 
 ## システムスケジュールの全体像
 
+全システムの実行順序を定義：
+
 ```rust
 pub fn setup_all_systems(app: &mut App) {
-    // Resources
     app.insert_resource(DCompContext::new())
         .insert_resource(MousePosition::default())
         .insert_resource(Time::default());
     
-    // 更新システム
     app.add_systems(Update, (
-        // 1. 入力
         process_mouse_input,
         process_keyboard_input,
-        
-        // 2. インタラクション
         hover_detection_system,
         click_system,
-        
-        // 3. プロパティ変更検知
         text_content_changed_system,
         image_content_changed_system,
-        
-        // 4. レイアウト無効化
         invalidate_layout_system,
-        
-        // 5. レイアウト計算（2パス）
         measure_system,
         arrange_system,
-        
-        // 6. Visual管理
         ensure_visual_system,
         layout_to_visual_system,
         attach_visual_to_tree_system,
-        
-        // 7. 描画マーク
         visual_changed_system,
-        
-        // 8. 実際の描画
         draw_visual_system,
-        
-        // 9. DirectCompositionコミット
         commit_dcomp_system,
-        
-        // 10. アプリケーションロジック
         update_counter_display_system,
     ).chain());
 }
