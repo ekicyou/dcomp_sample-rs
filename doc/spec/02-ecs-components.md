@@ -2,12 +2,51 @@
 
 ## bevy_ecsによるコンポーネント設計
 
+### Entityの特性
+
+bevy_ecsの`Entity`は軽量で効率的な識別子です。
+
+**特徴**:
+- ただの数値: 64bit整数（インデックス32bit + 世代32bit）
+- Copy可能: `Arc`や`Rc`のようなオーバーヘッドなし
+- 所有権フリー: 参照やライフタイムの制約がない
+- 一意性保証: 世代カウンタで削除されたEntityの再利用を安全に検出
+
+**コード例**:
+
+```rust
+let entity1 = commands.spawn((...)).id();
+let entity2 = entity1;
+
+#[derive(Component)]
+pub struct Parent(pub Entity);
+
+let parent = world.spawn((...)).id();
+let child = world.spawn((Parent(parent), ...)).id();
+```
+
 ### 基本方針
 - **すべてのUI要素はEntityとして存在（論理ツリー）**
 - **各機能は独立したComponentとして管理（関心の分離）**
 - **Componentは動的に追加/削除可能**
-- 必要なEntityだけがコンポーネントを持つ（スパース性）
+- 必要なEntityだけがコンポーネントを持つ
 - 変更は`Changed<T>`/`Added<T>`で自動追跡、効率的に更新
+
+### bevy_ecsのストレージ戦略
+
+bevy_ecsはコンポーネントの特性に応じて最適なストレージを選択します。
+
+**Table Storage**（高密度）:
+- 対象: ほとんどのEntityが持つコンポーネント
+- 例: `Transform`, `GlobalTransform`
+- メリット: 高速なイテレーション、キャッシュ効率
+
+**SparseSet Storage**（低密度）:
+- 対象: 一部のEntityのみが持つコンポーネント
+- 例: マーカーコンポーネント、一時的な状態
+- メリット: 高速な追加/削除
+
+UI設計では、ほとんどのコンポーネントがTable Storageで管理され、`LayoutInvalidated`などのマーカーがSparseSetで管理されます。
 
 ### コンポーネントの独立性
 
@@ -25,27 +64,22 @@
 
 bevy_ecsでは、各データ構造に`#[derive(Component)]`を付けてコンポーネント化します。
 
+#### 基本コンポーネント
+
 ```rust
 use bevy_ecs::prelude::*;
 
-// ========================================
-// 基本コンポーネント
-// ========================================
-
-/// UI要素の名前（デバッグ用）
 #[derive(Component)]
 pub struct Name {
     pub value: String,
 }
+```
 
-/// 親子関係（bevy_hierarchyが提供）
-// Parent, Childrenは標準で使用
+親子関係は`bevy_hierarchy`が提供する`Parent`と`Children`を使用します。
 
-// ========================================
-// レイアウトコンポーネント
-// ========================================
+#### レイアウトコンポーネント
 
-/// レイアウト情報
+```rust
 #[derive(Component)]
 pub struct Layout {
     pub desired_size: Size2D,
@@ -61,18 +95,16 @@ pub struct DesiredSize {
     pub height: Length,
 }
 
-/// 配置設定
 #[derive(Component)]
 pub struct Alignment {
     pub horizontal: HorizontalAlignment,
     pub vertical: VerticalAlignment,
 }
+```
 
-// ========================================
-// ビジュアルコンポーネント
-// ========================================
+#### ビジュアルコンポーネント
 
-/// DirectCompositionビジュアル
+```rust
 #[derive(Component)]
 pub struct Visual {
     pub dcomp_visual: IDCompositionVisual,
@@ -84,18 +116,16 @@ pub struct Visual {
     pub visible: bool,
 }
 
-/// 描画コンテンツ（キャッシュ）
 #[derive(Component)]
 pub struct DrawingContent {
     pub cached_bitmap: Option<ID2D1Bitmap>,
     pub needs_redraw: bool,
 }
+```
 
-// ========================================
-// コンテンツコンポーネント
-// ========================================
+#### コンテンツコンポーネント
 
-/// テキストコンテンツ
+```rust
 #[derive(Component)]
 pub struct TextContent {
     pub text: String,
@@ -105,7 +135,6 @@ pub struct TextContent {
     pub text_layout: Option<IDWriteTextLayout>,
 }
 
-/// 画像コンテンツ
 #[derive(Component)]
 pub struct ImageContent {
     pub source: String,
@@ -113,19 +142,17 @@ pub struct ImageContent {
     pub stretch: Stretch,
 }
 
-/// コンテナスタイル（背景・枠線）
 #[derive(Component)]
 pub struct ContainerStyle {
     pub background: Option<Brush>,
     pub border: Option<Border>,
     pub corner_radius: f32,
 }
+```
 
-// ========================================
-// インタラクションコンポーネント
-// ========================================
+#### インタラクションコンポーネント
 
-/// インタラクション状態
+```rust
 #[derive(Component)]
 pub struct InteractionState {
     pub is_hovered: bool,
@@ -133,25 +160,23 @@ pub struct InteractionState {
     pub is_focused: bool,
 }
 
-/// クリック可能
 #[derive(Component)]
 pub struct Clickable {
     pub on_click: Option<EventHandler>,
 }
+```
 
-// ========================================
-// マーカーコンポーネント（状態管理用）
-// ========================================
+#### マーカーコンポーネント
 
-/// レイアウトが無効化されている
+状態管理用の空コンポーネント：
+
+```rust
 #[derive(Component)]
 pub struct LayoutInvalidated;
 
-/// 再描画が必要
 #[derive(Component)]
 pub struct NeedsRedraw;
 
-/// トランスフォーム更新が必要
 #[derive(Component)]
 pub struct NeedsTransformUpdate;
 ```
@@ -334,37 +359,39 @@ pub fn setup_ui_systems(app: &mut App) {
 #### 1. データとロジックの分離
 
 **slotmap時代**:
+
 ```rust
 pub struct WidgetSystem {
-    texts: SecondaryMap<WidgetId, TextContent>,  // データ
+    texts: SecondaryMap<WidgetId, TextContent>,
     
-    pub fn set_text(&mut self, id: WidgetId, text: String) {  // ロジック
-        // データとロジックが混在
+    pub fn set_text(&mut self, id: WidgetId, text: String) {
     }
 }
 ```
 
 **bevy_ecs**:
+
 ```rust
-// データ
 #[derive(Component)]
 pub struct TextContent {
     pub text: String,
 }
 
-// ロジック
+pub fn render_text_system(query: Query<&TextContent>) {
+}
+
 pub fn text_changed_system(query: Query<&TextContent, Changed<TextContent>>) {
-    // 完全に分離
 }
 ```
 
+データとロジックが完全に分離されています。
+
 #### 2. スパース性（メモリ効率）
 
+TextContentを持つEntityだけクエリされます。
+
 ```rust
-// TextContentを持つEntityだけクエリされる
-// 内部的には効率的なスパースセットで管理
 pub fn process_text_system(query: Query<&TextContent>) {
-    // TextContentがないEntityは完全にスキップ
 }
 ```
 
@@ -452,7 +479,7 @@ pub fn visual_to_redraw(
 | ダーティ検知 | 手動 (`dirty: HashSet`) | 自動 (`Changed<T>`) |
 | 変更伝播 | 手動 (DependencyMap) | システムチェーン |
 | 並列処理 | 手動実装が必要 | 自動並列化 |
-| メモリ効率 | スパース | スパース（最適化済み） |
+| メモリ効率 | スパース | 最適化済み（Table/SparseSet） |
 
 **重要な設計上の違い**:
 - **slotmap**: すべてのWidgetが親フィールドを持つ（`Option<WidgetId>`）

@@ -166,6 +166,51 @@ pub fn size_changed_system(
 
 ### 4. 変更検知
 
+**旧**: 手動でダーティフラグを管理
+```rust
+self.dirty.insert(widget_id);
+```
+
+**新**: 自動変更追跡
+```rust
+Query<&TextContent, Changed<TextContent>>
+```
+
+## Entityの特性
+
+bevy_ecsの`Entity`は従来のポインタや参照とは異なる軽量な識別子：
+
+### 重要な特徴
+
+- **ただの数値**: 64bit整数（インデックス32bit + 世代32bit）
+- **Copy可能**: `Arc`や`Rc`のようなオーバーヘッドなし
+- **所有権フリー**: 参照やライフタイムの制約がない
+- **一意性保証**: 世代カウンタで削除されたEntityの再利用を検出
+
+### なぜツリー構造が簡単に管理できるのか
+
+**従来のRust**:
+```rust
+// Arc/Rcが必要
+struct Node {
+    parent: Option<Weak<RefCell<Node>>>,  // 複雑
+    children: Vec<Arc<RefCell<Node>>>,    // 重い
+}
+```
+
+**bevy_ecs**:
+```rust
+// ただの数値でOK
+#[derive(Component)]
+pub struct Parent(pub Entity);  // 8バイト
+
+#[derive(Component)]
+pub struct Children(pub Vec<Entity>);  // 数値の配列
+```
+
+Entityは数値なので、コピーしてもオーバーヘッドがなく、
+循環参照の心配もありません。
+
 ## 追加された概念
 
 ### 1. マーカーコンポーネント

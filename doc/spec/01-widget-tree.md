@@ -4,16 +4,18 @@
 
 - UIではツリー構造を管理する
 - ツリー構造をRustで管理しようとするとArcなどを使う必要がありコードが煩雑になる
-- bevy_ecsでは、`Entity`でオブジェクトにアクセスし、ツリー構造もEntityで管理することで参照関係の管理を整理する
+- bevy_ecsの`Entity`は軽量なID（Copy可能な数値）であり、参照の代わりに使える
+- Entityはただの数値なので、Arcなどの重いデータ構造を持たずにツリー構造を管理できる
 - メモリ管理が配列ベースになり、キャッシュ効率が向上する
-- bevy_ecsは内部的にスパースセットで効率的にEntityとComponentを管理する
+- bevy_ecsはコンポーネントの特性に応じて最適なストレージ（Table/SparseSet）を選択する
 - すべてのUI要素をEntityとして管理するシステムを基本とする
 
 ## UIツリーを表現する親子関係
 
 ### 親子関係の役割
 - 親子関係はUIツリーのノードを接続する
-- Entityはbevy_ecsによって自動管理される（世代付きインデックス）
+- Entityはbevy_ecsによって自動管理される一意のID（世代付きインデックス）
+- Entityは`Copy`トレイトを実装しており、軽量にコピー・参照できる
 - 親子関係は`Parent`と`Children`コンポーネントで管理（bevy_hierarchyが提供）
 - **WindowもEntityであり、UIツリーのルート要素となる**
 
@@ -36,29 +38,55 @@ Window (Entity)                    // Windowコンポーネントを持つ
 
 ### Entityの型
 
+bevy_ecsの`Entity`は軽量で効率的なID型です。
+
+**特徴**:
+- 内部的には64bit整数（u32のインデックス + u32の世代）
+- `Copy`トレイトを実装しており、軽量にコピー可能
+- 所有権やライフタイムの問題がない
+- `Arc<T>`や`Rc<T>`のようなオーバーヘッドがない
+- 世代カウンタにより、無効なEntityへのアクセスを検出可能
+
+**使用例**:
+
 ```rust
 use bevy_ecs::prelude::*;
 
-// bevy_ecsが提供する標準型
-// Entity: 世代付きインデックス (Generation + Index)
-// 自動的に管理され、明示的な型定義は不要
+let entity1: Entity = commands.spawn((...)).id();
+let entity2 = entity1;
+
+#[derive(Component)]
+pub struct Parent(pub Entity);
+
+#[derive(Component)]
+pub struct Children(pub Vec<Entity>);
 ```
+
+**利点**:
+- ✅ **軽量**: ただの64bit整数
+- ✅ **Copy可能**: 参照カウントなしでコピー
+- ✅ **安全**: 世代により無効なEntityへのアクセスを検出
+- ✅ **効率的**: メモリ局所性が高く、キャッシュフレンドリー
 
 ### 親子関係コンポーネントの定義
 
+### 親子関係コンポーネントの定義
+
+bevy_hierarchyが標準で提供するコンポーネント：
+
+**注意**: 
+- `Parent`コンポーネントは親を持つEntityのみが持つ
+- ルートEntity（Window）は`Parent`コンポーネントを持たない
+
 ```rust
 use bevy_ecs::prelude::*;
 
-// bevy_hierarchyが提供（標準）
-// 注: Parentコンポーネントは親を持つEntityのみが持つ
-// ルートEntity（Window）はParentコンポーネントを持たない
 #[derive(Component)]
 pub struct Parent(pub Entity);
 
 #[derive(Component)]
 pub struct Children(pub Vec<Entity>);
 
-// Windowマーカー
 #[derive(Component)]
 pub struct Window {
     pub hwnd: HWND,
@@ -67,20 +95,22 @@ pub struct Window {
 
 ### Entityの構造
 
+ルートEntityと子Entityの構成例：
+
 ```rust
-// Windowの構成（ルートEntity）
 commands.spawn((
-    Window { hwnd },      // Windowマーカー
-    Children(vec![...]),  // 子を持つ
-    // Parent コンポーネントなし（ルートのため）
+    Window { hwnd },
+    Children(vec![...]),
 ));
 
-// 子Entityの構成
 commands.spawn((
     TextContent { ... },
-    Parent(window_entity), // 親への参照を持つ
-    // Children はオプション（子がいる場合のみ）
+    Parent(window_entity),
 ));
+
+fn process_entity(entity: Entity, parent: Entity) {
+    println!("Processing: {:?}, Parent: {:?}", entity, parent);
+}
 ```
 
 ### 親子関係の操作
