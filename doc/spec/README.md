@@ -4368,12 +4368,14 @@ Windowは特殊なWidget（ルートWidget）として扱われる：
 /// WindowSystemが管理する各Window
 pub struct Window {
     hwnd: HWND,
-    root_widget_id: WidgetId,  // このWindowのルートWidget
     dcomp_target: IDCompositionTarget,
+    // root_widget_idは不要。Widgetツリーで管理される
 }
 
 pub struct WindowSystem {
     windows: HashMap<HWND, Window>,
+    // HWNDとルートWidgetIdのマッピング
+    hwnd_to_widget: HashMap<HWND, WidgetId>,
 }
 
 impl WindowSystem {
@@ -4397,17 +4399,17 @@ impl WindowSystem {
         // Windowを登録
         let window = Window {
             hwnd,
-            root_widget_id,
             dcomp_target,
         };
         self.windows.insert(hwnd, window);
+        self.hwnd_to_widget.insert(hwnd, root_widget_id);
         
         Ok(hwnd)
     }
     
     /// WindowのルートWidgetを取得
     pub fn get_root_widget(&self, hwnd: HWND) -> Option<WidgetId> {
-        self.windows.get(&hwnd).map(|w| w.root_widget_id)
+        self.hwnd_to_widget.get(&hwnd).copied()
     }
     
     /// Windowを閉じる（ルートWidgetも削除）
@@ -4417,11 +4419,14 @@ impl WindowSystem {
         ui_runtime: &mut UiRuntime,
     ) -> Result<()> {
         if let Some(window) = self.windows.remove(&hwnd) {
+            // ルートWidgetIdを取得して削除
+            if let Some(root_widget_id) = self.hwnd_to_widget.remove(&hwnd) {
+                // ルートWidgetを削除（子も再帰的に削除される）
+                ui_runtime.widget_system.delete_widget(root_widget_id)?;
+            }
+            
             // OSウィンドウを閉じる
             unsafe { DestroyWindow(hwnd) };
-            
-            // ルートWidgetを削除（子も再帰的に削除される）
-            ui_runtime.widget_system.delete_widget(window.root_widget_id)?;
         }
         Ok(())
     }
