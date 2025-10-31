@@ -128,7 +128,7 @@ use slotmap::{SlotMap, SecondaryMap};
 
 pub struct WidgetSystem {
     // 必須コンポーネント（全Widgetが持つ）
-    widgets: SlotMap<WidgetId, Widget>,
+    widget: SlotMap<WidgetId, Widget>,
 
     // レイアウト関連（ほぼすべてが持つ）
     layout: SecondaryMap<WidgetId, Layout>,
@@ -1453,7 +1453,7 @@ impl Property for TextProperty {
 
 // プロパティシステム（グローバルストレージ）
 pub struct PropertySystem {
-    widgets: SlotMap<WidgetId, Widget>,
+    widget: SlotMap<WidgetId, Widget>,
     
     // 各プロパティのストレージ（WPFの_globalPropertyStore相当）
     width: SecondaryMap<WidgetId, f32>,
@@ -1664,27 +1664,27 @@ rootは持たず、WindowSystemが管理するWindowがroot Widgetを所有す�
 /// ツリー構造管理（最も基本的なシステム）
 pub struct WidgetSystem {
     /// 全Widgetの親子関係
-    widgets: SlotMap<WidgetId, Widget>,
+    widget: SlotMap<WidgetId, Widget>,
 }
 
 impl WidgetSystem {
     /// 新しいWidgetを作成
     pub fn create_widget(&mut self) -> WidgetId {
-        self.widgets.insert(Widget::new())
+        self.widget.insert(Widget::new())
     }
     
     /// 子Widgetを追加
     pub fn append_child(&mut self, parent_id: WidgetId, child_id: WidgetId) -> Result<()> {
         // 連結リスト操作
-        let child = self.widgets.get_mut(child_id)
+        let child = self.widget.get_mut(child_id)
             .ok_or(Error::InvalidWidgetId)?;
         child.parent = Some(parent_id);
         
-        let parent = self.widgets.get_mut(parent_id)
+        let parent = self.widget.get_mut(parent_id)
             .ok_or(Error::InvalidWidgetId)?;
         
         if let Some(last_child) = parent.last_child {
-            self.widgets.get_mut(last_child).unwrap().next_sibling = Some(child_id);
+            self.widget.get_mut(last_child).unwrap().next_sibling = Some(child_id);
         } else {
             parent.first_child = Some(child_id);
         }
