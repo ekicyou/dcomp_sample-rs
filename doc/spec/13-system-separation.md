@@ -1,0 +1,435 @@
+# ECSシステム分離設計
+
+### 設計原則
+
+ECSアーキテクチャの基本原則に従い、関心事を明確に分離：
+
+1. **Entity（実体）**: `WidgetId` - 全システムで共通のID
+2. **Component（コンポーネント）**: 各システムが独自のデータを`SecondaryMap`で管理
+3. **System（システム）**: 特定のコンポーネントに対する処理ロジック
+
+### 1. WidgetSystem - ツリー構造管理（コア）
+
+すべてのWidgetの親子関係を管理する基盤。他のシステムはこれを参照してツリーを走査する。
+rootは持たず、WindowSystemが管理するWindowがroot Widgetを所有する。
+
+```rust
+/// ツリー構造管理（もっとも基本的なシステム）
+pub struct WidgetSystem {
+    /// 全Widgetの親子関係
+    widget: SlotMap<WidgetId, Widget>,
+}
+```
+
+**主な操作**:
+- `create_widget()`: 新しいWidgetを作成
+- `append_child()`: 子Widgetを親に追加（連結リスト操作）
+- `detach_widget()`: ツリーから切り離す（再利用可能）
+- `delete_widget()`: 完全に削除（子も再帰的に削除）
+- `children()`: 子Widgetのイテレータ
+- `parent()`: 親Widgetを取得
+- `contains()`: Widgetの存在確認
+
+### 2. LayoutSystem - レイアウト計算
+
+Widgetのサイズと位置を計算する。2パスレイアウト（Measure/Arrange）を実装。
+各プロパティは個別のSecondaryMapで管理（ECS/依存関係プロパティの原則）。
+
+```rust
+pub struct LayoutSystem {
+    // サイズ制約（個別管理）
+    width: SecondaryMap<WidgetId, Length>,
+    height: SecondaryMap<WidgetId, Length>,
+    min_width: SecondaryMap<WidgetId, f32>,
+    max_width: SecondaryMap<WidgetId, f32>,
+    min_height: SecondaryMap<WidgetId, f32>,
+    max_height: SecondaryMap<WidgetId, f32>,
+    
+    // 間隔（個別管理）
+    margin: SecondaryMap<WidgetId, Margin>,
+    padding: SecondaryMap<WidgetId, Padding>,
+    
+    // 配置（個別管理）
+    horizontal_alignment: SecondaryMap<WidgetId, Alignment>,
+    vertical_alignment: SecondaryMap<WidgetId, Alignment>,
+    
+    // レイアウトタイプ（個別管理）
+    layout_type: SecondaryMap<WidgetId, LayoutType>,
+    
+    // 計算結果（キャッシュ、個別管理）
+    desired_size: SecondaryMap<WidgetId, Size2D>,
+    final_rect: SecondaryMap<WidgetId, Rect>,
+    
+    // ダーティフラグ
+    dirty: HashSet<WidgetId>,
+}
+```
+
+**主な操作**:
+- `set_width()` / `get_width()`: Widthプロパティの設定・取得
+- `set_height()` / `get_height()`: Heightプロパティの設定・取得
+- `set_margin()` / `get_margin()`: Marginプロパティの設定・取得
+- `set_padding()` / `get_padding()`: Paddingプロパティの設定・取得
+- `set_layout_type()` / `get_layout_type()`: レイアウトタイプの設定・取得
+- `mark_dirty()`: ダーティマーク（子孫も再帰的に）
+- `update()`: レイアウト更新（Measure/Arrange）
+        if self.dirty.is_empty() {
+            return; // 変更なし
+        }
+        
+        // Measureパス（子から親へ、必要なサイズを計算）
+        self.measure_recursive(widget_system, root_id, available_size);
+        
+        // Arrangeパス（親から子へ、最終位置を決定）
+        let final_rect = Rect::new(Point2D::zero(), available_size);
+        self.arrange_recursive(widget_system, root_id, final_rect);
+        
+        self.dirty.clear();
+    }
+    
+    /// 最終矩形を取得
+    pub fn get_final_rect(&self, widget_id: WidgetId) -> Option<Rect> {
+        self.final_rects.get(widget_id).cloned()
+    }
+    
+    /// 希望サイズを取得
+    pub fn get_desired_size(&self, widget_id: WidgetId) -> Option<Size2D> {
+        self.desired_sizes.get(widget_id).cloned()
+    }
+    
+    // 内部メソッド
+    fn measure_recursive(&mut self, widget_system: &WidgetSystem, widget_id: WidgetId, available: Size2D) -> Size2D {
+        // レイアウトタイプに応じた計測
+        // 子を先に計測してから自分のサイズを決定
+        let layout_type = self.get_layout_type(widget_id);
+        
+        let desired = match layout_type {
+            LayoutType::Stack(stack) => {
+                self.measure_stack(widget_system, widget_id, &stack, available)
+            }
+            LayoutType::None => Size2D::zero(),
+        };
+        
+        // 計算結果を保存
+        self.desired_sizes.insert(widget_id, desired);
+        desired
+    }
+    
+    fn arrange_recursive(&mut self, widget_system: &WidgetSystem, widget_id: WidgetId, final_rect: Rect) {
+        // 自分の最終矩形を保存
+        self.final_rects.insert(widget_id, final_rect);
+        
+        // 子を配置
+        for child_id in widget_system.children(widget_id) {
+            let child_rect = self.calculate_child_rect(widget_system, widget_id, child_id, final_rect);
+            self.arrange_recursive(widget_system, child_id, child_rect);
+        }
+    }
+}
+```
+
+### 3. DrawingContentSystem - 描画コマンド管理
+
+ID2D1Imageベースの描画コマンドを生成・管理する。
+
+```rust
+pub struct DrawingContentSystem {
+    /// 描画コンテンツ
+    contents: SecondaryMap<WidgetId, DrawingContent>,
+    
+    /// Direct2Dデバイスコンテキスト
+    d2d_context: ID2D1DeviceContext,
+    
+    /// ダーティフラグ
+    dirty: HashSet<WidgetId>,
+}
+```
+
+**主な操作**:
+- `rebuild_content()`: ID2D1CommandListに描画コマンドを記録
+- `get_content()`: 描画コンテンツ（ID2D1Image）を取得
+- `invalidate()`: キャッシュを無効化
+- `mark_dirty()`: ダーティマーク
+
+### 4. TextSystem - テキスト描画
+
+DirectWriteを使ってテキストレイアウトを管理。
+
+```rust
+pub struct TextSystem {
+    /// テキストコンテンツ
+    texts: SecondaryMap<WidgetId, TextContent>,
+    
+    /// DirectWriteファクトリ
+    dwrite_factory: IDWriteFactory,
+    
+    /// ダーティフラグ
+    dirty: HashSet<WidgetId>,
+}
+```
+
+**主な操作**:
+- `set_text()`: テキスト内容を設定（レイアウトを再計算）
+- `get_text()`: テキスト内容を取得
+- `set_font()`: フォント設定（ファミリ、サイズ）
+- `draw_to_context()`: Direct2Dコンテキストに描画
+- `measure_text()`: テキストの固有サイズを計算
+
+### 5. ImageSystem - 画像管理
+
+WICで画像を読み込み、ID2D1Bitmapとして管理。
+
+```rust
+pub struct ImageSystem {
+    /// 画像コンテンツ
+    images: SecondaryMap<WidgetId, ImageContent>,
+    
+    /// WICイメージングファクトリ
+    wic_factory: IWICImagingFactory,
+    
+    /// ダーティフラグ
+    dirty: HashSet<WidgetId>,
+}
+```
+
+**主な操作**:
+- `load_image()`: 画像ファイルを読み込み（WIC経由）
+- `get_image()`: ID2D1Bitmapを取得
+- `set_stretch()`: 伸縮モード設定
+    pub fn set_stretch(&mut self, widget_id: WidgetId, stretch: Stretch) {
+        if let Some(image) = self.images.get_mut(widget_id) {
+            image.stretch = stretch;
+            self.mark_dirty(widget_id);
+        }
+    }
+    
+    /// 描画コマンドを生成
+    pub fn draw_to_context(
+        &self,
+        widget_id: WidgetId,
+        dc: &ID2D1DeviceContext,
+        rect: Rect,
+    ) -> Result<()> {
+        if let Some(image) = self.images.get(widget_id) {
+            let dest_rect = self.calculate_dest_rect(image, rect);
+            
+            unsafe {
+                dc.DrawBitmap(
+                    &image.bitmap,
+                    Some(&dest_rect.into()),
+                    image.opacity,
+                    D2D1_INTERPOLATION_MODE_LINEAR,
+                    image.source_rect.map(|r| r.into()).as_ref(),
+                )?;
+            }
+        }
+        Ok(())
+    }
+    
+    /// 固有サイズを取得
+    pub fn get_intrinsic_size(&self, widget_id: WidgetId) -> Option<Size2D> {
+        self.images.get(widget_id).and_then(|img| {
+            let size = unsafe { img.bitmap.GetSize() };
+            Some(Size2D::new(size.width, size.height))
+        })
+    }
+    
+    fn mark_dirty(&mut self, widget_id: WidgetId) {
+        self.dirty.insert(widget_id);
+    }
+}
+```
+
+### 6. VisualSystem - DirectCompositionツリー管理
+
+DirectCompositionのビジュアルツリーを管理。
+
+```rust
+pub struct VisualSystem {
+    /// Visual情報
+    visuals: SecondaryMap<WidgetId, Visual>,
+    
+    /// DirectCompositionデバイス
+    dcomp_device: IDCompositionDevice,
+    
+    /// DirectCompositionターゲット
+    dcomp_target: IDCompositionTarget,
+    
+    /// ダーティフラグ
+    dirty: HashSet<WidgetId>,
+}
+```
+
+**主な操作**:
+- `ensure_visual()`: IDCompositionVisualを作成または取得
+- `remove_visual()`: Visualを削除
+- `apply_content()`: DrawingContent（ID2D1Image）をVisualに適用（サーフェス作成→描画）
+- `set_offset()`: オフセット（位置）を設定
+- `set_opacity()`: 不透明度を設定
+- `commit()`: 変更を画面に反映
+
+### 7. InteractionSystem - イベント処理
+
+マウス、キーボード、フォーカスなどのインタラクションを管理。
+
+```rust
+pub struct InteractionSystem {
+    /// インタラクション状態
+    interactions: SecondaryMap<WidgetId, InteractionState>,
+    
+    /// フォーカス中のWidget
+    focused_widget: Option<WidgetId>,
+    
+    /// ホバー中のWidget
+    hovered_widget: Option<WidgetId>,
+}
+```
+
+**主な操作**:
+- `add_handler()`: イベントハンドラを登録
+- `dispatch_event()`: イベントをディスパッチ（バブリング）
+- `hit_test()`: 座標からWidgetを検索（深さ優先探索）
+- `set_focus()`: フォーカスを設定
+
+### 8. ContainerStyleSystem - コンテナスタイル管理
+
+背景色、枠線などのスタイル情報を管理。
+
+```rust
+pub struct ContainerStyleSystem {
+    /// コンテナスタイル
+    styles: SecondaryMap<WidgetId, ContainerStyle>,
+    
+    /// ダーティフラグ
+    dirty: HashSet<WidgetId>,
+}
+```
+
+**主な操作**:
+- `set_background()`: 背景色を設定
+- `set_border()`: 枠線を設定
+- `set_padding()`: パディングを設定
+- `draw_to_context()`: 描画コマンドを生成（背景・枠線）
+
+### 統合レイヤー: UiRuntime
+
+各システムを統合して、協調動作させる中心的なランタイム。
+
+```rust
+pub struct UiRuntime {
+    // コア
+    widget_system: WidgetSystem,
+    
+    // 各システム
+    layout: LayoutSystem,
+    drawing_content: DrawingContentSystem,
+    text: TextSystem,
+    image: ImageSystem,
+    container_style: ContainerStyleSystem,
+    visual: VisualSystem,
+    interaction: InteractionSystem,
+}
+```
+
+**主な操作**:
+- `update_frame()`: フレーム更新（レイアウト→描画コンテンツ→Visual→コミット）
+- `update_drawing_contents()`: テキスト、画像、スタイルから描画コマンドを生成
+- `update_visuals()`: DrawingContentをDirectComposition Visualに反映
+- `create_text_widget()`: テキストWidget作成
+- `create_image_widget()`: 画像Widget作成
+- `create_container()`: コンテナWidget作成
+- `create_stack_panel()`: スタックパネル作成
+- `handle_mouse_down()`: マウスイベント処理（ヒットテスト→ディスパッチ）
+
+### システム間の依存関係図
+
+```text
+┌──────────────┐
+│WidgetSystem  │ ◄─── すべてのシステムが参照
+└──────────────┘
+      │
+      ▼
+┌─────────────┐
+│LayoutSystem │ ◄─── 多くのシステムが参照（サイズ情報）
+└─────────────┘
+      │
+      ▼
+┌──────────────────────────────────────┐
+│ TextSystem / ImageSystem /           │
+│ ContainerStyleSystem                 │ ─┐
+└──────────────────────────────────────┘  │
+      │                                    │
+      ▼                                    │
+┌─────────────────────┐                   │
+│ DrawingContentSystem│ ◄─────────────────┘
+└─────────────────────┘
+      │
+      ▼
+┌─────────────┐
+│ VisualSystem│ ─── DirectComposition
+└─────────────┘
+
+┌──────────────────┐
+│ InteractionSystem│ ─── イベント処理（並行）
+└──────────────────┘
+
+注: rootはWindowSystemが所有するWindowが管理
+```
+
+### WindowとWidgetの関係
+
+Windowは特殊なWidget（ルートWidget）として扱われる：
+
+```rust
+pub struct Window {
+    hwnd: HWND,
+    root_widget_id: WidgetId,  // このWindowのルートWidget
+    dcomp_target: IDCompositionTarget,
+}
+
+pub struct WindowSystem {
+    windows: HashMap<HWND, Window>,
+}
+```
+
+**主な操作**:
+- `create_window()`: OSウィンドウとルートWidgetを作成
+- `get_root_widget()`: WindowのルートWidgetを取得
+- `close_window()`: Window閉鎖（ルートWidget削除→子も再帰削除）
+
+### UiRuntimeとWindowSystemの協調
+
+```rust
+// UiRuntimeは汎用的なUI管理
+let mut ui_runtime = UiRuntime::new();
+let mut window_system = WindowSystem::new();
+
+// Window1を作成
+let hwnd1 = window_system.create_window(&mut ui_runtime)?;
+let root1 = window_system.get_root_widget(hwnd1).unwrap();
+let text = ui_runtime.create_text_widget("Hello".to_string());
+ui_runtime.widget_system.append_child(root1, text)?;
+
+// Window2を作成（別のツリー）
+let hwnd2 = window_system.create_window(&mut ui_runtime)?;
+let root2 = window_system.get_root_widget(hwnd2).unwrap();
+
+// Widgetを別Windowへ移動
+ui_runtime.widget_system.detach_widget(text)?;
+ui_runtime.widget_system.append_child(root2, text)?;
+```
+
+**マルチウィンドウ対応の特徴**:
+- 複数のWindowが独立したWidgetツリーを持てる
+- WindowもTextBlockも同じWidgetSystemで管理
+- detach/appendでWidget（UIコンポーネント）を自由に移動可能
+- 切り離したWidgetは削除せずに再利用できる
+
+### detach_widgetとdelete_widgetの使い分け
+
+- **detach_widget**: ツリーから切り離すが存在は維持（再利用可能）
+- **delete_widget**: 完全に削除（子も再帰削除）
+
+### 分離のメリット
+
+1. **単一責任**: 各システムが1つの明確な責務
