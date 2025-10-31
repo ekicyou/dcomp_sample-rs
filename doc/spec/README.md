@@ -543,26 +543,201 @@ impl DrawingContentSystem {
 - ❌ パフォーマンスオーバーヘッド
 - ❌ 実装が複雑
 
-#### 推奨：戦略1（Pull型）
+#### 推奨：戦略1改（宣言的Pull型）
 
-**理由**:
-1. **ECS原則に忠実**: 各システムが独立し、`UiRuntime`が統合する
-2. **デバッグ容易**: データフローが`update_frame`で一目瞭然
-3. **実装シンプル**: 追加の抽象化が不要
-4. **パフォーマンス**: HashSetの`extend`操作は高速（O(n)）
-5. **テスタビリティ**: 各システムを個別にテスト可能
+**前提認識**: 「影響を受ける側」が依存関係を知っているのが自然。
 
-**実装ガイドライン**:
+しかし各システムに依存関係を直接書くと、システム間の結合が発生します。そこで、**各システムが自分の依存を宣言し、UiRuntimeが自動的にチェーンを構築する**アプローチを提案します。
+
 ```rust
-// 各システムは自身のダーティフラグのみ管理
-impl TextSystem {
-    pub fn set_text(&mut self, widget_id: WidgetId, text: String) {
-        self.text.insert(widget_id, text);
-        self.dirty.insert(widget_id);  // 自分のダーティのみマーク
+/// システムの依存関係を宣言
+pub trait SystemDependencies {
+    /// このシステムが依存する他システムのダーティフラグ
+    fn dependencies(&self) -> Vec<SystemId>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SystemId {
+    Widget,
+    Layout,
+    Visual,
+    DrawingContent,
+    Text,
+    Image,
+    ContainerStyle,
+    Interaction,
+}
+
+/// DrawingContentSystemは複数のシステムに依存
+impl SystemDependencies for DrawingContentSystem {
+    fn dependencies(&self) -> Vec<SystemId> {
+        vec![
+            SystemId::Layout,        // レイアウト変更で再描画
+            SystemId::Text,          // テキスト変更で再描画
+            SystemId::Image,         // 画像変更で再描画
+            SystemId::ContainerStyle,// スタイル変更で再描画
+        ]
     }
 }
 
-// UiRuntimeが依存関係を管理
+/// VisualSystemも複数のシステムに依存
+impl SystemDependencies for VisualSystem {
+    fn dependencies(&self) -> Vec<SystemId> {
+        vec![
+            SystemId::Layout,        // レイアウト変更でoffset更新
+            SystemId::DrawingContent,// 描画コンテンツ変更でcontent更新
+        ]
+    }
+}
+
+/// UiRuntimeが依存関係を自動解決
+impl UiRuntime {
+    pub fn update_frame(&mut self, root_id: WidgetId) {
+        // 1. レイアウトパス
+        self.layout.update(&self.widget, root_id, window_size);
+        
+        // 2. 描画コンテンツパス（宣言的に依存を収集）
+        let drawing_dirty = self.collect_dirty_for_system(SystemId::DrawingContent);
+        for widget_id in drawing_dirty {
+            self.update_drawing_content_for_widget(widget_id);
+        }
+        
+        // 3. Visualパス（宣言的に依存を収集）
+        let visual_dirty = self.collect_dirty_for_system(SystemId::Visual);
+        for widget_id in visual_dirty {
+            self.update_visual_for_widget(widget_id);
+        }
+        
+        // 4. すべてのダーティフラグをクリア
+        self.clear_all_dirty();
+        
+        // 5. コミット
+        self.visual.commit().ok();
+    }
+    
+    /// 指定システムの依存関係から、更新が必要なWidgetを収集
+    fn collect_dirty_for_system(&self, system_id: SystemId) -> HashSet<WidgetId> {
+        let mut dirty = HashSet::new();
+        
+        // システムの依存関係を取得
+        let dependencies = match system_id {
+            SystemId::DrawingContent => self.drawing_content.dependencies(),
+            SystemId::Visual => self.visual.dependencies(),
+            _ => vec![],
+        };
+        
+        // 依存する各システムのダーティフラグを統合
+        for dep in dependencies {
+            let dep_dirty = self.get_dirty_for_system(dep);
+            dirty.extend(dep_dirty);
+        }
+        
+        // 自分自身のダーティも含める
+        let own_dirty = self.get_dirty_for_system(system_id);
+        dirty.extend(own_dirty);
+        
+        dirty
+    }
+    
+    /// システムIDからダーティフラグを取得
+    fn get_dirty_for_system(&self, system_id: SystemId) -> &HashSet<WidgetId> {
+        match system_id {
+            SystemId::Layout => &self.layout.dirty,
+            SystemId::Text => &self.text.dirty,
+            SystemId::Image => &self.image.dirty,
+            SystemId::ContainerStyle => &self.container_style.dirty,
+            SystemId::DrawingContent => &self.drawing_content.dirty,
+            SystemId::Visual => &self.visual.dirty,
+            _ => &HashSet::new(), // 空のセット
+        }
+    }
+}
+```
+
+**メリット**:
+- ✅ **各システムが自分の依存を宣言**（影響を受ける側が知識を持つ）
+- ✅ **依存関係が明示的**（`dependencies()`メソッドで一目瞭然）
+- ✅ **システム間の結合度が低い**（SystemIdという抽象化のみ）
+- ✅ **拡張が容易**（新システム追加時も依存を宣言するだけ）
+- ✅ **テスト可能**（依存関係を変更してテスト可能）
+
+**デメリット**:
+- ⚠️ `SystemId` enumの維持が必要
+- ⚠️ `get_dirty_for_system`のマッチが必要
+
+##### さらなる改良：マクロによる自動化
+
+依存関係の宣言をさらにシンプルにするマクロを導入できます：
+
+```rust
+/// システム定義マクロ
+macro_rules! define_system {
+    ($name:ident, depends_on: [$($dep:ident),*]) => {
+        impl SystemDependencies for $name {
+            fn dependencies(&self) -> Vec<SystemId> {
+                vec![$(SystemId::$dep),*]
+            }
+        }
+    };
+}
+
+// 使用例：宣言的で読みやすい
+define_system!(DrawingContentSystem, depends_on: [Layout, Text, Image, ContainerStyle]);
+define_system!(VisualSystem, depends_on: [Layout, DrawingContent]);
+define_system!(LayoutSystem, depends_on: []); // 依存なし
+```
+
+##### 代替案：ビルダーパターンによる依存宣言
+
+マクロを使いたくない場合、ビルダーパターンも検討できます：
+
+```rust
+impl DrawingContentSystem {
+    pub fn new() -> Self {
+        Self {
+            // ... フィールド初期化
+            dependencies: SystemDependencies::builder()
+                .depends_on(SystemId::Layout)
+                .depends_on(SystemId::Text)
+                .depends_on(SystemId::Image)
+                .depends_on(SystemId::ContainerStyle)
+                .build(),
+        }
+    }
+}
+```
+
+#### 比較まとめ
+
+| アプローチ | 依存を知るのは | 宣言的 | 結合度 | 実装複雑度 |
+|-----------|--------------|--------|--------|-----------|
+| **戦略1改（宣言的Pull）** | 受ける側 ✓ | ✅ 高い | 🟢 低い | 🟡 中 |
+| 戦略1（単純Pull） | UiRuntime | ❌ 低い | 🟡 中 | 🟢 低い |
+| 戦略2（Push） | 与える側 | ❌ 低い | 🔴 高い | 🟢 低い |
+| 戦略3（EventBus） | 受ける側 | 🟡 中 | 🟢 低い | 🔴 高い |
+
+#### 最終推奨：戦略1改（宣言的Pull型）
+
+**理由**:
+1. **自然な依存関係**: 影響を受ける側が依存を宣言（プログラム設計的に正しい）
+2. **ECS原則に忠実**: システム間の直接結合なし（SystemIdという抽象化のみ）
+3. **保守性が高い**: 依存関係が`dependencies()`メソッドに集約
+4. **拡張容易**: 新システム追加時も依存を宣言するだけ
+5. **テスタビリティ**: 各システムの依存を個別にテスト可能
+6. **パフォーマンス**: HashSetの`extend`操作は高速（O(n)）
+
+**実装の選択肢**:
+- **シンプル重視**: トレイトメソッドで宣言
+- **簡潔重視**: マクロで宣言（`define_system!`）
+- **明示重視**: ビルダーパターンで宣言
+
+#### 段階的実装アプローチ
+
+まずは**戦略1（単純Pull）** で実装を開始し、依存関係が複雑になってきたら**戦略1改（宣言的Pull）** にリファクタリングすることを推奨します。
+
+**フェーズ1: 単純Pull（初期実装）**
+```rust
+// UiRuntimeが依存関係を直接記述（シンプルで明快）
 impl UiRuntime {
     pub fn update_frame(&mut self, root_id: WidgetId) {
         // 明示的な順序で処理
@@ -608,6 +783,44 @@ impl UiRuntime {
     }
 }
 ```
+
+**フェーズ2: 宣言的Pull（リファクタリング後）**
+
+システム数や依存関係が増えてきたら、宣言的アプローチに移行：
+
+```rust
+// 各システムが自分の依存を宣言
+impl DrawingContentSystem {
+    fn dependencies(&self) -> Vec<SystemId> {
+        vec![SystemId::Layout, SystemId::Text, SystemId::Image, SystemId::ContainerStyle]
+    }
+}
+
+// UiRuntimeは依存を自動解決（保守性向上）
+impl UiRuntime {
+    pub fn update_frame(&mut self, root_id: WidgetId) {
+        self.layout.update(&self.widget, root_id, window_size);
+        
+        let drawing_dirty = self.collect_dirty_for_system(SystemId::DrawingContent);
+        for widget_id in drawing_dirty {
+            self.rebuild_drawing_content(widget_id);
+        }
+        
+        let visual_dirty = self.collect_dirty_for_system(SystemId::Visual);
+        for widget_id in visual_dirty {
+            self.apply_visual_update(widget_id);
+        }
+        
+        self.clear_all_dirty();
+        self.visual.commit().ok();
+    }
+}
+```
+
+この段階的アプローチにより：
+- ✅ 初期実装がシンプル（オーバーエンジニアリング回避）
+- ✅ 複雑化したときのリファクタリングパスが明確
+- ✅ 各フェーズで動作するコードを維持
 
 #### Visual（ビジュアルツリー管理）
 描画が必要なWidgetのみ。DirectCompositionを使用するが、それと同一ではない。
