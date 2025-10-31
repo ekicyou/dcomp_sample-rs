@@ -179,7 +179,7 @@ pub struct InteractionSystem {
 
 // 統合ランタイム（すべてのシステムを保持）
 pub struct UiRuntime {
-    pub widget_system: WidgetSystem,
+    pub widget: WidgetSystem,
     pub layout: LayoutSystem,
     pub visual: VisualSystem,
     pub drawing_content: DrawingContentSystem,
@@ -2590,7 +2590,7 @@ impl UiRuntime {
     pub fn update_frame(&mut self, root_id: WidgetId) {
         // 1. レイアウトパス（サイズ・位置計算）
         let window_size = Size2D::new(800.0, 600.0); // 仮
-        self.layout.update(&self.widget_system, root_id, window_size);
+        self.layout.update(&self.widget, root_id, window_size);
         
         // 2. 描画コンテンツパス
         self.update_drawing_contents();
@@ -2656,7 +2656,7 @@ impl UiRuntime {
     
     /// Widgetを作成（高レベルAPI）
     pub fn create_text_widget(&mut self, text: String) -> WidgetId {
-        let widget_id = self.widget_system.create_widget();
+        let widget_id = self.widget.create_widget();
         self.text.set_text(widget_id, text);
         // レイアウトプロパティは個別に設定（必要なものだけ）
         self.layout.set_width(widget_id, Length::Auto);
@@ -2666,7 +2666,7 @@ impl UiRuntime {
     
     /// イメージWidgetを作成
     pub fn create_image_widget(&mut self, path: &str) -> Result<WidgetId> {
-        let widget_id = self.widget_system.create_widget();
+        let widget_id = self.widget.create_widget();
         self.image.load_image(widget_id, path, &self.drawing_content.d2d_context)?;
         // レイアウトプロパティは個別に設定
         self.layout.set_width(widget_id, Length::Auto);
@@ -2676,7 +2676,7 @@ impl UiRuntime {
     
     /// コンテナWidgetを作成
     pub fn create_container(&mut self) -> WidgetId {
-        let widget_id = self.widget_system.create_widget();
+        let widget_id = self.widget.create_widget();
         // デフォルトではプロパティを設定しない（全てデフォルト値）
         // 必要に応じて個別に設定
         widget_id
@@ -2684,7 +2684,7 @@ impl UiRuntime {
     
     /// スタックパネルを作成
     pub fn create_stack_panel(&mut self, orientation: Orientation) -> WidgetId {
-        let widget_id = self.widget_system.create_widget();
+        let widget_id = self.widget.create_widget();
         self.layout.set_layout_type(widget_id, LayoutType::Stack(StackLayout {
             orientation,
             spacing: 0.0,
@@ -2697,13 +2697,13 @@ impl UiRuntime {
     pub fn handle_mouse_down(&mut self, root_id: WidgetId, x: f32, y: f32) {
         let point = Point2D::new(x, y);
         if let Some(widget_id) = self.interaction.hit_test(
-            &self.widget_system,
+            &self.widget,
             &self.layout,
             root_id,
             point
         ) {
             let event = UiEvent::MouseDown { button: MouseButton::Left, x, y };
-            self.interaction.dispatch_event(&self.widget_system, widget_id, &event);
+            self.interaction.dispatch_event(&self.widget, widget_id, &event);
         }
     }
 }
