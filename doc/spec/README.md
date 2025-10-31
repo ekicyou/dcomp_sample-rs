@@ -153,7 +153,7 @@ pub struct VisualSystem {
 }
 
 // 描画コンテンツ管理システム
-pub struct DrawingContentSystem {
+pub struct RenderSystem {
     drawing_content: SecondaryMap<WidgetId, DrawingContent>,
     dirty: HashSet<WidgetId>,
     
@@ -257,7 +257,7 @@ pub struct UiRuntime {
     pub widget: WidgetSystem,
     pub layout: LayoutSystem,
     pub visual: VisualSystem,
-    pub drawing_content: DrawingContentSystem,
+    pub drawing_content: RenderSystem,
     pub text: TextSystem,
     pub image: ImageSystem,
     pub container_style: ContainerStyleSystem,
@@ -282,7 +282,7 @@ pub struct UiRuntime {
 3. フレーム更新時にダーティ伝搬
    LayoutSystem → dependentsを見る
    → DRAWING_CONTENTフラグを持つwidget_id
-   → DrawingContentSystemにダーティを配布
+   → RenderSystemにダーティを配布
 ```
 
 #### 1. Widget作成時に依存を登録
@@ -404,7 +404,7 @@ impl UiRuntime {
 }
 
 // 描画コンテンツ管理システム
-pub struct DrawingContentSystem {
+pub struct RenderSystem {
     drawing_content: SecondaryMap<WidgetId, DrawingContent>,
     dirty: HashSet<WidgetId>,
 }
@@ -438,7 +438,7 @@ pub struct UiRuntime {
     pub widget: WidgetSystem,
     pub layout: LayoutSystem,
     pub visual: VisualSystem,
-    pub drawing_content: DrawingContentSystem,
+    pub drawing_content: RenderSystem,
     pub text: TextSystem,
     pub image: ImageSystem,
     pub container_style: ContainerStyleSystem,
@@ -460,7 +460,7 @@ pub struct UiRuntime {
 - DirectCompositionビジュアルツリー管理
 - GPU合成
 
-#### DrawingContentSystem
+#### RenderSystem
 - Direct2Dコンテンツキャッシュ管理
 
 #### TextSystem / ImageSystem / ContainerStyleSystem
@@ -774,7 +774,7 @@ impl LayoutSystem {
     }
 }
 
-impl DrawingContentSystem {
+impl RenderSystem {
     pub fn process_events(&mut self, events: &[SystemEvent]) {
         for event in events {
             match event {
@@ -824,8 +824,8 @@ pub enum SystemId {
     Interaction,
 }
 
-/// DrawingContentSystemは複数のシステムに依存
-impl SystemDependencies for DrawingContentSystem {
+/// RenderSystemは複数のシステムに依存
+impl SystemDependencies for RenderSystem {
     fn dependencies(&self) -> Vec<SystemId> {
         vec![
             SystemId::Layout,        // レイアウト変更で再描画
@@ -938,7 +938,7 @@ macro_rules! define_system {
 }
 
 // 使用例：宣言的で読みやすい
-define_system!(DrawingContentSystem, depends_on: [Layout, Text, Image, ContainerStyle]);
+define_system!(RenderSystem, depends_on: [Layout, Text, Image, ContainerStyle]);
 define_system!(VisualSystem, depends_on: [Layout, DrawingContent]);
 define_system!(LayoutSystem, depends_on: []); // 依存なし
 ```
@@ -948,7 +948,7 @@ define_system!(LayoutSystem, depends_on: []); // 依存なし
 マクロを使いたくない場合、ビルダーパターンも検討できます：
 
 ```rust
-impl DrawingContentSystem {
+impl RenderSystem {
     pub fn new() -> Self {
         Self {
             // ... フィールド初期化
@@ -1046,7 +1046,7 @@ impl UiRuntime {
 
 ```rust
 // 各システムが自分の依存を宣言
-impl DrawingContentSystem {
+impl RenderSystem {
     fn dependencies(&self) -> Vec<SystemId> {
         vec![SystemId::Layout, SystemId::Text, SystemId::Image, SystemId::ContainerStyle]
     }
@@ -1642,10 +1642,10 @@ impl RenderComponentType {
 }
 ```
 
-#### DrawingContentSystemの実装
+#### RenderSystemの実装
 
 ```rust
-pub struct DrawingContentSystem {
+pub struct RenderSystem {
     content: SecondaryMap<WidgetId, ID2D1Image>,
     dirty: HashSet<WidgetId>,
     
@@ -1653,7 +1653,7 @@ pub struct DrawingContentSystem {
     widget_components: SecondaryMap<WidgetId, Vec<RenderComponentType>>,
 }
 
-impl DrawingContentSystem {
+impl RenderSystem {
     /// 描画コンポーネントを追加
     pub fn add_render_component(
         &mut self,
@@ -1882,7 +1882,7 @@ impl UiRuntime {
 
 1. **✅ データとロジックの完全分離**
    - データ: `RenderComponent`（Text, Image, Backgroundなど）
-   - ロジック: `DrawingContentSystem`が描画を処理
+   - ロジック: `RenderSystem`が描画を処理
 
 2. **✅ 組み合わせ可能性（Composability）**
    - 1つのWidgetが複数の描画コンポーネントを持てる
@@ -3607,12 +3607,12 @@ impl LayoutSystem {
 }
 ```
 
-### 3. DrawingContentSystem - 描画コマンド管理
+### 3. RenderSystem - 描画コマンド管理
 
 ID2D1Imageベースの描画コマンドを生成・管理する。
 
 ```rust
-pub struct DrawingContentSystem {
+pub struct RenderSystem {
     /// 描画コンテンツ
     contents: SecondaryMap<WidgetId, DrawingContent>,
     
@@ -3623,7 +3623,7 @@ pub struct DrawingContentSystem {
     dirty: HashSet<WidgetId>,
 }
 
-impl DrawingContentSystem {
+impl RenderSystem {
     /// コンテンツを再構築（ID2D1CommandListに記録）
     pub fn rebuild_content<F>(
         &mut self,
@@ -3725,7 +3725,7 @@ impl TextSystem {
         }
     }
     
-    /// 描画コマンドを生成（DrawingContentSystemと連携）
+    /// 描画コマンドを生成（RenderSystemと連携）
     pub fn draw_to_context(
         &self,
         widget_id: WidgetId,
@@ -4192,7 +4192,7 @@ pub struct UiRuntime {
     
     // 各システム
     layout: LayoutSystem,
-    drawing_content: DrawingContentSystem,
+    drawing_content: RenderSystem,
     text: TextSystem,
     image: ImageSystem,
     container_style: ContainerStyleSystem,
@@ -4345,7 +4345,7 @@ impl UiRuntime {
       │                                    │
       ▼                                    │
 ┌─────────────────────┐                   │
-│ DrawingContentSystem│ ◄─────────────────┘
+│ RenderSystem│ ◄─────────────────┘
 └─────────────────────┘
       │
       ▼
@@ -4583,7 +4583,7 @@ impl AnimationSystem {
    - DirectCompositionのコミットは1フレームに1回
 
 3. **キャッシュ活用**
-   - DrawingContentSystemでID2D1CommandListをキャッシュ
+   - RenderSystemでID2D1CommandListをキャッシュ
    - レイアウトが変わらなければ再描画不要
 
 4. **並列処理**
@@ -4604,3 +4604,4 @@ impl AnimationSystem {
 8. **基本UI要素**: Container、TextBlock、Image、Button、StackPanelを提供
 9. **効率的なメモリ使用**: 不要なVisualを作成しない
 10. **段階的な分離**: 現在は`WidgetSystem`で統合管理、将来的にシステム分離を検討
+
