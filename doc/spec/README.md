@@ -126,33 +126,92 @@ impl WidgetSystem {
 ```rust
 use slotmap::{SlotMap, SecondaryMap};
 
+// ツリー構造管理（最も基本的なシステム）
 pub struct WidgetSystem {
-    // 必須コンポーネント（全Widgetが持つ）
     widget: SlotMap<WidgetId, Widget>,
+}
 
-    // レイアウト関連（ほぼすべてが持つ）
-    layout: SecondaryMap<WidgetId, Layout>,
+// レイアウト計算システム
+pub struct LayoutSystem {
+    // レイアウトプロパティ（後述）
+    width: SecondaryMap<WidgetId, Length>,
+    height: SecondaryMap<WidgetId, Length>,
+    // ... その他のレイアウトプロパティ
+    
+    dirty: HashSet<WidgetId>,
+}
 
-    // ビジュアル関連（描画が必要なWidgetのみ）
+// ビジュアル管理システム
+pub struct VisualSystem {
     visual: SecondaryMap<WidgetId, Visual>,
-    
-    // 描画コンテンツ（ID2D1Imageベース、キャッシュ用）
+    dirty: HashSet<WidgetId>,
+}
+
+// 描画コンテンツ管理システム
+pub struct DrawingContentSystem {
     drawing_content: SecondaryMap<WidgetId, DrawingContent>,
-    
-    // コンテンツ種別（Widgetの役割を決める）
+    dirty: HashSet<WidgetId>,
+}
+
+// テキスト管理システム
+pub struct TextSystem {
     text: SecondaryMap<WidgetId, TextContent>,
+    dirty: HashSet<WidgetId>,
+}
+
+// 画像管理システム
+pub struct ImageSystem {
     image: SecondaryMap<WidgetId, ImageContent>,
+    dirty: HashSet<WidgetId>,
+}
+
+// コンテナスタイル管理システム
+pub struct ContainerStyleSystem {
     container: SecondaryMap<WidgetId, ContainerStyle>,
-    
-    // インタラクション関連
+    dirty: HashSet<WidgetId>,
+}
+
+// インタラクション管理システム
+pub struct InteractionSystem {
     interaction: SecondaryMap<WidgetId, InteractionState>,
-    
-    // ダーティフラグ管理
-    dirty_layout: HashSet<WidgetId>,
-    dirty_content: HashSet<WidgetId>,
-    dirty_visual: HashSet<WidgetId>,
+    dirty: HashSet<WidgetId>,
+}
+
+// 統合ランタイム（すべてのシステムを保持）
+pub struct UiRuntime {
+    pub widget_system: WidgetSystem,
+    pub layout: LayoutSystem,
+    pub visual: VisualSystem,
+    pub drawing_content: DrawingContentSystem,
+    pub text: TextSystem,
+    pub image: ImageSystem,
+    pub container_style: ContainerStyleSystem,
+    pub interaction: InteractionSystem,
 }
 ```
+
+### システムの責務
+
+#### WidgetSystem
+- Widgetツリーの親子関係管理のみ
+- 他のシステムの基盤
+
+#### LayoutSystem
+- サイズと位置の計算
+- Measure/Arrangeパス
+
+#### VisualSystem
+- DirectCompositionビジュアルツリー管理
+- GPU合成
+
+#### DrawingContentSystem
+- Direct2Dコンテンツキャッシュ管理
+
+#### TextSystem / ImageSystem / ContainerStyleSystem
+- 各種コンテンツタイプの管理
+
+#### InteractionSystem
+- マウス/キーボード入力処理
 
 ### コンポーネントの詳細定義
 
