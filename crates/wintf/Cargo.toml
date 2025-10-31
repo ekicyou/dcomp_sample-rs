@@ -9,6 +9,7 @@ ambassador ={ workspace = true }
 async-executor = { workspace = true }
 async-task = { workspace = true }
 euclid = { workspace = true }
+slotmap = { workspace = true }
 windows = { workspace = true }
 windows-core = { workspace = true }
 windows-numerics = { workspace = true }
