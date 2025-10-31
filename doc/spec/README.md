@@ -60,45 +60,11 @@ struct Widget {
 
 連結リスト構造を維持しながら、子の追加・切り離し・削除・走査を行う。
 
-```rust
-impl WidgetSystem {
-    /// 子Widgetを末尾に追加
-    pub fn append_child(&mut self, parent_id: WidgetId, child_id: WidgetId) {
-        // 1. 子の親を設定
-        // 2. 親のlast_childを更新
-        // 3. 兄弟リストに連結
-    }
-
-    /// Widgetをツリーから切り離す（Widget自体は残る）
-    pub fn detach_widget(&mut self, widget_id: WidgetId) {
-        // 1. 親の子リストから削除
-        // 2. 兄弟リストから切断
-        // 3. 親のfirst/last_childを更新
-        // 4. 自分のparentをNoneに設定
-        // 注: Widgetは削除されず、再度append_childで別の親に追加可能
-    }
-    
-    /// Widgetをツリーから切り離して削除（子も再帰的に削除）
-    pub fn delete_widget(&mut self, widget_id: WidgetId) {
-        // 1. まずツリーから切り離す
-        self.detach_widget(widget_id);
-        
-        // 2. 子を再帰的に削除
-        let children: Vec<_> = self.children(widget_id).collect();
-        for child in children {
-            self.delete_widget(child);
-        }
-        
-        // 3. SlotMapから削除
-        self.widgets.remove(widget_id);
-    }
-
-    /// 子を走査
-    pub fn children(&self, parent_id: WidgetId) -> impl Iterator<Item = WidgetId> {
-        // first_child -> next_sibling -> next_sibling ... と辿る
-    }
-}
-```
+**主な操作**:
+- `append_child()`: 子Widgetを末尾に追加
+- `detach_widget()`: Widgetをツリーから切り離す（Widget自体は残り、再利用可能）
+- `delete_widget()`: Widgetを完全に削除（子も再帰的に削除）
+- `children()`: 子Widgetを列挙するイテレータ
 
 ## ECS的なプロパティ管理
 
@@ -153,7 +119,7 @@ pub struct VisualSystem {
 }
 
 // 描画コンテンツ管理システム
-pub struct RenderSystem {
+pub struct DrawingContentSystem {
     drawing_content: SecondaryMap<WidgetId, DrawingContent>,
     dirty: HashSet<WidgetId>,
     
@@ -212,52 +178,18 @@ bitflags::bitflags! {
     }
 }
 
-impl DependencyMap {
-    pub fn new() -> Self {
-        Self {
-            dependencies: SecondaryMap::new(),
-        }
-    }
-    
-    /// 依存関係を登録
-    pub fn register(&mut self, widget_id: WidgetId, flags: DependencyFlags) {
-        self.dependencies.insert(widget_id, flags);
-    }
-    
-    /// 依存関係を追加
-    pub fn add_dependency(&mut self, widget_id: WidgetId, flags: DependencyFlags) {
-        self.dependencies
-            .entry(widget_id)
-            .and_modify(|existing| *existing |= flags)
-            .or_insert(flags);
-    }
-    
-    /// 依存関係を取得
-    pub fn get(&self, widget_id: WidgetId) -> Option<DependencyFlags> {
-        self.dependencies.get(widget_id).copied()
-    }
-    
-    /// 特定のフラグを持つすべてのWidgetを取得
-    pub fn get_widgets_with_flag(&self, flag: DependencyFlags) -> Vec<WidgetId> {
-        self.dependencies
-            .iter()
-            .filter_map(|(id, flags)| {
-                if flags.contains(flag) {
-                    Some(id)
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-}
+**DependencyMapの主な操作**:
+- `register()`: Widget単位で依存関係を登録
+- `add_dependency()`: 依存関係フラグを追加
+- `get()`: Widgetの依存関係を取得
+- `get_widgets_with_flag()`: 特定フラグを持つ全Widgetを取得
 
 // 統合ランタイム（すべてのシステムを保持）
 pub struct UiRuntime {
     pub widget: WidgetSystem,
     pub layout: LayoutSystem,
     pub visual: VisualSystem,
-    pub drawing_content: RenderSystem,
+    pub drawing_content: DrawingContentSystem,
     pub text: TextSystem,
     pub image: ImageSystem,
     pub container_style: ContainerStyleSystem,
@@ -271,140 +203,34 @@ pub struct UiRuntime {
 
 #### 核心的な流れ
 
-```
-1. Widget作成時に依存を登録
-   widget_id → Layout変更でDRAWING_CONTENTに影響
-   widget_id → Text変更でDRAWING_CONTENTに影響
+1. **Widget作成時に依存を登録**
+   - Layout変更でDRAWING_CONTENTに影響
+   - Text変更でDRAWING_CONTENTに影響
 
-2. システム変更時にdirtyマーク
-   LayoutSystem.dirty.insert(widget_id)
+2. **システム変更時にdirtyマーク**
+   - `LayoutSystem.dirty.insert(widget_id)`
 
-3. フレーム更新時にダーティ伝搬
-   LayoutSystem → dependentsを見る
-   → DRAWING_CONTENTフラグを持つwidget_id
-   → RenderSystemにダーティを配布
-```
+3. **フレーム更新時にダーティ伝搬**
+   - LayoutSystem → dependentsを確認
+   - DRAWING_CONTENTフラグを持つwidget_id
+   - DrawingContentSystemにダーティを配布
 
-#### 1. Widget作成時に依存を登録
+#### 処理の流れ
 
-```rust
-impl UiRuntime {
-    /// テキストWidgetを作成
-    pub fn create_text_widget(&mut self, text: String) -> WidgetId {
-        let widget_id = self.widget.create_widget();
-        
-        // テキストコンテンツを設定
-        self.text.set_text(widget_id, text);
-        
-        // ★ 依存関係を登録
-        // このWidgetはLayoutに依存する
-        self.layout.dependents.register(
-            widget_id,
-            DependencyFlags::DRAWING_CONTENT,  // Layout変更でDrawingContentに影響
-        );
-        
-        // このWidgetはTextに依存する
-        self.text.dependents.register(
-            widget_id,
-            DependencyFlags::DRAWING_CONTENT,  // Text変更でDrawingContentに影響
-        );
-        
-        widget_id
-    }
-    
-    /// 複雑なWidget（背景 + テキスト）
-    pub fn create_button(&mut self, text: String) -> WidgetId {
-        let widget_id = self.widget.create_widget();
-        
-        self.container_style.set_background(widget_id, Color::BLUE);
-        self.text.set_text(widget_id, text);
-        
-        // ★ 複数のシステムに依存を登録
-        self.layout.dependents.register(widget_id, DependencyFlags::DRAWING_CONTENT);
-        self.container_style.dependents.register(widget_id, DependencyFlags::DRAWING_CONTENT);
-        self.text.dependents.register(widget_id, DependencyFlags::DRAWING_CONTENT);
-        
-        widget_id
-    }
-}
-```
-
-#### 2. システム変更時にダーティを伝搬
-
-```rust
-impl LayoutSystem {
-    pub fn set_width(&mut self, widget_id: WidgetId, width: Length) {
-        self.width.insert(widget_id, width);
-        self.dirty.insert(widget_id);
-        // 伝搬は後でpropagate_dirty()で一括処理
-    }
-    
-    /// ★ ダーティを依存先に伝搬
-    pub fn propagate_dirty(&self, target_systems: &mut PropagationTargets) {
-        for widget_id in &self.dirty {
-            if let Some(flags) = self.dependents.get(*widget_id) {
-                if flags.contains(DependencyFlags::DRAWING_CONTENT) {
-                    target_systems.drawing_content.insert(*widget_id);
-                }
-                if flags.contains(DependencyFlags::VISUAL) {
-                    target_systems.visual.insert(*widget_id);
-                }
-            }
-        }
-    }
-}
-
-/// ダーティ伝搬のターゲット
-pub struct PropagationTargets {
-    pub layout: HashSet<WidgetId>,
-    pub visual: HashSet<WidgetId>,
-    pub drawing_content: HashSet<WidgetId>,
-    pub text: HashSet<WidgetId>,
-    pub image: HashSet<WidgetId>,
-    pub container_style: HashSet<WidgetId>,
-    pub interaction: HashSet<WidgetId>,
-}
-```
-
-#### 3. update_frame()での統合処理
-
-```rust
-impl UiRuntime {
-    pub fn update_frame(&mut self, root_id: WidgetId) {
-        let mut targets = PropagationTargets::default();
-        
-        // 1. レイアウトパス
-        self.layout.update(&self.widget, root_id, window_size);
-        
-        // 2. ★ 各システムからダーティを伝搬
-        self.layout.propagate_dirty(&mut targets);
-        self.text.propagate_dirty(&mut targets);
-        self.image.propagate_dirty(&mut targets);
-        self.container_style.propagate_dirty(&mut targets);
-        
-        // 3. 影響を受けるシステムを更新
-        for widget_id in targets.drawing_content.drain() {
-            self.rebuild_drawing_content(widget_id);
-        }
-        
-        for widget_id in targets.visual.drain() {
-            self.apply_visual_update(widget_id);
-        }
-        
-        // 4. クリア
-        self.clear_all_dirty();
-        
-        // 5. コミット
-        self.visual.commit().ok();
-    }
-}
-```
+**Widget作成時**: 各システムへの依存関係をDependencyFlagsで登録
+**プロパティ変更時**: 各システムが自身のdirtyフラグを更新
+**フレーム更新時**: 
+- レイアウトパス実行
+- 各システムからダーティを伝搬（propagate_dirty）
+- 影響を受けるシステムを順次更新
+- 全ダーティフラグをクリア
+- DirectCompositionにコミット
     visual: SecondaryMap<WidgetId, Visual>,
     dirty: HashSet<WidgetId>,
 }
 
 // 描画コンテンツ管理システム
-pub struct RenderSystem {
+pub struct DrawingContentSystem {
     drawing_content: SecondaryMap<WidgetId, DrawingContent>,
     dirty: HashSet<WidgetId>,
 }
@@ -438,7 +264,7 @@ pub struct UiRuntime {
     pub widget: WidgetSystem,
     pub layout: LayoutSystem,
     pub visual: VisualSystem,
-    pub drawing_content: RenderSystem,
+    pub drawing_content: DrawingContentSystem,
     pub text: TextSystem,
     pub image: ImageSystem,
     pub container_style: ContainerStyleSystem,
@@ -460,7 +286,7 @@ pub struct UiRuntime {
 - DirectCompositionビジュアルツリー管理
 - GPU合成
 
-#### RenderSystem
+#### DrawingContentSystem
 - Direct2Dコンテンツキャッシュ管理
 
 #### TextSystem / ImageSystem / ContainerStyleSystem
@@ -549,47 +375,19 @@ pub enum LayoutType {
 3. **依存関係プロパティと同じ思想**: WPFのDependencyPropertyと同様の設計
 4. **デフォルト値**: SecondaryMapにない場合は暗黙のデフォルト値を使用
 
-```rust
-impl LayoutSystem {
-    /// Widthを設定（個別プロパティ）
-    pub fn set_width(&mut self, widget_id: WidgetId, width: Length) {
-        self.width.insert(widget_id, width);
-        self.mark_dirty(widget_id);
-    }
-    
-    /// Widthを取得（デフォルト値を返す）
-    pub fn get_width(&self, widget_id: WidgetId) -> Length {
-        self.width.get(widget_id)
-            .cloned()
-            .unwrap_or(Length::Auto)  // デフォルト値
-    }
-    
-    /// Marginを設定（個別プロパティ）
-    pub fn set_margin(&mut self, widget_id: WidgetId, margin: Margin) {
-        self.margin.insert(widget_id, margin);
-        self.mark_dirty(widget_id);
-    }
-    
-    /// Marginを取得（デフォルト値を返す）
-    pub fn get_margin(&self, widget_id: WidgetId) -> Margin {
-        self.margin.get(widget_id)
-            .cloned()
-            .unwrap_or(Margin::zero())  // デフォルト値
-    }
-    
-    /// 最終矩形を取得
-    pub fn get_final_rect(&self, widget_id: WidgetId) -> Option<Rect> {
-        self.final_rect.get(widget_id).cloned()
-    }
-}
-```
+**LayoutSystemの主な操作**:
+- `set_width()` / `get_width()`: Width プロパティの設定・取得
+- `set_height()` / `get_height()`: Height プロパティの設定・取得
+- `set_margin()` / `get_margin()`: Margin プロパティの設定・取得（デフォルト値付き）
+- `set_padding()` / `get_padding()`: Padding プロパティの設定・取得
+- `get_final_rect()`: レイアウト計算後の最終矩形を取得
 
 ### ダーティ伝搬戦略
 
 #### 課題
-各システムは独立したダーティフラグ(`HashSet<WidgetId>`)を持ちますが、システム間には依存関係があります：
+各システムは独立したダーティフラグを持ちますが、システム間には依存関係があります：
 
-```
+```text
 Layout変更 → DrawingContent再生成 → Visual更新
 Text変更   → DrawingContent再生成 → Visual更新
 Image変更  → DrawingContent再生成 → Visual更新
@@ -599,80 +397,26 @@ Image変更  → DrawingContent再生成 → Visual更新
 
 ##### 戦略1: Pull型（遅延評価・推奨）
 
-各システムが更新時に必要な情報を**取りに行く**アプローチ。ECSの原則に最も適合。
+各システムが更新時に必要な情報を**取りに行く**アプローチ。ECSの原則にもっとも適合。
 
-```rust
-impl UiRuntime {
-    pub fn update_frame(&mut self, root_id: WidgetId) {
-        // 1. レイアウトパス
-        self.layout.update(&self.widget, root_id, window_size);
-        
-        // 2. 描画コンテンツパス
-        // レイアウトが変更されたWidgetを取得
-        let layout_changed: HashSet<_> = self.layout.dirty.iter().copied().collect();
-        
-        // 各システムのダーティと、レイアウト変更の影響を受けるWidgetを統合
-        let mut drawing_dirty = self.text.dirty.clone();
-        drawing_dirty.extend(&self.image.dirty);
-        drawing_dirty.extend(&self.container_style.dirty);
-        drawing_dirty.extend(&layout_changed); // レイアウト変更も含める
-        
-        // 描画コンテンツを更新
-        for widget_id in drawing_dirty.drain() {
-            self.update_drawing_content_for_widget(widget_id);
-        }
-        
-        // 3. Visualパス
-        // DrawingContent変更とレイアウト変更の両方を処理
-        let mut visual_dirty = self.drawing_content.dirty.clone();
-        visual_dirty.extend(&layout_changed); // レイアウト変更も含める
-        
-        for widget_id in visual_dirty.drain() {
-            self.update_visual_for_widget(widget_id);
-        }
-        
-        // 4. すべてのダーティフラグをクリア
-        self.layout.dirty.clear();
-        self.text.dirty.clear();
-        self.image.dirty.clear();
-        self.container_style.dirty.clear();
-        self.drawing_content.dirty.clear();
-        
-        // 5. コミット
-        self.visual.commit().ok();
-    }
-    
-    fn update_drawing_content_for_widget(&mut self, widget_id: WidgetId) {
-        // レイアウト情報を取得（Pull）
-        let Some(rect) = self.layout.get_final_rect(widget_id) else { return };
-        
-        // どのシステムが描画内容を持っているか判定
-        if self.text.has_text(widget_id) {
-            self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
-                let brush = create_brush(dc)?;
-                self.text.draw_to_context(widget_id, dc, &brush, Point2D::zero())
-            }).ok();
-        } else if self.image.has_image(widget_id) {
-            self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
-                self.image.draw_to_context(widget_id, dc, rect)
-            }).ok();
-        } else if self.container_style.has_style(widget_id) {
-            self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
-                self.container_style.draw_to_context(widget_id, dc, rect)
-            }).ok();
-        }
-    }
-    
-    fn update_visual_for_widget(&mut self, widget_id: WidgetId) {
-        // DrawingContentとレイアウト情報を取得（Pull）
-        let Some(content) = self.drawing_content.get_content(widget_id) else { return };
-        let Some(rect) = self.layout.get_final_rect(widget_id) else { return };
-        
-        self.visual.apply_content(widget_id, content, rect.size).ok();
-        self.visual.set_offset(widget_id, rect.origin).ok();
-    }
-}
-```
+**処理の流れ**:
+1. レイアウトパス実行
+2. 変更されたWidgetを各システムから収集
+3. 描画コンテンツを更新（レイアウト情報をPull）
+4. Visualを更新（描画コンテンツをPull）
+5. ダーティフラグをクリア
+6. DirectCompositionにコミット
+
+**メリット**:
+- ECS原則に忠実（システム間の結合度が低い）
+- 各システムが独立して動作
+- データフローが明確でデバッグしやすい
+- テストしやすい
+- 実装がシンプル
+
+**デメリット**:
+- UiRuntimeが依存関係を知る必要がある
+- 更新順序を間違えるとバグになる可能性
 
 **メリット**:
 - ✅ ECS原則に忠実（システム間の結合度が低い）
@@ -774,7 +518,7 @@ impl LayoutSystem {
     }
 }
 
-impl RenderSystem {
+impl DrawingContentSystem {
     pub fn process_events(&mut self, events: &[SystemEvent]) {
         for event in events {
             match event {
@@ -824,8 +568,8 @@ pub enum SystemId {
     Interaction,
 }
 
-/// RenderSystemは複数のシステムに依存
-impl SystemDependencies for RenderSystem {
+/// DrawingContentSystemは複数のシステムに依存
+impl SystemDependencies for DrawingContentSystem {
     fn dependencies(&self) -> Vec<SystemId> {
         vec![
             SystemId::Layout,        // レイアウト変更で再描画
@@ -938,7 +682,7 @@ macro_rules! define_system {
 }
 
 // 使用例：宣言的で読みやすい
-define_system!(RenderSystem, depends_on: [Layout, Text, Image, ContainerStyle]);
+define_system!(DrawingContentSystem, depends_on: [Layout, Text, Image, ContainerStyle]);
 define_system!(VisualSystem, depends_on: [Layout, DrawingContent]);
 define_system!(LayoutSystem, depends_on: []); // 依存なし
 ```
@@ -948,7 +692,7 @@ define_system!(LayoutSystem, depends_on: []); // 依存なし
 マクロを使いたくない場合、ビルダーパターンも検討できます：
 
 ```rust
-impl RenderSystem {
+impl DrawingContentSystem {
     pub fn new() -> Self {
         Self {
             // ... フィールド初期化
@@ -1046,7 +790,7 @@ impl UiRuntime {
 
 ```rust
 // 各システムが自分の依存を宣言
-impl RenderSystem {
+impl DrawingContentSystem {
     fn dependencies(&self) -> Vec<SystemId> {
         vec![SystemId::Layout, SystemId::Text, SystemId::Image, SystemId::ContainerStyle]
     }
@@ -1642,10 +1386,10 @@ impl RenderComponentType {
 }
 ```
 
-#### RenderSystemの実装
+#### DrawingContentSystemの実装
 
 ```rust
-pub struct RenderSystem {
+pub struct DrawingContentSystem {
     content: SecondaryMap<WidgetId, ID2D1Image>,
     dirty: HashSet<WidgetId>,
     
@@ -1653,7 +1397,7 @@ pub struct RenderSystem {
     widget_components: SecondaryMap<WidgetId, Vec<RenderComponentType>>,
 }
 
-impl RenderSystem {
+impl DrawingContentSystem {
     /// 描画コンポーネントを追加
     pub fn add_render_component(
         &mut self,
@@ -1882,7 +1626,7 @@ impl UiRuntime {
 
 1. **✅ データとロジックの完全分離**
    - データ: `RenderComponent`（Text, Image, Backgroundなど）
-   - ロジック: `RenderSystem`が描画を処理
+   - ロジック: `DrawingContentSystem`が描画を処理
 
 2. **✅ 組み合わせ可能性（Composability）**
    - 1つのWidgetが複数の描画コンポーネントを持てる
@@ -3607,12 +3351,12 @@ impl LayoutSystem {
 }
 ```
 
-### 3. RenderSystem - 描画コマンド管理
+### 3. DrawingContentSystem - 描画コマンド管理
 
 ID2D1Imageベースの描画コマンドを生成・管理する。
 
 ```rust
-pub struct RenderSystem {
+pub struct DrawingContentSystem {
     /// 描画コンテンツ
     contents: SecondaryMap<WidgetId, DrawingContent>,
     
@@ -3623,7 +3367,7 @@ pub struct RenderSystem {
     dirty: HashSet<WidgetId>,
 }
 
-impl RenderSystem {
+impl DrawingContentSystem {
     /// コンテンツを再構築（ID2D1CommandListに記録）
     pub fn rebuild_content<F>(
         &mut self,
@@ -3725,7 +3469,7 @@ impl TextSystem {
         }
     }
     
-    /// 描画コマンドを生成（RenderSystemと連携）
+    /// 描画コマンドを生成（DrawingContentSystemと連携）
     pub fn draw_to_context(
         &self,
         widget_id: WidgetId,
@@ -4192,7 +3936,7 @@ pub struct UiRuntime {
     
     // 各システム
     layout: LayoutSystem,
-    drawing_content: RenderSystem,
+    drawing_content: DrawingContentSystem,
     text: TextSystem,
     image: ImageSystem,
     container_style: ContainerStyleSystem,
@@ -4345,7 +4089,7 @@ impl UiRuntime {
       │                                    │
       ▼                                    │
 ┌─────────────────────┐                   │
-│ RenderSystem│ ◄─────────────────┘
+│ DrawingContentSystem│ ◄─────────────────┘
 └─────────────────────┘
       │
       ▼
@@ -4368,14 +4112,12 @@ Windowは特殊なWidget（ルートWidget）として扱われる：
 /// WindowSystemが管理する各Window
 pub struct Window {
     hwnd: HWND,
+    root_widget_id: WidgetId,  // このWindowのルートWidget
     dcomp_target: IDCompositionTarget,
-    // root_widget_idは不要。Widgetツリーで管理される
 }
 
 pub struct WindowSystem {
     windows: HashMap<HWND, Window>,
-    // HWNDとルートWidgetIdのマッピング
-    hwnd_to_widget: HashMap<HWND, WidgetId>,
 }
 
 impl WindowSystem {
@@ -4399,17 +4141,17 @@ impl WindowSystem {
         // Windowを登録
         let window = Window {
             hwnd,
+            root_widget_id,
             dcomp_target,
         };
         self.windows.insert(hwnd, window);
-        self.hwnd_to_widget.insert(hwnd, root_widget_id);
         
         Ok(hwnd)
     }
     
     /// WindowのルートWidgetを取得
     pub fn get_root_widget(&self, hwnd: HWND) -> Option<WidgetId> {
-        self.hwnd_to_widget.get(&hwnd).copied()
+        self.windows.get(&hwnd).map(|w| w.root_widget_id)
     }
     
     /// Windowを閉じる（ルートWidgetも削除）
@@ -4419,14 +4161,11 @@ impl WindowSystem {
         ui_runtime: &mut UiRuntime,
     ) -> Result<()> {
         if let Some(window) = self.windows.remove(&hwnd) {
-            // ルートWidgetIdを取得して削除
-            if let Some(root_widget_id) = self.hwnd_to_widget.remove(&hwnd) {
-                // ルートWidgetを削除（子も再帰的に削除される）
-                ui_runtime.widget_system.delete_widget(root_widget_id)?;
-            }
-            
             // OSウィンドウを閉じる
             unsafe { DestroyWindow(hwnd) };
+            
+            // ルートWidgetを削除（子も再帰的に削除される）
+            ui_runtime.widget_system.delete_widget(window.root_widget_id)?;
         }
         Ok(())
     }
@@ -4583,7 +4322,7 @@ impl AnimationSystem {
    - DirectCompositionのコミットは1フレームに1回
 
 3. **キャッシュ活用**
-   - RenderSystemでID2D1CommandListをキャッシュ
+   - DrawingContentSystemでID2D1CommandListをキャッシュ
    - レイアウトが変わらなければ再描画不要
 
 4. **並列処理**
@@ -4604,4 +4343,3 @@ impl AnimationSystem {
 8. **基本UI要素**: Container、TextBlock、Image、Button、StackPanelを提供
 9. **効率的なメモリ使用**: 不要なVisualを作成しない
 10. **段階的な分離**: 現在は`WidgetSystem`で統合管理、将来的にシステム分離を検討
-
