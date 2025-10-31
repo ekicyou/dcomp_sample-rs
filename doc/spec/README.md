@@ -390,437 +390,58 @@ pub enum LayoutType {
 ```text
 Layout変更 → DrawingContent再生成 → Visual更新
 Text変更   → DrawingContent再生成 → Visual更新
-Image変更  → DrawingContent再生成 → Visual更新
 ```
 
-#### 実装戦略の比較
-
-##### 戦略1: Pull型（遅延評価・推奨）
+#### 実装戦略: Pull型（遅延評価・推奨）
 
 各システムが更新時に必要な情報を**取りに行く**アプローチ。ECSの原則にもっとも適合。
 
 **処理の流れ**:
 1. レイアウトパス実行
-2. 変更されたWidgetを各システムから収集
-3. 描画コンテンツを更新（レイアウト情報をPull）
-4. Visualを更新（描画コンテンツをPull）
-5. ダーティフラグをクリア
-6. DirectCompositionにコミット
+2. 描画コンテンツを更新（レイアウト情報をPull）
+3. Visualを更新（描画コンテンツをPull）
+4. ダーティフラグをクリア
+5. DirectCompositionにコミット
 
 **メリット**:
 - ECS原則に忠実（システム間の結合度が低い）
-- 各システムが独立して動作
 - データフローが明確でデバッグしやすい
-- テストしやすい
 - 実装がシンプル
 
 **デメリット**:
 - UiRuntimeが依存関係を知る必要がある
-- 更新順序を間違えるとバグになる可能性
 
-**メリット**:
-- ✅ ECS原則に忠実（システム間の結合度が低い）
-- ✅ 各システムが独立して動作
-- ✅ デバッグしやすい（データフローが明確）
-- ✅ テストしやすい
-- ✅ 実装がシンプル
+#### 段階的実装アプローチ
 
-**デメリット**:
-- ⚠️ `UiRuntime`が依存関係を知る必要がある
-- ⚠️ 更新順序を間違えるとバグになる可能性
-
-##### 戦略2: Push型（即座伝搬）
-
-変更時に影響を受けるシステムに**通知する**アプローチ。
+**初期実装**: 単純Pull（UiRuntimeが依存関係を直接記述）
 
 ```rust
-impl LayoutSystem {
-    pub fn set_width(&mut self, widget_id: WidgetId, width: Length) {
-        self.width.insert(widget_id, width);
-        self.mark_dirty(widget_id);
-        
-        // 依存システムに通知
-        if let Some(propagator) = &mut self.dirty_propagator {
-            propagator.notify_layout_changed(widget_id);
-        }
-    }
-}
-
-pub struct DirtyPropagator {
-    drawing_content_dirty: HashSet<WidgetId>,
-    visual_dirty: HashSet<WidgetId>,
-}
-
-impl DirtyPropagator {
-    pub fn notify_layout_changed(&mut self, widget_id: WidgetId) {
-        // レイアウト変更は描画コンテンツとVisualの両方に影響
-        self.drawing_content_dirty.insert(widget_id);
-        self.visual_dirty.insert(widget_id);
-    }
-    
-    pub fn notify_text_changed(&mut self, widget_id: WidgetId) {
-        // テキスト変更は描画コンテンツとVisualに影響
-        self.drawing_content_dirty.insert(widget_id);
-        self.visual_dirty.insert(widget_id);
-    }
-}
-
-impl UiRuntime {
-    pub fn update_frame(&mut self, root_id: WidgetId) {
-        // すでに伝搬済み
-        self.layout.update(&self.widget, root_id, window_size);
-        
-        // 伝搬されたダーティフラグを使用
-        for widget_id in self.propagator.drawing_content_dirty.drain() {
-            self.update_drawing_content_for_widget(widget_id);
-        }
-        
-        for widget_id in self.propagator.visual_dirty.drain() {
-            self.update_visual_for_widget(widget_id);
-        }
-        
-        self.visual.commit().ok();
-    }
-}
-```
-
-**メリット**:
-- ✅ 更新時の判断が不要（すでに伝搬済み）
-- ✅ `update_frame`がシンプル
-
-**デメリット**:
-- ❌ システム間の結合度が高い（`DirtyPropagator`への参照が必要）
-- ❌ ECS原則から外れる
-- ❌ デバッグが難しい（伝搬経路が追いにくい）
-- ❌ テストが複雑
-
-##### 戦略3: ハイブリッド型（イベントバス）
-
-システム間の通信を`EventBus`経由で行う。
-
-```rust
-pub enum SystemEvent {
-    LayoutChanged(WidgetId),
-    TextChanged(WidgetId),
-    ImageChanged(WidgetId),
-    ContainerStyleChanged(WidgetId),
-}
-
-pub struct EventBus {
-    events: Vec<SystemEvent>,
-}
-
-impl LayoutSystem {
-    pub fn set_width(&mut self, widget_id: WidgetId, width: Length, event_bus: &mut EventBus) {
-        self.width.insert(widget_id, width);
-        self.mark_dirty(widget_id);
-        event_bus.emit(SystemEvent::LayoutChanged(widget_id));
-    }
-}
-
-impl DrawingContentSystem {
-    pub fn process_events(&mut self, events: &[SystemEvent]) {
-        for event in events {
-            match event {
-                SystemEvent::LayoutChanged(id) 
-                | SystemEvent::TextChanged(id)
-                | SystemEvent::ImageChanged(id)
-                | SystemEvent::ContainerStyleChanged(id) => {
-                    self.dirty.insert(*id);
-                }
-            }
-        }
-    }
-}
-```
-
-**メリット**:
-- ✅ 疎結合
-- ✅ 拡張しやすい
-
-**デメリット**:
-- ❌ オーバーエンジニアリング（この規模では不要）
-- ❌ パフォーマンスオーバーヘッド
-- ❌ 実装が複雑
-
-#### 推奨：戦略1改（宣言的Pull型）
-
-**前提認識**: 「影響を受ける側」が依存関係を知っているのが自然。
-
-しかし各システムに依存関係を直接書くと、システム間の結合が発生します。そこで、**各システムが自分の依存を宣言し、UiRuntimeが自動的にチェーンを構築する**アプローチを提案します。
-
-```rust
-/// システムの依存関係を宣言
-pub trait SystemDependencies {
-    /// このシステムが依存する他システムのダーティフラグ
-    fn dependencies(&self) -> Vec<SystemId>;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SystemId {
-    Widget,
-    Layout,
-    Visual,
-    DrawingContent,
-    Text,
-    Image,
-    ContainerStyle,
-    Interaction,
-}
-
-/// DrawingContentSystemは複数のシステムに依存
-impl SystemDependencies for DrawingContentSystem {
-    fn dependencies(&self) -> Vec<SystemId> {
-        vec![
-            SystemId::Layout,        // レイアウト変更で再描画
-            SystemId::Text,          // テキスト変更で再描画
-            SystemId::Image,         // 画像変更で再描画
-            SystemId::ContainerStyle,// スタイル変更で再描画
-        ]
-    }
-}
-
-/// VisualSystemも複数のシステムに依存
-impl SystemDependencies for VisualSystem {
-    fn dependencies(&self) -> Vec<SystemId> {
-        vec![
-            SystemId::Layout,        // レイアウト変更でoffset更新
-            SystemId::DrawingContent,// 描画コンテンツ変更でcontent更新
-        ]
-    }
-}
-
-/// UiRuntimeが依存関係を自動解決
 impl UiRuntime {
     pub fn update_frame(&mut self, root_id: WidgetId) {
         // 1. レイアウトパス
         self.layout.update(&self.widget, root_id, window_size);
         
-        // 2. 描画コンテンツパス（宣言的に依存を収集）
-        let drawing_dirty = self.collect_dirty_for_system(SystemId::DrawingContent);
-        for widget_id in drawing_dirty {
-            self.update_drawing_content_for_widget(widget_id);
-        }
+        // 2. 描画コンテンツパス（Text/Image/ContainerStyleのダーティを統合）
+        let mut drawing_dirty = HashSet::new();
+        drawing_dirty.extend(self.text.dirty.drain());
+        drawing_dirty.extend(self.image.dirty.drain());
+        drawing_dirty.extend(self.layout.dirty.iter().copied());
         
-        // 3. Visualパス（宣言的に依存を収集）
-        let visual_dirty = self.collect_dirty_for_system(SystemId::Visual);
-        for widget_id in visual_dirty {
-            self.update_visual_for_widget(widget_id);
-        }
-        
-        // 4. すべてのダーティフラグをクリア
-        self.clear_all_dirty();
-        
-        // 5. コミット
-        self.visual.commit().ok();
-    }
-    
-    /// 指定システムの依存関係から、更新が必要なWidgetを収集
-    fn collect_dirty_for_system(&self, system_id: SystemId) -> HashSet<WidgetId> {
-        let mut dirty = HashSet::new();
-        
-        // システムの依存関係を取得
-        let dependencies = match system_id {
-            SystemId::DrawingContent => self.drawing_content.dependencies(),
-            SystemId::Visual => self.visual.dependencies(),
-            _ => vec![],
-        };
-        
-        // 依存する各システムのダーティフラグを統合
-        for dep in dependencies {
-            let dep_dirty = self.get_dirty_for_system(dep);
-            dirty.extend(dep_dirty);
-        }
-        
-        // 自分自身のダーティも含める
-        let own_dirty = self.get_dirty_for_system(system_id);
-        dirty.extend(own_dirty);
-        
-        dirty
-    }
-    
-    /// システムIDからダーティフラグを取得
-    fn get_dirty_for_system(&self, system_id: SystemId) -> &HashSet<WidgetId> {
-        match system_id {
-            SystemId::Layout => &self.layout.dirty,
-            SystemId::Text => &self.text.dirty,
-            SystemId::Image => &self.image.dirty,
-            SystemId::ContainerStyle => &self.container_style.dirty,
-            SystemId::DrawingContent => &self.drawing_content.dirty,
-            SystemId::Visual => &self.visual.dirty,
-            _ => &HashSet::new(), // 空のセット
-        }
-    }
-}
-```
-
-**メリット**:
-- ✅ **各システムが自分の依存を宣言**（影響を受ける側が知識を持つ）
-- ✅ **依存関係が明示的**（`dependencies()`メソッドで一目瞭然）
-- ✅ **システム間の結合度が低い**（SystemIdという抽象化のみ）
-- ✅ **拡張が容易**（新システム追加時も依存を宣言するだけ）
-- ✅ **テスト可能**（依存関係を変更してテスト可能）
-
-**デメリット**:
-- ⚠️ `SystemId` enumの維持が必要
-- ⚠️ `get_dirty_for_system`のマッチが必要
-
-##### さらなる改良：マクロによる自動化
-
-依存関係の宣言をさらにシンプルにするマクロを導入できます：
-
-```rust
-/// システム定義マクロ
-macro_rules! define_system {
-    ($name:ident, depends_on: [$($dep:ident),*]) => {
-        impl SystemDependencies for $name {
-            fn dependencies(&self) -> Vec<SystemId> {
-                vec![$(SystemId::$dep),*]
-            }
-        }
-    };
-}
-
-// 使用例：宣言的で読みやすい
-define_system!(DrawingContentSystem, depends_on: [Layout, Text, Image, ContainerStyle]);
-define_system!(VisualSystem, depends_on: [Layout, DrawingContent]);
-define_system!(LayoutSystem, depends_on: []); // 依存なし
-```
-
-##### 代替案：ビルダーパターンによる依存宣言
-
-マクロを使いたくない場合、ビルダーパターンも検討できます：
-
-```rust
-impl DrawingContentSystem {
-    pub fn new() -> Self {
-        Self {
-            // ... フィールド初期化
-            dependencies: SystemDependencies::builder()
-                .depends_on(SystemId::Layout)
-                .depends_on(SystemId::Text)
-                .depends_on(SystemId::Image)
-                .depends_on(SystemId::ContainerStyle)
-                .build(),
-        }
-    }
-}
-```
-
-#### 比較まとめ
-
-| アプローチ | 依存を知るのは | 宣言的 | 結合度 | 実装複雑度 |
-|-----------|--------------|--------|--------|-----------|
-| **戦略1改（宣言的Pull）** | 受ける側 ✓ | ✅ 高い | 🟢 低い | 🟡 中 |
-| 戦略1（単純Pull） | UiRuntime | ❌ 低い | 🟡 中 | 🟢 低い |
-| 戦略2（Push） | 与える側 | ❌ 低い | 🔴 高い | 🟢 低い |
-| 戦略3（EventBus） | 受ける側 | 🟡 中 | 🟢 低い | 🔴 高い |
-
-#### 最終推奨：戦略1改（宣言的Pull型）
-
-**理由**:
-1. **自然な依存関係**: 影響を受ける側が依存を宣言（プログラム設計的に正しい）
-2. **ECS原則に忠実**: システム間の直接結合なし（SystemIdという抽象化のみ）
-3. **保守性が高い**: 依存関係が`dependencies()`メソッドに集約
-4. **拡張容易**: 新システム追加時も依存を宣言するだけ
-5. **テスタビリティ**: 各システムの依存を個別にテスト可能
-6. **パフォーマンス**: HashSetの`extend`操作は高速（O(n)）
-
-**実装の選択肢**:
-- **シンプル重視**: トレイトメソッドで宣言
-- **簡潔重視**: マクロで宣言（`define_system!`）
-- **明示重視**: ビルダーパターンで宣言
-
-#### 段階的実装アプローチ
-
-まずは**戦略1（単純Pull）** で実装を開始し、依存関係が複雑になってきたら**戦略1改（宣言的Pull）** にリファクタリングすることを推奨します。
-
-**フェーズ1: 単純Pull（初期実装）**
-```rust
-// UiRuntimeが依存関係を直接記述（シンプルで明快）
-impl UiRuntime {
-    pub fn update_frame(&mut self, root_id: WidgetId) {
-        // 明示的な順序で処理
-        let layout_dirty = self.update_layout(root_id);
-        let drawing_dirty = self.update_drawing_content(&layout_dirty);
-        self.update_visuals(&layout_dirty, &drawing_dirty);
-        self.visual.commit().ok();
-    }
-    
-    fn update_layout(&mut self, root_id: WidgetId) -> HashSet<WidgetId> {
-        self.layout.update(&self.widget, root_id, window_size);
-        self.layout.dirty.drain().collect()
-    }
-    
-    fn update_drawing_content(&mut self, layout_dirty: &HashSet<WidgetId>) 
-        -> HashSet<WidgetId> 
-    {
-        // すべての描画系システムのダーティを統合
-        let mut dirty = HashSet::new();
-        dirty.extend(self.text.dirty.drain());
-        dirty.extend(self.image.dirty.drain());
-        dirty.extend(self.container_style.dirty.drain());
-        dirty.extend(layout_dirty.iter().copied()); // レイアウト変更も影響
-        
-        for widget_id in &dirty {
+        for widget_id in &drawing_dirty {
             self.rebuild_drawing_content(*widget_id);
         }
         
-        dirty
-    }
-    
-    fn update_visuals(
-        &mut self, 
-        layout_dirty: &HashSet<WidgetId>,
-        drawing_dirty: &HashSet<WidgetId>
-    ) {
-        let mut dirty = drawing_dirty.clone();
-        dirty.extend(layout_dirty.iter().copied()); // レイアウト変更も影響
-        
-        for widget_id in dirty {
-            self.apply_visual_update(widget_id);
-        }
-    }
-}
-```
-
-**フェーズ2: 宣言的Pull（リファクタリング後）**
-
-システム数や依存関係が増えてきたら、宣言的アプローチに移行：
-
-```rust
-// 各システムが自分の依存を宣言
-impl DrawingContentSystem {
-    fn dependencies(&self) -> Vec<SystemId> {
-        vec![SystemId::Layout, SystemId::Text, SystemId::Image, SystemId::ContainerStyle]
-    }
-}
-
-// UiRuntimeは依存を自動解決（保守性向上）
-impl UiRuntime {
-    pub fn update_frame(&mut self, root_id: WidgetId) {
-        self.layout.update(&self.widget, root_id, window_size);
-        
-        let drawing_dirty = self.collect_dirty_for_system(SystemId::DrawingContent);
+        // 3. Visualパス
         for widget_id in drawing_dirty {
-            self.rebuild_drawing_content(widget_id);
-        }
-        
-        let visual_dirty = self.collect_dirty_for_system(SystemId::Visual);
-        for widget_id in visual_dirty {
             self.apply_visual_update(widget_id);
         }
         
+        // 4. コミット
         self.clear_all_dirty();
         self.visual.commit().ok();
     }
 }
 ```
-
-この段階的アプローチにより：
-- ✅ 初期実装がシンプル（オーバーエンジニアリング回避）
-- ✅ 複雑化したときのリファクタリングパスが明確
-- ✅ 各フェーズで動作するコードを維持
 
 ### プロパティ変更の流れ
 
@@ -949,233 +570,18 @@ pub struct Visual {
 
 ### 他のUIフレームワークの依存管理戦略
 
-WPFの「プロパティごとに影響範囲フラグ」は確かに簡素化されたアプローチです。他のフレームワークはどう解決しているか見てみましょう。
+主要フレームワークの比較：
 
-#### 1. Flutter（Google）
+| フレームワーク | 戦略 | 依存解決 | カスタム描画 |
+|------------|------|---------|------------|
+| **Flutter** | RenderObjectツリー + 明示的マーキング | `markNeedsLayout()`/`markNeedsPaint()`を開発者が呼ぶ | ✅ 細かく制御可能 |
+| **React** | 仮想DOM + Reconciliation | 変更があったらコンポーネント全体を再レンダリング | useEffect依存配列で制御 |
+| **SwiftUI** | @State/@Binding + 自動依存追跡 | プロパティラッパーがアクセスを自動追跡 | ✅ `animatableData`で宣言 |
+| **Jetpack Compose** | 再コンポーズ + スマート追跡 | コンパイラが依存グラフを自動生成 | ✅ 自動追跡 |
+| **Godot** | ノードシステム + 通知 | `queue_redraw()`を開発者が呼ぶ | ✅ 明示的 |
+| **Dear ImGui** | 即時モード | 毎フレーム全再描画 | ❌ 差分なし |
 
-**戦略**: **RenderObjectツリー + 明示的なマーキング**
-
-```dart
-class RenderText extends RenderBox {
-  String _text;
-  
-  set text(String value) {
-    if (_text == value) return;
-    _text = value;
-    
-    // 明示的に影響範囲を指定
-    markNeedsLayout();      // レイアウト再計算が必要
-    markNeedsPaint();       // 再描画が必要
-    markNeedsSemanticsUpdate(); // アクセシビリティ更新が必要
-  }
-  
-  @override
-  void paint(PaintingContext context, Offset offset) {
-    // カスタム描画ロジック
-    final textPainter = TextPainter(text: _text, ...);
-    textPainter.paint(context.canvas, offset);
-  }
-}
-
-// カスタム描画の例
-class CustomRenderer extends RenderBox {
-  Color _color;
-  
-  set color(Color value) {
-    if (_color == value) return;
-    _color = value;
-    // 再描画のみ必要（レイアウトには影響しない）
-    markNeedsPaint();  // ← 開発者が判断して呼ぶ
-  }
-  
-  @override
-  void paint(PaintingContext context, Offset offset) {
-    // 複雑なカスタム描画
-    context.canvas.drawCustom(...);
-  }
-}
-```
-
-**特徴**:
-- ✅ **開発者が明示的に影響範囲を指定**（`markNeedsLayout()`, `markNeedsPaint()`）
-- ✅ カスタム描画でも細かく制御可能
-- ⚠️ 開発者が間違えると描画バグ（呼び忘れ、過剰な呼び出し）
-
-**依存解決**: セッター内で明示的にマーク → フレームワークが自動収集
-
-#### 2. React（Meta/Facebook）
-
-**戦略**: **仮想DOM + Reconciliation + 保守的な再描画**
-
-```javascript
-function TextComponent({ text, color, fontSize }) {
-  return <div style={{ color, fontSize }}>{text}</div>;
-}
-
-// React内部（概念）
-function reconcile(oldProps, newProps) {
-  // propsの差分を検出
-  const hasChanged = 
-    oldProps.text !== newProps.text ||
-    oldProps.color !== newProps.color ||
-    oldProps.fontSize !== newProps.fontSize;
-  
-  if (hasChanged) {
-    // 影響範囲を推測せず、コンポーネント全体を再描画
-    return UPDATE_ENTIRE_COMPONENT;
-  }
-  
-  return NO_UPDATE;
-}
-
-// カスタム描画（Canvas）
-function CustomCanvas({ data }) {
-  const canvasRef = useRef();
-  
-  useEffect(() => {
-    // 依存配列に基づいて再描画
-    const ctx = canvasRef.current.getContext('2d');
-    drawCustom(ctx, data);
-  }, [data]); // ← 開発者が依存を明示
-  
-  return <canvas ref={canvasRef} />;
-}
-```
-
-**特徴**:
-- ✅ **保守的アプローチ**：何か変わったら該当コンポーネント全体を再描画
-- ✅ **useEffect依存配列**：カスタム描画の依存を明示
-- ⚠️ 過剰な再描画が起きやすい（最適化が必要）
-- 💡 **React Compiler（新機能）**: 自動的に依存を追跡・最適化
-
-**依存解決**: 基本は「変更があったら全体を再レンダリング」、最適化は開発者の責任
-
-#### 3. SwiftUI（Apple）
-
-**戦略**: **@State/@Binding + 自動依存追跡**
-
-```swift
-struct TextView: View {
-    @State private var text: String
-    @State private var color: Color
-    
-    var body: some View {
-        Text(text)
-            .foregroundColor(color)  // ← color変更で自動的に再描画
-            .font(.system(size: 16))
-    }
-}
-
-// カスタム描画
-struct CustomShape: Shape {
-    var size: CGFloat
-    var animatableData: CGFloat {
-        get { size }
-        set { size = newValue }
-    }
-    
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        // size を使った複雑な描画
-        path.addCustom(...)
-        return path
-    }
-}
-
-struct CustomView: View {
-    @State var size: CGFloat = 10.0
-    
-    var body: some View {
-        CustomShape(size: size)  // ← size変更で自動的に再描画
-            .fill(.blue)
-    }
-}
-```
-
-**特徴**:
-- ✅ **自動依存追跡**：プロパティ変更を自動検出（`@State`, `@Binding`）
-- ✅ カスタム描画でも`animatableData`で依存を宣言
-- ✅ コンパイラが最適化（不要な再描画を削減）
-- 💡 **差分更新**: 変更された部分のみ再描画
-
-**依存解決**: プロパティラッパー（`@State`等）がアクセスを追跡 → 自動的にダーティマーク
-
-#### 4. Jetpack Compose（Google/Android）
-
-**戦略**: **再コンポーズ + スマートな依存追跡**
-
-```kotlin
-@Composable
-fun TextComponent(text: String, color: Color, fontSize: TextUnit) {
-    Text(
-        text = text,
-        color = color,  // ← colorの変更を自動追跡
-        fontSize = fontSize
-    )
-}
-
-// カスタム描画
-@Composable
-fun CustomCanvas(data: DrawData) {
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        // data変更で自動的に再描画
-        drawCustomShape(data)
-    }
-}
-
-// 最適化：依存の一部のみ追跡
-@Composable
-fun OptimizedComponent(user: User) {
-    // user全体ではなく、nameのみに依存
-    val name = remember(user.id) { user.name }
-    Text(text = name)
-}
-```
-
-**特徴**:
-- ✅ **自動依存追跡**：コンポーザブル関数が使用する値を自動追跡
-- ✅ **スキップ可能性**：依存が変わってなければスキップ
-- ✅ カスタム描画でも自動追跡（`Canvas`内で使う値を検出）
-- 💡 **Compiler Plugin**: コンパイル時に依存グラフを生成
-
-**依存解決**: コンパイラが関数内で読まれる値を解析 → 自動的に依存グラフ構築
-
-#### 5. Godot Engine（ゲームエンジン）
-
-**戦略**: **ノードシステム + 通知メッセージ**
-
-```gdscript
-extends Node2D
-
-var color: Color:
-    set(value):
-        if color != value:
-            color = value
-            queue_redraw()  # ← 明示的に再描画をリクエスト
-
-var text: String:
-    set(value):
-        if text != value:
-            text = value
-            queue_redraw()  # 再描画
-            update_minimum_size()  # レイアウト更新
-
-func _draw():
-    # カスタム描画ロジック
-    draw_rect(Rect2(0, 0, 100, 100), color)
-    draw_text(position, text)
-```
-
-**特徴**:
-- ✅ **明示的マーキング**：`queue_redraw()`, `update_minimum_size()`
-- ✅ ゲームエンジンらしくパフォーマンス重視
-- ⚠️ 開発者の責任（Flutterと同様）
-
-**依存解決**: 開発者が明示的にマーク → エンジンが次フレームで処理
-
-#### 6. Dear ImGui（即時モードGUI）
-
-**戦略**: **毎フレーム全再描画 + 差分なし**
+**本設計の位置づけ**: Flutter/Godot的な明示的マーキング + ECS的なシステム分離
 
 ```cpp
 void RenderUI() {
@@ -1396,263 +802,26 @@ pub struct DrawingContentSystem {
     // 各Widgetが持つ描画コンポーネントのマップ
     widget_components: SecondaryMap<WidgetId, Vec<RenderComponentType>>,
 }
-
-impl DrawingContentSystem {
-    /// 描画コンポーネントを追加
-    pub fn add_render_component(
-        &mut self,
-        widget_id: WidgetId,
-        component: RenderComponentType,
-    ) {
-        self.widget_components
-            .entry(widget_id)
-            .or_insert_with(Vec::new)
-            .push(component);
-        
-        self.dirty.insert(widget_id);
-    }
-    
-    /// Widgetの依存システムを取得（動的に計算）
-    pub fn get_dependencies(&self, widget_id: WidgetId) -> HashSet<SystemId> {
-        let mut deps = HashSet::new();
-        
-        if let Some(components) = self.widget_components.get(widget_id) {
-            for component in components {
-                deps.extend(component.dependencies().iter().copied());
-            }
-        }
-        
-        deps
-    }
-    
-    /// 描画コンテンツを再構築
-    pub fn rebuild_content(
-        &mut self,
-        widget_id: WidgetId,
-        context: &RenderContext,
-    ) -> Result<()> {
-        let Some(components) = self.widget_components.get(widget_id) else {
-            return Ok(());
-        };
-        
-        // CommandListに描画を記録
-        let command_list = context.dc.CreateCommandList()?;
-        context.dc.SetTarget(&command_list);
-        context.dc.BeginDraw()?;
-        context.dc.Clear(None);
-        
-        // すべての描画コンポーネントを順番に実行
-        for component in components {
-            self.render_component(component, widget_id, context)?;
-        }
-        
-        context.dc.EndDraw(None, None)?;
-        command_list.Close()?;
-        
-        // ID2D1Imageとして保存
-        self.content.insert(widget_id, command_list.cast()?);
-        
-        Ok(())
-    }
-    
-    fn render_component(
-        &self,
-        component: &RenderComponentType,
-        widget_id: WidgetId,
-        context: &RenderContext,
-    ) -> Result<()> {
-        match component {
-            RenderComponentType::Text(text_render) => {
-                context.text.draw_text(
-                    widget_id,
-                    context.dc,
-                    &text_render.text,
-                    text_render.font_size,
-                    &text_render.color,
-                )?;
-            }
-            RenderComponentType::Image(image_render) => {
-                context.image.draw_image(
-                    widget_id,
-                    context.dc,
-                    image_render.image_id,
-                )?;
-            }
-            RenderComponentType::Background(bg_render) => {
-                context.container_style.draw_background(
-                    widget_id,
-                    context.dc,
-                    &bg_render.fill,
-                    bg_render.border.as_ref(),
-                )?;
-            }
-            RenderComponentType::Custom(custom_render) => {
-                custom_render.renderer.render(context, widget_id)?;
-            }
-        }
-        Ok(())
-    }
-}
 ```
 
-#### UiRuntimeでの依存解決
+**主な操作**:
+- `add_render_component()`: 描画コンポーネントを追加（例: Text, Image, Background）
+- `get_dependencies()`: Widgetの依存システムを動的に計算
+- `rebuild_content()`: ID2D1CommandListに描画コマンドを記録
 
-```rust
-impl UiRuntime {
-    pub fn update_frame(&mut self, root_id: WidgetId) {
-        // 1. レイアウト更新
-        self.layout.update(&self.widget, root_id, window_size);
-        let layout_dirty = self.layout.dirty.clone();
-        
-        // 2. 描画コンテンツ更新（ECS的な依存解決）
-        let drawing_dirty = self.collect_drawing_dirty(&layout_dirty);
-        for widget_id in drawing_dirty {
-            self.rebuild_drawing_content(widget_id);
-        }
-        
-        // 3. Visual更新
-        self.update_visuals();
-        
-        self.clear_all_dirty();
-        self.visual.commit().ok();
-    }
-    
-    /// ECS的な依存収集
-    fn collect_drawing_dirty(&self, layout_dirty: &HashSet<WidgetId>) -> HashSet<WidgetId> {
-        let mut dirty = HashSet::new();
-        
-        // 各システムのダーティをチェック
-        dirty.extend(&self.text.dirty);
-        dirty.extend(&self.image.dirty);
-        dirty.extend(&self.container_style.dirty);
-        dirty.extend(&self.drawing_content.dirty);
-        
-        // レイアウト変更の影響を受けるWidgetを収集（ECS的アプローチ）
-        for &widget_id in layout_dirty {
-            // このWidgetの描画コンポーネントが持つ依存を確認
-            let deps = self.drawing_content.get_dependencies(widget_id);
-            
-            // Layoutに依存していれば影響を受ける
-            if deps.contains(&SystemId::Layout) {
-                dirty.insert(widget_id);
-            }
-        }
-        
-        dirty
-    }
-}
-```
-
-#### 使用例: 複雑なWidgetの構築
-
-```rust
-// 例: 背景 + テキスト + 画像アイコンを持つWidget
-impl UiRuntime {
-    pub fn create_rich_button(&mut self, text: &str, icon: ImageId) -> WidgetId {
-        let widget_id = self.widget.create_widget();
-        
-        // 1. 背景を追加
-        self.drawing_content.add_render_component(
-            widget_id,
-            RenderComponentType::Background(BackgroundRender {
-                fill: Brush::Solid(Color::rgb(0.2, 0.5, 0.9)),
-                border: Some(Border {
-                    thickness: 1.0,
-                    color: Color::rgb(0.1, 0.3, 0.7),
-                }),
-            }),
-        );
-        
-        // 2. アイコン画像を追加
-        self.drawing_content.add_render_component(
-            widget_id,
-            RenderComponentType::Image(ImageRender {
-                image_id: icon,
-                stretch: Stretch::Uniform,
-            }),
-        );
-        
-        // 3. テキストを追加
-        self.drawing_content.add_render_component(
-            widget_id,
-            RenderComponentType::Text(TextRender {
-                text: text.to_string(),
-                font_size: 14.0,
-                color: Color::WHITE,
-            }),
-        );
-        
-        // レイアウト設定
-        self.layout.set_width(widget_id, Length::Pixels(120.0));
-        self.layout.set_height(widget_id, Length::Pixels(40.0));
-        
-        widget_id
-    }
-    
-    // カスタム描画の例
-    pub fn create_gradient_box(&mut self) -> WidgetId {
-        let widget_id = self.widget.create_widget();
-        
-        struct GradientRenderer {
-            start_color: Color,
-            end_color: Color,
-        }
-        
-        impl CustomRenderer for GradientRenderer {
-            fn render(&self, ctx: &RenderContext, widget_id: WidgetId) -> Result<()> {
-                let rect = ctx.layout.get_final_rect(widget_id)?;
-                // グラデーション描画ロジック
-                // ...
-                Ok(())
-            }
-        }
-        
-        self.drawing_content.add_render_component(
-            widget_id,
-            RenderComponentType::Custom(CustomRender {
-                renderer: Box::new(GradientRenderer {
-                    start_color: Color::RED,
-                    end_color: Color::BLUE,
-                }),
-            }),
-        );
-        
-        widget_id
-    }
-}
-```
+**使用例**: 複雑なWidget（背景+テキスト+画像アイコン）を構築可能
 
 #### このアプローチの利点（ECS原則）
 
-1. **✅ データとロジックの完全分離**
-   - データ: `RenderComponent`（Text, Image, Backgroundなど）
-   - ロジック: `DrawingContentSystem`が描画を処理
-
-2. **✅ 組み合わせ可能性（Composability）**
-   - 1つのWidgetが複数の描画コンポーネントを持てる
+1. **データとロジックの完全分離**: `RenderComponent`（データ）と`DrawingContentSystem`（ロジック）
+2. **組み合わせ可能性**: 1つのWidgetが複数の描画コンポーネントを持てる
    - 例: Background + Text + Image の組み合わせ
+3. **静的な依存宣言**: 各`RenderComponent`が`const DEPENDENCIES`を持つ
+4. **動的な依存解決**: Widgetが持つコンポーネントから依存を動的に計算
+5. **拡張性**: 新しい`RenderComponent`を追加するだけ
+6. **型安全**: `RenderComponentType` enumでコンパイル時チェック
 
-3. **✅ 静的な依存宣言**
-   - 各`RenderComponent`が`const DEPENDENCIES`を持つ
-   - コンパイル時に検証可能
-
-4. **✅ 動的な依存解決**
-   - Widgetが持つコンポーネントから依存を動的に計算
-   - `get_dependencies(widget_id)`で取得
-
-5. **✅ 拡張性**
-   - 新しい`RenderComponent`を追加するだけ
-   - 既存コードの変更不要
-
-6. **✅ パフォーマンス**
-   - 不要なWidgetは影響を受けない
-   - 依存を持つWidgetのみ更新
-
-7. **✅ 型安全**
-   - `RenderComponentType` enumでコンパイル時チェック
-   - パターンマッチで網羅性保証
-
-#### 比較: 従来アプローチ vs ECS的アプローチ
+#### 比較まとめ
 
 | 観点 | Widget型アプローチ | ECS的コンポーネントアプローチ |
 |------|-------------------|---------------------------|
@@ -1660,33 +829,8 @@ impl UiRuntime {
 | **組み合わせ** | 難しい（型が固定） | 容易（複数コンポーネント） |
 | **拡張性** | enumに追加必要 | 新コンポーネント追加のみ |
 | **ECS原則** | 🟡 部分的 | ✅ 完全 |
-| **複雑な描画** | カスタムWidget必要 | コンポーネント組み合わせ |
-| **依存解決** | 静的（match文） | 動的（依存計算） |
-| **型安全性** | ✅ 高い | ✅ 高い |
-| **パフォーマンス** | 🟢 良好 | 🟢 良好 |
 
-#### 最終推奨: ECS的コンポーネントアプローチ
-
-**理由**:
-1. **真のECS**: データ（コンポーネント）とロジック（システム）の完全分離
-2. **Composability**: 複雑なUIを単純なコンポーネントの組み合わせで表現
-3. **静的 + 動的のハイブリッド**: 各コンポーネントは静的に依存を宣言、Widgetレベルで動的に解決
-4. **拡張性**: 新しい描画タイプを追加しても既存コードに影響なし
-5. **保守性**: 依存関係が`const DEPENDENCIES`に集約
-
-**実装の段階**:
-1. **Phase 1**: シンプルな`RenderComponent`（Text, Image, Background）
-2. **Phase 2**: コンポーネント組み合わせの最適化
-3. **Phase 3**: カスタムレンダラーの高度な依存管理
-
-このアプローチは、ECS原則に最も忠実で、かつ実用的な解決策です。
-
-
-
-
-- ✅ 初期実装がシンプル（オーバーエンジニアリング回避）
-- ✅ 複雑化したときのリファクタリングパスが明確
-- ✅ 各フェーズで動作するコードを維持
+このアプローチは、ECS原則にもっとも忠実で、かつ実用的な解決策です。
 
 #### Visual（ビジュアルツリー管理）
 描画が必要なWidgetのみ。DirectCompositionを使用するが、それと同一ではない。
@@ -1803,304 +947,6 @@ impl WidgetSystem {
 }
 ```
 
-## Visual: DirectCompositionとの統合
-
-### コンポーネントの分離
-
-描画に関わる要素を3つのコンポーネントに分離：
-
-1. **Visual** - ビジュアルツリーの管理（DirectCompositionを使用）
-2. **DrawingContent** - 描画コマンド（ID2D1Image）
-3. **Layout** - サイズ・配置情報
-
-これらは独立して存在し、異なるタイミングで更新される。
-
-### Visual の役割
-- **描画が必要なWidgetのみが持つ（動的に作成）**
-- ビジュアルツリーのノード（DirectCompositionを内部で使用）
-- トランスフォーム、不透明度、クリッピングなどの表示属性
-
-### Visualが必要なWidget
-- テキストを表示する（TextBlock）
-- 画像を表示する（Image）
-- 背景色・枠線を持つ（Container with background）
-- カスタム描画を行う
-
-### Visualが不要なWidget
-- 純粋なレイアウトコンテナ（透明、背景なし）
-- 論理的なグループ化のみ
-
-### Visual の定義
-
-```rust
-pub struct Visual {
-    widget_id: WidgetId, // 対応するWidget
-    
-    // DirectCompositionオブジェクト（内部実装）
-    dcomp_visual: IDCompositionVisual,
-    
-    // トランスフォーム（Visualが管理）
-    offset: Point2D,
-    scale: Vector2D,
-    rotation: f32,
-    
-    // 表示属性
-    opacity: f32,
-    visible: bool,
-    clip_rect: Option<Rect>,
-}
-```
-
-### DrawingContent の役割
-**ID2D1Imageベースの描画コマンド管理**。ほぼすべての描画要素が持つ。
-
-```rust
-pub struct DrawingContent {
-    widget_id: WidgetId,
-    
-    // 描画コンテンツ（ID2D1Imageで統一）
-    content: ID2D1Image,
-    content_type: ContentType,
-    
-    // キャッシュ管理
-    is_cached: bool,
-    cache_valid: bool,
-    
-    // サイズ情報（レイアウトと協調）
-    intrinsic_size: Option<Size2D>,
-}
-```
-
-### 更新フローの分離
-
-```rust
-impl WidgetSystem {
-    /// フレーム更新
-    pub fn update_frame(&mut self) {
-        // 1. レイアウトパス（サイズ・配置の計算）
-        self.update_layouts();
-        
-        // 2. コンテンツパス（描画コマンドの生成）
-        self.update_drawing_contents();
-        
-        // 3. ビジュアルパス（DirectCompositionツリーの更新）
-        self.update_dcomp_visuals();
-        
-        // 4. コミット
-        self.dcomp_context.commit().unwrap();
-    }
-    
-    /// レイアウト更新（最優先）
-    fn update_layouts(&mut self) {
-        for widget_id in self.dirty_layout.drain().collect::<Vec<_>>() {
-            self.measure_and_arrange(widget_id);
-        }
-    }
-    
-    /// 描画コンテンツ更新（レイアウト確定後）
-    fn update_drawing_contents(&mut self) {
-        for widget_id in self.dirty_content.drain().collect::<Vec<_>>() {
-            if self.needs_drawing_content(widget_id) {
-                self.rebuild_drawing_content(widget_id);
-            }
-        }
-    }
-    
-    /// Visual更新（コンテンツ確定後）
-    fn update_visuals(&mut self) {
-        for widget_id in self.dirty_visual.drain().collect::<Vec<_>>() {
-            if self.needs_visual(widget_id) {
-                self.ensure_visual(widget_id);
-                self.apply_content_to_visual(widget_id);
-            } else {
-                self.remove_visual(widget_id);
-            }
-        }
-    }
-}
-```
-
-### DrawingContent の生成
-
-**ID2D1CommandListを使った描画コマンドの記録とキャッシュ**
-
-```rust
-impl WidgetSystem {
-    /// 描画コンテンツを再構築
-    fn rebuild_drawing_content(&mut self, widget_id: WidgetId) -> Result<()> {
-        let layout = self.layouts.get(widget_id).unwrap();
-        
-        // コマンドリストを作成（描画を記録）
-        let command_list = self.d2d_device_context.CreateCommandList()?;
-        self.d2d_device_context.SetTarget(&command_list);
-        
-        self.d2d_device_context.BeginDraw();
-        
-        // コンテンツの種類に応じて描画
-        if let Some(text) = self.texts.get(widget_id) {
-            self.draw_text_to_context(text, layout)?;
-        } else if let Some(image) = self.images.get(widget_id) {
-            self.draw_image_to_context(image, layout)?;
-        } else if let Some(container) = self.containers.get(widget_id) {
-            self.draw_container_to_context(container, layout)?;
-        }
-        
-        self.d2d_device_context.EndDraw(None, None)?;
-        command_list.Close()?;
-        
-        // DrawingContentとして保存（ID2D1Imageとして扱える）
-        let content = DrawingContent {
-            widget_id,
-            content: command_list.cast::<ID2D1Image>()?,
-            content_type: ContentType::CommandList,
-            is_cached: true,
-            cache_valid: true,
-            intrinsic_size: Some(layout.final_rect.size),
-        };
-        
-        self.drawing_contents.insert(widget_id, content);
-        
-        Ok(())
-    }
-    
-    /// このWidgetが描画コンテンツを必要とするか判定
-    fn needs_drawing_content(&self, widget_id: WidgetId) -> bool {
-        self.texts.contains_key(widget_id) 
-            || self.images.contains_key(widget_id)
-            || self.has_background(widget_id)
-            || self.has_custom_draw(widget_id)
-    }
-    
-    /// このWidgetがVisualを必要とするか判定
-    fn needs_visual(&self, widget_id: WidgetId) -> bool {
-        // DrawingContentを持つ = 描画が必要 = Visualが必要
-        self.drawing_contents.contains_key(widget_id)
-    }
-}
-```
-
-### Widget と Visual の同期
-
-```rust
-impl WidgetSystem {
-    /// 新しいWidgetを作成（Visualは作成しない）
-    pub fn create_widget(&mut self) -> WidgetId {
-        self.widgets.insert(Widget::new())
-    }
-    
-    /// Visualを動的に作成・取得
-    pub fn ensure_visual(&mut self, widget_id: WidgetId) -> Result<()> {
-        if self.visuals.contains_key(widget_id) {
-            return Ok(()); // 既に存在
-        }
-        
-        unsafe {
-            let dcomp_visual = self.dcomp_device.CreateVisual()?;
-            
-            let visual = Visual {
-                widget_id,
-                dcomp_visual,
-                offset: Point2D::zero(),
-                scale: Vector2D::new(1.0, 1.0),
-                rotation: 0.0,
-                opacity: 1.0,
-                visible: true,
-                clip_rect: None,
-            };
-            
-            self.visuals.insert(widget_id, visual);
-            
-            // 親のVisualツリーに接続
-            self.attach_visual_to_tree(widget_id)?;
-        }
-        
-        Ok(())
-    }
-    
-    /// DrawingContentをVisualのサーフェスに適用
-    fn apply_content_to_visual(&mut self, widget_id: WidgetId) -> Result<()> {
-        let visual = self.visuals.get(widget_id).unwrap();
-        let layout = self.layouts.get(widget_id).unwrap();
-        
-        // サーフェスを作成
-        let surface = self.dcomp_device.CreateSurface(
-            layout.final_rect.size.width as u32,
-            layout.final_rect.size.height as u32,
-            DXGI_FORMAT_B8G8R8A8_UNORM,
-            DXGI_ALPHA_MODE_PREMULTIPLIED,
-        )?;
-        
-        unsafe {
-            // サーフェスに描画
-            let mut offset = POINT::default();
-            let dc = surface.BeginDraw(None, &mut offset)?;
-            
-            dc.Clear(Some(&D2D1_COLOR_F {
-                r: 0.0, g: 0.0, b: 0.0, a: 0.0, // 透明
-            }));
-            
-            // DrawingContentを描画（ID2D1Imageとして）
-            if let Some(content) = self.drawing_contents.get(widget_id) {
-                dc.DrawImage(
-                    &content.content,
-                    None,
-                    None,
-                    D2D1_INTERPOLATION_MODE_LINEAR,
-                    None,
-                );
-            }
-            
-            dc.Flush(None, None)?;
-            surface.EndDraw()?;
-            
-            // サーフェスをVisualに設定
-            visual.dcomp_visual.SetContent(&surface)?;
-        }
-        
-        Ok(())
-    }
-    
-    /// VisualをDirectCompositionツリーに接続
-    fn attach_visual_to_tree(&mut self, widget_id: WidgetId) -> Result<()> {
-        // 親でVisualを持つ最も近いWidgetを探す
-        let parent_visual_id = self.find_parent_with_visual(widget_id);
-        
-        if let Some(parent_id) = parent_visual_id {
-            let child_visual = self.visuals.get(widget_id).unwrap();
-            let parent_visual = self.visuals.get(parent_id).unwrap();
-            
-            unsafe {
-                parent_visual.dcomp_visual
-                    .AddVisual(&child_visual.dcomp_visual, true, None)?;
-            }
-        } else {
-            // 親がない場合、ルートのVisualに接続
-            let child_visual = self.visuals.get(widget_id).unwrap();
-            unsafe {
-                self.dcomp_context.root_visual
-                    .AddVisual(&child_visual.dcomp_visual, true, None)?;
-            }
-        }
-        
-        Ok(())
-    }
-    
-    /// 親でVisualを持つWidgetを探す（再帰的に上へ）
-    fn find_parent_with_visual(&self, widget_id: WidgetId) -> Option<WidgetId> {
-        let mut current = self.widgets.get(widget_id)?.parent;
-        
-        while let Some(parent_id) = current {
-            if self.visuals.contains_key(parent_id) {
-                return Some(parent_id);
-            }
-            current = self.widgets.get(parent_id)?.parent;
-        }
-        
-        None
-    }
-}
-```
-
 ## イベントシステム
 
 ### イベントの種類
@@ -2156,293 +1002,62 @@ impl WidgetSystem {
         event_type: EventType,
         handler: EventHandler
     ) {
-        self.interactions
-            .entry(widget_id)
-            .or_insert_with(InteractionState::new)
-            .handlers
-            .entry(event_type)
-            .or_insert_with(Vec::new)
-            .push(handler);
+        // ハンドラを登録
     }
     
-    /// イベントをディスパッチ（バブリング）
     pub fn dispatch_event(&mut self, target_id: WidgetId, event: UiEvent) {
-        let mut current_id = Some(target_id);
-        
-        while let Some(widget_id) = current_id {
-            if let Some(interaction) = self.interactions.get_mut(widget_id) {
-                if let Some(handlers) = interaction.handlers.get_mut(&event.event_type()) {
-                    for handler in handlers {
-                        match handler(&event, self) {
-                            EventResponse::Handled => return,
-                            EventResponse::Propagate => continue,
-                        }
-                    }
-                }
-            }
-            
-            // 親に伝播
-            current_id = self.widgets.get(widget_id).and_then(|w| w.parent);
-        }
+        // イベントをバブリング（親に伝播）
     }
 }
 ```
 
 ## 基本的なUI要素
 
-### 1. Container（コンテナ）
+### 1. Container（コンテナー）
 
-もっともシンプルなUI要素。子を配置するための器。
+シンプルなUI要素。子を配置するための器。
 **背景色や枠線がない場合、Visualは作成されない（効率化）**
-
-```rust
-pub struct ContainerStyle {
-    padding: Padding,
-    background: Option<Color>,
-    border: Option<Border>,
-}
-
-impl WidgetSystem {
-    pub fn create_container(&mut self) -> WidgetId {
-        let widget_id = self.create_widget();
-        
-        // レイアウト情報を追加
-        self.layouts.insert(widget_id, Layout {
-            width: Length::Auto,
-            height: Length::Auto,
-            padding: Padding::zero(),
-            ..Default::default()
-        });
-        
-        // Visualは背景や枠線が設定されたときに作成される
-        
-        widget_id
-    }
-    
-    /// 背景色を設定（Visualを作成）
-    pub fn set_background(&mut self, widget_id: WidgetId, color: Color) {
-        // スタイル情報を保存（新しいSecondaryMap）
-        self.container_styles
-            .entry(widget_id)
-            .or_insert_with(ContainerStyle::default)
-            .background = Some(color);
-        
-        // Visualが必要になったのでダーティフラグ
-        self.dirty_visual.insert(widget_id);
-    }
-}
-```
 
 ### 2. TextBlock（テキストブロック）
 
-テキストを表示するUI要素。縦書き対応が重要。**Visualを動的に作成する。**
+テキストを表示。縦書き対応が重要（FlowDirection）。**Visualを動的に作成**
 
 ```rust
 pub struct TextContent {
     text: String,
-    
-    // フォント設定
     font_family: String,
     font_size: f32,
-    font_weight: u32,
-    
-    // 縦書き設定
     flow_direction: FlowDirection, // TopToBottom or LeftToRight
-    reading_direction: ReadingDirection, // TopToBottom or LeftToRight
-    
-    // DirectWriteオブジェクト
     text_format: IDWriteTextFormat,
     text_layout: IDWriteTextLayout,
-}
-
-#[derive(Clone, Copy)]
-pub enum FlowDirection {
-    TopToBottom,  // 縦書き
-    LeftToRight,  // 横書き
-}
-
-impl WidgetSystem {
-    pub fn create_text_block(&mut self, text: String) -> WidgetId {
-        let widget_id = self.create_widget();
-        
-        // テキストコンテンツを追加
-        let text_content = TextContent::new(
-            text,
-            &self.dwrite_factory,
-            FlowDirection::TopToBottom, // デフォルトは縦書き
-        );
-        self.texts.insert(widget_id, text_content);
-        
-        // レイアウト情報を追加
-        self.layouts.insert(widget_id, Layout::default());
-        
-        // Visualは描画時に自動作成される
-        self.dirty_visual.insert(widget_id);
-        
-        widget_id
-    }
 }
 ```
 
 ### 3. Image（画像）
 
-画像を表示するUI要素。透過対応。**Visualを動的に作成する。**
+画像を表示。透過対応。**Visualを動的に作成**
 
 ```rust
 pub struct ImageContent {
-    // 画像データ
     bitmap: ID2D1Bitmap,
     source_rect: Option<Rect>,
-    
-    // 表示設定
-    stretch: Stretch,
+    stretch: Stretch, // None, Fill, Uniform, UniformToFill
     opacity: f32,
-}
-
-#[derive(Clone, Copy)]
-pub enum Stretch {
-    None,           // 原寸
-    Fill,           // 引き伸ばし
-    Uniform,        // アスペクト比維持
-    UniformToFill,  // アスペクト比維持して埋める
-}
-
-impl WidgetSystem {
-    pub fn create_image(&mut self, image_path: &str) -> Result<WidgetId> {
-        let widget_id = self.create_widget();
-        
-        // WICで画像を読み込み
-        let bitmap = self.load_image_with_wic(image_path)?;
-        
-        let image_content = ImageContent {
-            bitmap,
-            source_rect: None,
-            stretch: Stretch::Uniform,
-            opacity: 1.0,
-        };
-        self.images.insert(widget_id, image_content);
-        
-        // レイアウト情報を追加
-        self.layouts.insert(widget_id, Layout::default());
-        
-        // Visualは描画時に自動作成される
-        self.dirty_visual.insert(widget_id);
-        
-        Ok(widget_id)
-    }
 }
 ```
 
 ### 4. Button（ボタン）
 
-クリック可能なUI要素。
-
-```rust
-pub struct ButtonState {
-    is_hovered: bool,
-    is_pressed: bool,
-    is_enabled: bool,
-    
-    // ビジュアルステート用のコンテンツ
-    normal_visual: VisualId,
-    hover_visual: VisualId,
-    pressed_visual: VisualId,
-}
-
-impl WidgetSystem {
-    pub fn create_button<F>(&mut self, on_click: F) -> WidgetId 
-    where
-        F: Fn(&mut WidgetSystem) + 'static,
-    {
-        let widget_id = self.create_widget();
-        
-        // インタラクション状態を追加
-        let interaction = InteractionState::new();
-        self.interactions.insert(widget_id, interaction);
-        
-        // クリックイベントハンドラを登録
-        self.add_event_handler(
-            widget_id,
-            EventType::Click,
-            Box::new(move |event, system| {
-                on_click(system);
-                EventResponse::Handled
-            }),
-        );
-        
-        // マウスホバー時の視覚的フィードバック
-        self.add_event_handler(
-            widget_id,
-            EventType::MouseEnter,
-            Box::new(|event, system| {
-                // ホバー状態の更新
-                EventResponse::Handled
-            }),
-        );
-        
-        widget_id
-    }
-}
-```
+クリック可能なUI要素。インタラクション状態（hover, pressed）を管理。
 
 ### 5. StackPanel（スタックパネル）
 
-子要素を縦または横に配置するコンテナ。
+子要素を縦または横に配置するコンテナー。
 
 ```rust
 pub struct StackLayout {
-    orientation: Orientation,
+    orientation: Orientation, // Vertical or Horizontal
     spacing: f32,
-}
-
-#[derive(Clone, Copy)]
-pub enum Orientation {
-    Vertical,
-    Horizontal,
-}
-
-impl WidgetSystem {
-    pub fn create_stack_panel(&mut self, orientation: Orientation) -> WidgetId {
-        let widget_id = self.create_widget();
-        
-        self.layouts.insert(widget_id, Layout {
-            layout_type: LayoutType::Stack(StackLayout {
-                orientation,
-                spacing: 0.0,
-            }),
-            ..Default::default()
-        });
-        
-        widget_id
-    }
-    
-    /// スタックレイアウトの計算
-    fn measure_stack(&self, widget_id: WidgetId) -> Size2D {
-        let layout = self.layouts.get(widget_id).unwrap();
-        let stack_layout = match &layout.layout_type {
-            LayoutType::Stack(s) => s,
-            _ => return Size2D::zero(),
-        };
-        
-        let mut total_size = Size2D::zero();
-        
-        for child_id in self.children(widget_id) {
-            let child_size = self.measure_widget(child_id);
-            
-            match stack_layout.orientation {
-                Orientation::Vertical => {
-                    total_size.height += child_size.height + stack_layout.spacing;
-                    total_size.width = total_size.width.max(child_size.width);
-                }
-                Orientation::Horizontal => {
-                    total_size.width += child_size.width + stack_layout.spacing;
-                    total_size.height = total_size.height.max(child_size.height);
-                }
-            }
-        }
-        
-        total_size
-    }
 }
 ```
 
@@ -2686,36 +1301,10 @@ impl WidgetSystem {
         let has_visual = self.visuals.contains_key(widget_id);
         
         match (needs_visual, has_visual) {
-            (true, false) => {
-                // Visualを新規作成
-                self.ensure_visual(widget_id);
-                self.dirty_visual.insert(widget_id);
-            }
-            (false, true) => {
-                // Visualを削除（不要になった）
-                self.remove_visual(widget_id);
-            }
-            (true, true) => {
-                // Visualを更新
-                self.dirty_visual.insert(widget_id);
-            }
-            (false, false) => {
-                // 何もしない（純粋なレイアウトノード）
-            }
-        }
-    }
-    
-    fn remove_visual(&mut self, widget_id: WidgetId) {
-        if let Some(visual) = self.visuals.remove(widget_id) {
-            // DirectCompositionツリーから削除
-            if let Some(parent_id) = self.find_parent_with_visual(widget_id) {
-                let parent_visual = self.visuals.get(parent_id).unwrap();
-                unsafe {
-                    parent_visual.dcomp_visual
-                        .RemoveVisual(&visual.dcomp_visual)
-                        .ok();
-                }
-            }
+            (true, false) => self.ensure_visual(widget_id),
+            (false, true) => self.remove_visual(widget_id),
+            (true, true) => self.dirty_visual.insert(widget_id),
+            (false, false) => (), // 純粋なレイアウトノード
         }
     }
 }
@@ -2725,7 +1314,7 @@ impl WidgetSystem {
 
 論理ツリーとビジュアルツリーは必ずしも1:1対応しない：
 
-```
+```text
 論理ツリー (Widget):              ビジュアルツリー (Visual):
 Root                               Root
 ├─ Container (no bg)              ├─ TextBlock1
@@ -2739,68 +1328,7 @@ Root                               Root
 
 ## ECSと依存関係プロパティの関係性
 
-### 依存関係プロパティ（DependencyProperty）の本質
-
-WPFの依存関係プロパティは、一見複雑に見えますが、実はECSと驚くほど似た構造を持っています。
-
-#### WPFの依存関係プロパティ（従来の理解）
-
-```csharp
-// WPF の DependencyProperty
-public class Button : UIElement
-{
-    // スタティックな「プロパティ定義」
-    public static readonly DependencyProperty TextProperty =
-        DependencyProperty.Register(
-            "Text",
-            typeof(string),
-            typeof(Button)
-        );
-    
-    // インスタンスプロパティ（アクセサ）
-    public string Text
-    {
-        get { return (string)GetValue(TextProperty); }
-        set { SetValue(TextProperty, value); }
-    }
-}
-
-// 使用例
-Button button = new Button();
-button.Text = "Click Me";  // 実際は GetValue/SetValue を呼んでいる
-```
-
-#### ECS的に読み解く
-
-```rust
-// ECS的な解釈：DependencyProperty = コンポーネント型の定義
-
-// 1. スタティックな「プロパティ定義」= コンポーネント型
-pub struct TextProperty;  // 型がIDの役割
-
-// 2. 実体は外部の「ストレージ」に保存
-pub struct PropertySystem {
-    // DependencyObject(=Entity) ごとに値を保存
-    text_value: SecondaryMap<DependencyObjectId, String>,
-    width_value: SecondaryMap<DependencyObjectId, f64>,
-    // ... 各プロパティごとにマップ
-}
-
-// 3. GetValue/SetValue = コンポーネントのget/set
-impl DependencyObject {
-    pub fn get_value<T>(&self, property: &Property<T>) -> Option<&T> {
-        // プロパティシステムから値を取得
-        PROPERTY_SYSTEM.get(self.id, property)
-    }
-    
-    pub fn set_value<T>(&mut self, property: &Property<T>, value: T) {
-        // プロパティシステムに値を保存
-        PROPERTY_SYSTEM.set(self.id, property, value);
-        // ダーティフラグを立てる
-        self.invalidate();
-    }
-}
-```
+WPFの依存関係プロパティは、実はECSと驚くほど似た構造を持っています。
 
 ### 構造的類似性の比較
 
@@ -2810,79 +1338,9 @@ impl DependencyObject {
 | **プロパティ定義** | static DependencyProperty | コンポーネント型（Layout, Visual等） |
 | **値の保存場所** | DependencyObject内部の辞書 | SecondaryMap<WidgetId, Component> |
 | **アクセス方法** | GetValue/SetValue | map.get(id) / map.insert(id, value) |
-| **プロパティの追加** | 動的に登録可能 | 新しいSecondaryMapを追加 |
 | **メモリ効率** | 使用するプロパティのみ保存 | 使用するコンポーネントのみ保存 |
 
-### WPFの内部実装（概念的）
-
-```csharp
-// WPFの内部実装（簡略化）
-public class DependencyObject
-{
-    private int _objectId;  // ← Entity ID
-    
-    // すべてのDependencyObjectが共有する「プロパティストレージ」
-    private static Dictionary<(int objectId, DependencyProperty prop), object> 
-        _globalPropertyStore = new();
-    
-    public object GetValue(DependencyProperty property)
-    {
-        // グローバルストレージから取得（ECSのSecondaryMap.get相当）
-        var key = (_objectId, property);
-        if (_globalPropertyStore.TryGetValue(key, out var value))
-            return value;
-        return property.DefaultValue;  // デフォルト値
-    }
-    
-    public void SetValue(DependencyProperty property, object value)
-    {
-        // グローバルストレージに保存（ECSのSecondaryMap.insert相当）
-        var key = (_objectId, property);
-        _globalPropertyStore[key] = value;
-        
-        // 変更通知（ダーティフラグ相当）
-        InvalidateProperty(property);
-    }
-}
-```
-
-### ECS版の依存関係プロパティ
-
-```rust
-// Rust + ECSで依存関係プロパティを実装
-
-// プロパティ定義（型レベル）
-pub trait Property {
-    type Value;
-    const NAME: &'static str;
-}
-
-// 具体的なプロパティ定義
-pub struct WidthProperty;
-impl Property for WidthProperty {
-    type Value = f32;
-    const NAME: &'static str = "Width";
-}
-
-pub struct TextProperty;
-impl Property for TextProperty {
-    type Value = String;
-    const NAME: &'static str = "Text";
-}
-
-// プロパティシステム（グローバルストレージ）
-pub struct PropertySystem {
-    widget: SlotMap<WidgetId, Widget>,
-    
-    // 各プロパティのストレージ（WPFの_globalPropertyStore相当）
-    width: SecondaryMap<WidgetId, f32>,
-    height: SecondaryMap<WidgetId, f32>,
-    text: SecondaryMap<WidgetId, String>,
-    color: SecondaryMap<WidgetId, Color>,
-    
-    // 変更通知（ダーティフラグ）
-    dirty_properties: HashMap<WidgetId, HashSet<TypeId>>,
-}
+**本質**: WPFのGetValue/SetValueは、ECSのSecondaryMap get/insertと同じパターン
 
 impl PropertySystem {
     // GetValue相当
@@ -3080,124 +1538,21 @@ ECSアーキテクチャの基本原則に従い、関心事を明確に分離�
 rootは持たず、WindowSystemが管理するWindowがroot Widgetを所有する。
 
 ```rust
-/// ツリー構造管理（最も基本的なシステム）
+/// ツリー構造管理（もっとも基本的なシステム）
 pub struct WidgetSystem {
     /// 全Widgetの親子関係
     widget: SlotMap<WidgetId, Widget>,
 }
-
-impl WidgetSystem {
-    /// 新しいWidgetを作成
-    pub fn create_widget(&mut self) -> WidgetId {
-        self.widget.insert(Widget::new())
-    }
-    
-    /// 子Widgetを追加
-    pub fn append_child(&mut self, parent_id: WidgetId, child_id: WidgetId) -> Result<()> {
-        // 連結リスト操作
-        let child = self.widget.get_mut(child_id)
-            .ok_or(Error::InvalidWidgetId)?;
-        child.parent = Some(parent_id);
-        
-        let parent = self.widget.get_mut(parent_id)
-            .ok_or(Error::InvalidWidgetId)?;
-        
-        if let Some(last_child) = parent.last_child {
-            self.widget.get_mut(last_child).unwrap().next_sibling = Some(child_id);
-        } else {
-            parent.first_child = Some(child_id);
-        }
-        parent.last_child = Some(child_id);
-        
-        Ok(())
-    }
-    
-    /// Widgetをツリーから切り離す（Widgetは削除されない）
-    pub fn detach_widget(&mut self, widget_id: WidgetId) -> Result<()> {
-        let widget = self.widgets.get_mut(widget_id)
-            .ok_or(Error::InvalidWidgetId)?;
-        
-        let parent_id = widget.parent;
-        let next_sibling = widget.next_sibling;
-        
-        // 親から切り離す
-        if let Some(parent_id) = parent_id {
-            let parent = self.widgets.get_mut(parent_id).unwrap();
-            
-            // 親のfirst_childを更新
-            if parent.first_child == Some(widget_id) {
-                parent.first_child = next_sibling;
-            }
-            
-            // 親のlast_childを更新
-            if parent.last_child == Some(widget_id) {
-                // 前の兄弟を探す
-                let mut prev_sibling = None;
-                let mut current = parent.first_child;
-                while let Some(current_id) = current {
-                    if current_id == widget_id {
-                        break;
-                    }
-                    prev_sibling = current;
-                    current = self.widgets.get(current_id).and_then(|w| w.next_sibling);
-                }
-                parent.last_child = prev_sibling;
-            }
-            
-            // 前の兄弟のnext_siblingを更新
-            let mut current = parent.first_child;
-            while let Some(current_id) = current {
-                let current_widget = self.widgets.get(current_id).unwrap();
-                if current_widget.next_sibling == Some(widget_id) {
-                    self.widgets.get_mut(current_id).unwrap().next_sibling = next_sibling;
-                    break;
-                }
-                current = current_widget.next_sibling;
-            }
-        }
-        
-        // Widgetのツリー情報をクリア
-        let widget = self.widgets.get_mut(widget_id).unwrap();
-        widget.parent = None;
-        widget.next_sibling = None;
-        // 注: first_child, last_childはそのまま（子はまだ存在）
-        
-        Ok(())
-    }
-    
-    /// Widgetを完全に削除（子も再帰的に削除）
-    pub fn delete_widget(&mut self, widget_id: WidgetId) -> Result<()> {
-        // 1. ツリーから切り離す
-        self.detach_widget(widget_id)?;
-        
-        // 2. 子を再帰的に削除
-        let children: Vec<_> = self.children(widget_id).collect();
-        for child in children {
-            self.delete_widget(child)?;
-        }
-        
-        // 3. SlotMapから削除
-        self.widgets.remove(widget_id);
-        
-        Ok(())
-    }
-    
-    /// 子を列挙
-    pub fn children(&self, parent_id: WidgetId) -> impl Iterator<Item = WidgetId> + '_ {
-        WidgetChildrenIterator::new(self, parent_id)
-    }
-    
-    /// 親を取得
-    pub fn parent(&self, widget_id: WidgetId) -> Option<WidgetId> {
-        self.widgets.get(widget_id).and_then(|w| w.parent)
-    }
-    
-    /// Widgetの存在確認
-    pub fn contains(&self, widget_id: WidgetId) -> bool {
-        self.widgets.contains_key(widget_id)
-    }
-}
 ```
+
+**主な操作**:
+- `create_widget()`: 新しいWidgetを作成
+- `append_child()`: 子Widgetを親に追加（連結リスト操作）
+- `detach_widget()`: ツリーから切り離す（再利用可能）
+- `delete_widget()`: 完全に削除（子も再帰的に削除）
+- `children()`: 子Widgetのイテレータ
+- `parent()`: 親Widgetを取得
+- `contains()`: Widgetの存在確認
 
 ### 2. LayoutSystem - レイアウト計算
 
@@ -3232,70 +1587,16 @@ pub struct LayoutSystem {
     // ダーティフラグ
     dirty: HashSet<WidgetId>,
 }
+```
 
-impl LayoutSystem {
-    /// Widthを設定
-    pub fn set_width(&mut self, widget_id: WidgetId, width: Length) {
-        self.width.insert(widget_id, width);
-        self.mark_dirty(widget_id);
-    }
-    
-    /// Widthを取得（デフォルト値付き）
-    pub fn get_width(&self, widget_id: WidgetId) -> Length {
-        self.width.get(widget_id).cloned().unwrap_or(Length::Auto)
-    }
-    
-    /// Heightを設定
-    pub fn set_height(&mut self, widget_id: WidgetId, height: Length) {
-        self.height.insert(widget_id, height);
-        self.mark_dirty(widget_id);
-    }
-    
-    /// Heightを取得（デフォルト値付き）
-    pub fn get_height(&self, widget_id: WidgetId) -> Length {
-        self.height.get(widget_id).cloned().unwrap_or(Length::Auto)
-    }
-    
-    /// Marginを設定
-    pub fn set_margin(&mut self, widget_id: WidgetId, margin: Margin) {
-        self.margin.insert(widget_id, margin);
-        self.mark_dirty(widget_id);
-    }
-    
-    /// Marginを取得（デフォルト値付き）
-    pub fn get_margin(&self, widget_id: WidgetId) -> Margin {
-        self.margin.get(widget_id).cloned().unwrap_or(Margin::zero())
-    }
-    
-    /// Paddingを設定
-    pub fn set_padding(&mut self, widget_id: WidgetId, padding: Padding) {
-        self.padding.insert(widget_id, padding);
-        self.mark_dirty(widget_id);
-    }
-    
-    /// Paddingを取得（デフォルト値付き）
-    pub fn get_padding(&self, widget_id: WidgetId) -> Padding {
-        self.padding.get(widget_id).cloned().unwrap_or(Padding::zero())
-    }
-    
-    /// レイアウトタイプを設定
-    pub fn set_layout_type(&mut self, widget_id: WidgetId, layout_type: LayoutType) {
-        self.layout_type.insert(widget_id, layout_type);
-        self.mark_dirty(widget_id);
-    }
-    
-    /// レイアウトタイプを取得
-    pub fn get_layout_type(&self, widget_id: WidgetId) -> LayoutType {
-        self.layout_type.get(widget_id).cloned().unwrap_or(LayoutType::None)
-    }
-    
-    /// ダーティマーク（子孫も再帰的に）
-    pub fn mark_dirty(&mut self, widget_id: WidgetId) {
-        self.dirty.insert(widget_id);
-    }
-    
-    /// レイアウト更新（Measure/Arrange）
-    pub fn update(&mut self, widget_system: &WidgetSystem, root_id: WidgetId, available_size: Size2D) {
+**主な操作**:
+- `set_width()` / `get_width()`: Widthプロパティの設定・取得
+- `set_height()` / `get_height()`: Heightプロパティの設定・取得
+- `set_margin()` / `get_margin()`: Marginプロパティの設定・取得
+- `set_padding()` / `get_padding()`: Paddingプロパティの設定・取得
+- `set_layout_type()` / `get_layout_type()`: レイアウトタイプの設定・取得
+- `mark_dirty()`: ダーティマーク（子孫も再帰的に）
+- `update()`: レイアウト更新（Measure/Arrange）
         if self.dirty.is_empty() {
             return; // 変更なし
         }
@@ -3366,62 +1667,13 @@ pub struct DrawingContentSystem {
     /// ダーティフラグ
     dirty: HashSet<WidgetId>,
 }
-
-impl DrawingContentSystem {
-    /// コンテンツを再構築（ID2D1CommandListに記録）
-    pub fn rebuild_content<F>(
-        &mut self,
-        widget_id: WidgetId,
-        size: Size2D,
-        draw_fn: F,
-    ) -> Result<()>
-    where
-        F: FnOnce(&ID2D1DeviceContext) -> Result<()>,
-    {
-        unsafe {
-            let command_list = self.d2d_context.CreateCommandList()?;
-            self.d2d_context.SetTarget(&command_list);
-            
-            self.d2d_context.BeginDraw();
-            draw_fn(&self.d2d_context)?;
-            self.d2d_context.EndDraw(None, None)?;
-            
-            command_list.Close()?;
-            
-            let content = DrawingContent {
-                widget_id,
-                content: command_list.cast()?,
-                content_type: ContentType::CommandList,
-                is_cached: true,
-                cache_valid: true,
-                intrinsic_size: Some(size),
-            };
-            
-            self.contents.insert(widget_id, content);
-        }
-        
-        Ok(())
-    }
-    
-    /// コンテンツ取得
-    pub fn get_content(&self, widget_id: WidgetId) -> Option<&ID2D1Image> {
-        self.contents.get(widget_id).map(|c| &c.content)
-    }
-    
-    /// コンテンツを無効化
-    pub fn invalidate(&mut self, widget_id: WidgetId) {
-        if let Some(content) = self.contents.get_mut(widget_id) {
-            content.cache_valid = false;
-        }
-        self.mark_dirty(widget_id);
-    }
-    
-    /// ダーティマーク
-    pub fn mark_dirty(&mut self, widget_id: WidgetId) {
-        self.dirty.insert(widget_id);
-    }
-}
 ```
+
+**主な操作**:
+- `rebuild_content()`: ID2D1CommandListに描画コマンドを記録
+- `get_content()`: 描画コンテンツ（ID2D1Image）を取得
+- `invalidate()`: キャッシュを無効化
+- `mark_dirty()`: ダーティマーク
 
 ### 4. TextSystem - テキスト描画
 
@@ -3438,74 +1690,14 @@ pub struct TextSystem {
     /// ダーティフラグ
     dirty: HashSet<WidgetId>,
 }
-
-impl TextSystem {
-    /// テキストを設定
-    pub fn set_text(&mut self, widget_id: WidgetId, text: String) {
-        if let Some(content) = self.texts.get_mut(widget_id) {
-            content.text = text;
-            // テキストレイアウトを再作成
-            content.invalidate_layout();
-            self.mark_dirty(widget_id);
-        } else {
-            let content = TextContent::new(text, &self.dwrite_factory, FlowDirection::TopToBottom);
-            self.texts.insert(widget_id, content);
-            self.mark_dirty(widget_id);
-        }
-    }
-    
-    /// テキストを取得
-    pub fn get_text(&self, widget_id: WidgetId) -> Option<&str> {
-        self.texts.get(widget_id).map(|c| c.text.as_str())
-    }
-    
-    /// フォント設定
-    pub fn set_font(&mut self, widget_id: WidgetId, family: String, size: f32) {
-        if let Some(content) = self.texts.get_mut(widget_id) {
-            content.font_family = family;
-            content.font_size = size;
-            content.invalidate_layout();
-            self.mark_dirty(widget_id);
-        }
-    }
-    
-    /// 描画コマンドを生成（DrawingContentSystemと連携）
-    pub fn draw_to_context(
-        &self,
-        widget_id: WidgetId,
-        dc: &ID2D1DeviceContext,
-        brush: &ID2D1Brush,
-        origin: Point2D,
-    ) -> Result<()> {
-        if let Some(text) = self.texts.get(widget_id) {
-            unsafe {
-                dc.DrawTextLayout(
-                    D2D1_POINT_2F { x: origin.x, y: origin.y },
-                    &text.text_layout,
-                    brush,
-                    D2D1_DRAW_TEXT_OPTIONS_NONE,
-                )?;
-            }
-        }
-        Ok(())
-    }
-    
-    /// 固有サイズを計算（レイアウト用）
-    pub fn measure_text(&self, widget_id: WidgetId) -> Option<Size2D> {
-        self.texts.get(widget_id).and_then(|t| {
-            unsafe {
-                let mut metrics = DWRITE_TEXT_METRICS::default();
-                t.text_layout.GetMetrics(&mut metrics).ok()?;
-                Some(Size2D::new(metrics.width, metrics.height))
-            }
-        })
-    }
-    
-    fn mark_dirty(&mut self, widget_id: WidgetId) {
-        self.dirty.insert(widget_id);
-    }
-}
 ```
+
+**主な操作**:
+- `set_text()`: テキスト内容を設定（レイアウトを再計算）
+- `get_text()`: テキスト内容を取得
+- `set_font()`: フォント設定（ファミリ、サイズ）
+- `draw_to_context()`: Direct2Dコンテキストに描画
+- `measure_text()`: テキストの固有サイズを計算
 
 ### 5. ImageSystem - 画像管理
 
@@ -3522,37 +1714,12 @@ pub struct ImageSystem {
     /// ダーティフラグ
     dirty: HashSet<WidgetId>,
 }
+```
 
-impl ImageSystem {
-    /// 画像をロード
-    pub fn load_image(
-        &mut self,
-        widget_id: WidgetId,
-        path: &str,
-        d2d_context: &ID2D1DeviceContext,
-    ) -> Result<()> {
-        // WICで画像を読み込み
-        let bitmap = self.load_bitmap_from_file(path, d2d_context)?;
-        
-        let content = ImageContent {
-            bitmap,
-            source_rect: None,
-            stretch: Stretch::Uniform,
-            opacity: 1.0,
-        };
-        
-        self.images.insert(widget_id, content);
-        self.mark_dirty(widget_id);
-        
-        Ok(())
-    }
-    
-    /// 画像を取得
-    pub fn get_image(&self, widget_id: WidgetId) -> Option<&ID2D1Bitmap> {
-        self.images.get(widget_id).map(|c| &c.bitmap)
-    }
-    
-    /// 伸縮モードを設定
+**主な操作**:
+- `load_image()`: 画像ファイルを読み込み（WIC経由）
+- `get_image()`: ID2D1Bitmapを取得
+- `set_stretch()`: 伸縮モード設定
     pub fn set_stretch(&mut self, widget_id: WidgetId, stretch: Stretch) {
         if let Some(image) = self.images.get_mut(widget_id) {
             image.stretch = stretch;
@@ -3615,103 +1782,15 @@ pub struct VisualSystem {
     /// ダーティフラグ
     dirty: HashSet<WidgetId>,
 }
-
-impl VisualSystem {
-    /// Visualを作成または取得
-    pub fn ensure_visual(&mut self, widget_id: WidgetId) -> Result<()> {
-        if !self.visuals.contains_key(widget_id) {
-            let dcomp_visual = unsafe { self.dcomp_device.CreateVisual()? };
-            
-            let visual = Visual {
-                widget_id,
-                dcomp_visual,
-                offset: Point2D::zero(),
-                scale: Vector2D::new(1.0, 1.0),
-                rotation: 0.0,
-                opacity: 1.0,
-                visible: true,
-                clip_rect: None,
-            };
-            
-            self.visuals.insert(widget_id, visual);
-        }
-        
-        Ok(())
-    }
-    
-    /// Visualを削除
-    pub fn remove_visual(&mut self, widget_id: WidgetId) {
-        self.visuals.remove(widget_id);
-    }
-    
-    /// DrawingContentをVisualに適用
-    pub fn apply_content(
-        &mut self,
-        widget_id: WidgetId,
-        content: &ID2D1Image,
-        size: Size2D,
-    ) -> Result<()> {
-        self.ensure_visual(widget_id)?;
-        let visual = self.visuals.get(widget_id).unwrap();
-        
-        // サーフェスを作成
-        let surface = unsafe {
-            self.dcomp_device.CreateSurface(
-                size.width as u32,
-                size.height as u32,
-                DXGI_FORMAT_B8G8R8A8_UNORM,
-                DXGI_ALPHA_MODE_PREMULTIPLIED,
-            )?
-        };
-        
-        // サーフェスに描画
-        unsafe {
-            let mut offset = POINT::default();
-            let dc = surface.BeginDraw(None, &mut offset)?;
-            
-            dc.Clear(Some(&D2D1_COLOR_F { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }));
-            dc.DrawImage(content, None, None, D2D1_INTERPOLATION_MODE_LINEAR, None);
-            
-            surface.EndDraw()?;
-            visual.dcomp_visual.SetContent(&surface)?;
-        }
-        
-        Ok(())
-    }
-    
-    /// トランスフォームを更新
-    pub fn set_offset(&mut self, widget_id: WidgetId, offset: Point2D) -> Result<()> {
-        if let Some(visual) = self.visuals.get_mut(widget_id) {
-            visual.offset = offset;
-            unsafe {
-                visual.dcomp_visual.SetOffsetX(offset.x)?;
-                visual.dcomp_visual.SetOffsetY(offset.y)?;
-            }
-        }
-        Ok(())
-    }
-    
-    /// 不透明度を設定
-    pub fn set_opacity(&mut self, widget_id: WidgetId, opacity: f32) -> Result<()> {
-        if let Some(visual) = self.visuals.get_mut(widget_id) {
-            visual.opacity = opacity;
-            unsafe {
-                visual.dcomp_visual.SetOpacity(opacity)?;
-            }
-        }
-        Ok(())
-    }
-    
-    /// コミット（画面に反映）
-    pub fn commit(&self) -> Result<()> {
-        unsafe { self.dcomp_device.Commit() }
-    }
-    
-    fn mark_dirty(&mut self, widget_id: WidgetId) {
-        self.dirty.insert(widget_id);
-    }
-}
 ```
+
+**主な操作**:
+- `ensure_visual()`: IDCompositionVisualを作成または取得
+- `remove_visual()`: Visualを削除
+- `apply_content()`: DrawingContent（ID2D1Image）をVisualに適用（サーフェス作成→描画）
+- `set_offset()`: オフセット（位置）を設定
+- `set_opacity()`: 不透明度を設定
+- `commit()`: 変更を画面に反映
 
 ### 7. InteractionSystem - イベント処理
 
@@ -3728,114 +1807,13 @@ pub struct InteractionSystem {
     /// ホバー中のWidget
     hovered_widget: Option<WidgetId>,
 }
-
-impl InteractionSystem {
-    /// イベントハンドラを登録
-    pub fn add_handler(
-        &mut self,
-        widget_id: WidgetId,
-        event_type: EventType,
-        handler: EventHandler,
-    ) {
-        self.interactions
-            .entry(widget_id)
-            .or_insert_with(InteractionState::new)
-            .handlers
-            .entry(event_type)
-            .or_insert_with(Vec::new)
-            .push(handler);
-    }
-    
-    /// イベントをディスパッチ（バブリング）
-    pub fn dispatch_event(
-        &mut self,
-        widget_system: &WidgetSystem,
-        target_id: WidgetId,
-        event: &UiEvent,
-    ) -> EventResponse {
-        let mut current_id = Some(target_id);
-        
-        while let Some(widget_id) = current_id {
-            if let Some(interaction) = self.interactions.get_mut(widget_id) {
-                if let Some(handlers) = interaction.handlers.get_mut(&event.event_type()) {
-                    for handler in handlers {
-                        if let EventResponse::Handled = handler(event) {
-                            return EventResponse::Handled;
-                        }
-                    }
-                }
-            }
-            
-            // 親に伝播
-            current_id = widget_system.parent(widget_id);
-        }
-        
-        EventResponse::Propagate
-    }
-    
-    /// ヒットテスト
-    pub fn hit_test(
-        &self,
-        widget_system: &WidgetSystem,
-        layout_system: &LayoutSystem,
-        root_id: WidgetId,
-        point: Point2D,
-    ) -> Option<WidgetId> {
-        // ルートから深さ優先探索
-        self.hit_test_recursive(widget_system, layout_system, root_id, point)
-    }
-    
-    /// フォーカスを設定
-    pub fn set_focus(&mut self, widget_id: Option<WidgetId>) {
-        if let Some(old_focus) = self.focused_widget {
-            if let Some(interaction) = self.interactions.get_mut(old_focus) {
-                interaction.has_focus = false;
-            }
-        }
-        
-        if let Some(new_focus) = widget_id {
-            if let Some(interaction) = self.interactions.get_mut(new_focus) {
-                interaction.has_focus = true;
-            }
-        }
-        
-        self.focused_widget = widget_id;
-    }
-    
-    fn hit_test_recursive(
-        &self,
-        widget_system: &WidgetSystem,
-        layout_system: &LayoutSystem,
-        widget_id: WidgetId,
-        point: Point2D,
-    ) -> Option<WidgetId> {
-        let rect = layout_system.get_final_rect(widget_id)?;
-        
-        if !rect.contains(point) {
-            return None;
-        }
-        
-        // 子を逆順で検索（Z順序）
-        let children: Vec<_> = widget_system.children(widget_id).collect();
-        for child_id in children.iter().rev() {
-            if let Some(hit) = self.hit_test_recursive(widget_system, layout_system, *child_id, point) {
-                return Some(hit);
-            }
-        }
-        
-        // インタラクティブなら自分を返す
-        if self.is_interactive(widget_id) {
-            Some(widget_id)
-        } else {
-            None // 透過
-        }
-    }
-    
-    fn is_interactive(&self, widget_id: WidgetId) -> bool {
-        self.interactions.contains_key(widget_id)
-    }
-}
 ```
+
+**主な操作**:
+- `add_handler()`: イベントハンドラを登録
+- `dispatch_event()`: イベントをディスパッチ（バブリング）
+- `hit_test()`: 座標からWidgetを検索（深さ優先探索）
+- `set_focus()`: フォーカスを設定
 
 ### 8. ContainerStyleSystem - コンテナスタイル管理
 
@@ -3849,81 +1827,13 @@ pub struct ContainerStyleSystem {
     /// ダーティフラグ
     dirty: HashSet<WidgetId>,
 }
-
-impl ContainerStyleSystem {
-    /// 背景色を設定
-    pub fn set_background(&mut self, widget_id: WidgetId, color: Color) {
-        self.styles
-            .entry(widget_id)
-            .or_insert_with(ContainerStyle::default)
-            .background = Some(color);
-        self.mark_dirty(widget_id);
-    }
-    
-    /// 枠線を設定
-    pub fn set_border(&mut self, widget_id: WidgetId, border: Border) {
-        self.styles
-            .entry(widget_id)
-            .or_insert_with(ContainerStyle::default)
-            .border = Some(border);
-        self.mark_dirty(widget_id);
-    }
-    
-    /// パディングを設定
-    pub fn set_padding(&mut self, widget_id: WidgetId, padding: Padding) {
-        self.styles
-            .entry(widget_id)
-            .or_insert_with(ContainerStyle::default)
-            .padding = padding;
-        self.mark_dirty(widget_id);
-    }
-    
-    /// 描画コマンドを生成
-    pub fn draw_to_context(
-        &self,
-        widget_id: WidgetId,
-        dc: &ID2D1DeviceContext,
-        rect: Rect,
-    ) -> Result<()> {
-        if let Some(style) = self.styles.get(widget_id) {
-            unsafe {
-                // 背景を描画
-                if let Some(color) = style.background {
-                    let brush = dc.CreateSolidColorBrush(
-                        &D2D1_COLOR_F {
-                            r: color.r,
-                            g: color.g,
-                            b: color.b,
-                            a: color.a,
-                        },
-                        None,
-                    )?;
-                    dc.FillRectangle(&rect.into(), &brush);
-                }
-                
-                // 枠線を描画
-                if let Some(border) = &style.border {
-                    let brush = dc.CreateSolidColorBrush(
-                        &D2D1_COLOR_F {
-                            r: border.color.r,
-                            g: border.color.g,
-                            b: border.color.b,
-                            a: border.color.a,
-                        },
-                        None,
-                    )?;
-                    dc.DrawRectangle(&rect.into(), &brush, border.thickness, None);
-                }
-            }
-        }
-        Ok(())
-    }
-    
-    fn mark_dirty(&mut self, widget_id: WidgetId) {
-        self.dirty.insert(widget_id);
-    }
-}
 ```
+
+**主な操作**:
+- `set_background()`: 背景色を設定
+- `set_border()`: 枠線を設定
+- `set_padding()`: パディングを設定
+- `draw_to_context()`: 描画コマンドを生成（背景・枠線）
 
 ### 統合レイヤー: UiRuntime
 
@@ -3943,131 +1853,17 @@ pub struct UiRuntime {
     visual: VisualSystem,
     interaction: InteractionSystem,
 }
-
-impl UiRuntime {
-    /// フレーム更新（すべてのシステムを協調して更新）
-    /// root_id: Windowが所有するroot Widget
-    pub fn update_frame(&mut self, root_id: WidgetId) {
-        // 1. レイアウトパス（サイズ・位置計算）
-        let window_size = Size2D::new(800.0, 600.0); // 仮
-        self.layout.update(&self.widget, root_id, window_size);
-        
-        // 2. 描画コンテンツパス
-        self.update_drawing_contents();
-        
-        // 3. Visualパス（DirectCompositionツリー更新）
-        self.update_visuals();
-        
-        // 4. コミット
-        self.visual.commit().ok();
-    }
-    
-    /// 描画コンテンツを更新
-    fn update_drawing_contents(&mut self) {
-        // テキスト、画像、コンテナスタイルから描画コマンドを生成
-        
-        // テキストの描画コンテンツ
-        for widget_id in self.text.dirty.drain().collect::<Vec<_>>() {
-            if let Some(rect) = self.layout.get_final_rect(widget_id) {
-                self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
-                    // ブラシを作成
-                    let brush = unsafe {
-                        dc.CreateSolidColorBrush(
-                            &D2D1_COLOR_F { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-                            None,
-                        )?
-                    };
-                    
-                    self.text.draw_to_context(widget_id, dc, &brush, Point2D::zero())
-                }).ok();
-            }
-        }
-        
-        // 画像の描画コンテンツ
-        for widget_id in self.image.dirty.drain().collect::<Vec<_>>() {
-            if let Some(rect) = self.layout.get_final_rect(widget_id) {
-                self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
-                    self.image.draw_to_context(widget_id, dc, rect)
-                }).ok();
-            }
-        }
-        
-        // コンテナスタイルの描画コンテンツ
-        for widget_id in self.container_style.dirty.drain().collect::<Vec<_>>() {
-            if let Some(rect) = self.layout.get_final_rect(widget_id) {
-                self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
-                    self.container_style.draw_to_context(widget_id, dc, rect)
-                }).ok();
-            }
-        }
-    }
-    
-    /// Visualを更新
-    fn update_visuals(&mut self) {
-        for widget_id in self.drawing_content.dirty.drain().collect::<Vec<_>>() {
-            if let Some(content) = self.drawing_content.get_content(widget_id) {
-                if let Some(rect) = self.layout.get_final_rect(widget_id) {
-                    self.visual.apply_content(widget_id, content, rect.size).ok();
-                    self.visual.set_offset(widget_id, rect.origin).ok();
-                }
-            }
-        }
-    }
-    
-    /// Widgetを作成（高レベルAPI）
-    pub fn create_text_widget(&mut self, text: String) -> WidgetId {
-        let widget_id = self.widget.create_widget();
-        self.text.set_text(widget_id, text);
-        // レイアウトプロパティは個別に設定（必要なものだけ）
-        self.layout.set_width(widget_id, Length::Auto);
-        self.layout.set_height(widget_id, Length::Auto);
-        widget_id
-    }
-    
-    /// イメージWidgetを作成
-    pub fn create_image_widget(&mut self, path: &str) -> Result<WidgetId> {
-        let widget_id = self.widget.create_widget();
-        self.image.load_image(widget_id, path, &self.drawing_content.d2d_context)?;
-        // レイアウトプロパティは個別に設定
-        self.layout.set_width(widget_id, Length::Auto);
-        self.layout.set_height(widget_id, Length::Auto);
-        Ok(widget_id)
-    }
-    
-    /// コンテナWidgetを作成
-    pub fn create_container(&mut self) -> WidgetId {
-        let widget_id = self.widget.create_widget();
-        // デフォルトではプロパティを設定しない（全てデフォルト値）
-        // 必要に応じて個別に設定
-        widget_id
-    }
-    
-    /// スタックパネルを作成
-    pub fn create_stack_panel(&mut self, orientation: Orientation) -> WidgetId {
-        let widget_id = self.widget.create_widget();
-        self.layout.set_layout_type(widget_id, LayoutType::Stack(StackLayout {
-            orientation,
-            spacing: 0.0,
-        }));
-        widget_id
-    }
-    
-    /// イベント処理
-    /// root_id: Windowが所有するroot Widget
-    pub fn handle_mouse_down(&mut self, root_id: WidgetId, x: f32, y: f32) {
-        let point = Point2D::new(x, y);
-        if let Some(widget_id) = self.interaction.hit_test(
-            &self.widget,
-            &self.layout,
-            root_id,
-            point
-        ) {
-            let event = UiEvent::MouseDown { button: MouseButton::Left, x, y };
-            self.interaction.dispatch_event(&self.widget, widget_id, &event);
-        }
-    }
-}
 ```
+
+**主な操作**:
+- `update_frame()`: フレーム更新（レイアウト→描画コンテンツ→Visual→コミット）
+- `update_drawing_contents()`: テキスト、画像、スタイルから描画コマンドを生成
+- `update_visuals()`: DrawingContentをDirectComposition Visualに反映
+- `create_text_widget()`: テキストWidget作成
+- `create_image_widget()`: 画像Widget作成
+- `create_container()`: コンテナWidget作成
+- `create_stack_panel()`: スタックパネル作成
+- `handle_mouse_down()`: マウスイベント処理（ヒットテスト→ディスパッチ）
 
 ### システム間の依存関係図
 
@@ -4109,7 +1905,6 @@ impl UiRuntime {
 Windowは特殊なWidget（ルートWidget）として扱われる：
 
 ```rust
-/// WindowSystemが管理する各Window
 pub struct Window {
     hwnd: HWND,
     root_widget_id: WidgetId,  // このWindowのルートWidget
@@ -4119,215 +1914,61 @@ pub struct Window {
 pub struct WindowSystem {
     windows: HashMap<HWND, Window>,
 }
-
-impl WindowSystem {
-    /// 新しいWindowを作成（WidgetSystemにルートWidgetを作成）
-    pub fn create_window(
-        &mut self,
-        ui_runtime: &mut UiRuntime,
-    ) -> Result<HWND> {
-        // OSウィンドウを作成
-        let hwnd = unsafe { CreateWindowExW(...) };
-        
-        // ルートWidgetを作成（Windowとして機能）
-        let root_widget_id = ui_runtime.widget_system.create_widget();
-        
-        // DirectCompositionターゲットを作成
-        let dcomp_target = unsafe {
-            ui_runtime.visual.dcomp_device
-                .CreateTargetForHwnd(hwnd, true)?
-        };
-        
-        // Windowを登録
-        let window = Window {
-            hwnd,
-            root_widget_id,
-            dcomp_target,
-        };
-        self.windows.insert(hwnd, window);
-        
-        Ok(hwnd)
-    }
-    
-    /// WindowのルートWidgetを取得
-    pub fn get_root_widget(&self, hwnd: HWND) -> Option<WidgetId> {
-        self.windows.get(&hwnd).map(|w| w.root_widget_id)
-    }
-    
-    /// Windowを閉じる（ルートWidgetも削除）
-    pub fn close_window(
-        &mut self,
-        hwnd: HWND,
-        ui_runtime: &mut UiRuntime,
-    ) -> Result<()> {
-        if let Some(window) = self.windows.remove(&hwnd) {
-            // OSウィンドウを閉じる
-            unsafe { DestroyWindow(hwnd) };
-            
-            // ルートWidgetを削除（子も再帰的に削除される）
-            ui_runtime.widget_system.delete_widget(window.root_widget_id)?;
-        }
-        Ok(())
-    }
-}
 ```
+
+**主な操作**:
+- `create_window()`: OSウィンドウとルートWidgetを作成
+- `get_root_widget()`: WindowのルートWidgetを取得
+- `close_window()`: Window閉鎖（ルートWidget削除→子も再帰削除）
 
 ### UiRuntimeとWindowSystemの協調
 
 ```rust
-// UiRuntimeは特定のWindowに依存しない（汎用的なUI管理）
+// UiRuntimeは汎用的なUI管理
 let mut ui_runtime = UiRuntime::new();
-
-// WindowSystemは複数のWindowを管理
 let mut window_system = WindowSystem::new();
 
 // Window1を作成
 let hwnd1 = window_system.create_window(&mut ui_runtime)?;
 let root1 = window_system.get_root_widget(hwnd1).unwrap();
-
-// Window1にUI要素を追加
-let text = ui_runtime.create_text_widget("Hello Window 1".to_string());
+let text = ui_runtime.create_text_widget("Hello".to_string());
 ui_runtime.widget_system.append_child(root1, text)?;
 
 // Window2を作成（別のツリー）
 let hwnd2 = window_system.create_window(&mut ui_runtime)?;
 let root2 = window_system.get_root_widget(hwnd2).unwrap();
 
-// Window2にUI要素を追加
-let image = ui_runtime.create_image_widget("icon.png")?;
-ui_runtime.widget_system.append_child(root2, image)?;
-
-// 各Windowを個別に更新
-ui_runtime.update_frame(root1);
-ui_runtime.update_frame(root2);
-
-// Widgetをあるウィンドウから別のウィンドウへ移動
-// textをWindow1から切り離し
+// Widgetを別Windowへ移動
 ui_runtime.widget_system.detach_widget(text)?;
-// textをWindow2に追加
 ui_runtime.widget_system.append_child(root2, text)?;
-
-// レイアウトプロパティを個別に設定（ECS的）
-let container = ui_runtime.create_container();
-ui_runtime.layout.set_width(container, Length::Pixels(200.0));
-ui_runtime.layout.set_height(container, Length::Pixels(100.0));
-ui_runtime.layout.set_margin(container, Margin {
-    left: 10.0,
-    top: 10.0,
-    right: 10.0,
-    bottom: 10.0,
-});
-ui_runtime.layout.set_padding(container, Padding {
-    left: 5.0,
-    top: 5.0,
-    right: 5.0,
-    bottom: 5.0,
-});
-
-// 背景色を設定
-ui_runtime.container_style.set_background(container, Color {
-    r: 1.0, g: 1.0, b: 1.0, a: 1.0,
-});
 ```
 
-この設計により：
-- **マルチウィンドウ対応**: 複数のWindowが独立したWidgetツリーを持てる
-- **統一的なWidget管理**: WindowもTextBlockも同じWidgetSystemで管理
-- **柔軟なUI構築**: detach/appendでWidget（UIコンポーネント）を自由に移動可能
-- **効率的なリソース管理**: 切り離したWidgetは削除せずに再利用できる
+**マルチウィンドウ対応の特徴**:
+- 複数のWindowが独立したWidgetツリーを持てる
+- WindowもTextBlockも同じWidgetSystemで管理
+- detach/appendでWidget（UIコンポーネント）を自由に移動可能
+- 切り離したWidgetは削除せずに再利用できる
 
 ### detach_widgetとdelete_widgetの使い分け
 
-```rust
-// パターン1: Widgetを別の親に移動（detach → append）
-let widget = ui_runtime.create_text_widget("移動可能".to_string());
-ui_runtime.widget_system.append_child(parent1, widget)?;
-
-// 後で親を変更
-ui_runtime.widget_system.detach_widget(widget)?;  // parent1から切り離す
-ui_runtime.widget_system.append_child(parent2, widget)?;  // parent2に追加
-
-// パターン2: Widgetを一時的に非表示（detachのみ）
-ui_runtime.widget_system.detach_widget(widget)?;  // ツリーから外れる
-// Widgetは存在するが、どのツリーにも属さない（描画されない）
-
-// 後で再表示
-ui_runtime.widget_system.append_child(parent1, widget)?;
-
-// パターン3: Widgetを完全に削除（delete）
-ui_runtime.widget_system.delete_widget(widget)?;  // 完全に削除
-// この後、widgetは無効なIDになる
-```
+- **detach_widget**: ツリーから切り離すが存在は維持（再利用可能）
+- **delete_widget**: 完全に削除（子も再帰削除）
 
 ### 分離のメリット
 
-1. **単一責任**: 各システムが1つの明確な責務を持つ
+1. **単一責任**: 各システムが1つの明確な責務
 2. **テスト容易性**: システムごとに独立してユニットテスト可能
 3. **並列処理**: 依存関係のないシステムは並列実行可能（TextとImageなど）
-4. **拡張性**: 新しいシステムを追加しやすい
+4. **拡張性**: 新しいシステムを追加しやすい（例: AnimationSystem）
 5. **メンテナンス性**: 変更の影響範囲が明確
 6. **再利用性**: 特定のシステムだけを他のプロジェクトで使える
 
-### システム追加の例: AnimationSystem
-
-```rust
-pub struct AnimationSystem {
-    animations: SecondaryMap<WidgetId, Vec<Animation>>,
-    active_animations: HashSet<WidgetId>,
-}
-
-impl AnimationSystem {
-    pub fn animate_opacity(
-        &mut self,
-        widget_id: WidgetId,
-        from: f32,
-        to: f32,
-        duration: Duration,
-    ) {
-        let animation = Animation::Opacity { from, to, duration, elapsed: Duration::ZERO };
-        self.animations
-            .entry(widget_id)
-            .or_insert_with(Vec::new)
-            .push(animation);
-        self.active_animations.insert(widget_id);
-    }
-    
-    pub fn update(&mut self, delta_time: Duration, visual_system: &mut VisualSystem) {
-        for widget_id in &self.active_animations {
-            if let Some(animations) = self.animations.get_mut(*widget_id) {
-                for animation in animations.iter_mut() {
-                    animation.update(delta_time);
-                    
-                    // アニメーション値をVisualSystemに適用
-                    match animation {
-                        Animation::Opacity { current, .. } => {
-                            visual_system.set_opacity(*widget_id, *current).ok();
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-```
-
 ### パフォーマンス最適化
 
-1. **ダーティフラグ管理**
-   - 各システムが自分のダーティフラグを持つ
-   - 変更があったWidgetだけを更新
-
-2. **バッチ処理**
-   - 複数のWidgetの更新を一度に処理
-   - DirectCompositionのコミットは1フレームに1回
-
-3. **キャッシュ活用**
-   - DrawingContentSystemでID2D1CommandListをキャッシュ
-   - レイアウトが変わらなければ再描画不要
-
-4. **並列処理**
-   - TextSystemとImageSystemは並列実行可能
-   - Rayon等を使った並列化を検討
+1. **ダーティフラグ管理**: 変更があったWidgetだけを更新
+2. **バッチ処理**: DirectCompositionのコミットは1フレームに1回
+3. **キャッシュ活用**: ID2D1CommandListをキャッシュ、レイアウト不変時は再描画不要
+4. **並列処理**: TextSystemとImageSystemを並列実行（Rayon等）
 
 ## まとめ
 
