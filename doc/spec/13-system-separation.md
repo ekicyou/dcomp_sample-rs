@@ -17,21 +17,50 @@ bevy_ecsアーキテクチャの基本原則に従い、関心事を明確に分
 use bevy_ecs::prelude::*;
 
 /// 親への参照
+/// 注: ルートEntity（Window）はこのコンポーネントを持たない
 #[derive(Component)]
 pub struct Parent(pub Entity);
 
 /// 子への参照
+/// 注: 子を持つEntityのみがこのコンポーネントを持つ
 #[derive(Component)]
 pub struct Children(pub Vec<Entity>);
 ```
 
 **主な操作**:
-- `commands.entity(parent).add_child(child)`: 子Entityを追加
+- `commands.entity(parent).add_child(child)`: 子Entityを追加（自動的にParent/Childrenを設定）
 - `commands.entity(parent).push_children(&[child1, child2])`: 複数の子を追加
-- `commands.entity(child).remove_parent()`: 親子関係を切断
+- `commands.entity(child).remove_parent()`: 親子関係を切断（Parentコンポーネントを削除）
 - `commands.entity(entity).despawn_recursive()`: Entityと子を再帰的に削除
 
-**走査**:
+### ルート判定
+
+```rust
+/// Entityがルート（親を持たない）かどうか
+pub fn is_root(entity: Entity, parent_query: Query<&Parent>) -> bool {
+    parent_query.get(entity).is_err()
+}
+
+/// Windowを見つける
+pub fn find_window(
+    entity: Entity,
+    parent_query: Query<&Parent>,
+    window_query: Query<&Window>,
+) -> Option<Entity> {
+    let mut current = entity;
+    loop {
+        if window_query.get(current).is_ok() {
+            return Some(current);
+        }
+        // Parentコンポーネントがあれば親をたどる
+        if let Ok(parent) = parent_query.get(current) {
+            current = parent.0;
+        } else {
+            return None; // ルートに到達
+        }
+    }
+}
+```
 ```rust
 pub fn traverse_system(
     parent_query: Query<&Children>,

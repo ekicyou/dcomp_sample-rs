@@ -50,6 +50,8 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::prelude::*;
 
 // bevy_hierarchyが提供（標準）
+// 注: Parentコンポーネントは親を持つEntityのみが持つ
+// ルートEntity（Window）はParentコンポーネントを持たない
 #[derive(Component)]
 pub struct Parent(pub Entity);
 
@@ -61,6 +63,24 @@ pub struct Children(pub Vec<Entity>);
 pub struct Window {
     pub hwnd: HWND,
 }
+```
+
+### Entityの構造
+
+```rust
+// Windowの構成（ルートEntity）
+commands.spawn((
+    Window { hwnd },      // Windowマーカー
+    Children(vec![...]),  // 子を持つ
+    // Parent コンポーネントなし（ルートのため）
+));
+
+// 子Entityの構成
+commands.spawn((
+    TextContent { ... },
+    Parent(window_entity), // 親への参照を持つ
+    // Children はオプション（子がいる場合のみ）
+));
 ```
 
 ### 親子関係の操作
@@ -135,7 +155,12 @@ pub fn traverse_children_system(
     }
 }
 
-/// 親をたどる
+### 親をたどる
+
+bevy_ecsでは、`Parent`コンポーネントの有無でルートかどうかを判定：
+
+```rust
+/// 親をたどってWindowを見つける
 pub fn find_window_system(
     entity: Entity,
     parent_query: Query<&Parent>,
@@ -149,13 +174,20 @@ pub fn find_window_system(
             return Some(current);
         }
         
-        // 親をたどる
+        // 親をたどる（Parentコンポーネントがあれば）
         if let Ok(parent) = parent_query.get(current) {
-            current = parent.get();
+            current = parent.0;
         } else {
-            return None; // ルートに到達（Parentなし）
+            // Parentコンポーネントがない = ルートに到達
+            return None;
         }
     }
+}
+
+/// ルートEntityを判定
+pub fn is_root(entity: Entity, parent_query: Query<&Parent>) -> bool {
+    // Parentコンポーネントを持たない = ルート
+    parent_query.get(entity).is_err()
 }
 ```
 

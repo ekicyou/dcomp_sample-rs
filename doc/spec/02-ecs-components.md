@@ -446,11 +446,17 @@ pub fn visual_to_redraw(
 |------|---------|----------|
 | データ管理 | `SecondaryMap<WidgetId, T>` | `#[derive(Component)]` |
 | ID管理 | `WidgetId` (SlotMap key) | `Entity` (自動管理) |
+| 親子関係 | 連結リスト（必須フィールド） | `Parent`/`Children` コンポーネント（オプション） |
+| ルート判定 | `parent.is_none()` | `!query.contains(Parent)` |
 | システム | メソッド (`impl WidgetSystem`) | 関数 (`pub fn system()`) |
 | ダーティ検知 | 手動 (`dirty: HashSet`) | 自動 (`Changed<T>`) |
 | 変更伝播 | 手動 (DependencyMap) | システムチェーン |
 | 並列処理 | 手動実装が必要 | 自動並列化 |
 | メモリ効率 | スパース | スパース（最適化済み） |
+
+**重要な設計上の違い**:
+- **slotmap**: すべてのWidgetが親フィールドを持つ（`Option<WidgetId>`）
+- **bevy_ecs**: 親を持つEntityのみが`Parent`コンポーネントを持つ（より効率的）
 
 bevy_ecsへの移行により、**宣言的で保守しやすく、自動的に最適化されるコード**になります。
 

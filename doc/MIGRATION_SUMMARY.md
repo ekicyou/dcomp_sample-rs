@@ -77,7 +77,34 @@ pub struct Size {
 pub struct LayoutInvalidated;
 ```
 
-### 3. システム実装
+### 3. 親子関係
+
+**旧**: 連結リスト構造（すべてのWidgetが親フィールドを持つ）
+```rust
+struct Widget {
+    parent: Option<WidgetId>,      // すべてのWidgetが持つ
+    first_child: Option<WidgetId>,
+    next_sibling: Option<WidgetId>,
+}
+```
+
+**新**: コンポーネントベース（必要なEntityのみ）
+```rust
+// Parentコンポーネント: 親を持つEntityのみ
+#[derive(Component)]
+pub struct Parent(pub Entity);
+
+// Childrenコンポーネント: 子を持つEntityのみ
+#[derive(Component)]
+pub struct Children(pub Vec<Entity>);
+
+// ルートEntity（Window）はParentコンポーネントを持たない
+commands.spawn((
+    Window { hwnd },
+    Children(vec![...]),
+    // Parent なし
+));
+```
 
 **旧**:
 ```rust
@@ -113,21 +140,31 @@ self.dirty.insert(widget_id);
 Query<&TextContent, Changed<TextContent>>
 ```
 
-### 5. 親子関係
+### 3. システム実装
 
-**旧**: 連結リスト構造
+**旧**:
 ```rust
-struct Widget {
-    parent: Option<WidgetId>,
-    first_child: Option<WidgetId>,
-    next_sibling: Option<WidgetId>,
+impl LayoutSystem {
+    pub fn set_width(&mut self, widget_id: WidgetId, width: Length) {
+        self.width.insert(widget_id, width);
+        self.dirty.insert(widget_id);
+    }
 }
 ```
 
-**新**: bevy_hierarchy標準
+**新**:
 ```rust
-commands.entity(parent).add_child(child);
+pub fn size_changed_system(
+    mut commands: Commands,
+    query: Query<Entity, Changed<Size>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).insert(LayoutInvalidated);
+    }
+}
 ```
+
+### 4. 変更検知
 
 ## 追加された概念
 
