@@ -131,21 +131,21 @@ pub struct WidgetSystem {
     widgets: SlotMap<WidgetId, Widget>,
 
     // レイアウト関連（ほぼすべてが持つ）
-    layouts: SecondaryMap<WidgetId, Layout>,
+    layout: SecondaryMap<WidgetId, Layout>,
 
     // ビジュアル関連（描画が必要なWidgetのみ）
-    visuals: SecondaryMap<WidgetId, Visual>,
+    visual: SecondaryMap<WidgetId, Visual>,
     
     // 描画コンテンツ（ID2D1Imageベース、キャッシュ用）
-    drawing_contents: SecondaryMap<WidgetId, DrawingContent>,
+    drawing_content: SecondaryMap<WidgetId, DrawingContent>,
     
     // コンテンツ種別（Widgetの役割を決める）
-    texts: SecondaryMap<WidgetId, TextContent>,
-    images: SecondaryMap<WidgetId, ImageContent>,
-    containers: SecondaryMap<WidgetId, ContainerStyle>,
+    text: SecondaryMap<WidgetId, TextContent>,
+    image: SecondaryMap<WidgetId, ImageContent>,
+    container: SecondaryMap<WidgetId, ContainerStyle>,
     
     // インタラクション関連
-    interactions: SecondaryMap<WidgetId, InteractionState>,
+    interaction: SecondaryMap<WidgetId, InteractionState>,
     
     // ダーティフラグ管理
     dirty_layout: HashSet<WidgetId>,
@@ -164,27 +164,27 @@ ECS/依存関係プロパティの原則に従い、各プロパティは独立�
 ```rust
 pub struct LayoutSystem {
     // サイズ制約（個別管理）
-    widths: SecondaryMap<WidgetId, Length>,
-    heights: SecondaryMap<WidgetId, Length>,
-    min_widths: SecondaryMap<WidgetId, f32>,
-    max_widths: SecondaryMap<WidgetId, f32>,
-    min_heights: SecondaryMap<WidgetId, f32>,
-    max_heights: SecondaryMap<WidgetId, f32>,
+    width: SecondaryMap<WidgetId, Length>,
+    height: SecondaryMap<WidgetId, Length>,
+    min_width: SecondaryMap<WidgetId, f32>,
+    max_width: SecondaryMap<WidgetId, f32>,
+    min_height: SecondaryMap<WidgetId, f32>,
+    max_height: SecondaryMap<WidgetId, f32>,
     
     // 間隔（個別管理）
-    margins: SecondaryMap<WidgetId, Margin>,
-    paddings: SecondaryMap<WidgetId, Padding>,
+    margin: SecondaryMap<WidgetId, Margin>,
+    padding: SecondaryMap<WidgetId, Padding>,
     
     // 配置（個別管理）
-    horizontal_alignments: SecondaryMap<WidgetId, Alignment>,
-    vertical_alignments: SecondaryMap<WidgetId, Alignment>,
+    horizontal_alignment: SecondaryMap<WidgetId, Alignment>,
+    vertical_alignment: SecondaryMap<WidgetId, Alignment>,
     
     // レイアウトタイプ（個別管理）
-    layout_types: SecondaryMap<WidgetId, LayoutType>,
+    layout_type: SecondaryMap<WidgetId, LayoutType>,
     
     // 計算結果（キャッシュ、個別管理）
-    desired_sizes: SecondaryMap<WidgetId, Size2D>,
-    final_rects: SecondaryMap<WidgetId, Rect>,
+    desired_size: SecondaryMap<WidgetId, Size2D>,
+    final_rect: SecondaryMap<WidgetId, Rect>,
     
     // ダーティフラグ
     dirty: HashSet<WidgetId>,
@@ -238,33 +238,33 @@ pub enum LayoutType {
 impl LayoutSystem {
     /// Widthを設定（個別プロパティ）
     pub fn set_width(&mut self, widget_id: WidgetId, width: Length) {
-        self.widths.insert(widget_id, width);
+        self.width.insert(widget_id, width);
         self.mark_dirty(widget_id);
     }
     
     /// Widthを取得（デフォルト値を返す）
     pub fn get_width(&self, widget_id: WidgetId) -> Length {
-        self.widths.get(widget_id)
+        self.width.get(widget_id)
             .cloned()
             .unwrap_or(Length::Auto)  // デフォルト値
     }
     
     /// Marginを設定（個別プロパティ）
     pub fn set_margin(&mut self, widget_id: WidgetId, margin: Margin) {
-        self.margins.insert(widget_id, margin);
+        self.margin.insert(widget_id, margin);
         self.mark_dirty(widget_id);
     }
     
     /// Marginを取得（デフォルト値を返す）
     pub fn get_margin(&self, widget_id: WidgetId) -> Margin {
-        self.margins.get(widget_id)
+        self.margin.get(widget_id)
             .cloned()
             .unwrap_or(Margin::zero())  // デフォルト値
     }
     
     /// 最終矩形を取得
     pub fn get_final_rect(&self, widget_id: WidgetId) -> Option<Rect> {
-        self.final_rects.get(widget_id).cloned()
+        self.final_rect.get(widget_id).cloned()
     }
 }
 ```
@@ -1362,8 +1362,8 @@ pub struct TextProperty;  // 型がIDの役割
 // 2. 実体は外部の「ストレージ」に保存
 pub struct PropertySystem {
     // DependencyObject(=Entity) ごとに値を保存
-    text_values: SecondaryMap<DependencyObjectId, String>,
-    width_values: SecondaryMap<DependencyObjectId, f64>,
+    text_value: SecondaryMap<DependencyObjectId, String>,
+    width_value: SecondaryMap<DependencyObjectId, f64>,
     // ... 各プロパティごとにマップ
 }
 
@@ -1456,10 +1456,10 @@ pub struct PropertySystem {
     widgets: SlotMap<WidgetId, Widget>,
     
     // 各プロパティのストレージ（WPFの_globalPropertyStore相当）
-    widths: SecondaryMap<WidgetId, f32>,
-    heights: SecondaryMap<WidgetId, f32>,
-    texts: SecondaryMap<WidgetId, String>,
-    colors: SecondaryMap<WidgetId, Color>,
+    width: SecondaryMap<WidgetId, f32>,
+    height: SecondaryMap<WidgetId, f32>,
+    text: SecondaryMap<WidgetId, String>,
+    color: SecondaryMap<WidgetId, Color>,
     
     // 変更通知（ダーティフラグ）
     dirty_properties: HashMap<WidgetId, HashSet<TypeId>>,
@@ -1540,7 +1540,7 @@ impl<T: Clone> PropertyValue<T> {
 
 pub struct PropertySystem {
     // 複数のソースを持つプロパティ値
-    widths: SecondaryMap<WidgetId, PropertyValue<f32>>,
+    width: SecondaryMap<WidgetId, PropertyValue<f32>>,
 }
 ```
 
@@ -1788,27 +1788,27 @@ Widgetのサイズと位置を計算する。2パスレイアウト（Measure/Ar
 ```rust
 pub struct LayoutSystem {
     // サイズ制約（個別管理）
-    widths: SecondaryMap<WidgetId, Length>,
-    heights: SecondaryMap<WidgetId, Length>,
-    min_widths: SecondaryMap<WidgetId, f32>,
-    max_widths: SecondaryMap<WidgetId, f32>,
-    min_heights: SecondaryMap<WidgetId, f32>,
-    max_heights: SecondaryMap<WidgetId, f32>,
+    width: SecondaryMap<WidgetId, Length>,
+    height: SecondaryMap<WidgetId, Length>,
+    min_width: SecondaryMap<WidgetId, f32>,
+    max_width: SecondaryMap<WidgetId, f32>,
+    min_height: SecondaryMap<WidgetId, f32>,
+    max_height: SecondaryMap<WidgetId, f32>,
     
     // 間隔（個別管理）
-    margins: SecondaryMap<WidgetId, Margin>,
-    paddings: SecondaryMap<WidgetId, Padding>,
+    margin: SecondaryMap<WidgetId, Margin>,
+    padding: SecondaryMap<WidgetId, Padding>,
     
     // 配置（個別管理）
-    horizontal_alignments: SecondaryMap<WidgetId, Alignment>,
-    vertical_alignments: SecondaryMap<WidgetId, Alignment>,
+    horizontal_alignment: SecondaryMap<WidgetId, Alignment>,
+    vertical_alignment: SecondaryMap<WidgetId, Alignment>,
     
     // レイアウトタイプ（個別管理）
-    layout_types: SecondaryMap<WidgetId, LayoutType>,
+    layout_type: SecondaryMap<WidgetId, LayoutType>,
     
     // 計算結果（キャッシュ、個別管理）
-    desired_sizes: SecondaryMap<WidgetId, Size2D>,
-    final_rects: SecondaryMap<WidgetId, Rect>,
+    desired_size: SecondaryMap<WidgetId, Size2D>,
+    final_rect: SecondaryMap<WidgetId, Rect>,
     
     // ダーティフラグ
     dirty: HashSet<WidgetId>,
@@ -1817,57 +1817,57 @@ pub struct LayoutSystem {
 impl LayoutSystem {
     /// Widthを設定
     pub fn set_width(&mut self, widget_id: WidgetId, width: Length) {
-        self.widths.insert(widget_id, width);
+        self.width.insert(widget_id, width);
         self.mark_dirty(widget_id);
     }
     
     /// Widthを取得（デフォルト値付き）
     pub fn get_width(&self, widget_id: WidgetId) -> Length {
-        self.widths.get(widget_id).cloned().unwrap_or(Length::Auto)
+        self.width.get(widget_id).cloned().unwrap_or(Length::Auto)
     }
     
     /// Heightを設定
     pub fn set_height(&mut self, widget_id: WidgetId, height: Length) {
-        self.heights.insert(widget_id, height);
+        self.height.insert(widget_id, height);
         self.mark_dirty(widget_id);
     }
     
     /// Heightを取得（デフォルト値付き）
     pub fn get_height(&self, widget_id: WidgetId) -> Length {
-        self.heights.get(widget_id).cloned().unwrap_or(Length::Auto)
+        self.height.get(widget_id).cloned().unwrap_or(Length::Auto)
     }
     
     /// Marginを設定
     pub fn set_margin(&mut self, widget_id: WidgetId, margin: Margin) {
-        self.margins.insert(widget_id, margin);
+        self.margin.insert(widget_id, margin);
         self.mark_dirty(widget_id);
     }
     
     /// Marginを取得（デフォルト値付き）
     pub fn get_margin(&self, widget_id: WidgetId) -> Margin {
-        self.margins.get(widget_id).cloned().unwrap_or(Margin::zero())
+        self.margin.get(widget_id).cloned().unwrap_or(Margin::zero())
     }
     
     /// Paddingを設定
     pub fn set_padding(&mut self, widget_id: WidgetId, padding: Padding) {
-        self.paddings.insert(widget_id, padding);
+        self.padding.insert(widget_id, padding);
         self.mark_dirty(widget_id);
     }
     
     /// Paddingを取得（デフォルト値付き）
     pub fn get_padding(&self, widget_id: WidgetId) -> Padding {
-        self.paddings.get(widget_id).cloned().unwrap_or(Padding::zero())
+        self.padding.get(widget_id).cloned().unwrap_or(Padding::zero())
     }
     
     /// レイアウトタイプを設定
     pub fn set_layout_type(&mut self, widget_id: WidgetId, layout_type: LayoutType) {
-        self.layout_types.insert(widget_id, layout_type);
+        self.layout_type.insert(widget_id, layout_type);
         self.mark_dirty(widget_id);
     }
     
     /// レイアウトタイプを取得
     pub fn get_layout_type(&self, widget_id: WidgetId) -> LayoutType {
-        self.layout_types.get(widget_id).cloned().unwrap_or(LayoutType::None)
+        self.layout_type.get(widget_id).cloned().unwrap_or(LayoutType::None)
     }
     
     /// ダーティマーク（子孫も再帰的に）
