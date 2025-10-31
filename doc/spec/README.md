@@ -328,6 +328,287 @@ impl LayoutSystem {
 }
 ```
 
+### ダーティ伝搬戦略
+
+#### 課題
+各システムは独立したダーティフラグ(`HashSet<WidgetId>`)を持ちますが、システム間には依存関係があります：
+
+```
+Layout変更 → DrawingContent再生成 → Visual更新
+Text変更   → DrawingContent再生成 → Visual更新
+Image変更  → DrawingContent再生成 → Visual更新
+```
+
+#### 実装戦略の比較
+
+##### 戦略1: Pull型（遅延評価・推奨）
+
+各システムが更新時に必要な情報を**取りに行く**アプローチ。ECSの原則に最も適合。
+
+```rust
+impl UiRuntime {
+    pub fn update_frame(&mut self, root_id: WidgetId) {
+        // 1. レイアウトパス
+        self.layout.update(&self.widget, root_id, window_size);
+        
+        // 2. 描画コンテンツパス
+        // レイアウトが変更されたWidgetを取得
+        let layout_changed: HashSet<_> = self.layout.dirty.iter().copied().collect();
+        
+        // 各システムのダーティと、レイアウト変更の影響を受けるWidgetを統合
+        let mut drawing_dirty = self.text.dirty.clone();
+        drawing_dirty.extend(&self.image.dirty);
+        drawing_dirty.extend(&self.container_style.dirty);
+        drawing_dirty.extend(&layout_changed); // レイアウト変更も含める
+        
+        // 描画コンテンツを更新
+        for widget_id in drawing_dirty.drain() {
+            self.update_drawing_content_for_widget(widget_id);
+        }
+        
+        // 3. Visualパス
+        // DrawingContent変更とレイアウト変更の両方を処理
+        let mut visual_dirty = self.drawing_content.dirty.clone();
+        visual_dirty.extend(&layout_changed); // レイアウト変更も含める
+        
+        for widget_id in visual_dirty.drain() {
+            self.update_visual_for_widget(widget_id);
+        }
+        
+        // 4. すべてのダーティフラグをクリア
+        self.layout.dirty.clear();
+        self.text.dirty.clear();
+        self.image.dirty.clear();
+        self.container_style.dirty.clear();
+        self.drawing_content.dirty.clear();
+        
+        // 5. コミット
+        self.visual.commit().ok();
+    }
+    
+    fn update_drawing_content_for_widget(&mut self, widget_id: WidgetId) {
+        // レイアウト情報を取得（Pull）
+        let Some(rect) = self.layout.get_final_rect(widget_id) else { return };
+        
+        // どのシステムが描画内容を持っているか判定
+        if self.text.has_text(widget_id) {
+            self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
+                let brush = create_brush(dc)?;
+                self.text.draw_to_context(widget_id, dc, &brush, Point2D::zero())
+            }).ok();
+        } else if self.image.has_image(widget_id) {
+            self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
+                self.image.draw_to_context(widget_id, dc, rect)
+            }).ok();
+        } else if self.container_style.has_style(widget_id) {
+            self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
+                self.container_style.draw_to_context(widget_id, dc, rect)
+            }).ok();
+        }
+    }
+    
+    fn update_visual_for_widget(&mut self, widget_id: WidgetId) {
+        // DrawingContentとレイアウト情報を取得（Pull）
+        let Some(content) = self.drawing_content.get_content(widget_id) else { return };
+        let Some(rect) = self.layout.get_final_rect(widget_id) else { return };
+        
+        self.visual.apply_content(widget_id, content, rect.size).ok();
+        self.visual.set_offset(widget_id, rect.origin).ok();
+    }
+}
+```
+
+**メリット**:
+- ✅ ECS原則に忠実（システム間の結合度が低い）
+- ✅ 各システムが独立して動作
+- ✅ デバッグしやすい（データフローが明確）
+- ✅ テストしやすい
+- ✅ 実装がシンプル
+
+**デメリット**:
+- ⚠️ `UiRuntime`が依存関係を知る必要がある
+- ⚠️ 更新順序を間違えるとバグになる可能性
+
+##### 戦略2: Push型（即座伝搬）
+
+変更時に影響を受けるシステムに**通知する**アプローチ。
+
+```rust
+impl LayoutSystem {
+    pub fn set_width(&mut self, widget_id: WidgetId, width: Length) {
+        self.width.insert(widget_id, width);
+        self.mark_dirty(widget_id);
+        
+        // 依存システムに通知
+        if let Some(propagator) = &mut self.dirty_propagator {
+            propagator.notify_layout_changed(widget_id);
+        }
+    }
+}
+
+pub struct DirtyPropagator {
+    drawing_content_dirty: HashSet<WidgetId>,
+    visual_dirty: HashSet<WidgetId>,
+}
+
+impl DirtyPropagator {
+    pub fn notify_layout_changed(&mut self, widget_id: WidgetId) {
+        // レイアウト変更は描画コンテンツとVisualの両方に影響
+        self.drawing_content_dirty.insert(widget_id);
+        self.visual_dirty.insert(widget_id);
+    }
+    
+    pub fn notify_text_changed(&mut self, widget_id: WidgetId) {
+        // テキスト変更は描画コンテンツとVisualに影響
+        self.drawing_content_dirty.insert(widget_id);
+        self.visual_dirty.insert(widget_id);
+    }
+}
+
+impl UiRuntime {
+    pub fn update_frame(&mut self, root_id: WidgetId) {
+        // すでに伝搬済み
+        self.layout.update(&self.widget, root_id, window_size);
+        
+        // 伝搬されたダーティフラグを使用
+        for widget_id in self.propagator.drawing_content_dirty.drain() {
+            self.update_drawing_content_for_widget(widget_id);
+        }
+        
+        for widget_id in self.propagator.visual_dirty.drain() {
+            self.update_visual_for_widget(widget_id);
+        }
+        
+        self.visual.commit().ok();
+    }
+}
+```
+
+**メリット**:
+- ✅ 更新時の判断が不要（すでに伝搬済み）
+- ✅ `update_frame`がシンプル
+
+**デメリット**:
+- ❌ システム間の結合度が高い（`DirtyPropagator`への参照が必要）
+- ❌ ECS原則から外れる
+- ❌ デバッグが難しい（伝搬経路が追いにくい）
+- ❌ テストが複雑
+
+##### 戦略3: ハイブリッド型（イベントバス）
+
+システム間の通信を`EventBus`経由で行う。
+
+```rust
+pub enum SystemEvent {
+    LayoutChanged(WidgetId),
+    TextChanged(WidgetId),
+    ImageChanged(WidgetId),
+    ContainerStyleChanged(WidgetId),
+}
+
+pub struct EventBus {
+    events: Vec<SystemEvent>,
+}
+
+impl LayoutSystem {
+    pub fn set_width(&mut self, widget_id: WidgetId, width: Length, event_bus: &mut EventBus) {
+        self.width.insert(widget_id, width);
+        self.mark_dirty(widget_id);
+        event_bus.emit(SystemEvent::LayoutChanged(widget_id));
+    }
+}
+
+impl DrawingContentSystem {
+    pub fn process_events(&mut self, events: &[SystemEvent]) {
+        for event in events {
+            match event {
+                SystemEvent::LayoutChanged(id) 
+                | SystemEvent::TextChanged(id)
+                | SystemEvent::ImageChanged(id)
+                | SystemEvent::ContainerStyleChanged(id) => {
+                    self.dirty.insert(*id);
+                }
+            }
+        }
+    }
+}
+```
+
+**メリット**:
+- ✅ 疎結合
+- ✅ 拡張しやすい
+
+**デメリット**:
+- ❌ オーバーエンジニアリング（この規模では不要）
+- ❌ パフォーマンスオーバーヘッド
+- ❌ 実装が複雑
+
+#### 推奨：戦略1（Pull型）
+
+**理由**:
+1. **ECS原則に忠実**: 各システムが独立し、`UiRuntime`が統合する
+2. **デバッグ容易**: データフローが`update_frame`で一目瞭然
+3. **実装シンプル**: 追加の抽象化が不要
+4. **パフォーマンス**: HashSetの`extend`操作は高速（O(n)）
+5. **テスタビリティ**: 各システムを個別にテスト可能
+
+**実装ガイドライン**:
+```rust
+// 各システムは自身のダーティフラグのみ管理
+impl TextSystem {
+    pub fn set_text(&mut self, widget_id: WidgetId, text: String) {
+        self.text.insert(widget_id, text);
+        self.dirty.insert(widget_id);  // 自分のダーティのみマーク
+    }
+}
+
+// UiRuntimeが依存関係を管理
+impl UiRuntime {
+    pub fn update_frame(&mut self, root_id: WidgetId) {
+        // 明示的な順序で処理
+        let layout_dirty = self.update_layout(root_id);
+        let drawing_dirty = self.update_drawing_content(&layout_dirty);
+        self.update_visuals(&layout_dirty, &drawing_dirty);
+        self.visual.commit().ok();
+    }
+    
+    fn update_layout(&mut self, root_id: WidgetId) -> HashSet<WidgetId> {
+        self.layout.update(&self.widget, root_id, window_size);
+        self.layout.dirty.drain().collect()
+    }
+    
+    fn update_drawing_content(&mut self, layout_dirty: &HashSet<WidgetId>) 
+        -> HashSet<WidgetId> 
+    {
+        // すべての描画系システムのダーティを統合
+        let mut dirty = HashSet::new();
+        dirty.extend(self.text.dirty.drain());
+        dirty.extend(self.image.dirty.drain());
+        dirty.extend(self.container_style.dirty.drain());
+        dirty.extend(layout_dirty.iter().copied()); // レイアウト変更も影響
+        
+        for widget_id in &dirty {
+            self.rebuild_drawing_content(*widget_id);
+        }
+        
+        dirty
+    }
+    
+    fn update_visuals(
+        &mut self, 
+        layout_dirty: &HashSet<WidgetId>,
+        drawing_dirty: &HashSet<WidgetId>
+    ) {
+        let mut dirty = drawing_dirty.clone();
+        dirty.extend(layout_dirty.iter().copied()); // レイアウト変更も影響
+        
+        for widget_id in dirty {
+            self.apply_visual_update(widget_id);
+        }
+    }
+}
+```
+
 #### Visual（ビジュアルツリー管理）
 描画が必要なWidgetのみ。DirectCompositionを使用するが、それと同一ではない。
 
