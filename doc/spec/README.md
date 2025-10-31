@@ -15,6 +15,24 @@
 - WidgetはUIツリーのノードを連結リストで表現する。
 - Widgetは`WidgetId`をもち、slotmapによって管理する。
 - 親子関係は`WidgetId`で管理
+- **Windowも概念的にはWidgetであり、Widgetツリーのルート要素となる**
+
+### Windowの特殊性
+
+Windowは他のUI要素（TextBlock、Image、Containerなど）と同様にWidgetとして扱われるが、以下の点で特別：
+
+1. **ルートWidget**: Windowは常にWidgetツリーのルート（親を持たない）
+2. **OSウィンドウとの関連**: HWNDと1:1で対応
+3. **WindowSystemが管理**: `WindowSystem`が各WindowのWidgetIdを保持
+4. **DirectComposition接続点**: ウィンドウのDCompTargetがビジュアルツリーの起点
+
+```rust
+// 概念的な構造
+Window (WidgetId)                    // WindowSystem が管理
+  └─ Container (WidgetId)            // レイアウトコンテナ
+       ├─ TextBlock (WidgetId)       // テキスト要素
+       └─ Image (WidgetId)           // 画像要素
+```
 
 ### Widget ID の定義
 ```rust
@@ -40,7 +58,7 @@ struct Widget {
 
 ### Widget の操作
 
-連結リスト構造を維持しながら、子の追加・削除・走査を行う。
+連結リスト構造を維持しながら、子の追加・切り離し・削除・走査を行う。
 
 ```rust
 impl WidgetSystem {
@@ -50,15 +68,31 @@ impl WidgetSystem {
         // 2. 親のlast_childを更新
         // 3. 兄弟リストに連結
     }
-    
-    /// Widgetを削除（子も再帰的に削除）
-    pub fn remove_widget(&mut self, widget_id: WidgetId) {
-        // 1. 子を再帰的に削除
+
+    /// Widgetをツリーから切り離す（Widget自体は残る）
+    pub fn detach_widget(&mut self, widget_id: WidgetId) {
+        // 1. 親の子リストから削除
         // 2. 兄弟リストから切断
         // 3. 親のfirst/last_childを更新
-        // 4. SlotMapから削除
+        // 4. 自分のparentをNoneに設定
+        // 注: Widgetは削除されず、再度append_childで別の親に追加可能
     }
     
+    /// Widgetをツリーから切り離して削除（子も再帰的に削除）
+    pub fn delete_widget(&mut self, widget_id: WidgetId) {
+        // 1. まずツリーから切り離す
+        self.detach_widget(widget_id);
+        
+        // 2. 子を再帰的に削除
+        let children: Vec<_> = self.children(widget_id).collect();
+        for child in children {
+            self.delete_widget(child);
+        }
+        
+        // 3. SlotMapから削除
+        self.widgets.remove(widget_id);
+    }
+
     /// 子を走査
     pub fn children(&self, parent_id: WidgetId) -> impl Iterator<Item = WidgetId> {
         // first_child -> next_sibling -> next_sibling ... と辿る
@@ -122,33 +156,116 @@ pub struct WidgetSystem {
 
 ### コンポーネントの詳細定義
 
-#### Layout（レイアウト情報）
+#### Layout関連プロパティ（個別のSecondaryMapで管理）
 **最優先**：サイズが決まらないと描画できない
 
+ECS/依存関係プロパティの原則に従い、各プロパティは独立したSecondaryMapで管理：
+
 ```rust
-pub struct Layout {
-    // 制約
-    width: Length,
-    height: Length,
-    min_width: f32,
-    max_width: f32,
-    min_height: f32,
-    max_height: f32,
+pub struct LayoutSystem {
+    // サイズ制約（個別管理）
+    widths: SecondaryMap<WidgetId, Length>,
+    heights: SecondaryMap<WidgetId, Length>,
+    min_widths: SecondaryMap<WidgetId, f32>,
+    max_widths: SecondaryMap<WidgetId, f32>,
+    min_heights: SecondaryMap<WidgetId, f32>,
+    max_heights: SecondaryMap<WidgetId, f32>,
     
-    // 間隔
-    margin: Margin,
-    padding: Padding,
+    // 間隔（個別管理）
+    margins: SecondaryMap<WidgetId, Margin>,
+    paddings: SecondaryMap<WidgetId, Padding>,
     
-    // 配置
-    horizontal_alignment: Alignment,
-    vertical_alignment: Alignment,
+    // 配置（個別管理）
+    horizontal_alignments: SecondaryMap<WidgetId, Alignment>,
+    vertical_alignments: SecondaryMap<WidgetId, Alignment>,
     
-    // レイアウトタイプ
-    layout_type: LayoutType,
+    // レイアウトタイプ（個別管理）
+    layout_types: SecondaryMap<WidgetId, LayoutType>,
     
-    // 計算結果（キャッシュ）
-    desired_size: Size2D,
-    final_rect: Rect,
+    // 計算結果（キャッシュ、個別管理）
+    desired_sizes: SecondaryMap<WidgetId, Size2D>,
+    final_rects: SecondaryMap<WidgetId, Rect>,
+    
+    // ダーティフラグ
+    dirty: HashSet<WidgetId>,
+}
+
+// プロパティの型定義
+pub enum Length {
+    Auto,
+    Pixels(f32),
+    Percent(f32),
+}
+
+pub struct Margin {
+    pub left: f32,
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+}
+
+pub struct Padding {
+    pub left: f32,
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+}
+
+pub enum Alignment {
+    Start,
+    Center,
+    End,
+    Stretch,
+}
+
+pub enum LayoutType {
+    None,
+    Stack(StackLayout),
+    // 将来的に追加
+    // Grid(GridLayout),
+    // Flex(FlexLayout),
+}
+```
+
+このアプローチのメリット：
+
+1. **メモリ効率**: 設定されたプロパティのみメモリを使用
+2. **柔軟性**: 各プロパティを独立して変更可能
+3. **依存関係プロパティと同じ思想**: WPFのDependencyPropertyと同様の設計
+4. **デフォルト値**: SecondaryMapにない場合は暗黙のデフォルト値を使用
+
+```rust
+impl LayoutSystem {
+    /// Widthを設定（個別プロパティ）
+    pub fn set_width(&mut self, widget_id: WidgetId, width: Length) {
+        self.widths.insert(widget_id, width);
+        self.mark_dirty(widget_id);
+    }
+    
+    /// Widthを取得（デフォルト値を返す）
+    pub fn get_width(&self, widget_id: WidgetId) -> Length {
+        self.widths.get(widget_id)
+            .cloned()
+            .unwrap_or(Length::Auto)  // デフォルト値
+    }
+    
+    /// Marginを設定（個別プロパティ）
+    pub fn set_margin(&mut self, widget_id: WidgetId, margin: Margin) {
+        self.margins.insert(widget_id, margin);
+        self.mark_dirty(widget_id);
+    }
+    
+    /// Marginを取得（デフォルト値を返す）
+    pub fn get_margin(&self, widget_id: WidgetId) -> Margin {
+        self.margins.get(widget_id)
+            .cloned()
+            .unwrap_or(Margin::zero())  // デフォルト値
+    }
+    
+    /// 最終矩形を取得
+    pub fn get_final_rect(&self, widget_id: WidgetId) -> Option<Rect> {
+        self.final_rects.get(widget_id).cloned()
+    }
 }
 ```
 
@@ -1576,16 +1693,74 @@ impl WidgetSystem {
         Ok(())
     }
     
-    /// Widgetを削除（子も再帰的に）
-    pub fn remove_widget(&mut self, widget_id: WidgetId) {
-        // 子を再帰的に削除
-        let children: Vec<_> = self.children(widget_id).collect();
-        for child in children {
-            self.remove_widget(child);
+    /// Widgetをツリーから切り離す（Widgetは削除されない）
+    pub fn detach_widget(&mut self, widget_id: WidgetId) -> Result<()> {
+        let widget = self.widgets.get_mut(widget_id)
+            .ok_or(Error::InvalidWidgetId)?;
+        
+        let parent_id = widget.parent;
+        let next_sibling = widget.next_sibling;
+        
+        // 親から切り離す
+        if let Some(parent_id) = parent_id {
+            let parent = self.widgets.get_mut(parent_id).unwrap();
+            
+            // 親のfirst_childを更新
+            if parent.first_child == Some(widget_id) {
+                parent.first_child = next_sibling;
+            }
+            
+            // 親のlast_childを更新
+            if parent.last_child == Some(widget_id) {
+                // 前の兄弟を探す
+                let mut prev_sibling = None;
+                let mut current = parent.first_child;
+                while let Some(current_id) = current {
+                    if current_id == widget_id {
+                        break;
+                    }
+                    prev_sibling = current;
+                    current = self.widgets.get(current_id).and_then(|w| w.next_sibling);
+                }
+                parent.last_child = prev_sibling;
+            }
+            
+            // 前の兄弟のnext_siblingを更新
+            let mut current = parent.first_child;
+            while let Some(current_id) = current {
+                let current_widget = self.widgets.get(current_id).unwrap();
+                if current_widget.next_sibling == Some(widget_id) {
+                    self.widgets.get_mut(current_id).unwrap().next_sibling = next_sibling;
+                    break;
+                }
+                current = current_widget.next_sibling;
+            }
         }
         
-        // SlotMapから削除
+        // Widgetのツリー情報をクリア
+        let widget = self.widgets.get_mut(widget_id).unwrap();
+        widget.parent = None;
+        widget.next_sibling = None;
+        // 注: first_child, last_childはそのまま（子はまだ存在）
+        
+        Ok(())
+    }
+    
+    /// Widgetを完全に削除（子も再帰的に削除）
+    pub fn delete_widget(&mut self, widget_id: WidgetId) -> Result<()> {
+        // 1. ツリーから切り離す
+        self.detach_widget(widget_id)?;
+        
+        // 2. 子を再帰的に削除
+        let children: Vec<_> = self.children(widget_id).collect();
+        for child in children {
+            self.delete_widget(child)?;
+        }
+        
+        // 3. SlotMapから削除
         self.widgets.remove(widget_id);
+        
+        Ok(())
     }
     
     /// 子を列挙
@@ -1608,21 +1783,91 @@ impl WidgetSystem {
 ### 2. LayoutSystem - レイアウト計算
 
 Widgetのサイズと位置を計算する。2パスレイアウト（Measure/Arrange）を実装。
+各プロパティは個別のSecondaryMapで管理（ECS/依存関係プロパティの原則）。
 
 ```rust
 pub struct LayoutSystem {
-    /// レイアウト情報
-    layouts: SecondaryMap<WidgetId, Layout>,
+    // サイズ制約（個別管理）
+    widths: SecondaryMap<WidgetId, Length>,
+    heights: SecondaryMap<WidgetId, Length>,
+    min_widths: SecondaryMap<WidgetId, f32>,
+    max_widths: SecondaryMap<WidgetId, f32>,
+    min_heights: SecondaryMap<WidgetId, f32>,
+    max_heights: SecondaryMap<WidgetId, f32>,
     
-    /// ダーティフラグ（このシステムで管理）
+    // 間隔（個別管理）
+    margins: SecondaryMap<WidgetId, Margin>,
+    paddings: SecondaryMap<WidgetId, Padding>,
+    
+    // 配置（個別管理）
+    horizontal_alignments: SecondaryMap<WidgetId, Alignment>,
+    vertical_alignments: SecondaryMap<WidgetId, Alignment>,
+    
+    // レイアウトタイプ（個別管理）
+    layout_types: SecondaryMap<WidgetId, LayoutType>,
+    
+    // 計算結果（キャッシュ、個別管理）
+    desired_sizes: SecondaryMap<WidgetId, Size2D>,
+    final_rects: SecondaryMap<WidgetId, Rect>,
+    
+    // ダーティフラグ
     dirty: HashSet<WidgetId>,
 }
 
 impl LayoutSystem {
-    /// レイアウト情報を設定
-    pub fn set_layout(&mut self, widget_id: WidgetId, layout: Layout) {
-        self.layouts.insert(widget_id, layout);
+    /// Widthを設定
+    pub fn set_width(&mut self, widget_id: WidgetId, width: Length) {
+        self.widths.insert(widget_id, width);
         self.mark_dirty(widget_id);
+    }
+    
+    /// Widthを取得（デフォルト値付き）
+    pub fn get_width(&self, widget_id: WidgetId) -> Length {
+        self.widths.get(widget_id).cloned().unwrap_or(Length::Auto)
+    }
+    
+    /// Heightを設定
+    pub fn set_height(&mut self, widget_id: WidgetId, height: Length) {
+        self.heights.insert(widget_id, height);
+        self.mark_dirty(widget_id);
+    }
+    
+    /// Heightを取得（デフォルト値付き）
+    pub fn get_height(&self, widget_id: WidgetId) -> Length {
+        self.heights.get(widget_id).cloned().unwrap_or(Length::Auto)
+    }
+    
+    /// Marginを設定
+    pub fn set_margin(&mut self, widget_id: WidgetId, margin: Margin) {
+        self.margins.insert(widget_id, margin);
+        self.mark_dirty(widget_id);
+    }
+    
+    /// Marginを取得（デフォルト値付き）
+    pub fn get_margin(&self, widget_id: WidgetId) -> Margin {
+        self.margins.get(widget_id).cloned().unwrap_or(Margin::zero())
+    }
+    
+    /// Paddingを設定
+    pub fn set_padding(&mut self, widget_id: WidgetId, padding: Padding) {
+        self.paddings.insert(widget_id, padding);
+        self.mark_dirty(widget_id);
+    }
+    
+    /// Paddingを取得（デフォルト値付き）
+    pub fn get_padding(&self, widget_id: WidgetId) -> Padding {
+        self.paddings.get(widget_id).cloned().unwrap_or(Padding::zero())
+    }
+    
+    /// レイアウトタイプを設定
+    pub fn set_layout_type(&mut self, widget_id: WidgetId, layout_type: LayoutType) {
+        self.layout_types.insert(widget_id, layout_type);
+        self.mark_dirty(widget_id);
+    }
+    
+    /// レイアウトタイプを取得
+    pub fn get_layout_type(&self, widget_id: WidgetId) -> LayoutType {
+        self.layout_types.get(widget_id).cloned().unwrap_or(LayoutType::None)
     }
     
     /// ダーティマーク（子孫も再帰的に）
@@ -1648,33 +1893,35 @@ impl LayoutSystem {
     
     /// 最終矩形を取得
     pub fn get_final_rect(&self, widget_id: WidgetId) -> Option<Rect> {
-        self.layouts.get(widget_id).map(|l| l.final_rect)
+        self.final_rects.get(widget_id).cloned()
     }
     
     /// 希望サイズを取得
     pub fn get_desired_size(&self, widget_id: WidgetId) -> Option<Size2D> {
-        self.layouts.get(widget_id).map(|l| l.desired_size)
+        self.desired_sizes.get(widget_id).cloned()
     }
     
     // 内部メソッド
     fn measure_recursive(&mut self, widget_system: &WidgetSystem, widget_id: WidgetId, available: Size2D) -> Size2D {
         // レイアウトタイプに応じた計測
         // 子を先に計測してから自分のサイズを決定
-        let layout = self.layouts.get(widget_id);
+        let layout_type = self.get_layout_type(widget_id);
         
-        match layout.map(|l| &l.layout_type) {
-            Some(LayoutType::Stack(stack)) => {
-                self.measure_stack(widget_system, widget_id, stack, available)
+        let desired = match layout_type {
+            LayoutType::Stack(stack) => {
+                self.measure_stack(widget_system, widget_id, &stack, available)
             }
-            _ => Size2D::zero(),
-        }
+            LayoutType::None => Size2D::zero(),
+        };
+        
+        // 計算結果を保存
+        self.desired_sizes.insert(widget_id, desired);
+        desired
     }
     
     fn arrange_recursive(&mut self, widget_system: &WidgetSystem, widget_id: WidgetId, final_rect: Rect) {
         // 自分の最終矩形を保存
-        if let Some(layout) = self.layouts.get_mut(widget_id) {
-            layout.final_rect = final_rect;
-        }
+        self.final_rects.insert(widget_id, final_rect);
         
         // 子を配置
         for child_id in widget_system.children(widget_id) {
@@ -2352,7 +2599,9 @@ impl UiRuntime {
     pub fn create_text_widget(&mut self, text: String) -> WidgetId {
         let widget_id = self.widget_system.create_widget();
         self.text.set_text(widget_id, text);
-        self.layout.set_layout(widget_id, Layout::default());
+        // レイアウトプロパティは個別に設定（必要なものだけ）
+        self.layout.set_width(widget_id, Length::Auto);
+        self.layout.set_height(widget_id, Length::Auto);
         widget_id
     }
     
@@ -2360,14 +2609,27 @@ impl UiRuntime {
     pub fn create_image_widget(&mut self, path: &str) -> Result<WidgetId> {
         let widget_id = self.widget_system.create_widget();
         self.image.load_image(widget_id, path, &self.drawing_content.d2d_context)?;
-        self.layout.set_layout(widget_id, Layout::default());
+        // レイアウトプロパティは個別に設定
+        self.layout.set_width(widget_id, Length::Auto);
+        self.layout.set_height(widget_id, Length::Auto);
         Ok(widget_id)
     }
     
     /// コンテナWidgetを作成
     pub fn create_container(&mut self) -> WidgetId {
         let widget_id = self.widget_system.create_widget();
-        self.layout.set_layout(widget_id, Layout::default());
+        // デフォルトではプロパティを設定しない（全てデフォルト値）
+        // 必要に応じて個別に設定
+        widget_id
+    }
+    
+    /// スタックパネルを作成
+    pub fn create_stack_panel(&mut self, orientation: Orientation) -> WidgetId {
+        let widget_id = self.widget_system.create_widget();
+        self.layout.set_layout_type(widget_id, LayoutType::Stack(StackLayout {
+            orientation,
+            spacing: 0.0,
+        }));
         widget_id
     }
     
@@ -2421,6 +2683,161 @@ impl UiRuntime {
 └──────────────────┘
 
 注: rootはWindowSystemが所有するWindowが管理
+```
+
+### WindowとWidgetの関係
+
+Windowは特殊なWidget（ルートWidget）として扱われる：
+
+```rust
+/// WindowSystemが管理する各Window
+pub struct Window {
+    hwnd: HWND,
+    root_widget_id: WidgetId,  // このWindowのルートWidget
+    dcomp_target: IDCompositionTarget,
+}
+
+pub struct WindowSystem {
+    windows: HashMap<HWND, Window>,
+}
+
+impl WindowSystem {
+    /// 新しいWindowを作成（WidgetSystemにルートWidgetを作成）
+    pub fn create_window(
+        &mut self,
+        ui_runtime: &mut UiRuntime,
+    ) -> Result<HWND> {
+        // OSウィンドウを作成
+        let hwnd = unsafe { CreateWindowExW(...) };
+        
+        // ルートWidgetを作成（Windowとして機能）
+        let root_widget_id = ui_runtime.widget_system.create_widget();
+        
+        // DirectCompositionターゲットを作成
+        let dcomp_target = unsafe {
+            ui_runtime.visual.dcomp_device
+                .CreateTargetForHwnd(hwnd, true)?
+        };
+        
+        // Windowを登録
+        let window = Window {
+            hwnd,
+            root_widget_id,
+            dcomp_target,
+        };
+        self.windows.insert(hwnd, window);
+        
+        Ok(hwnd)
+    }
+    
+    /// WindowのルートWidgetを取得
+    pub fn get_root_widget(&self, hwnd: HWND) -> Option<WidgetId> {
+        self.windows.get(&hwnd).map(|w| w.root_widget_id)
+    }
+    
+    /// Windowを閉じる（ルートWidgetも削除）
+    pub fn close_window(
+        &mut self,
+        hwnd: HWND,
+        ui_runtime: &mut UiRuntime,
+    ) -> Result<()> {
+        if let Some(window) = self.windows.remove(&hwnd) {
+            // OSウィンドウを閉じる
+            unsafe { DestroyWindow(hwnd) };
+            
+            // ルートWidgetを削除（子も再帰的に削除される）
+            ui_runtime.widget_system.delete_widget(window.root_widget_id)?;
+        }
+        Ok(())
+    }
+}
+```
+
+### UiRuntimeとWindowSystemの協調
+
+```rust
+// UiRuntimeは特定のWindowに依存しない（汎用的なUI管理）
+let mut ui_runtime = UiRuntime::new();
+
+// WindowSystemは複数のWindowを管理
+let mut window_system = WindowSystem::new();
+
+// Window1を作成
+let hwnd1 = window_system.create_window(&mut ui_runtime)?;
+let root1 = window_system.get_root_widget(hwnd1).unwrap();
+
+// Window1にUI要素を追加
+let text = ui_runtime.create_text_widget("Hello Window 1".to_string());
+ui_runtime.widget_system.append_child(root1, text)?;
+
+// Window2を作成（別のツリー）
+let hwnd2 = window_system.create_window(&mut ui_runtime)?;
+let root2 = window_system.get_root_widget(hwnd2).unwrap();
+
+// Window2にUI要素を追加
+let image = ui_runtime.create_image_widget("icon.png")?;
+ui_runtime.widget_system.append_child(root2, image)?;
+
+// 各Windowを個別に更新
+ui_runtime.update_frame(root1);
+ui_runtime.update_frame(root2);
+
+// Widgetをあるウィンドウから別のウィンドウへ移動
+// textをWindow1から切り離し
+ui_runtime.widget_system.detach_widget(text)?;
+// textをWindow2に追加
+ui_runtime.widget_system.append_child(root2, text)?;
+
+// レイアウトプロパティを個別に設定（ECS的）
+let container = ui_runtime.create_container();
+ui_runtime.layout.set_width(container, Length::Pixels(200.0));
+ui_runtime.layout.set_height(container, Length::Pixels(100.0));
+ui_runtime.layout.set_margin(container, Margin {
+    left: 10.0,
+    top: 10.0,
+    right: 10.0,
+    bottom: 10.0,
+});
+ui_runtime.layout.set_padding(container, Padding {
+    left: 5.0,
+    top: 5.0,
+    right: 5.0,
+    bottom: 5.0,
+});
+
+// 背景色を設定
+ui_runtime.container_style.set_background(container, Color {
+    r: 1.0, g: 1.0, b: 1.0, a: 1.0,
+});
+```
+
+この設計により：
+- **マルチウィンドウ対応**: 複数のWindowが独立したWidgetツリーを持てる
+- **統一的なWidget管理**: WindowもTextBlockも同じWidgetSystemで管理
+- **柔軟なUI構築**: detach/appendでWidget（UIコンポーネント）を自由に移動可能
+- **効率的なリソース管理**: 切り離したWidgetは削除せずに再利用できる
+
+### detach_widgetとdelete_widgetの使い分け
+
+```rust
+// パターン1: Widgetを別の親に移動（detach → append）
+let widget = ui_runtime.create_text_widget("移動可能".to_string());
+ui_runtime.widget_system.append_child(parent1, widget)?;
+
+// 後で親を変更
+ui_runtime.widget_system.detach_widget(widget)?;  // parent1から切り離す
+ui_runtime.widget_system.append_child(parent2, widget)?;  // parent2に追加
+
+// パターン2: Widgetを一時的に非表示（detachのみ）
+ui_runtime.widget_system.detach_widget(widget)?;  // ツリーから外れる
+// Widgetは存在するが、どのツリーにも属さない（描画されない）
+
+// 後で再表示
+ui_runtime.widget_system.append_child(parent1, widget)?;
+
+// パターン3: Widgetを完全に削除（delete）
+ui_runtime.widget_system.delete_widget(widget)?;  // 完全に削除
+// この後、widgetは無効なIDになる
 ```
 
 ### 分離のメリット
