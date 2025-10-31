@@ -1118,210 +1118,39 @@ impl TextSystem {
 これらは独立して存在し、異なるタイミングで更新される。
 
 ### Visual の役割
+- **描画が必要なWidgetのみが持つ（動的に作成）**
+- ビジュアルツリーのノード（DirectCompositionを内部で使用）
+- トランスフォーム、不透明度、クリッピングなどの表示属性
 
-pub struct Widget {
-    id: WidgetId,
-    widget_type: WidgetType,
-    // ... その他のフィールド
-}
+### Visualが必要なWidget
+- テキストを表示する（TextBlock）
+- 画像を表示する（Image）
+- 背景色・枠線を持つ（Container with background）
+- カスタム描画を行う
 
-impl UiRuntime {
-    fn rebuild_drawing_content(&mut self, widget_id: WidgetId) {
-        let Some(widget) = self.widget.get(widget_id) else { return };
-        let Some(rect) = self.layout.get_final_rect(widget_id) else { return };
-        
-        // Widget型で分岐（静的に解決可能）
-        match widget.widget_type {
-            WidgetType::Text => {
-                // Text + Layout に依存（明示的）
-                if self.text.has_text(widget_id) {
-                    self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
-                        let brush = create_brush(dc)?;
-                        self.text.draw_to_context(widget_id, dc, &brush, Point2D::zero())
-                    }).ok();
-                }
-            }
-            WidgetType::Image => {
-                // Image + Layout に依存（明示的）
-                if self.image.has_image(widget_id) {
-                    self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
-                        self.image.draw_to_context(widget_id, dc, rect)
-                    }).ok();
-                }
-            }
-            WidgetType::Container => {
-                // ContainerStyle + Layout に依存（明示的）
-                if self.container_style.has_style(widget_id) {
-                    self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
-                        self.container_style.draw_to_context(widget_id, dc, rect)
-                    }).ok();
-                }
-            }
-            WidgetType::Custom(type_id) => {
-                // カスタムレンダラーシステム（拡張可能）
-                self.render_custom(widget_id, type_id, rect);
-            }
-        }
-    }
+### Visualが不要なWidget
+- 純粋なレイアウトコンテナー（透明、背景なし）
+- 論理的なグループ化のみ
+
+### Visual の定義
+
+```rust
+pub struct Visual {
+    widget_id: WidgetId, // 対応するWidget
     
-    /// ダーティ収集（Widget型を考慮）
-    fn collect_drawing_dirty(&self, layout_dirty: &HashSet<WidgetId>) -> HashSet<WidgetId> {
-        let mut dirty = HashSet::new();
-        
-        // 各システムのダーティ + レイアウト変更の影響
-        for widget_id in self.text.dirty.iter().copied() {
-            dirty.insert(widget_id);
-        }
-        for widget_id in self.image.dirty.iter().copied() {
-            dirty.insert(widget_id);
-        }
-        for widget_id in self.container_style.dirty.iter().copied() {
-            dirty.insert(widget_id);
-        }
-        
-        // レイアウト変更の影響（Widget型でフィルタリング）
-        for &widget_id in layout_dirty {
-            if let Some(widget) = self.widget.get(widget_id) {
-                // このWidget型が描画を持つか判定
-                match widget.widget_type {
-                    WidgetType::Text | WidgetType::Image | WidgetType::Container | WidgetType::Custom(_) => {
-                        dirty.insert(widget_id);
-                    }
-                }
-            }
-        }
-        
-        dirty
-    }
+    // DirectCompositionオブジェクト（内部実装）
+    dcomp_visual: IDCompositionVisual,
+    
+    // トランスフォーム（Visualが管理）
+    offset: Point2D,
+    opacity: f32,
+    
+    // DrawingContentへの参照
+    drawing_content: Option<ID2D1Image>,
 }
 ```
 
-**メリット**:
-- ✅ 依存関係が**コンパイル時に明確**（match文で一目瞭然）
-- ✅ 拡張しやすい（新しいWidgetTypeを追加するだけ）
-- ✅ 型安全
-- ✅ パフォーマンス良好（仮想ディスパッチなし）
-
-**デメリット**:
-- ⚠️ Widget型が増えるとmatch文が長くなる
-
-##### 戦略B: トレイトベースの動的ディスパッチ
-
-WPFスタイルの仮想メソッド：
-
-```rust
-/// 描画可能なWidgetのトレイト
-pub trait Renderable {
-    /// 描画に必要なシステムIDを返す
-    fn required_systems(&self) -> &[SystemId];
-    
-    /// 描画処理
-    fn render(&self, context: &mut RenderContext) -> Result<()>;
-}
-
-pub struct RenderContext<'a> {
-    widget_id: WidgetId,
-    dc: &'a ID2D1DeviceContext,
-    rect: Rect,
-    // 各システムへの参照
-    text: &'a TextSystem,
-    image: &'a ImageSystem,
-    container_style: &'a ContainerStyleSystem,
-}
-
-/// テキストWidget
-pub struct TextWidget;
-impl Renderable for TextWidget {
-    fn required_systems(&self) -> &[SystemId] {
-        &[SystemId::Text, SystemId::Layout]
-    }
-    
-    fn render(&self, ctx: &mut RenderContext) -> Result<()> {
-        let brush = create_brush(ctx.dc)?;
-        ctx.text.draw_to_context(ctx.widget_id, ctx.dc, &brush, Point2D::zero())
-    }
-}
-
-/// 画像Widget
-pub struct ImageWidget;
-impl Renderable for ImageWidget {
-    fn required_systems(&self) -> &[SystemId] {
-        &[SystemId::Image, SystemId::Layout]
-    }
-    
-    fn render(&self, ctx: &mut RenderContext) -> Result<()> {
-        ctx.image.draw_to_context(ctx.widget_id, ctx.dc, ctx.rect)
-    }
-}
-
-pub struct Widget {
-    id: WidgetId,
-    renderable: Box<dyn Renderable>,
-}
-
-impl UiRuntime {
-    fn rebuild_drawing_content(&mut self, widget_id: WidgetId) {
-        let Some(widget) = self.widget.get(widget_id) else { return };
-        let Some(rect) = self.layout.get_final_rect(widget_id) else { return };
-        
-        self.drawing_content.rebuild_content(widget_id, rect.size, |dc| {
-            let mut ctx = RenderContext {
-                widget_id,
-                dc,
-                rect,
-                text: &self.text,
-                image: &self.image,
-                container_style: &self.container_style,
-            };
-            widget.renderable.render(&mut ctx)
-        }).ok();
-    }
-}
-```
-
-**メリット**:
-- ✅ WPFスタイルで直感的
-- ✅ 拡張が非常に容易（新しいRenderableを実装するだけ）
-- ✅ 依存関係が各型で宣言される
-
-**デメリット**:
-- ❌ ヒープアロケーション（`Box<dyn Renderable>`）
-- ❌ 仮想ディスパッチのコスト
-- ❌ ECS原則から外れる
-
-##### 戦略C: フラグベースの依存管理
-
-各Widgetに「どのシステムを使うか」のフラグを持たせる：
-
-```rust
-bitflags! {
-    pub struct RenderFlags: u32 {
-        const USES_TEXT           = 0b0000_0001;
-        const USES_IMAGE          = 0b0000_0010;
-        const USES_CONTAINER      = 0b0000_0100;
-        const USES_CUSTOM         = 0b0000_1000;
-    }
-}
-
-pub struct Widget {
-    id: WidgetId,
-    render_flags: RenderFlags,
-}
-
-impl UiRuntime {
-    fn collect_drawing_dirty(&self, layout_dirty: &HashSet<WidgetId>) -> HashSet<WidgetId> {
-        let mut dirty = HashSet::new();
-        
-        // Textシステムのダーティ
-        for &widget_id in &self.text.dirty {
-            dirty.insert(widget_id);
-        }
-        
-        // レイアウト変更の影響（フラグでフィルタリング）
-        for &widget_id in layout_dirty {
-            if let Some(widget) = self.widget.get(widget_id) {
-                // 描画を持つWidgetのみ影響を受ける
-                if !widget.render_flags.is_empty() {
+## システムの統合と更新フロー
                     dirty.insert(widget_id);
                 }
             }
