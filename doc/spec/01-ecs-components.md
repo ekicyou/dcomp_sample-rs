@@ -1,4 +1,6 @@
-# bevy_ecsコンポーネント管理
+# 第1章: bevy_ecsコンポーネント管理
+
+この章では、bevy_ecsの基本概念（Entity、Component、System）とコンポーネント設計について説明します。
 
 ## bevy_ecsによるコンポーネント設計
 

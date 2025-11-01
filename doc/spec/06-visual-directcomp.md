@@ -1,4 +1,6 @@
-# Visual: DirectCompositionとbevy_ecsの統合
+# 第6章: Visual: DirectComposition統合
+
+この章では、描画システムとの統合について説明します。
 
 ## bevy_ecsによる変更伝播
 

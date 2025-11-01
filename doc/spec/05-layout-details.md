@@ -1,7 +1,8 @@
-# レイアウトシステム詳細
+# 第5章: レイアウトシステム詳細
 
+この章では、Measure/Arrangeの2パスレイアウトについて説明します。
 
-1. **統一的なインターフェース**
+## 2パスレイアウトの概要
    ```rust
    // すべてID2D1Imageとして扱える
    fn draw_content(dc: &ID2D1DeviceContext, content: &ID2D1Image) {

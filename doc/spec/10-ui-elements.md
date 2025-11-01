@@ -1,4 +1,6 @@
-# 基本的なUI要素 (bevy_ecs版)
+# 第10章: 基本的なUI要素
+
+この章では、Container、TextBlock、Imageなどの基本UI要素について説明します。
 
 ## UI要素の構成
 

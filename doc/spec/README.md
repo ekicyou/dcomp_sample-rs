@@ -1,22 +1,35 @@
 # bevy_ecsによるUI管理システム - 設計ドキュメント
 
-このディレクトリには、bevy_ecsを使用したUIフレームワークのコンセプト設計ドキュメントがあります。
+このディレクトリには、bevy_ecsを使用したUIフレームワークの設計ドキュメントがあります。
 
 ## 目次
 
-1. [Entityツリー構造](01-widget-tree.md) - 基本的な考え方とEntity定義
-2. [bevy_ecsコンポーネント管理](02-ecs-components.md) - コンポーネントシステムと変更検知
-3. [レイアウトシステム](03-layout-system.md) - レイアウトコンポーネントの定義
-4. [Visual: DirectComposition統合](04-visual-directcomp.md) - 描画システムとの統合
-5. [システム統合と更新フロー](05-update-flow.md) - フレーム更新の流れ
-6. [イベントシステム](06-event-system.md) - マウス・キーボードイベント処理
-7. [基本的なUI要素](07-ui-elements.md) - Container、TextBlock、Imageなど
-8. [レイアウトシステム詳細](08-layout-details.md) - Measure/Arrangeパス
+### 第1部: bevy_ecs基礎
+
+1. [bevy_ecsコンポーネント管理](01-ecs-components.md) - ECS概念、Entity、Component、System
+2. [Entityツリー構造](02-widget-tree.md) - UIツリーの表現、Parent/Children
+3. [システム設計](03-system-separation.md) - 各システムの責務と統合
+
+### 第2部: UIシステム実装
+
+4. [レイアウトシステム](04-layout-system.md) - レイアウトコンポーネントの定義
+5. [レイアウトシステム詳細](05-layout-details.md) - Measure/Arrangeパス
+6. [Visual: DirectComposition統合](06-visual-directcomp.md) - 描画システムとの統合
+7. [システム統合と更新フロー](07-update-flow.md) - フレーム更新の流れ
+
+### 第3部: インタラクション
+
+8. [イベントシステム](08-event-system.md) - マウス・キーボードイベント処理
 9. [ヒットテストシステム](09-hit-test.md) - 座標からEntityを検索
-10. [使用例](10-usage-examples.md) - サンプルコード
-11. [ビジュアルツリーの最適化](11-visual-optimization.md) - Visual作成の最適化
-12. [bevy_ecsと依存関係プロパティの関係性](12-dependency-properties.md) - WPFとの比較
-13. [システム設計](13-system-separation.md) - 各システムの責務と統合
+
+### 第4部: UI要素と使用例
+
+10. [基本的なUI要素](10-ui-elements.md) - Container、TextBlock、Imageなど
+11. [使用例](11-usage-examples.md) - サンプルコード
+
+### 第5部: 最適化（参考）
+
+12. [ビジュアルツリーの最適化](12-visual-optimization.md) - Visual作成の最適化
 
 ## 設計の要点
 
@@ -44,3 +57,9 @@
 10. **基本UI要素**: Container、TextBlock、Image、Button、StackPanelをEntityとして提供
 11. **効率的なメモリ使用**: コンポーネントベース設計で不要なデータを持たない
 12. **並列処理**: データ競合のないシステムはbevy_ecsが自動的に並列実行
+
+## 除外されたドキュメント
+
+以下のドキュメントは検討段階のものであり、設計文書から除外されました：
+
+- **12-dependency-properties.md** - WPFとの比較検討（参考資料として保持）

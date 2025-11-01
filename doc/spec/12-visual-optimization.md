@@ -1,4 +1,6 @@
-# ビジュアルツリーの最適化
+# 第12章: ビジュアルツリーの最適化
+
+この章では、Visual作成の最適化について説明します。（参考）
 
             self.arrange_widget_recursive(child_id, child_rect);
         }
