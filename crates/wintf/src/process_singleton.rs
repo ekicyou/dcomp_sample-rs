@@ -11,7 +11,8 @@ const WINTF_CLASS_NAME: &str = "wintf_window_class";
 
 static WIN_PROCESS_SINGLETON: OnceLock<WinProcessSingleton> = OnceLock::new();
 
-pub(crate) struct WinProcessSingleton {
+#[derive(Debug)]
+pub struct WinProcessSingleton {
     instance: HINSTANCE,
     window_class_name: HSTRING,
 }

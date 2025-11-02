@@ -1,8 +1,6 @@
 use crate::dpi::*;
-use bevy_ecs::component::StorageType;
 use bevy_ecs::prelude::*;
 use euclid::*;
-use taffy::geometry::Rect as TaffyRect;
 use taffy::prelude::*;
 
 /// DPI変換コンポーネント
