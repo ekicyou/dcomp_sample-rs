@@ -104,6 +104,7 @@ impl WinThreadMgrInner {
     }
 
     pub fn run(&self) -> Result<()> {
+        let mut world = self.world.borrow_mut();
         let mut msg = MSG::default();
         unsafe {
             loop {
@@ -120,7 +121,7 @@ impl WinThreadMgrInner {
                     continue;
                 }
 
-                if self.world.borrow_mut().try_tick_world() {
+                if world.try_tick_world() {
                     continue;
                 }
 
