@@ -2,7 +2,6 @@ use crate::ecs::*;
 use crate::process_singleton::*;
 use crate::win_message_handler::*;
 use crate::win_style::*;
-use crate::win_timer::*;
 use crate::winproc::*;
 use async_executor::*;
 use std::cell::RefCell;
@@ -37,7 +36,7 @@ impl Deref for WinThreadMgr {
 pub struct WinThreadMgrInner {
     executor_normal: Executor<'static>,
     world: RefCell<EcsWorld>,
-    timer: RefCell<Option<WinTimer>>,
+    message_window: HWND,
 }
 
 impl WinThreadMgrInner {
@@ -45,21 +44,38 @@ impl WinThreadMgrInner {
         unsafe {
             CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
         }
+
+        // メッセージ専用の隠しウィンドウを作成
+        let singleton = WinProcessSingleton::get_or_init();
+        let message_window = unsafe {
+            CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                singleton.window_class_name(),
+                w!("wintf Message Window"),
+                WS_OVERLAPPED,
+                0,
+                0,
+                0,
+                0,
+                Some(HWND_MESSAGE),
+                None,
+                None,
+                None,
+            )?
+        };
+
+        // ECS更新用タイマーを設定（10ms → 実際は15.6msに丸められる）
+        unsafe {
+            SetTimer(Some(message_window), TIMER_ID_ECS_TICK, 10, None);
+        }
+
         let rc = WinThreadMgrInner {
             executor_normal: Executor::new(),
             world: RefCell::new(EcsWorld::new()),
-            timer: RefCell::new(None),
+            message_window,
         };
         let _ = rc.instance();
         Ok(rc)
-    }
-
-    pub fn world(&self) -> std::cell::Ref<'_, EcsWorld> {
-        self.world.borrow()
-    }
-
-    pub fn world_mut(&self) -> std::cell::RefMut<'_, EcsWorld> {
-        self.world.borrow_mut()
     }
 
     pub fn instance(&self) -> HINSTANCE {
@@ -109,34 +125,6 @@ impl WinThreadMgrInner {
     }
 
     pub fn run(&self) -> Result<()> {
-        // ECSシステムがある場合はタイマーウィンドウを作成
-        let timer_hwnd = if self.world.borrow().world().entities().len() > 0 || true {
-            // 隠しウィンドウを作成してタイマーを設定
-            let singleton = WinProcessSingleton::get_or_init();
-            unsafe {
-                let hwnd = CreateWindowExW(
-                    WINDOW_EX_STYLE::default(),
-                    singleton.window_class_name(),
-                    w!("ECS Timer Window"),
-                    WS_OVERLAPPED,
-                    0,
-                    0,
-                    0,
-                    0,
-                    Some(HWND_MESSAGE), // メッセージ専用ウィンドウ
-                    None,
-                    None,
-                    None,
-                )?;
-
-                // 60fps用タイマーを設定
-                *self.timer.borrow_mut() = WinTimer::new(hwnd, TIMER_ID_ECS_TICK, 16);
-                Some(hwnd)
-            }
-        } else {
-            None
-        };
-
         let mut world = self.world.borrow_mut();
         let mut msg = MSG::default();
         unsafe {
@@ -164,16 +152,20 @@ impl WinThreadMgrInner {
                 // メッセージがない場合は待機
                 let _ = WaitMessage();
             }
-
-            // タイマーウィンドウを破棄
-            if let Some(hwnd) = timer_hwnd {
-                let _ = DestroyWindow(hwnd);
-            }
         }
         Ok(())
     }
 
     fn try_tick_normal(&self) -> bool {
         self.executor_normal.try_tick()
+    }
+}
+
+impl Drop for WinThreadMgrInner {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = KillTimer(Some(self.message_window), TIMER_ID_ECS_TICK);
+            let _ = DestroyWindow(self.message_window);
+        }
     }
 }

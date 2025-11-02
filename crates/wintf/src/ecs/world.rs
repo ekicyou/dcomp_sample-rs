@@ -1,5 +1,6 @@
 use bevy_ecs::schedule::Schedule;
 use bevy_ecs::world::World;
+use std::time::Instant;
 
 /// ECSワールドのラッパー
 /// 初期化ロジックや拡張機能をここに集約
@@ -7,6 +8,9 @@ pub struct EcsWorld {
     world: World,
     schedule: Schedule,
     has_systems: bool,
+    // デバッグ用: フレームレート計測
+    frame_count: u64,
+    last_log_time: Option<Instant>,
 }
 
 impl EcsWorld {
@@ -20,6 +24,8 @@ impl EcsWorld {
             world,
             schedule,
             has_systems: false,
+            frame_count: 0,
+            last_log_time: None,
         }
     }
 
@@ -39,9 +45,39 @@ impl EcsWorld {
         &mut self.world
     }
 
+    /// フレームレート計測とログ出力（デバッグ用）
+    /// 10秒ごとにフレームレートをログ出力
+    fn measure_and_log_framerate(&mut self) {
+        self.frame_count += 1;
+
+        let now = Instant::now();
+        if let Some(last_log) = self.last_log_time {
+            let elapsed = now.duration_since(last_log);
+            if elapsed.as_secs() >= 10 {
+                let fps = self.frame_count as f64 / elapsed.as_secs_f64();
+                let avg_frame_time = elapsed.as_secs_f64() * 1000.0 / self.frame_count as f64;
+                eprintln!(
+                    "[ECS] Frame rate: {:.2} fps ({} frames in {:.2}s, avg {:.2}ms/frame)",
+                    fps,
+                    self.frame_count,
+                    elapsed.as_secs_f64(),
+                    avg_frame_time
+                );
+                self.frame_count = 0;
+                self.last_log_time = Some(now);
+            }
+        } else {
+            // 初回
+            self.last_log_time = Some(now);
+        }
+    }
+
     /// システムを1回実行
     /// システムが実行された場合はtrueを返す
     pub fn try_tick_world(&mut self) -> bool {
+        // デバッグ: フレームレート計測（不要になったらコメントアウト）
+        self.measure_and_log_framerate();
+
         // システムが登録されていない場合はスキップ
         if !self.has_systems {
             return false;
@@ -49,6 +85,7 @@ impl EcsWorld {
 
         // スケジュールを実行（登録された全システムを1回実行）
         self.schedule.run(&mut self.world);
+
         true
     }
 }
