@@ -8,6 +8,7 @@ mod win_message_handler;
 mod win_state;
 mod win_style;
 mod win_thread_mgr;
+mod win_timer;
 mod winproc;
 
 pub use dpi::*;
