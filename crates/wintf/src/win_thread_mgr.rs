@@ -115,6 +115,10 @@ impl WinThreadMgrInner {
                     continue;
                 }
 
+                if self.world.try_tick_world() {
+                    continue;
+                }
+
                 // メッセージがない場合は待機
                 let _ = WaitMessage();
             }
