@@ -2,6 +2,7 @@
 #![allow(unused_variables)]
 
 use ambassador::*;
+use bevy_ecs::prelude::*;
 use euclid::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Direct2D::*;
@@ -36,7 +37,7 @@ pub trait ScaleFactor: Clone + Copy {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Component, Debug, Default, Clone, Copy)]
 pub struct Dpi {
     dpi: f32,
     scale_factor: f32,

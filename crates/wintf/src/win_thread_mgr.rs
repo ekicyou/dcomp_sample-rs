@@ -1,4 +1,4 @@
-use crate::ecs::*;
+use crate::ecs::world::*;
 use crate::process_singleton::*;
 use crate::win_message_handler::*;
 use crate::win_style::*;
@@ -7,6 +7,7 @@ use async_executor::*;
 use std::cell::RefCell;
 use std::future::*;
 use std::ops::Deref;
+use std::rc::Rc;
 use std::sync::*;
 use windows::core::*;
 use windows::Win32::Foundation::*;
@@ -35,11 +36,20 @@ impl Deref for WinThreadMgr {
 #[derive(Debug)]
 pub struct WinThreadMgrInner {
     executor_normal: Executor<'static>,
-    world: RefCell<EcsWorld>,
+    world: Rc<RefCell<EcsWorld>>,
     message_window: HWND,
 }
 
 impl WinThreadMgrInner {
+    pub fn instance(&self) -> HINSTANCE {
+        let singleton = WinProcessSingleton::get_or_init();
+        singleton.instance()
+    }
+
+    pub fn world(&self) -> Rc<RefCell<EcsWorld>> {
+        Rc::clone(&self.world)
+    }
+
     fn new() -> Result<Self> {
         unsafe {
             CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
@@ -71,16 +81,11 @@ impl WinThreadMgrInner {
 
         let rc = WinThreadMgrInner {
             executor_normal: Executor::new(),
-            world: RefCell::new(EcsWorld::new()),
+            world: Rc::new(RefCell::new(EcsWorld::new())),
             message_window,
         };
         let _ = rc.instance();
         Ok(rc)
-    }
-
-    pub fn instance(&self) -> HINSTANCE {
-        let singleton = WinProcessSingleton::get_or_init();
-        singleton.instance()
     }
 
     pub fn create_window<S1>(
@@ -125,7 +130,6 @@ impl WinThreadMgrInner {
     }
 
     pub fn run(&self) -> Result<()> {
-        let mut world = self.world.borrow_mut();
         let mut msg = MSG::default();
         unsafe {
             loop {
@@ -136,6 +140,7 @@ impl WinThreadMgrInner {
 
                     // WM_TIMERメッセージでECSを更新
                     if msg.message == WM_TIMER && msg.wParam.0 == TIMER_ID_ECS_TICK {
+                        let mut world = self.world.borrow_mut();
                         world.try_tick_world();
                         continue;
                     }
