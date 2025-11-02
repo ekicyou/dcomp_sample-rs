@@ -7,6 +7,7 @@ use std::cell::RefCell;
 pub struct EcsWorld {
     world: RefCell<World>,
     schedule: RefCell<Schedule>,
+    has_systems: RefCell<bool>,
 }
 
 impl EcsWorld {
@@ -19,7 +20,14 @@ impl EcsWorld {
         Self {
             world: RefCell::new(world),
             schedule: RefCell::new(schedule),
+            has_systems: RefCell::new(false),
         }
+    }
+
+    /// スケジュールへの可変参照を取得してシステムを追加
+    pub fn schedule_mut(&self) -> std::cell::RefMut<'_, Schedule> {
+        *self.has_systems.borrow_mut() = true;
+        self.schedule.borrow_mut()
     }
 
     /// 内部のWorldへの参照を取得
@@ -33,9 +41,14 @@ impl EcsWorld {
     }
 
     /// システムを1回だけ実行
-    /// 実行された場合はtrueを返す
+    /// システムが実行された場合はtrueを返す
     pub fn try_tick_world(&self) -> bool {
-        // スケジュールを実行
+        // システムが登録されていない場合はスキップ
+        if !*self.has_systems.borrow() {
+            return false;
+        }
+
+        // スケジュールを実行（登録された全システムを1回実行）
         let mut world = self.world.borrow_mut();
         let mut schedule = self.schedule.borrow_mut();
         schedule.run(&mut world);
