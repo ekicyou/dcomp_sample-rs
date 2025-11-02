@@ -1,13 +1,15 @@
 use bevy_ecs::schedule::Schedule;
 use bevy_ecs::world::World;
-use std::cell::RefCell;
+use std::time::{Duration, Instant};
 
 /// ECSワールドのラッパー
 /// 初期化ロジックや拡張機能をここに集約
 pub struct EcsWorld {
-    world: RefCell<World>,
-    schedule: RefCell<Schedule>,
-    has_systems: RefCell<bool>,
+    world: World,
+    schedule: Schedule,
+    has_systems: bool,
+    last_tick: Option<Instant>,
+    tick_interval: Duration,
 }
 
 impl EcsWorld {
@@ -18,40 +20,53 @@ impl EcsWorld {
         // ここで初期化処理を行う
         // 例: リソースの登録、システムのセットアップなど
         Self {
-            world: RefCell::new(world),
-            schedule: RefCell::new(schedule),
-            has_systems: RefCell::new(false),
+            world,
+            schedule,
+            has_systems: false,
+            last_tick: None,
+            tick_interval: Duration::from_micros(16667), // 約60fps (1/60秒)
         }
     }
 
     /// スケジュールへの可変参照を取得してシステムを追加
-    pub fn schedule_mut(&self) -> std::cell::RefMut<'_, Schedule> {
-        *self.has_systems.borrow_mut() = true;
-        self.schedule.borrow_mut()
+    pub fn schedule_mut(&mut self) -> &mut Schedule {
+        self.has_systems = true;
+        &mut self.schedule
     }
 
     /// 内部のWorldへの参照を取得
-    pub fn world(&self) -> std::cell::Ref<'_, World> {
-        self.world.borrow()
+    pub fn world(&self) -> &World {
+        &self.world
     }
 
     /// 内部のWorldへの可変参照を取得
-    pub fn world_mut(&self) -> std::cell::RefMut<'_, World> {
-        self.world.borrow_mut()
+    pub fn world_mut(&mut self) -> &mut World {
+        &mut self.world
     }
 
     /// システムを1回だけ実行
     /// システムが実行された場合はtrueを返す
-    pub fn try_tick_world(&self) -> bool {
+    pub fn try_tick_world(&mut self) -> bool {
         // システムが登録されていない場合はスキップ
-        if !*self.has_systems.borrow() {
+        if !self.has_systems {
             return false;
         }
 
+        // 前回の実行から十分な時間が経過しているかチェック
+        let now = Instant::now();
+
+        if let Some(last) = self.last_tick {
+            if now.duration_since(last) < self.tick_interval {
+                // まだ実行するには早すぎる
+                return false;
+            }
+        }
+
         // スケジュールを実行（登録された全システムを1回実行）
-        let mut world = self.world.borrow_mut();
-        let mut schedule = self.schedule.borrow_mut();
-        schedule.run(&mut world);
+        self.schedule.run(&mut self.world);
+
+        // 実行時刻を記録
+        self.last_tick = Some(now);
         true
     }
 }

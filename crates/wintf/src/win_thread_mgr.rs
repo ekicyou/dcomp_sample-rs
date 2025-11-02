@@ -4,6 +4,7 @@ use crate::win_message_handler::*;
 use crate::win_style::*;
 use crate::winproc::*;
 use async_executor::*;
+use std::cell::RefCell;
 use std::future::*;
 use std::ops::Deref;
 use std::sync::*;
@@ -32,7 +33,7 @@ impl Deref for WinThreadMgr {
 #[derive(Debug)]
 pub struct WinThreadMgrInner {
     executor_normal: Executor<'static>,
-    world: EcsWorld,
+    world: RefCell<EcsWorld>,
 }
 
 impl WinThreadMgrInner {
@@ -42,14 +43,18 @@ impl WinThreadMgrInner {
         }
         let rc = WinThreadMgrInner {
             executor_normal: Executor::new(),
-            world: EcsWorld::new(),
+            world: RefCell::new(EcsWorld::new()),
         };
         let _ = rc.instance();
         Ok(rc)
     }
 
-    pub fn world(&self) -> &EcsWorld {
-        &self.world
+    pub fn world(&self) -> std::cell::Ref<'_, EcsWorld> {
+        self.world.borrow()
+    }
+
+    pub fn world_mut(&self) -> std::cell::RefMut<'_, EcsWorld> {
+        self.world.borrow_mut()
     }
 
     pub fn instance(&self) -> HINSTANCE {
@@ -115,7 +120,7 @@ impl WinThreadMgrInner {
                     continue;
                 }
 
-                if self.world.try_tick_world() {
+                if self.world.borrow_mut().try_tick_world() {
                     continue;
                 }
 
