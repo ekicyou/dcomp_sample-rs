@@ -2,6 +2,7 @@ mod api;
 pub mod com;
 mod dpi;
 pub mod ecs;
+mod process_singleton;
 mod win;
 mod win_message_handler;
 mod win_state;
