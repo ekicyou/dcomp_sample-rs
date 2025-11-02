@@ -19,7 +19,19 @@ windows-core = "0.62.2"
 async-task = "4.7.1"
 ambassador = "0.4.2"
 euclid = "0.22.11"
-slotmap = "1.0.7"
+taffy = "0.9.1"
+
+[workspace.dependencies.bevy_ecs]
+version = "0.17.2"
+features = [
+    "std",
+    "async_executor",
+    "bevy_reflect",
+    "backtrace",
+    "multi_threaded",
+    "serialize",
+    "dynamic",
+]
 
 [workspace.dependencies.async-executor]
 version = "1.13.3"

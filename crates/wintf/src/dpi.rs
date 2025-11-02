@@ -68,6 +68,23 @@ impl ScaleFactor for Dpi {
     }
 }
 
+#[delegatable_trait]
+pub trait SetDpi {
+    fn set_dpi(&self, dpi: impl ScaleFactor);
+}
+
+impl SetDpi for ID2D1RenderTarget {
+    fn set_dpi(&self, dpi: impl ScaleFactor) {
+        unsafe {
+            self.SetDpi(dpi.value(), dpi.value());
+        }
+    }
+}
+
+//=============================================================
+// DPI相互変換要素
+//=============================================================
+
 /// デバイス依存ピクセル長
 pub type PxLength = Length<f32, Px>;
 
@@ -91,21 +108,6 @@ pub type LxSize = Size2D<f32, Lx>;
 
 /// 96DPI（論理ピクセル）矩形
 pub type LxRect = Rect<f32, Lx>;
-
-pub type LxPoint3D = Point3D<f32, Lx>;
-pub type LxVector2D = Vector2D<f32, Lx>;
-pub type LxVector3D = Vector3D<f32, Lx>;
-
-pub type LxTransform2D = Transform2D<f32, Lx, Lx>;
-pub type LxTransform3D = Transform3D<f32, Lx, Lx>;
-
-/// ４次数（3D回転）
-pub type LxRotation3D = Rotation3D<f32, Lx, Lx>;
-
-pub type RawLength = Length<i32, Px>;
-pub type RawPoint = Point2D<i32, Px>;
-pub type RawSize = Size2D<i32, Px>;
-pub type RawRect = Rect<i32, Px>;
 
 pub trait FromDpi<T> {
     fn from_dpi(value: T, dpi: impl ScaleFactor) -> Self;
@@ -165,18 +167,13 @@ impl FromDpi<LxRect> for PxRect {
     }
 }
 
-#[delegatable_trait]
-pub trait SetDpi {
-    fn set_dpi(&self, dpi: impl ScaleFactor);
-}
-
-impl SetDpi for ID2D1RenderTarget {
-    fn set_dpi(&self, dpi: impl ScaleFactor) {
-        unsafe {
-            self.SetDpi(dpi.value(), dpi.value());
-        }
-    }
-}
+//=============================================================
+// Raw（i32)変換
+//=============================================================
+pub type RawLength = Length<i32, Px>;
+pub type RawPoint = Point2D<i32, Px>;
+pub type RawSize = Size2D<i32, Px>;
+pub type RawRect = Rect<i32, Px>;
 
 pub trait ToRaw<T> {
     fn into_raw(self) -> T;
@@ -205,3 +202,23 @@ impl ToRaw<RawRect> for PxRect {
         RawRect::new(self.origin.into_raw(), self.size.into_raw())
     }
 }
+
+//=============================================================
+// 論理ピクセルのみ
+//=============================================================
+
+pub type LxPoint3D = Point3D<f32, Lx>;
+pub type LxVector2D = Vector2D<f32, Lx>;
+pub type LxVector3D = Vector3D<f32, Lx>;
+
+pub type LxTransform2D = Transform2D<f32, Lx, Lx>;
+pub type LxTransform3D = Transform3D<f32, Lx, Lx>;
+
+/// ４次数（3D回転）
+pub type LxRotation3D = Rotation3D<f32, Lx, Lx>;
+
+/// 96DPI（論理ピクセル）四辺の幅
+pub type LxThickness = SideOffsets2D<f32, Lx>;
+
+/// 96DPI（論理ピクセル）Box
+pub type LxBox = Box2D<f32, Lx>;
