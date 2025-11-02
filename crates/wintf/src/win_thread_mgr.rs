@@ -1,9 +1,9 @@
+use crate::ecs::*;
 use crate::process_singleton::*;
 use crate::win_message_handler::*;
 use crate::win_style::*;
 use crate::winproc::*;
 use async_executor::*;
-use bevy_ecs::world::World;
 use std::future::*;
 use std::ops::Deref;
 use std::sync::*;
@@ -32,7 +32,7 @@ impl Deref for WinThreadMgr {
 #[derive(Debug)]
 pub struct WinThreadMgrInner {
     executor_normal: Executor<'static>,
-    world: World,
+    world: EcsWorld,
 }
 
 impl WinThreadMgrInner {
@@ -42,13 +42,13 @@ impl WinThreadMgrInner {
         }
         let rc = WinThreadMgrInner {
             executor_normal: Executor::new(),
-            world: World::new(),
+            world: EcsWorld::new(),
         };
         let _ = rc.instance();
         Ok(rc)
     }
 
-    pub fn world(&self) -> &World {
+    pub fn world(&self) -> &EcsWorld {
         &self.world
     }
 
