@@ -8,8 +8,10 @@ pub struct EcsWorld {
     world: World,
     schedule: Schedule,
     has_systems: bool,
-    last_tick: Option<Instant>,
+    start_time: Option<Instant>,
+    next_frame_time: Option<Instant>,
     tick_interval: Duration,
+    frame_count: u64,
 }
 
 impl EcsWorld {
@@ -23,8 +25,10 @@ impl EcsWorld {
             world,
             schedule,
             has_systems: false,
-            last_tick: None,
+            start_time: None,
+            next_frame_time: None,
             tick_interval: Duration::from_micros(16667), // 約60fps (1/60秒)
+            frame_count: 0,
         }
     }
 
@@ -52,11 +56,17 @@ impl EcsWorld {
             return false;
         }
 
-        // 前回の実行から十分な時間が経過しているかチェック
         let now = Instant::now();
 
-        if let Some(last) = self.last_tick {
-            if now.duration_since(last) < self.tick_interval {
+        // 初回実行時に基準時刻を設定
+        if self.start_time.is_none() {
+            self.start_time = Some(now);
+            self.next_frame_time = Some(now);
+        }
+
+        // 次のフレームタイミングに到達しているかチェック
+        if let Some(next_time) = self.next_frame_time {
+            if now < next_time {
                 // まだ実行するには早すぎる
                 return false;
             }
@@ -65,8 +75,13 @@ impl EcsWorld {
         // スケジュールを実行（登録された全システムを1回実行）
         self.schedule.run(&mut self.world);
 
-        // 実行時刻を記録
-        self.last_tick = Some(now);
+        // 次のフレームタイミングを計算（基準時刻からの経過フレーム数で計算）
+        self.frame_count += 1;
+        if let Some(start) = self.start_time {
+            // 理想的な次フレームの時刻 = 開始時刻 + (フレーム数 × フレーム間隔)
+            self.next_frame_time = Some(start + self.tick_interval * (self.frame_count as u32));
+        }
+
         true
     }
 }
