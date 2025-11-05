@@ -239,8 +239,8 @@ impl DemoWindow {
                 root_visual.add_visual(&back_visual, false, None)?;
 
                 let front_surface = dcomp.create_surface(
-                    card_size.width as u32,
-                    card_size.height as u32,
+                    card_size.width.get() as u32,
+                    card_size.height.get() as u32,
                     DXGI_FORMAT_B8G8R8A8_UNORM,
                     DXGI_ALPHA_MODE_PREMULTIPLIED,
                 )?;
@@ -248,8 +248,8 @@ impl DemoWindow {
                 draw_card_front(&front_surface, card.value, &self.format, &brush, dpi)?;
 
                 let back_surface = dcomp.create_surface(
-                    card_size.width as u32,
-                    card_size.height as u32,
+                    card_size.width.get() as u32,
+                    card_size.height.get() as u32,
                     DXGI_FORMAT_B8G8R8A8_UNORM,
                     DXGI_ALPHA_MODE_PREMULTIPLIED,
                 )?;
@@ -397,8 +397,8 @@ impl DemoWindow {
                 None,
                 rect.left,
                 rect.top,
-                size.width,
-                size.height,
+                size.width.get(),
+                size.height.get(),
                 SWP_NOACTIVATE | SWP_NOZORDER,
             )
         }?;
@@ -425,8 +425,8 @@ impl DemoWindow {
                 None,
                 0,
                 0,
-                size.width,
-                size.height,
+                size.width.get(),
+                size.height.get(),
                 SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER,
             )
         }

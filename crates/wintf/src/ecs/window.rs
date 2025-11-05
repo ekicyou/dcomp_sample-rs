@@ -10,3 +10,6 @@ pub struct Window {
 
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
+
+#[derive(Component, Debug)]
+pub struct WindowPos {}
