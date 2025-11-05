@@ -45,7 +45,6 @@ pub struct WindowPos {
     pub position: Option<RawPoint>,
     pub size: Option<RawSize>,
 
-    // SetWindowPos フラグ（自動判定できないもののみ）
     pub no_redraw: bool,        // SWP_NOREDRAW: 再描画しない
     pub no_activate: bool,      // SWP_NOACTIVATE: ウィンドウをアクティブにしない
     pub frame_changed: bool,    // SWP_FRAMECHANGED: フレーム変更を通知
