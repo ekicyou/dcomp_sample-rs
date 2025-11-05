@@ -4,7 +4,6 @@
 use ambassador::*;
 use bevy_ecs::prelude::*;
 use euclid::*;
-use nonmax::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Direct2D::*;
 
@@ -172,10 +171,10 @@ impl FromDpi<LxRect> for PxRect {
 //=============================================================
 // Raw（i32)変換
 //=============================================================
-pub type RawLength = Length<NonMaxI32, Px>;
-pub type RawPoint = Point2D<NonMaxI32, Px>;
-pub type RawSize = Size2D<NonMaxI32, Px>;
-pub type RawRect = Rect<NonMaxI32, Px>;
+pub type RawLength = Length<i32, Px>;
+pub type RawPoint = Point2D<i32, Px>;
+pub type RawSize = Size2D<i32, Px>;
+pub type RawRect = Rect<i32, Px>;
 
 pub trait ToRaw<T> {
     fn into_raw(self) -> T;
@@ -184,7 +183,7 @@ pub trait ToRaw<T> {
 impl ToRaw<RawLength> for PxLength {
     fn into_raw(self) -> RawLength {
         let value = self.0.ceil() as i32;
-        RawLength::new(NonMaxI32::new(value).expect("value must not be i32::MAX"))
+        RawLength::new(value)
     }
 }
 
@@ -192,10 +191,7 @@ impl ToRaw<RawPoint> for PxPoint {
     fn into_raw(self) -> RawPoint {
         let x = self.x.ceil() as i32;
         let y = self.y.ceil() as i32;
-        RawPoint::new(
-            NonMaxI32::new(x).expect("x must not be i32::MAX"),
-            NonMaxI32::new(y).expect("y must not be i32::MAX"),
-        )
+        RawPoint::new(x, y)
     }
 }
 
@@ -203,10 +199,7 @@ impl ToRaw<RawSize> for PxSize {
     fn into_raw(self) -> RawSize {
         let width = self.width.ceil() as i32;
         let height = self.height.ceil() as i32;
-        RawSize::new(
-            NonMaxI32::new(width).expect("width must not be i32::MAX"),
-            NonMaxI32::new(height).expect("height must not be i32::MAX"),
-        )
+        RawSize::new(width, height)
     }
 }
 
