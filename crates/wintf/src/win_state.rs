@@ -2,10 +2,10 @@
 #![allow(unused_variables)]
 
 use crate::api::get_window_long_ptr;
-use crate::dpi::*;
+use crate::dpi::{self, *};
 use ambassador::*;
 use windows::core::*;
-use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
+use windows::Win32::{Foundation::*, UI::HiDpi::*, UI::WindowsAndMessaging::*};
 
 #[delegatable_trait]
 pub trait WinState {
@@ -49,7 +49,8 @@ pub trait WinState {
         let hwnd = self.hwnd();
         let style = WINDOW_STYLE(get_window_long_ptr(hwnd, GWL_STYLE)? as u32);
         let ex_style = WINDOW_EX_STYLE(get_window_long_ptr(hwnd, GWL_EXSTYLE)? as u32);
-        unsafe { AdjustWindowRectEx(&mut rect, style, false, ex_style)? }
+        let dpi_value = dpi.value() as u32;
+        unsafe { AdjustWindowRectExForDpi(&mut rect, style, false, ex_style, dpi_value)? }
         Ok(PxSize::new(
             (rect.right - rect.left) as f32,
             (rect.bottom - rect.top) as f32,

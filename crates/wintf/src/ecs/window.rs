@@ -1,9 +1,10 @@
-use bevy_ecs::component::Component;
+use bevy_ecs::prelude::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
+use windows_numerics::*;
 
 pub use crate::dpi::Dpi;
-use crate::{RawPoint, RawSize};
+use crate::{ecs::graphics, RawPoint, RawSize};
 
 #[derive(Component, Debug)]
 pub struct Window {
@@ -12,6 +13,40 @@ pub struct Window {
 
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
+
+/// DPI変換行列を保持するコンポーネント
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+#[component(storage = "SparseSet")]
+pub struct DpiTransform {
+    pub transform: Matrix3x2,
+    pub global_transform: Matrix3x2,
+}
+
+impl DpiTransform {
+    /// WM_DPICHANGED イベントのパラメーターから作成
+    pub fn from_WM_DPICHANGED(wparam: WPARAM, _lparam: LPARAM) -> Self {
+        let (x_dpi, y_dpi) = (wparam.0 as u16, (wparam.0 >> 16) as u16);
+        Self::from_dpi(x_dpi, y_dpi)
+    }
+
+    pub fn from_dpi(x_dpi: u16, y_dpi: u16) -> Self {
+        let scale_x = x_dpi as f32 / 96.0;
+        let scale_y = y_dpi as f32 / 96.0;
+        let transform = Matrix3x2::scale(scale_x, scale_y);
+        let global_transform = transform;
+        Self {
+            transform,
+            global_transform,
+        }
+    }
+
+    pub fn new(transform: Matrix3x2, global_transform: Matrix3x2) -> Self {
+        Self {
+            transform,
+            global_transform,
+        }
+    }
+}
 
 /// Z-order の設定方法を表す列挙型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
