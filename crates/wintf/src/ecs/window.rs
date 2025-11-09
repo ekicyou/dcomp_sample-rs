@@ -3,6 +3,7 @@ use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows_numerics::*;
 
+use crate::api::*;
 pub use crate::dpi::Dpi;
 use crate::{ecs::graphics, RawPoint, RawSize};
 
@@ -40,11 +41,29 @@ impl DpiTransform {
         }
     }
 
-    pub fn new(transform: Matrix3x2, global_transform: Matrix3x2) -> Self {
+    pub fn push(self, transform: Matrix3x2) -> Self {
+        let global_transform = self.global_transform * transform;
         Self {
             transform,
             global_transform,
         }
+    }
+}
+
+/// Window Style / Ex Style
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+#[component(storage = "SparseSet")]
+pub struct WindowStyle {
+    pub style: WINDOW_STYLE,
+    pub ex_style: WINDOW_EX_STYLE,
+}
+
+impl WindowStyle {
+    /// 新しい WindowStyle を作成
+    pub fn from_hwnd(hwnd: HWND) -> windows::core::Result<Self> {
+        let style = WINDOW_STYLE(get_window_long_ptr(hwnd, GWL_STYLE)? as u32);
+        let ex_style = WINDOW_EX_STYLE(get_window_long_ptr(hwnd, GWL_EXSTYLE)? as u32);
+        Ok(Self { style, ex_style })
     }
 }
 

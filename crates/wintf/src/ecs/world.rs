@@ -6,7 +6,8 @@ pub enum Priority {
     Input,
     Update,
     Layout,
-    Render,
+    Draw,
+    RenderSurface,
     Composition,
 }
 
@@ -32,7 +33,8 @@ impl EcsWorld {
                 Priority::Input,
                 Priority::Update,
                 Priority::Layout,
-                Priority::Render,
+                Priority::Draw,
+                Priority::RenderSurface,
                 Priority::Composition,
             )
                 .chain(),
