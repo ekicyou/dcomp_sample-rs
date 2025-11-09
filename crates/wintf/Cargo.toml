@@ -10,6 +10,7 @@ async-executor = { workspace = true }
 async-task = { workspace = true }
 bevy_ecs = { workspace = true }
 euclid = { workspace = true }
+nonmax = { workspace = true }
 taffy = { workspace = true }
 windows = { workspace = true }
 windows-core = { workspace = true }

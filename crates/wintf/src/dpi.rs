@@ -182,19 +182,24 @@ pub trait ToRaw<T> {
 
 impl ToRaw<RawLength> for PxLength {
     fn into_raw(self) -> RawLength {
-        RawLength::new(self.0.ceil() as i32)
+        let value = self.0.ceil() as i32;
+        RawLength::new(value)
     }
 }
 
 impl ToRaw<RawPoint> for PxPoint {
     fn into_raw(self) -> RawPoint {
-        RawPoint::new(self.x.ceil() as i32, self.y.ceil() as i32)
+        let x = self.x.ceil() as i32;
+        let y = self.y.ceil() as i32;
+        RawPoint::new(x, y)
     }
 }
 
 impl ToRaw<RawSize> for PxSize {
     fn into_raw(self) -> RawSize {
-        RawSize::new(self.width.ceil() as i32, self.height.ceil() as i32)
+        let width = self.width.ceil() as i32;
+        let height = self.height.ceil() as i32;
+        RawSize::new(width, height)
     }
 }
 
