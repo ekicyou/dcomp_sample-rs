@@ -1,6 +1,6 @@
 use bevy_ecs::component::Component;
 use windows::Win32::Foundation::*;
-use windows_numerics::*;
+use windows::Win32::UI::WindowsAndMessaging::*;
 
 pub use crate::dpi::Dpi;
 use crate::{RawPoint, RawSize};
