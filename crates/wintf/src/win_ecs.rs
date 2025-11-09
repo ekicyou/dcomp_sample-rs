@@ -4,22 +4,23 @@ use crate::dpi::*;
 use crate::ecs::world::*;
 use crate::ecs::*;
 use crate::win_state::*;
+use crate::WinMessageHandler;
 use bevy_ecs::prelude::*;
 use std::cell::*;
 use std::rc::*;
 use windows::Win32::Foundation::*;
 
 #[derive(Debug, Default)]
-pub struct EcsWinState {
+pub struct EcsWindow {
     world: Rc<RefCell<EcsWorld>>,
-
     entity: Option<Entity>,
+
     hwnd: HWND,
     mouse_tracking: bool,
     dpi: Dpi,
 }
 
-impl Drop for EcsWinState {
+impl Drop for EcsWindow {
     fn drop(&mut self) {
         if let Some(entity) = self.entity {
             let mut world = self.world.borrow_mut();
@@ -29,7 +30,7 @@ impl Drop for EcsWinState {
     }
 }
 
-impl EcsWinState {
+impl EcsWindow {
     pub fn new(world: Rc<RefCell<EcsWorld>>) -> Self {
         Self {
             world,
@@ -38,7 +39,7 @@ impl EcsWinState {
     }
 }
 
-impl WinState for EcsWinState {
+impl WinState for EcsWindow {
     fn hwnd(&self) -> HWND {
         self.hwnd
     }
@@ -72,5 +73,13 @@ impl WinState for EcsWinState {
 
     fn set_dpi(&mut self, dpi: Dpi) {
         self.dpi = dpi;
+        if let Some(entity) = self.entity {
+            let mut world = self.world.borrow_mut();
+            let ecs = world.world_mut();
+            let mut entity = ecs.entity_mut(entity);
+            entity.insert(dpi);
+        }
     }
 }
+
+impl WinMessageHandler for EcsWindow {}

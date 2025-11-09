@@ -8,7 +8,7 @@ publish = { workspace = true }
 ambassador ={ workspace = true }
 async-executor = { workspace = true }
 async-task = { workspace = true }
-bevy_ecs = "0.17.2"
+bevy_ecs = { workspace = true }
 euclid = { workspace = true }
 taffy = { workspace = true }
 windows = { workspace = true }

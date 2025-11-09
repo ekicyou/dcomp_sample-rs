@@ -1,6 +1,14 @@
-use bevy_ecs::schedule::Schedule;
-use bevy_ecs::world::World;
+use bevy_ecs::prelude::*;
 use std::time::Instant;
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Priority {
+    Input,
+    Update,
+    Layout,
+    Render,
+    Composition,
+}
 
 /// ECSワールドのラッパー
 /// 初期化ロジックや拡張機能をここに集約
@@ -17,7 +25,19 @@ impl EcsWorld {
     /// 新しいEcsWorldを作成
     pub fn new() -> Self {
         let world = World::new();
-        let schedule = Schedule::default();
+
+        let mut schedule = Schedule::default();
+        schedule.configure_sets(
+            (
+                Priority::Input,
+                Priority::Update,
+                Priority::Layout,
+                Priority::Render,
+                Priority::Composition,
+            )
+                .chain(),
+        );
+
         // ここで初期化処理を行う
         // 例: リソースの登録、システムのセットアップなど
         Self {
