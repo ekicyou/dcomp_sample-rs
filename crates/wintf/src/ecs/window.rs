@@ -5,7 +5,7 @@ use windows_numerics::*;
 
 use crate::api::*;
 pub use crate::dpi::Dpi;
-use crate::{ecs::graphics, RawPoint, RawSize};
+use crate::{RawPoint, RawSize};
 
 #[derive(Component, Debug)]
 #[component(storage = "SparseSet")]

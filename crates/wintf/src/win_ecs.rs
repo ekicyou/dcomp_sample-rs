@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use crate::dpi::*;
+use crate::dpi::Dpi;
 use crate::ecs::world::*;
 use crate::ecs::*;
 use crate::win_state::*;

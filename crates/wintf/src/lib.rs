@@ -1,6 +1,6 @@
 mod api;
 pub mod com;
-mod dpi;
+pub mod dpi;
 pub mod ecs;
 mod process_singleton;
 mod win_ecs;

@@ -1,17 +1,9 @@
 #![allow(non_snake_case)]
-#![allow(unused_variables)]
 
 use ambassador::*;
 use bevy_ecs::prelude::*;
-use euclid::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Direct2D::*;
-
-// Physical pixels。デバイス依存ピクセル
-pub struct Px;
-
-// Logical pixels。論理ピクセル（96DPI）
-pub struct Lx;
 
 fn dpi_to_scale_factor(dpi: f32) -> f32 {
     dpi / 96.0
@@ -24,16 +16,6 @@ pub trait ScaleFactor: Clone + Copy {
     #[inline]
     fn scale_factor(&self) -> f32 {
         dpi_to_scale_factor(self.value())
-    }
-
-    #[inline]
-    fn to_physical(&self) -> Scale<f32, Lx, Px> {
-        Scale::new(self.scale_factor())
-    }
-
-    #[inline]
-    fn to_logical(&self) -> Scale<f32, Px, Lx> {
-        Scale::new(1.0 / self.scale_factor())
     }
 }
 
@@ -54,6 +36,16 @@ impl Dpi {
     pub fn from_WM_DPICHANGED(wparam: WPARAM, _lparam: LPARAM) -> Self {
         let (x_dpi, _) = (wparam.0 as u16 as f32, (wparam.0 >> 16) as f32);
         Self::new(x_dpi)
+    }
+
+    #[inline]
+    pub fn value(&self) -> f32 {
+        self.dpi
+    }
+
+    #[inline]
+    pub fn scale_factor(&self) -> f32 {
+        self.scale_factor
     }
 }
 
@@ -83,148 +75,193 @@ impl SetDpi for ID2D1RenderTarget {
 }
 
 //=============================================================
-// DPI相互変換要素
+// シンプルな型定義（euclid不使用）
 //=============================================================
 
-/// デバイス依存ピクセル長
-pub type PxLength = Length<f32, Px>;
-
-/// デバイス依存座標
-pub type PxPoint = Point2D<f32, Px>;
-
-/// デバイス依存サイズ
-pub type PxSize = Size2D<f32, Px>;
-
-/// デバイス依存矩形
-pub type PxRect = Rect<f32, Px>;
-
-/// 96DPI（論理ピクセル）長
-pub type LxLength = Length<f32, Lx>;
-
-/// 96DPI（論理ピクセル）座標
-pub type LxPoint = Point2D<f32, Lx>;
-
-/// 96DPI（論理ピクセル）サイズ
-pub type LxSize = Size2D<f32, Lx>;
-
-/// 96DPI（論理ピクセル）矩形
-pub type LxRect = Rect<f32, Lx>;
-
-pub trait FromDpi<T> {
-    fn from_dpi(value: T, dpi: impl ScaleFactor) -> Self;
+/// 物理ピクセル座標（i32）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RawPoint {
+    pub x: i32,
+    pub y: i32,
 }
 
+impl RawPoint {
+    pub fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
+}
+
+/// 物理ピクセルサイズ（i32）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RawSize {
+    pub width: i32,
+    pub height: i32,
+}
+
+impl RawSize {
+    pub fn new(width: i32, height: i32) -> Self {
+        Self { width, height }
+    }
+}
+
+/// 論理ピクセル長（f32）
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct LxLength(pub f32);
+
+impl LxLength {
+    pub const fn new(value: f32) -> Self {
+        Self(value)
+    }
+    
+    pub fn to_physical(&self, dpi: impl ScaleFactor) -> f32 {
+        self.0 * dpi.scale_factor()
+    }
+}
+
+impl std::ops::Add for LxLength {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl std::ops::Mul<f32> for LxLength {
+    type Output = Self;
+    fn mul(self, rhs: f32) -> Self {
+        Self(self.0 * rhs)
+    }
+}
+
+/// 論理ピクセル座標（f32）
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct LxPoint {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl LxPoint {
+    pub const fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+    
+    pub fn from_lengths(x: LxLength, y: LxLength) -> Self {
+        Self { x: x.0, y: y.0 }
+    }
+    
+    pub fn to_physical(&self, dpi: impl ScaleFactor) -> PxPoint {
+        let scale = dpi.scale_factor();
+        PxPoint {
+            x: self.x * scale,
+            y: self.y * scale,
+        }
+    }
+}
+
+/// 論理ピクセルサイズ（f32）
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct LxSize {
+    pub width: f32,
+    pub height: f32,
+}
+
+impl LxSize {
+    pub const fn new(width: f32, height: f32) -> Self {
+        Self { width, height }
+    }
+    
+    pub fn to_physical(&self, dpi: impl ScaleFactor) -> PxSize {
+        let scale = dpi.scale_factor();
+        PxSize {
+            width: self.width * scale,
+            height: self.height * scale,
+        }
+    }
+}
+
+/// 物理ピクセル座標（f32）
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct PxPoint {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl PxPoint {
+    pub const fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+    
+    pub fn to_logical(&self, dpi: impl ScaleFactor) -> LxPoint {
+        let scale = dpi.scale_factor();
+        LxPoint {
+            x: self.x / scale,
+            y: self.y / scale,
+        }
+    }
+}
+
+/// 物理ピクセルサイズ（f32）
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct PxSize {
+    pub width: f32,
+    pub height: f32,
+}
+
+impl PxSize {
+    pub const fn new(width: f32, height: f32) -> Self {
+        Self { width, height }
+    }
+    
+    pub fn to_logical(&self, dpi: impl ScaleFactor) -> LxSize {
+        let scale = dpi.scale_factor();
+        LxSize {
+            width: self.width / scale,
+            height: self.height / scale,
+        }
+    }
+    
+    pub fn into_raw(self) -> RawSize {
+        RawSize {
+            width: self.width.ceil() as i32,
+            height: self.height.ceil() as i32,
+        }
+    }
+}
+
+/// 物理ピクセル長（f32）
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct PxLength(pub f32);
+
+impl PxLength {
+    pub const fn new(value: f32) -> Self {
+        Self(value)
+    }
+}
+
+// DPI変換のための便利メソッド
 pub trait IntoDpi<T> {
     fn into_dpi(self, dpi: impl ScaleFactor) -> T;
 }
 
-impl<T, U: FromDpi<T>> IntoDpi<U> for T {
-    fn into_dpi(self, dpi: impl ScaleFactor) -> U {
-        U::from_dpi(self, dpi)
+impl IntoDpi<PxSize> for LxSize {
+    fn into_dpi(self, dpi: impl ScaleFactor) -> PxSize {
+        self.to_physical(dpi)
     }
 }
 
-impl FromDpi<PxLength> for LxLength {
-    fn from_dpi(value: PxLength, dpi: impl ScaleFactor) -> Self {
-        value * dpi.to_logical()
-    }
-}
-impl FromDpi<LxLength> for PxLength {
-    fn from_dpi(value: LxLength, dpi: impl ScaleFactor) -> Self {
-        value * dpi.to_physical()
+impl IntoDpi<PxPoint> for LxPoint {
+    fn into_dpi(self, dpi: impl ScaleFactor) -> PxPoint {
+        self.to_physical(dpi)
     }
 }
 
-impl FromDpi<PxPoint> for LxPoint {
-    fn from_dpi(value: PxPoint, dpi: impl ScaleFactor) -> Self {
-        value * dpi.to_logical()
-    }
-}
-impl FromDpi<LxPoint> for PxPoint {
-    fn from_dpi(value: LxPoint, dpi: impl ScaleFactor) -> Self {
-        value * dpi.to_physical()
+impl IntoDpi<PxLength> for LxLength {
+    fn into_dpi(self, dpi: impl ScaleFactor) -> PxLength {
+        PxLength(self.to_physical(dpi))
     }
 }
 
-impl FromDpi<PxSize> for LxSize {
-    fn from_dpi(value: PxSize, dpi: impl ScaleFactor) -> Self {
-        value * dpi.to_logical()
+impl IntoDpi<LxPoint> for PxPoint {
+    fn into_dpi(self, dpi: impl ScaleFactor) -> LxPoint {
+        self.to_logical(dpi)
     }
 }
-impl FromDpi<LxSize> for PxSize {
-    fn from_dpi(value: LxSize, dpi: impl ScaleFactor) -> Self {
-        value * dpi.to_physical()
-    }
-}
-
-impl FromDpi<PxRect> for LxRect {
-    fn from_dpi(value: PxRect, dpi: impl ScaleFactor) -> Self {
-        value * dpi.to_logical()
-    }
-}
-impl FromDpi<LxRect> for PxRect {
-    fn from_dpi(value: LxRect, dpi: impl ScaleFactor) -> Self {
-        value * dpi.to_physical()
-    }
-}
-
-//=============================================================
-// Raw（i32)変換
-//=============================================================
-pub type RawLength = Length<i32, Px>;
-pub type RawPoint = Point2D<i32, Px>;
-pub type RawSize = Size2D<i32, Px>;
-pub type RawRect = Rect<i32, Px>;
-
-pub trait ToRaw<T> {
-    fn into_raw(self) -> T;
-}
-
-impl ToRaw<RawLength> for PxLength {
-    fn into_raw(self) -> RawLength {
-        let value = self.0.ceil() as i32;
-        RawLength::new(value)
-    }
-}
-
-impl ToRaw<RawPoint> for PxPoint {
-    fn into_raw(self) -> RawPoint {
-        let x = self.x.ceil() as i32;
-        let y = self.y.ceil() as i32;
-        RawPoint::new(x, y)
-    }
-}
-
-impl ToRaw<RawSize> for PxSize {
-    fn into_raw(self) -> RawSize {
-        let width = self.width.ceil() as i32;
-        let height = self.height.ceil() as i32;
-        RawSize::new(width, height)
-    }
-}
-
-impl ToRaw<RawRect> for PxRect {
-    fn into_raw(self) -> RawRect {
-        RawRect::new(self.origin.into_raw(), self.size.into_raw())
-    }
-}
-
-//=============================================================
-// 論理ピクセルのみ
-//=============================================================
-
-pub type LxPoint3D = Point3D<f32, Lx>;
-pub type LxVector2D = Vector2D<f32, Lx>;
-pub type LxVector3D = Vector3D<f32, Lx>;
-
-pub type LxTransform2D = Transform2D<f32, Lx, Lx>;
-pub type LxTransform3D = Transform3D<f32, Lx, Lx>;
-
-/// ４次数（3D回転）
-pub type LxRotation3D = Rotation3D<f32, Lx, Lx>;
-
-/// 96DPI（論理ピクセル）四辺の幅
-pub type LxThickness = SideOffsets2D<f32, Lx>;
-
-/// 96DPI（論理ピクセル）Box
-pub type LxBox = Box2D<f32, Lx>;
