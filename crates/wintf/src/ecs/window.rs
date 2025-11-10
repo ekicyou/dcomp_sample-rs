@@ -8,6 +8,7 @@ pub use crate::dpi::Dpi;
 use crate::{ecs::graphics, RawPoint, RawSize};
 
 #[derive(Component, Debug)]
+#[component(storage = "SparseSet")]
 pub struct Window {
     pub hwnd: HWND,
 }
@@ -94,6 +95,7 @@ unsafe impl Send for ZOrder {}
 unsafe impl Sync for ZOrder {}
 
 #[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
+#[component(storage = "SparseSet")]
 pub struct WindowPos {
     pub zorder: ZOrder,
     pub position: Option<RawPoint>,
