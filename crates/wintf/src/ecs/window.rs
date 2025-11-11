@@ -367,19 +367,6 @@ impl WindowPos {
 // ECS Window Message Handler
 //================================================================================
 
-use std::collections::HashMap;
-use std::sync::OnceLock;
-
-static HWND_TO_ENTITY: OnceLock<std::sync::Mutex<HashMap<isize, Entity>>> = OnceLock::new();
-
-fn get_hwnd_map() -> &'static std::sync::Mutex<HashMap<isize, Entity>> {
-    HWND_TO_ENTITY.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
-}
-
-fn hwnd_to_key(hwnd: HWND) -> isize {
-    hwnd.0 as isize
-}
-
 /// ECS専用のウィンドウプロシージャ
 pub extern "system" fn ecs_wndproc(
     hwnd: HWND,
@@ -394,12 +381,10 @@ pub extern "system" fn ecs_wndproc(
             WM_NCCREATE => {
                 let cs = lparam.0 as *const CREATESTRUCTW;
                 if !cs.is_null() {
-                    let entity_bits = (*cs).lpCreateParams as u64;
+                    let entity_bits = (*cs).lpCreateParams as isize;
                     if entity_bits != 0 {
-                        let entity = Entity::from_bits(entity_bits);
-                        if let Ok(mut map) = get_hwnd_map().lock() {
-                            map.insert(hwnd_to_key(hwnd), entity);
-                        }
+                        // Entity IDをGWLP_USERDATAに保存
+                        SetWindowLongPtrW(hwnd, GWLP_USERDATA, entity_bits);
                     }
                 }
                 DefWindowProcW(hwnd, message, wparam, lparam)
@@ -419,13 +404,24 @@ pub extern "system" fn ecs_wndproc(
                 LRESULT(0)
             }
             WM_DESTROY => {
-                if let Ok(mut map) = get_hwnd_map().lock() {
-                    map.remove(&hwnd_to_key(hwnd));
-                }
+                // クリーンアップ
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
                 PostQuitMessage(0);
                 LRESULT(0)
             }
             _ => DefWindowProcW(hwnd, message, wparam, lparam),
+        }
+    }
+}
+
+/// hwndからEntity IDを取得するヘルパー関数
+pub fn get_entity_from_hwnd(hwnd: HWND) -> Option<Entity> {
+    unsafe {
+        let entity_bits = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+        if entity_bits != 0 {
+            Some(Entity::from_bits(entity_bits as u64))
+        } else {
+            None
         }
     }
 }
