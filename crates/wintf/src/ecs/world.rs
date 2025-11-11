@@ -49,6 +49,8 @@ impl EcsWorld {
 
         // デフォルトシステムの登録
         schedule.add_systems(crate::ecs::window_system::create_windows.in_set(Priority::Update));
+        schedule.add_systems(crate::ecs::window_system::on_window_handle_added.in_set(Priority::Update));
+        schedule.add_systems(crate::ecs::window_system::on_window_handle_removed.in_set(Priority::Update));
 
         Self {
             world,

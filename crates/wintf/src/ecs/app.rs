@@ -16,16 +16,16 @@ impl App {
     }
 
     /// ウィンドウが作成されたときに呼ばれる
-    pub fn on_window_created(&mut self) {
+    pub fn on_window_created(&mut self, entity: Entity) {
         self.window_count += 1;
-        eprintln!("[App] Window created. Total windows: {}", self.window_count);
+        eprintln!("[App] Window created. Entity: {:?}, Total windows: {}", entity, self.window_count);
     }
 
     /// ウィンドウが破棄されたときに呼ばれる
     /// 最後のウィンドウが閉じられた場合はtrueを返す
-    pub fn on_window_destroyed(&mut self) -> bool {
+    pub fn on_window_destroyed(&mut self, entity: Entity) -> bool {
         self.window_count = self.window_count.saturating_sub(1);
-        eprintln!("[App] Window destroyed. Remaining windows: {}", self.window_count);
+        eprintln!("[App] Window destroyed. Entity: {:?}, Remaining windows: {}", entity, self.window_count);
         
         if self.window_count == 0 {
             eprintln!("[App] Last window closed. Quitting application...");

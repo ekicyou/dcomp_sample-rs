@@ -45,15 +45,15 @@ pub extern "system" fn ecs_wndproc(
                 DefWindowProcW(hwnd, message, wparam, lparam)
             }
             WM_NCDESTROY => {
+                // クリーンアップ（WM_NCCREATEに対応する最後のメッセージ）
+                // Entity IDを取得してエンティティを削除
                 if let Some(entity) = get_entity_from_hwnd(hwnd) {
                     if let Some(world) = try_get_ecs_world() {
                         let mut world = world.borrow_mut();
+                        
+                        // エンティティを削除（関連する全コンポーネントも削除される）
+                        // on_window_handle_removedシステムが自動的にApp通知を行う
                         world.world_mut().despawn(entity);
-                        if let Some(mut app) =
-                            world.world_mut().get_resource_mut::<crate::ecs::app::App>()
-                        {
-                            app.on_window_destroyed();
-                        }
                     }
                 }
 

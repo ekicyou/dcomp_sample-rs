@@ -6,7 +6,6 @@ use crate::ecs::{Window, WindowHandle};
 /// 未作成のWindowを検出して作成するシステム
 pub fn create_windows(
     mut commands: Commands,
-    mut app: ResMut<crate::ecs::app::App>,
     query: Query<(Entity, &Window), Without<WindowHandle>>,
 ) {
     use crate::process_singleton::WinProcessSingleton;
@@ -68,14 +67,31 @@ pub fn create_windows(
                     let _ = ShowWindow(hwnd, SW_SHOW);
                 }
 
-                // Appリソースに通知
-                app.on_window_created();
-
                 eprintln!("Window created: hwnd={:?}, entity={:?}", hwnd, entity);
             }
             Err(e) => {
                 eprintln!("Failed to create window for entity {:?}: {:?}", entity, e);
             }
         }
+    }
+}
+
+/// WindowHandleコンポーネントが追加されたときに反応するシステム
+pub fn on_window_handle_added(
+    query: Query<Entity, Added<WindowHandle>>,
+    mut app: ResMut<crate::ecs::app::App>,
+) {
+    for entity in query.iter() {
+        app.on_window_created(entity);
+    }
+}
+
+/// WindowHandleコンポーネントが削除されたときに反応するシステム
+pub fn on_window_handle_removed(
+    mut removed: RemovedComponents<WindowHandle>,
+    mut app: ResMut<crate::ecs::app::App>,
+) {
+    for entity in removed.read() {
+        app.on_window_destroyed(entity);
     }
 }
