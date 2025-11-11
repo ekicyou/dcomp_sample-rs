@@ -2,16 +2,27 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::*;
 use std::time::Instant;
 
+// 各プライオリティ用のScheduleLabelマーカー構造体
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Priority {
-    Input,
-    Update,
-    Layout,
-    UISetup,
-    Draw,
-    RenderSurface,
-    Composition,
-}
+pub struct Input;
+
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Update;
+
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Layout;
+
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct UISetup;
+
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Draw;
+
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RenderSurface;
+
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Composition;
 
 /// ECSワールドのラッパー
 /// 初期化ロジックや拡張機能をここに集約
@@ -36,7 +47,7 @@ impl EcsWorld {
 
         // UISetupスケジュールをメインスレッド固定に設定
         {
-            let mut ui_setup = Schedule::new(Priority::UISetup);
+            let mut ui_setup = Schedule::new(UISetup);
             ui_setup.set_executor_kind(ExecutorKind::SingleThreaded);
             world.resource_mut::<Schedules>().insert(ui_setup);
         }
@@ -45,9 +56,9 @@ impl EcsWorld {
         // ウィンドウ作成・破棄はUISetupに登録（メインスレッド固定）
         {
             let mut schedules = world.resource_mut::<Schedules>();
-            schedules.add_systems(Priority::UISetup, crate::ecs::window_system::create_windows);
-            schedules.add_systems(Priority::UISetup, crate::ecs::window_system::on_window_handle_added);
-            schedules.add_systems(Priority::UISetup, crate::ecs::window_system::on_window_handle_removed);
+            schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
+            schedules.add_systems(UISetup, crate::ecs::window_system::on_window_handle_added);
+            schedules.add_systems(UISetup, crate::ecs::window_system::on_window_handle_removed);
         }
 
         Self {
@@ -59,7 +70,7 @@ impl EcsWorld {
     }
 
     /// Schedulesリソースへのアクセスを提供
-    pub fn schedules_mut(&mut self) -> Mut<Schedules> {
+    pub fn schedules_mut(&mut self) -> Mut<'_, Schedules> {
         self.has_systems = true;
         self.world.resource_mut::<Schedules>()
     }
@@ -113,13 +124,13 @@ impl EcsWorld {
         }
 
         // 各Scheduleを順番に実行
-        let _ = self.world.try_run_schedule(Priority::Input);
-        let _ = self.world.try_run_schedule(Priority::Update);
-        let _ = self.world.try_run_schedule(Priority::Layout);
-        let _ = self.world.try_run_schedule(Priority::UISetup);
-        let _ = self.world.try_run_schedule(Priority::Draw);
-        let _ = self.world.try_run_schedule(Priority::RenderSurface);
-        let _ = self.world.try_run_schedule(Priority::Composition);
+        let _ = self.world.try_run_schedule(Input);
+        let _ = self.world.try_run_schedule(Update);
+        let _ = self.world.try_run_schedule(Layout);
+        let _ = self.world.try_run_schedule(UISetup);
+        let _ = self.world.try_run_schedule(Draw);
+        let _ = self.world.try_run_schedule(RenderSurface);
+        let _ = self.world.try_run_schedule(Composition);
 
         true
     }
