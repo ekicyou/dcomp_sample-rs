@@ -35,34 +35,42 @@ pub extern "system" fn ecs_wndproc(
 
     unsafe {
         match message {
-            // ウィンドウ作成・破棄イベント
             WM_NCCREATE => {
                 let cs = lparam.0 as *const CREATESTRUCTW;
                 if !cs.is_null() {
                     let entity_bits = (*cs).lpCreateParams as isize;
-                    if entity_bits != 0 {
-                        // Entity IDをGWLP_USERDATAに保存
-                        SetWindowLongPtrW(hwnd, GWLP_USERDATA, entity_bits);
-                    }
+                    // Entity IDをGWLP_USERDATAに保存（ID 0も有効）
+                    SetWindowLongPtrW(hwnd, GWLP_USERDATA, entity_bits);
                 }
                 DefWindowProcW(hwnd, message, wparam, lparam)
             }
-            WM_DESTROY => {
-                // クリーンアップ
-                SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-                // Appリソースに通知
-                if let Some(world) = try_get_ecs_world() {
-                    let mut world = world.borrow_mut();
-                    if let Some(mut app) =
-                        world.world_mut().get_resource_mut::<crate::ecs::app::App>()
-                    {
-                        app.on_window_destroyed();
+            WM_NCDESTROY => {
+                // クリーンアップ（WM_NCCREATEに対応する最後のメッセージ）
+                // Entity IDを取得してエンティティを削除
+                let entity_bits = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+
+                if let Some(entity) = Entity::try_from_bits(entity_bits as u64) {
+                    if let Some(world) = try_get_ecs_world() {
+                        let mut world = world.borrow_mut();
+
+                        // エンティティを削除（関連する全コンポーネントも削除される）
+                        world.world_mut().despawn(entity);
+
+                        // Appリソースに通知
+                        if let Some(mut app) =
+                            world.world_mut().get_resource_mut::<crate::ecs::app::App>()
+                        {
+                            app.on_window_destroyed();
+                        }
                     }
                 }
-                LRESULT(0)
+
+                // GWLP_USERDATAをクリア
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+
+                DefWindowProcW(hwnd, message, wparam, lparam)
             }
 
-            // 一般イベント
             WM_NCHITTEST => DefWindowProcW(hwnd, message, wparam, lparam),
             WM_ERASEBKGND => {
                 // 背景を消去しない（DirectCompositionで描画するため）
@@ -87,10 +95,6 @@ pub extern "system" fn ecs_wndproc(
 pub fn get_entity_from_hwnd(hwnd: HWND) -> Option<Entity> {
     unsafe {
         let entity_bits = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
-        if entity_bits != 0 {
-            Some(Entity::from_bits(entity_bits as u64))
-        } else {
-            None
-        }
+        Entity::try_from_bits(entity_bits as u64)
     }
 }
