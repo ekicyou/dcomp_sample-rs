@@ -58,7 +58,7 @@ impl EcsWorld {
             schedules.insert(Schedule::new(Update));
             schedules.insert(Schedule::new(Layout));
 
-            // UISetupだけメインスレッド固定（Win32 API呼び出しのため）
+            // UISetupだけメインスレッド固定（メッセージループに影響する処理のため）
             {
                 let mut sc = Schedule::new(UISetup);
                 sc.set_executor_kind(ExecutorKind::SingleThreaded);
