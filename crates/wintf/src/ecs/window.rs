@@ -26,6 +26,7 @@ pub struct DpiTransform {
 
 impl DpiTransform {
     /// WM_DPICHANGED イベントのパラメーターから作成
+    #[allow(non_snake_case)]
     pub fn from_WM_DPICHANGED(wparam: WPARAM, _lparam: LPARAM) -> Self {
         let (x_dpi, y_dpi) = (wparam.0 as u16, (wparam.0 >> 16) as u16);
         Self::from_dpi(x_dpi, y_dpi)
