@@ -367,6 +367,21 @@ impl WindowPos {
 // ECS Window Message Handler
 //================================================================================
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+static WINDOW_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+/// ウィンドウカウントを増やす（create_windowsシステムから呼ばれる）
+pub(crate) fn increment_window_count() {
+    WINDOW_COUNT.fetch_add(1, Ordering::SeqCst);
+}
+
+/// ウィンドウカウントを減らし、残りの数を返す
+fn decrement_window_count() -> usize {
+    let prev = WINDOW_COUNT.fetch_sub(1, Ordering::SeqCst);
+    prev.saturating_sub(1)
+}
+
 /// ECS専用のウィンドウプロシージャ
 pub extern "system" fn ecs_wndproc(
     hwnd: HWND,
@@ -375,7 +390,7 @@ pub extern "system" fn ecs_wndproc(
     lparam: LPARAM,
 ) -> LRESULT {
     use windows::Win32::Graphics::Gdi::ValidateRect;
-    
+
     unsafe {
         match message {
             WM_NCCREATE => {
@@ -400,13 +415,20 @@ pub extern "system" fn ecs_wndproc(
                 LRESULT(0)
             }
             WM_CLOSE => {
+                // DestroyWindowを呼ぶと、WM_DESTROYが送られる
                 let _ = DestroyWindow(hwnd);
                 LRESULT(0)
             }
             WM_DESTROY => {
                 // クリーンアップ
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-                PostQuitMessage(0);
+                
+                // ウィンドウカウントを減らして、最後なら終了
+                let remaining = decrement_window_count();
+                eprintln!("Window destroyed. Remaining windows: {}", remaining);
+                if remaining == 0 {
+                    PostQuitMessage(0);
+                }
                 LRESULT(0)
             }
             _ => DefWindowProcW(hwnd, message, wparam, lparam),
@@ -493,6 +515,9 @@ pub fn create_windows(
                 unsafe {
                     let _ = ShowWindow(hwnd, SW_SHOW);
                 }
+
+                // ウィンドウカウントを増やす
+                increment_window_count();
 
                 eprintln!("Window created: hwnd={:?}, entity={:?}", hwnd, entity);
             }
