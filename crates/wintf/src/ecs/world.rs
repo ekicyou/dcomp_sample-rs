@@ -41,17 +41,30 @@ impl EcsWorld {
 
         // リソースの初期化
         world.insert_resource(crate::ecs::app::App::new());
-        
+
         // Schedulesをリソースとして初期化
         world.init_resource::<Schedules>();
 
-        // UISetupスケジュールをメインスレッド固定に設定
         {
-            let mut ui_setup = Schedule::new(UISetup);
-            ui_setup.set_executor_kind(ExecutorKind::SingleThreaded);
-            world.resource_mut::<Schedules>().insert(ui_setup);
+            let mut schedules = world.resource_mut::<Schedules>();
+            
+            // 各スケジュールを初期化
+            schedules.insert(Schedule::new(Input));
+            schedules.insert(Schedule::new(Update));
+            schedules.insert(Schedule::new(Layout));
+            
+            // UISetupだけメインスレッド固定
+            {
+                let mut sc = Schedule::new(UISetup);
+                sc.set_executor_kind(ExecutorKind::SingleThreaded);
+                schedules.insert(sc);
+            }
+            
+            schedules.insert(Schedule::new(Draw));
+            schedules.insert(Schedule::new(RenderSurface));
+            schedules.insert(Schedule::new(Composition));
         }
-        
+
         // デフォルトシステムの登録
         // ウィンドウ作成・破棄はUISetupに登録（メインスレッド固定）
         {
