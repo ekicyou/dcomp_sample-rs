@@ -1,11 +1,13 @@
 use bevy_ecs::prelude::*;
+use bevy_ecs::schedule::*;
 use std::time::Instant;
 
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Priority {
     Input,
     Update,
     Layout,
+    UISetup,
     Draw,
     RenderSurface,
     Composition,
@@ -15,7 +17,7 @@ pub enum Priority {
 /// 初期化ロジックや拡張機能をここに集約
 pub struct EcsWorld {
     world: World,
-    schedule: Schedule,
+    schedules: Schedules,
     has_systems: bool,
     // デバッグ用: フレームレート計測
     frame_count: u64,
@@ -30,41 +32,51 @@ impl EcsWorld {
         // リソースの初期化
         world.insert_resource(crate::ecs::app::App::new());
 
-        let mut schedule = Schedule::default();
+        let mut schedules = Schedules::new();
         
-        // シングルスレッド実行に設定（ウィンドウ作成をメインスレッドで行うため）
-        schedule.set_executor_kind(bevy_ecs::schedule::ExecutorKind::SingleThreaded);
+        // 各プライオリティ用のScheduleを作成
+        let input = Schedule::new(Priority::Input);
+        let update = Schedule::new(Priority::Update);
+        let layout = Schedule::new(Priority::Layout);
         
-        schedule.configure_sets(
-            (
-                Priority::Input,
-                Priority::Update,
-                Priority::Layout,
-                Priority::Draw,
-                Priority::RenderSurface,
-                Priority::Composition,
-            )
-                .chain(),
-        );
-
+        let mut ui_setup = Schedule::new(Priority::UISetup);
+        // UISetupだけメインスレッド固定
+        ui_setup.set_executor_kind(ExecutorKind::SingleThreaded);
+        
+        let draw = Schedule::new(Priority::Draw);
+        let render_surface = Schedule::new(Priority::RenderSurface);
+        let composition = Schedule::new(Priority::Composition);
+        
         // デフォルトシステムの登録
-        schedule.add_systems(crate::ecs::window_system::create_windows.in_set(Priority::Update));
-        schedule.add_systems(crate::ecs::window_system::on_window_handle_added.in_set(Priority::Update));
-        schedule.add_systems(crate::ecs::window_system::on_window_handle_removed.in_set(Priority::Update));
+        // ウィンドウ作成・破棄はUISetupに登録（メインスレッド固定）
+        ui_setup.add_systems(crate::ecs::window_system::create_windows);
+        ui_setup.add_systems(crate::ecs::window_system::on_window_handle_added);
+        ui_setup.add_systems(crate::ecs::window_system::on_window_handle_removed);
+        
+        // Schedulesに登録
+        schedules.insert(input);
+        schedules.insert(update);
+        schedules.insert(layout);
+        schedules.insert(ui_setup);
+        schedules.insert(draw);
+        schedules.insert(render_surface);
+        schedules.insert(composition);
 
         Self {
             world,
-            schedule,
+            schedules,
             has_systems: true, // デフォルトシステムがあるのでtrue
             frame_count: 0,
             last_log_time: None,
         }
     }
 
-    /// スケジュールへの可変参照を取得してシステムを追加
-    pub fn schedule_mut(&mut self) -> &mut Schedule {
+    /// 指定したプライオリティのスケジュールへの可変参照を取得
+    pub fn get_schedule_mut(&mut self, priority: Priority) -> &mut Schedule {
         self.has_systems = true;
-        &mut self.schedule
+        self.schedules
+            .get_mut(priority)
+            .expect("Schedule not found")
     }
 
     /// 内部のWorldへの参照を取得
@@ -115,8 +127,14 @@ impl EcsWorld {
             return false;
         }
 
-        // スケジュールを実行（登録された全システムを1回実行）
-        self.schedule.run(&mut self.world);
+        // 各Scheduleを順番に実行
+        self.schedules.get_mut(Priority::Input).unwrap().run(&mut self.world);
+        self.schedules.get_mut(Priority::Update).unwrap().run(&mut self.world);
+        self.schedules.get_mut(Priority::Layout).unwrap().run(&mut self.world);
+        self.schedules.get_mut(Priority::UISetup).unwrap().run(&mut self.world);
+        self.schedules.get_mut(Priority::Draw).unwrap().run(&mut self.world);
+        self.schedules.get_mut(Priority::RenderSurface).unwrap().run(&mut self.world);
+        self.schedules.get_mut(Priority::Composition).unwrap().run(&mut self.world);
 
         true
     }

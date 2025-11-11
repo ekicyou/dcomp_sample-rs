@@ -1,16 +1,18 @@
 use bevy_ecs::prelude::*;
+use windows::core::*;
+use windows::Win32::Graphics::Gdi::*;
+use windows::Win32::UI::HiDpi::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-use crate::ecs::{Window, WindowHandle};
+use crate::dpi::*;
+use crate::ecs::*;
+use crate::process_singleton::*;
 
 /// 未作成のWindowを検出して作成するシステム
 pub fn create_windows(
     mut commands: Commands,
     query: Query<(Entity, &Window), Without<WindowHandle>>,
 ) {
-    use crate::process_singleton::WinProcessSingleton;
-    use windows::core::HSTRING;
-
     let singleton = WinProcessSingleton::get_or_init();
 
     for (entity, window) in query.iter() {
@@ -40,9 +42,6 @@ pub fn create_windows(
         match result {
             Ok(hwnd) => {
                 // 初期DPIを取得
-                use windows::Win32::Graphics::Gdi::*;
-                use windows::Win32::UI::HiDpi::*;
-
                 let monitor = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) };
                 let mut x_dpi = 0u32;
                 let mut y_dpi = 0u32;
@@ -50,9 +49,9 @@ pub fn create_windows(
                     unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut x_dpi, &mut y_dpi) };
 
                 let initial_dpi = if dpi_result.is_ok() {
-                    crate::dpi::Dpi::new(x_dpi as f32)
+                    Dpi::new(x_dpi as f32)
                 } else {
-                    crate::dpi::Dpi::new(96.0) // デフォルト
+                    Dpi::new(96.0) // デフォルト
                 };
 
                 // WindowHandleコンポーネントを追加
