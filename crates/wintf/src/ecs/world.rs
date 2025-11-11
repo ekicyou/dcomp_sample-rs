@@ -17,7 +17,6 @@ pub enum Priority {
 /// 初期化ロジックや拡張機能をここに集約
 pub struct EcsWorld {
     world: World,
-    schedules: Schedules,
     has_systems: bool,
     // デバッグ用: フレームレート計測
     frame_count: u64,
@@ -31,52 +30,38 @@ impl EcsWorld {
 
         // リソースの初期化
         world.insert_resource(crate::ecs::app::App::new());
+        
+        // Schedulesをリソースとして初期化
+        world.init_resource::<Schedules>();
 
-        let mut schedules = Schedules::new();
-        
-        // 各プライオリティ用のScheduleを作成
-        let input = Schedule::new(Priority::Input);
-        let update = Schedule::new(Priority::Update);
-        let layout = Schedule::new(Priority::Layout);
-        
-        let mut ui_setup = Schedule::new(Priority::UISetup);
-        // UISetupだけメインスレッド固定
-        ui_setup.set_executor_kind(ExecutorKind::SingleThreaded);
-        
-        let draw = Schedule::new(Priority::Draw);
-        let render_surface = Schedule::new(Priority::RenderSurface);
-        let composition = Schedule::new(Priority::Composition);
+        // UISetupスケジュールをメインスレッド固定に設定
+        {
+            let mut ui_setup = Schedule::new(Priority::UISetup);
+            ui_setup.set_executor_kind(ExecutorKind::SingleThreaded);
+            world.resource_mut::<Schedules>().insert(ui_setup);
+        }
         
         // デフォルトシステムの登録
         // ウィンドウ作成・破棄はUISetupに登録（メインスレッド固定）
-        ui_setup.add_systems(crate::ecs::window_system::create_windows);
-        ui_setup.add_systems(crate::ecs::window_system::on_window_handle_added);
-        ui_setup.add_systems(crate::ecs::window_system::on_window_handle_removed);
-        
-        // Schedulesに登録
-        schedules.insert(input);
-        schedules.insert(update);
-        schedules.insert(layout);
-        schedules.insert(ui_setup);
-        schedules.insert(draw);
-        schedules.insert(render_surface);
-        schedules.insert(composition);
+        {
+            let mut schedules = world.resource_mut::<Schedules>();
+            schedules.add_systems(Priority::UISetup, crate::ecs::window_system::create_windows);
+            schedules.add_systems(Priority::UISetup, crate::ecs::window_system::on_window_handle_added);
+            schedules.add_systems(Priority::UISetup, crate::ecs::window_system::on_window_handle_removed);
+        }
 
         Self {
             world,
-            schedules,
             has_systems: true, // デフォルトシステムがあるのでtrue
             frame_count: 0,
             last_log_time: None,
         }
     }
 
-    /// 指定したプライオリティのスケジュールへの可変参照を取得
-    pub fn get_schedule_mut(&mut self, priority: Priority) -> &mut Schedule {
+    /// Schedulesリソースへのアクセスを提供
+    pub fn schedules_mut(&mut self) -> Mut<Schedules> {
         self.has_systems = true;
-        self.schedules
-            .get_mut(priority)
-            .expect("Schedule not found")
+        self.world.resource_mut::<Schedules>()
     }
 
     /// 内部のWorldへの参照を取得
@@ -128,13 +113,13 @@ impl EcsWorld {
         }
 
         // 各Scheduleを順番に実行
-        self.schedules.get_mut(Priority::Input).unwrap().run(&mut self.world);
-        self.schedules.get_mut(Priority::Update).unwrap().run(&mut self.world);
-        self.schedules.get_mut(Priority::Layout).unwrap().run(&mut self.world);
-        self.schedules.get_mut(Priority::UISetup).unwrap().run(&mut self.world);
-        self.schedules.get_mut(Priority::Draw).unwrap().run(&mut self.world);
-        self.schedules.get_mut(Priority::RenderSurface).unwrap().run(&mut self.world);
-        self.schedules.get_mut(Priority::Composition).unwrap().run(&mut self.world);
+        let _ = self.world.try_run_schedule(Priority::Input);
+        let _ = self.world.try_run_schedule(Priority::Update);
+        let _ = self.world.try_run_schedule(Priority::Layout);
+        let _ = self.world.try_run_schedule(Priority::UISetup);
+        let _ = self.world.try_run_schedule(Priority::Draw);
+        let _ = self.world.try_run_schedule(Priority::RenderSurface);
+        let _ = self.world.try_run_schedule(Priority::Composition);
 
         true
     }
