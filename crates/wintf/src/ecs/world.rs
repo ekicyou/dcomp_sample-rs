@@ -25,7 +25,10 @@ pub struct EcsWorld {
 impl EcsWorld {
     /// 新しいEcsWorldを作成
     pub fn new() -> Self {
-        let world = World::new();
+        let mut world = World::new();
+
+        // リソースの初期化
+        world.insert_resource(crate::ecs::app::App::new());
 
         let mut schedule = Schedule::default();
         

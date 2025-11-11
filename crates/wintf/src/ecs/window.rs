@@ -367,19 +367,26 @@ impl WindowPos {
 // ECS Window Message Handler
 //================================================================================
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
+use std::cell::RefCell;
+use std::rc::{Rc, Weak};
 
-static WINDOW_COUNT: AtomicUsize = AtomicUsize::new(0);
+// SAFETY: EcsWorldはメインスレッドでのみアクセスされる
+// wndprocもメインスレッドから呼ばれるため安全
+struct SendWeak(Weak<RefCell<crate::ecs::world::EcsWorld>>);
+unsafe impl Send for SendWeak {}
+unsafe impl Sync for SendWeak {}
 
-/// ウィンドウカウントを増やす（create_windowsシステムから呼ばれる）
-pub(crate) fn increment_window_count() {
-    WINDOW_COUNT.fetch_add(1, Ordering::SeqCst);
+static ECS_WORLD: OnceLock<SendWeak> = OnceLock::new();
+
+/// EcsWorldへの弱参照を登録（WinThreadMgr初期化時に呼ばれる）
+pub fn set_ecs_world(world: Weak<RefCell<crate::ecs::world::EcsWorld>>) {
+    let _ = ECS_WORLD.set(SendWeak(world));
 }
 
-/// ウィンドウカウントを減らし、残りの数を返す
-fn decrement_window_count() -> usize {
-    let prev = WINDOW_COUNT.fetch_sub(1, Ordering::SeqCst);
-    prev.saturating_sub(1)
+/// EcsWorldへの参照を取得
+fn try_get_ecs_world() -> Option<Rc<RefCell<crate::ecs::world::EcsWorld>>> {
+    ECS_WORLD.get().and_then(|weak| weak.0.upgrade())
 }
 
 /// ECS専用のウィンドウプロシージャ
@@ -423,12 +430,14 @@ pub extern "system" fn ecs_wndproc(
                 // クリーンアップ
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
                 
-                // ウィンドウカウントを減らして、最後なら終了
-                let remaining = decrement_window_count();
-                eprintln!("Window destroyed. Remaining windows: {}", remaining);
-                if remaining == 0 {
-                    PostQuitMessage(0);
+                // Appリソースに通知
+                if let Some(world) = try_get_ecs_world() {
+                    let mut world = world.borrow_mut();
+                    if let Some(mut app) = world.world_mut().get_resource_mut::<crate::ecs::app::App>() {
+                        app.on_window_destroyed();
+                    }
                 }
+                
                 LRESULT(0)
             }
             _ => DefWindowProcW(hwnd, message, wparam, lparam),
@@ -455,6 +464,7 @@ pub fn get_entity_from_hwnd(hwnd: HWND) -> Option<Entity> {
 /// 未作成のWindowを検出して作成するシステム
 pub fn create_windows(
     mut commands: Commands,
+    mut app: ResMut<crate::ecs::app::App>,
     query: Query<(Entity, &Window), Without<WindowHandle>>,
 ) {
     use crate::process_singleton::WinProcessSingleton;
@@ -516,8 +526,8 @@ pub fn create_windows(
                     let _ = ShowWindow(hwnd, SW_SHOW);
                 }
 
-                // ウィンドウカウントを増やす
-                increment_window_count();
+                // Appリソースに通知
+                app.on_window_created();
 
                 eprintln!("Window created: hwnd={:?}, entity={:?}", hwnd, entity);
             }

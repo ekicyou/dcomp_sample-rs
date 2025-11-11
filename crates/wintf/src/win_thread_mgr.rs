@@ -79,9 +79,14 @@ impl WinThreadMgrInner {
             SetTimer(Some(message_window), TIMER_ID_ECS_TICK, 10, None);
         }
 
+        let world = Rc::new(RefCell::new(EcsWorld::new()));
+        
+        // EcsWorldへの弱参照を登録（wndprocからアクセスするため）
+        crate::ecs::set_ecs_world(Rc::downgrade(&world));
+
         let rc = WinThreadMgrInner {
             executor_normal: Executor::new(),
-            world: Rc::new(RefCell::new(EcsWorld::new())),
+            world,
             message_window,
         };
         let _ = rc.instance();
