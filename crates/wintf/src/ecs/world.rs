@@ -3,24 +3,39 @@ use bevy_ecs::schedule::*;
 use std::time::Instant;
 
 // 各プライオリティ用のScheduleLabelマーカー構造体
+// 実行順序: Input → Update → Layout → UISetup → Draw → RenderSurface → Composition
+
+/// 入力処理スケジュール
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Input;
 
+/// 通常のロジック更新スケジュール（マルチスレッド）
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Update;
 
+/// ウィンドウ/ウィジェットのレイアウト計算スケジュール
+/// 
+/// UISetupスケジュールより前に実行され、レイアウト結果を提供する
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Layout;
 
+/// UIセットアップスケジュール（メインスレッド固定）
+/// 
+/// Layoutスケジュールの結果を使ってウィンドウを作成・更新する。
+/// メッセージループに影響する処理（CreateWindowEx, PostQuitMessage等）を含むため、
+/// SingleThreadedエグゼキュータで実行される。
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UISetup;
 
+/// 描画コマンド生成スケジュール
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Draw;
 
+/// レンダリングサーフェス更新スケジュール
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RenderSurface;
 
+/// 最終合成スケジュール
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Composition;
 
@@ -47,24 +62,18 @@ impl EcsWorld {
 
         {
             let mut schedules = world.resource_mut::<Schedules>();
-
-            // 各スケジュールを初期化
-            // 実行順序: Input → Update → Layout → UISetup → Draw → RenderSurface → Composition
-            // 
-            // Layout → UISetup の順序が重要:
-            //   - Layout: ウィンドウ/ウィジェットのレイアウト計算
-            //   - UISetup: レイアウト結果を使ってウィンドウを作成（メインスレッド固定）
+            
             schedules.insert(Schedule::new(Input));
             schedules.insert(Schedule::new(Update));
             schedules.insert(Schedule::new(Layout));
-
-            // UISetupだけメインスレッド固定（メッセージループに影響する処理のため）
+            
+            // UISetupだけメインスレッド固定
             {
                 let mut sc = Schedule::new(UISetup);
                 sc.set_executor_kind(ExecutorKind::SingleThreaded);
                 schedules.insert(sc);
             }
-
+            
             schedules.insert(Schedule::new(Draw));
             schedules.insert(Schedule::new(RenderSurface));
             schedules.insert(Schedule::new(Composition));
@@ -142,7 +151,6 @@ impl EcsWorld {
         }
 
         // 各Scheduleを順番に実行
-        // Layout → UISetup の順序が重要：レイアウト結果を使ってウィンドウを作成
         let _ = self.world.try_run_schedule(Input);
         let _ = self.world.try_run_schedule(Update);
         let _ = self.world.try_run_schedule(Layout);
