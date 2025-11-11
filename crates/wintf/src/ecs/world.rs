@@ -14,13 +14,11 @@ pub struct Input;
 pub struct Update;
 
 /// ウィンドウ/ウィジェットのレイアウト計算スケジュール
-/// 
-/// UISetupスケジュールより前に実行され、レイアウト結果を提供する
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Layout;
 
 /// UIセットアップスケジュール（メインスレッド固定）
-/// 
+///
 /// Layoutスケジュールの結果を使ってウィンドウを作成・更新する。
 /// メッセージループに影響する処理（CreateWindowEx, PostQuitMessage等）を含むため、
 /// SingleThreadedエグゼキュータで実行される。
@@ -57,30 +55,28 @@ impl EcsWorld {
         // リソースの初期化
         world.insert_resource(crate::ecs::app::App::new());
 
-        // Schedulesをリソースとして初期化
-        world.init_resource::<Schedules>();
-
+        // スケジュールの登録
         {
+            world.init_resource::<Schedules>();
             let mut schedules = world.resource_mut::<Schedules>();
-            
+
             schedules.insert(Schedule::new(Input));
             schedules.insert(Schedule::new(Update));
             schedules.insert(Schedule::new(Layout));
-            
+
             // UISetupだけメインスレッド固定
             {
                 let mut sc = Schedule::new(UISetup);
                 sc.set_executor_kind(ExecutorKind::SingleThreaded);
                 schedules.insert(sc);
             }
-            
+
             schedules.insert(Schedule::new(Draw));
             schedules.insert(Schedule::new(RenderSurface));
             schedules.insert(Schedule::new(Composition));
         }
 
         // デフォルトシステムの登録
-        // ウィンドウ作成・破棄はUISetupに登録（メインスレッド固定）
         {
             let mut schedules = world.resource_mut::<Schedules>();
             schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
