@@ -8,6 +8,7 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 use crate::winproc::*;
 
 const WINTF_CLASS_NAME: &str = "wintf_window_class";
+const WINTF_ECS_CLASS_NAME: &str = "wintf_ecs_window_class";
 
 static WIN_PROCESS_SINGLETON: OnceLock<WinProcessSingleton> = OnceLock::new();
 
@@ -15,6 +16,7 @@ static WIN_PROCESS_SINGLETON: OnceLock<WinProcessSingleton> = OnceLock::new();
 pub struct WinProcessSingleton {
     instance: HINSTANCE,
     window_class_name: HSTRING,
+    ecs_window_class_name: HSTRING,
 }
 
 unsafe impl Send for WinProcessSingleton {}
@@ -29,11 +31,18 @@ impl WinProcessSingleton {
         &self.window_class_name
     }
 
+    pub(crate) fn ecs_window_class_name(&self) -> &HSTRING {
+        &self.ecs_window_class_name
+    }
+
     pub(crate) fn get_or_init() -> &'static Self {
         WIN_PROCESS_SINGLETON.get_or_init(|| {
             eprintln!("window class creation...");
             let instance = unsafe { GetModuleHandleW(None).unwrap().into() };
             let window_class_name = HSTRING::from(WINTF_CLASS_NAME);
+            let ecs_window_class_name = HSTRING::from(WINTF_ECS_CLASS_NAME);
+            
+            // 既存のウィンドウクラスを登録（dcomp_demo用）
             let wc = WNDCLASSEXW {
                 cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
                 style: CS_HREDRAW | CS_VREDRAW,
@@ -49,10 +58,28 @@ impl WinProcessSingleton {
                     panic!("Failed to register window class");
                 }
             }
-            eprintln!("window class created");
+
+            // ECS用のウィンドウクラスを登録
+            let ecs_wc = WNDCLASSEXW {
+                cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
+                style: CS_HREDRAW | CS_VREDRAW,
+                lpfnWndProc: Some(crate::ecs::ecs_wndproc),
+                hInstance: instance,
+                hCursor: unsafe { LoadCursorW(None, IDC_ARROW).unwrap() },
+                lpszClassName: PCWSTR(ecs_window_class_name.as_ptr()),
+                ..Default::default()
+            };
+            unsafe {
+                if RegisterClassExW(&ecs_wc) == 0 {
+                    panic!("Failed to register ECS window class");
+                }
+            }
+
+            eprintln!("window classes created");
             Self {
                 instance,
                 window_class_name,
+                ecs_window_class_name,
             }
         })
     }

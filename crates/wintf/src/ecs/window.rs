@@ -7,14 +7,48 @@ use crate::api::*;
 pub use crate::dpi::Dpi;
 use crate::{RawPoint, RawSize};
 
-#[derive(Component, Debug)]
-#[component(storage = "SparseSet")]
+/// Windowコンポーネント - ウィンドウ作成に必要なパラメータを保持
+#[derive(Component, Debug, Clone)]
 pub struct Window {
-    pub hwnd: HWND,
+    pub title: String,
+    pub style: WINDOW_STYLE,
+    pub ex_style: WINDOW_EX_STYLE,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub parent: Option<HWND>,
+}
+
+impl Default for Window {
+    fn default() -> Self {
+        Self {
+            title: "Window".to_string(),
+            style: WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            ex_style: WINDOW_EX_STYLE(0),
+            x: CW_USEDEFAULT,
+            y: CW_USEDEFAULT,
+            width: CW_USEDEFAULT,
+            height: CW_USEDEFAULT,
+            parent: None,
+        }
+    }
 }
 
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
+
+/// 作成済みウィンドウのハンドル情報（システムが自動的に設定）
+#[derive(Component, Debug)]
+#[component(storage = "SparseSet")]
+pub struct WindowHandle {
+    pub hwnd: HWND,
+    pub instance: HINSTANCE,
+    pub initial_dpi: Dpi,
+}
+
+unsafe impl Send for WindowHandle {}
+unsafe impl Sync for WindowHandle {}
 
 /// DPI変換行列を保持するコンポーネント
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
@@ -58,6 +92,15 @@ impl DpiTransform {
 pub struct WindowStyle {
     pub style: WINDOW_STYLE,
     pub ex_style: WINDOW_EX_STYLE,
+}
+
+impl Default for WindowStyle {
+    fn default() -> Self {
+        Self {
+            style: WS_OVERLAPPEDWINDOW,
+            ex_style: WINDOW_EX_STYLE(0),
+        }
+    }
 }
 
 impl WindowStyle {
@@ -317,5 +360,149 @@ impl WindowPos {
         };
 
         unsafe { SetWindowPos(hwnd, hwnd_insert_after, x, y, width, height, flags) }
+    }
+}
+
+//================================================================================
+// ECS Window Message Handler
+//================================================================================
+
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
+static HWND_TO_ENTITY: OnceLock<std::sync::Mutex<HashMap<isize, Entity>>> = OnceLock::new();
+
+fn get_hwnd_map() -> &'static std::sync::Mutex<HashMap<isize, Entity>> {
+    HWND_TO_ENTITY.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+fn hwnd_to_key(hwnd: HWND) -> isize {
+    hwnd.0 as isize
+}
+
+/// ECS専用のウィンドウプロシージャ
+pub extern "system" fn ecs_wndproc(
+    hwnd: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    use windows::Win32::Graphics::Gdi::ValidateRect;
+    
+    unsafe {
+        match message {
+            WM_NCCREATE => {
+                let cs = lparam.0 as *const CREATESTRUCTW;
+                if !cs.is_null() {
+                    let entity_bits = (*cs).lpCreateParams as u64;
+                    if entity_bits != 0 {
+                        let entity = Entity::from_bits(entity_bits);
+                        if let Ok(mut map) = get_hwnd_map().lock() {
+                            map.insert(hwnd_to_key(hwnd), entity);
+                        }
+                    }
+                }
+                DefWindowProcW(hwnd, message, wparam, lparam)
+            }
+            WM_NCHITTEST => DefWindowProcW(hwnd, message, wparam, lparam),
+            WM_ERASEBKGND => {
+                // 背景を消去しない（DirectCompositionで描画するため）
+                LRESULT(1)
+            }
+            WM_PAINT => {
+                // DirectCompositionで描画するため、ここでは領域を無効化解除するだけ
+                let _ = ValidateRect(Some(hwnd), None);
+                LRESULT(0)
+            }
+            WM_CLOSE => {
+                let _ = DestroyWindow(hwnd);
+                LRESULT(0)
+            }
+            WM_DESTROY => {
+                if let Ok(mut map) = get_hwnd_map().lock() {
+                    map.remove(&hwnd_to_key(hwnd));
+                }
+                PostQuitMessage(0);
+                LRESULT(0)
+            }
+            _ => DefWindowProcW(hwnd, message, wparam, lparam),
+        }
+    }
+}
+
+//================================================================================
+// Systems
+//================================================================================
+
+/// 未作成のWindowを検出して作成するシステム
+pub fn create_windows(
+    mut commands: Commands,
+    query: Query<(Entity, &Window), Without<WindowHandle>>,
+) {
+    use crate::process_singleton::WinProcessSingleton;
+    use windows::core::HSTRING;
+
+    let singleton = WinProcessSingleton::get_or_init();
+
+    for (entity, window) in query.iter() {
+        // Win32ウィンドウを作成
+        let title = HSTRING::from(&window.title);
+
+        // EntityのIDをlpCreateParamsとして渡す
+        let entity_bits = entity.to_bits() as *mut std::ffi::c_void;
+
+        let result = unsafe {
+            CreateWindowExW(
+                window.ex_style,
+                singleton.ecs_window_class_name(), // ECS用のウィンドウクラスを使用
+                &title,
+                window.style,
+                window.x,
+                window.y,
+                window.width,
+                window.height,
+                window.parent,
+                None,
+                Some(singleton.instance()),
+                Some(entity_bits), // EntityのIDを渡す
+            )
+        };
+
+        match result {
+            Ok(hwnd) => {
+                // 初期DPIを取得
+                use windows::Win32::Graphics::Gdi::*;
+                use windows::Win32::UI::HiDpi::*;
+
+                let monitor = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) };
+                let mut x_dpi = 0u32;
+                let mut y_dpi = 0u32;
+                let dpi_result =
+                    unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut x_dpi, &mut y_dpi) };
+
+                let initial_dpi = if dpi_result.is_ok() {
+                    Dpi::new(x_dpi as f32)
+                } else {
+                    Dpi::new(96.0) // デフォルト
+                };
+
+                // WindowHandleコンポーネントを追加
+                commands.entity(entity).insert(WindowHandle {
+                    hwnd,
+                    instance: singleton.instance(),
+                    initial_dpi,
+                });
+
+                // ウィンドウを表示
+                unsafe {
+                    let _ = ShowWindow(hwnd, SW_SHOW);
+                }
+
+                eprintln!("Window created: hwnd={:?}, entity={:?}", hwnd, entity);
+            }
+            Err(e) => {
+                eprintln!("Failed to create window for entity {:?}: {:?}", entity, e);
+            }
+        }
     }
 }

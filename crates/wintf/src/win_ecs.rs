@@ -54,8 +54,14 @@ impl WinState for EcsWindow {
         }
         if let Some(entity) = self.entity {
             let mut entity = ecs.entity_mut(entity);
-            let window = Window { hwnd };
-            entity.insert(window);
+            // WindowHandleコンポーネントを追加
+            use crate::process_singleton::WinProcessSingleton;
+            let singleton = WinProcessSingleton::get_or_init();
+            entity.insert(WindowHandle {
+                hwnd,
+                instance: singleton.instance(),
+                initial_dpi: self.dpi,
+            });
         }
     }
 
@@ -82,4 +88,15 @@ impl WinState for EcsWindow {
     }
 }
 
-impl WinMessageHandler for EcsWindow {}
+impl WinMessageHandler for EcsWindow {
+    fn WM_CLOSE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
+        unsafe {
+            let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(self.hwnd);
+        }
+        Some(LRESULT(0))
+    }
+
+    fn WM_DESTROY(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
+        self.post_quit_message(0)
+    }
+}

@@ -122,6 +122,13 @@ impl WinThreadMgrInner {
         }
     }
 
+    pub fn show_window(&self, hwnd: HWND) -> Result<()> {
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_SHOW);
+        }
+        Ok(())
+    }
+
     pub fn spawn_normal<T: Send + 'static>(
         &self,
         fut: impl Future<Output = T> + Send + 'static,

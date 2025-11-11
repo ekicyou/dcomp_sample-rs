@@ -28,6 +28,10 @@ impl EcsWorld {
         let world = World::new();
 
         let mut schedule = Schedule::default();
+        
+        // シングルスレッド実行に設定（ウィンドウ作成をメインスレッドで行うため）
+        schedule.set_executor_kind(bevy_ecs::schedule::ExecutorKind::SingleThreaded);
+        
         schedule.configure_sets(
             (
                 Priority::Input,
@@ -40,12 +44,13 @@ impl EcsWorld {
                 .chain(),
         );
 
-        // ここで初期化処理を行う
-        // 例: リソースの登録、システムのセットアップなど
+        // デフォルトシステムの登録
+        schedule.add_systems(crate::ecs::window::create_windows.in_set(Priority::Update));
+
         Self {
             world,
             schedule,
-            has_systems: false,
+            has_systems: true, // デフォルトシステムがあるのでtrue
             frame_count: 0,
             last_log_time: None,
         }
