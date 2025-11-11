@@ -2,9 +2,9 @@ use bevy_ecs::prelude::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-use std::sync::OnceLock;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
+use std::sync::OnceLock;
 
 // SAFETY: EcsWorldはメインスレッドでのみアクセスされる
 // wndprocもメインスレッドから呼ばれるため安全
@@ -35,6 +35,7 @@ pub extern "system" fn ecs_wndproc(
 
     unsafe {
         match message {
+            // ウィンドウ作成・破棄イベント
             WM_NCCREATE => {
                 let cs = lparam.0 as *const CREATESTRUCTW;
                 if !cs.is_null() {
@@ -46,6 +47,22 @@ pub extern "system" fn ecs_wndproc(
                 }
                 DefWindowProcW(hwnd, message, wparam, lparam)
             }
+            WM_DESTROY => {
+                // クリーンアップ
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+                // Appリソースに通知
+                if let Some(world) = try_get_ecs_world() {
+                    let mut world = world.borrow_mut();
+                    if let Some(mut app) =
+                        world.world_mut().get_resource_mut::<crate::ecs::app::App>()
+                    {
+                        app.on_window_destroyed();
+                    }
+                }
+                LRESULT(0)
+            }
+
+            // 一般イベント
             WM_NCHITTEST => DefWindowProcW(hwnd, message, wparam, lparam),
             WM_ERASEBKGND => {
                 // 背景を消去しない（DirectCompositionで描画するため）
@@ -59,20 +76,6 @@ pub extern "system" fn ecs_wndproc(
             WM_CLOSE => {
                 // DestroyWindowを呼ぶと、WM_DESTROYが送られる
                 let _ = DestroyWindow(hwnd);
-                LRESULT(0)
-            }
-            WM_DESTROY => {
-                // クリーンアップ
-                SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-                
-                // Appリソースに通知
-                if let Some(world) = try_get_ecs_world() {
-                    let mut world = world.borrow_mut();
-                    if let Some(mut app) = world.world_mut().get_resource_mut::<crate::ecs::app::App>() {
-                        app.on_window_destroyed();
-                    }
-                }
-                
                 LRESULT(0)
             }
             _ => DefWindowProcW(hwnd, message, wparam, lparam),
