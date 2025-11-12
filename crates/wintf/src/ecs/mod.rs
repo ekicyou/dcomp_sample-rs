@@ -1,7 +1,7 @@
 mod app;
 mod graphics;
 mod layout;
-mod window;
+pub mod window;
 mod window_proc;
 mod window_system;
 pub mod world;

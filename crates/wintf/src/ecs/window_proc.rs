@@ -24,6 +24,24 @@ fn try_get_ecs_world() -> Option<Rc<RefCell<crate::ecs::world::EcsWorld>>> {
     ECS_WORLD.get().and_then(|weak| weak.0.upgrade())
 }
 
+/// 最後のウィンドウが破棄されたことをメッセージウィンドウに通知
+pub fn try_post_last_window_destroyed() {
+    if let Some(world_rc) = try_get_ecs_world() {
+        if let Ok(world) = world_rc.try_borrow() {
+            if let Some(message_hwnd) = world.message_window() {
+                unsafe {
+                    let _ = PostMessageW(
+                        Some(message_hwnd),
+                        crate::ecs::window::WM_LAST_WINDOW_DESTROYED,
+                        WPARAM(0),
+                        LPARAM(0),
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// ECS専用のウィンドウプロシージャ
 pub extern "system" fn ecs_wndproc(
     hwnd: HWND,

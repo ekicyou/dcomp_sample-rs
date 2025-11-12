@@ -38,6 +38,20 @@ impl App {
         }
     }
 
+    /// ウィンドウが破棄されたときに呼ばれる（PostQuitMessageを呼ばないバージョン）
+    /// 最後のウィンドウが閉じられた場合はtrueを返す
+    pub fn on_window_destroyed_no_quit(&mut self, entity: Entity) -> bool {
+        self.window_count = self.window_count.saturating_sub(1);
+        eprintln!("[App] Window destroyed. Entity: {:?}, Remaining windows: {}", entity, self.window_count);
+        
+        if self.window_count == 0 {
+            eprintln!("[App] Last window closed. Will quit application...");
+            true
+        } else {
+            false
+        }
+    }
+
     /// 現在のウィンドウ数を取得
     pub fn window_count(&self) -> usize {
         self.window_count

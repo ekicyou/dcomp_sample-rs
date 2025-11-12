@@ -27,7 +27,7 @@ unsafe impl Sync for Window {}
 
 /// 作成済みウィンドウのハンドル情報（システムが自動的に設定）
 #[derive(Component, Debug, Copy, Clone)]
-#[component(storage = "SparseSet", on_remove = on_window_handle_remove)]
+#[component(storage = "SparseSet", on_add = on_window_handle_add, on_remove = on_window_handle_remove)]
 pub struct WindowHandle {
     pub hwnd: HWND,
     pub instance: HINSTANCE,
@@ -37,13 +37,45 @@ pub struct WindowHandle {
 unsafe impl Send for WindowHandle {}
 unsafe impl Sync for WindowHandle {}
 
+/// WindowHandleコンポーネントが追加された直後に呼ばれるフック
+fn on_window_handle_add(mut world: bevy_ecs::world::DeferredWorld, hook: bevy_ecs::lifecycle::HookContext) {
+    let entity = hook.entity;
+    if let Some(handle) = world.get::<WindowHandle>(entity) {
+        println!("[Hook] WindowHandle added to entity {:?}, hwnd {:?}, dpi {}", 
+            entity, handle.hwnd, handle.initial_dpi);
+        
+        // アプリに通知
+        if let Some(mut app) = world.get_resource_mut::<crate::ecs::app::App>() {
+            app.on_window_created(entity);
+        }
+    }
+}
+
+/// 独自メッセージ: 最後のウィンドウが破棄されたことを通知
+pub const WM_LAST_WINDOW_DESTROYED: u32 = WM_USER + 100;
+
 /// WindowHandleコンポーネントが削除される直前に呼ばれるフック
-fn on_window_handle_remove(world: bevy_ecs::world::DeferredWorld, hook: bevy_ecs::lifecycle::HookContext) {
+fn on_window_handle_remove(mut world: bevy_ecs::world::DeferredWorld, hook: bevy_ecs::lifecycle::HookContext) {
     let entity = hook.entity;
     // このタイミングではまだWindowHandleにアクセスできる
     if let Some(handle) = world.get::<WindowHandle>(entity) {
         let hwnd = handle.hwnd;
         println!("[Hook] Entity {:?} being removed, sending WM_CLOSE to hwnd {:?}", entity, hwnd);
+        
+        // まず、アプリに通知（ウィンドウカウント更新のため）
+        if let Some(mut app) = world.get_resource_mut::<crate::ecs::app::App>() {
+            let should_quit = app.on_window_destroyed_no_quit(entity);
+            
+            // 最後のウィンドウの場合、メッセージウィンドウに通知を投げる
+            // メッセージウィンドウはEcsWorldに保持されているので、
+            // window_proc.rsのECS_WORLDから取得する必要がある
+            if should_quit {
+                use crate::ecs::window_proc::try_post_last_window_destroyed;
+                try_post_last_window_destroyed();
+            }
+        }
+        
+        // ウィンドウクローズを非同期で要求
         unsafe {
             let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
         }

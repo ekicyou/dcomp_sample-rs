@@ -73,6 +73,12 @@ pub(crate) extern "system" fn wndproc(
                 let _ = from_boxed_ptr(ptr);
                 LRESULT(1)
             }
+            crate::ecs::window::WM_LAST_WINDOW_DESTROYED => {
+                // 最後のウィンドウが閉じられた通知を受け取ったらアプリケーションを終了
+                eprintln!("[WinProc] Received WM_LAST_WINDOW_DESTROYED, posting quit message");
+                PostQuitMessage(0);
+                LRESULT(0)
+            }
             _ => {
                 let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as _;
                 if let Some(handler) = get_boxed_ptr(ptr) {

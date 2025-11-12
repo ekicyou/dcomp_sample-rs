@@ -2,6 +2,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::*;
 use bevy_ecs::system::*;
 use std::time::Instant;
+use windows::Win32::Foundation::HWND;
 
 // 各プライオリティ用のScheduleLabelマーカー構造体
 // 実行順序: Input → Update → Layout → UISetup → Draw → RenderSurface → Composition
@@ -43,6 +44,7 @@ pub struct Composition;
 pub struct EcsWorld {
     world: World,
     has_systems: bool,
+    message_window: Option<HWND>,
     // デバッグ用: フレームレート計測
     frame_count: u64,
     last_log_time: Option<Instant>,
@@ -81,16 +83,26 @@ impl EcsWorld {
         {
             let mut schedules = world.resource_mut::<Schedules>();
             schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
-            schedules.add_systems(Update, crate::ecs::window_system::on_window_handle_added);
-            schedules.add_systems(UISetup, crate::ecs::window_system::on_window_handle_removed);
+            // on_window_handle_addedとon_window_handle_removedはフックで代替
         }
 
         Self {
             world,
             has_systems: true, // デフォルトシステムがあるのでtrue
+            message_window: None,
             frame_count: 0,
             last_log_time: None,
         }
+    }
+
+    /// メッセージウィンドウのHWNDを設定
+    pub fn set_message_window(&mut self, hwnd: HWND) {
+        self.message_window = Some(hwnd);
+    }
+
+    /// メッセージウィンドウのHWNDを取得
+    pub fn message_window(&self) -> Option<HWND> {
+        self.message_window
     }
 
     /// Schedulesリソースへのアクセスを提供

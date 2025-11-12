@@ -17,6 +17,7 @@ pub struct WinProcessSingleton {
     instance: HINSTANCE,
     window_class_name: HSTRING,
     ecs_window_class_name: HSTRING,
+    hidden_window: Option<HWND>,
 }
 
 unsafe impl Send for WinProcessSingleton {}
@@ -33,6 +34,10 @@ impl WinProcessSingleton {
 
     pub(crate) fn ecs_window_class_name(&self) -> &HSTRING {
         &self.ecs_window_class_name
+    }
+
+    pub(crate) fn hidden_window(&self) -> Option<HWND> {
+        self.hidden_window
     }
 
     pub(crate) fn get_or_init() -> &'static Self {
@@ -80,6 +85,7 @@ impl WinProcessSingleton {
                 instance,
                 window_class_name,
                 ecs_window_class_name,
+                hidden_window: None,
             }
         })
     }

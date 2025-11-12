@@ -82,6 +82,9 @@ impl WinThreadMgrInner {
 
         let world = Rc::new(RefCell::new(EcsWorld::new()));
 
+        // メッセージウィンドウのHWNDをEcsWorldに設定
+        world.borrow_mut().set_message_window(message_window);
+
         // EcsWorldへの弱参照を登録（wndprocからアクセスするため）
         crate::ecs::set_ecs_world(Rc::downgrade(&world));
 
