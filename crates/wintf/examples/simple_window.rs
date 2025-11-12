@@ -6,49 +6,65 @@ use windows::Win32::Foundation::{POINT, SIZE};
 use wintf::ecs::{Window, WindowHandle, WindowPos};
 use wintf::*;
 
-/// テスト用: 一定時間後にウィンドウを自動的に閉じるシステム
+#[derive(bevy_ecs::prelude::Resource)]
+struct AutoCloseTimer {
+    start: Instant,
+    last_close_time: Option<Instant>,
+}
+
+/// テスト用: 5秒ごとに1つずつウィンドウを閉じるシステム
 fn auto_close_window_system(world: &mut bevy_ecs::world::World) {
     use bevy_ecs::prelude::*;
 
     // 初回実行時に開始時刻を記録
     if !world.contains_resource::<AutoCloseTimer>() {
-        println!("[Test] Auto-close timer started. Will close first window after 5 seconds.");
+        println!("[Test] Auto-close timer started. Will close windows every 5 seconds.");
         world.insert_resource(AutoCloseTimer {
             start: Instant::now(),
-            target_closed: false,
+            last_close_time: None,
         });
     }
 
     // タイマーの状態を先にチェック
     let should_close = {
         let timer = world.resource::<AutoCloseTimer>();
-        !timer.target_closed && timer.start.elapsed().as_secs() >= 5
+        let elapsed = timer.start.elapsed().as_secs();
+        
+        if let Some(last_close) = timer.last_close_time {
+            // 前回閉じてから5秒以上経過
+            last_close.elapsed().as_secs() >= 5
+        } else {
+            // 初回は5秒後
+            elapsed >= 5
+        }
     };
 
-    // 5秒経過したら最初のウィンドウを閉じる
+    // 5秒経過したらウィンドウを1つ閉じる
     if should_close {
-        println!("[Test] 5 seconds elapsed. Closing first window...");
+        // WindowHandleを持つエンティティの数を確認
+        let window_count = {
+            let mut query = world.query::<&WindowHandle>();
+            query.iter(world).count()
+        };
 
-        // WindowHandleを持つ最初のエンティティを取得
-        let mut query = world.query::<(Entity, &WindowHandle)>();
-        if let Some((entity, handle)) = query.iter(world).next() {
-            println!(
-                "[Test] Despawning entity {:?} with hwnd {:?}",
-                entity, handle.hwnd
-            );
-            world.despawn(entity);
-
+        if window_count > 0 {
+            println!("[Test] Closing one window (remaining: {})...", window_count);
+            
             // タイマーの状態を更新
             let mut timer = world.resource_mut::<AutoCloseTimer>();
-            timer.target_closed = true;
+            timer.last_close_time = Some(Instant::now());
+
+            // WindowHandleを持つ最初のエンティティを取得
+            let mut query = world.query::<(Entity, &WindowHandle)>();
+            if let Some((entity, handle)) = query.iter(world).next() {
+                println!(
+                    "[Test] Despawning entity {:?} with hwnd {:?}",
+                    entity, handle.hwnd
+                );
+                world.despawn(entity);
+            }
         }
     }
-}
-
-#[derive(bevy_ecs::prelude::Resource)]
-struct AutoCloseTimer {
-    start: Instant,
-    target_closed: bool,
 }
 
 fn main() -> Result<()> {
@@ -88,7 +104,7 @@ fn main() -> Result<()> {
         },
     ));
 
-    println!("[Test] Two windows created. First window will auto-close after 5 seconds.");
+    println!("[Test] Two windows created. Windows will close every 5 seconds.");
 
     // メッセージループを開始（システムが自動的にウィンドウを作成）
     mgr.run()?;
