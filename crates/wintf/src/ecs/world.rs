@@ -98,6 +98,10 @@ impl EcsWorld {
     /// メッセージウィンドウのHWNDを設定
     pub fn set_message_window(&mut self, hwnd: HWND) {
         self.message_window = Some(hwnd);
+        // Appリソースにもメッセージウィンドウを設定
+        if let Some(mut app) = self.world.get_resource_mut::<crate::ecs::app::App>() {
+            app.set_message_window(hwnd);
+        }
     }
 
     /// メッセージウィンドウのHWNDを取得

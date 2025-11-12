@@ -62,17 +62,9 @@ fn on_window_handle_remove(mut world: bevy_ecs::world::DeferredWorld, hook: bevy
         let hwnd = handle.hwnd;
         println!("[Hook] Entity {:?} being removed, sending WM_CLOSE to hwnd {:?}", entity, hwnd);
         
-        // まず、アプリに通知（ウィンドウカウント更新のため）
+        // アプリに通知（ウィンドウカウント更新 & 必要ならメッセージ送信）
         if let Some(mut app) = world.get_resource_mut::<crate::ecs::app::App>() {
-            let should_quit = app.on_window_destroyed_no_quit(entity);
-            
-            // 最後のウィンドウの場合、メッセージウィンドウに通知を投げる
-            // メッセージウィンドウはEcsWorldに保持されているので、
-            // window_proc.rsのECS_WORLDから取得する必要がある
-            if should_quit {
-                use crate::ecs::window_proc::try_post_last_window_destroyed;
-                try_post_last_window_destroyed();
-            }
+            app.on_window_destroyed_no_quit(entity);
         }
         
         // ウィンドウクローズを非同期で要求

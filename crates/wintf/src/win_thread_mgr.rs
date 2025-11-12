@@ -168,6 +168,13 @@ impl WinThreadMgrInner {
                         continue;
                     }
 
+                    // WM_LAST_WINDOW_DESTROYEDメッセージでアプリ終了
+                    if msg.message == crate::ecs::window::WM_LAST_WINDOW_DESTROYED {
+                        eprintln!("[WinThreadMgr] WM_LAST_WINDOW_DESTROYED received. Calling PostQuitMessage(0).");
+                        PostQuitMessage(0);
+                        continue;
+                    }
+
                     let _ = TranslateMessage(&msg);
                     DispatchMessageW(&msg);
                     continue;

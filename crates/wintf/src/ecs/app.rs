@@ -1,18 +1,33 @@
 //! アプリケーション全体の状態を管理するリソース
 
 use bevy_ecs::prelude::*;
-use windows::Win32::UI::WindowsAndMessaging::PostQuitMessage;
+use windows::Win32::{Foundation::{HWND, WPARAM, LPARAM}, UI::WindowsAndMessaging::{PostMessageW, PostQuitMessage}};
 
 /// アプリケーション全体の状態を管理するリソース
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct App {
     window_count: usize,
+    message_window: Option<isize>,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            window_count: 0,
+            message_window: None,
+        }
+    }
 }
 
 impl App {
     /// 新しいAppリソースを作成
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// メッセージウィンドウのHWNDを設定
+    pub fn set_message_window(&mut self, hwnd: HWND) {
+        self.message_window = Some(hwnd.0 as isize);
     }
 
     /// ウィンドウが作成されたときに呼ばれる
@@ -45,7 +60,17 @@ impl App {
         eprintln!("[App] Window destroyed. Entity: {:?}, Remaining windows: {}", entity, self.window_count);
         
         if self.window_count == 0 {
-            eprintln!("[App] Last window closed. Will quit application...");
+            eprintln!("[App] Last window closed. Quitting application...");
+            if let Some(hwnd_raw) = self.message_window {
+                unsafe {
+                    let _ = PostMessageW(
+                        Some(HWND(hwnd_raw as *mut _)),
+                        crate::ecs::window::WM_LAST_WINDOW_DESTROYED,
+                        WPARAM(0),
+                        LPARAM(0),
+                    );
+                }
+            }
             true
         } else {
             false
