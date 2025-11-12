@@ -208,7 +208,7 @@ impl DemoWindow {
 
         let bitmap = dc.create_bitmap_from_wic_bitmap(&self.image)?;
         let dpi = self.dpi();
-        let scale = dpi.scale_factor();
+        let scale = dpi / 96.0;
         let card_size_px = Vector2 { X: CARD_SIZE.X * scale, Y: CARD_SIZE.Y * scale };
         let card_size = SIZE {
             cx: card_size_px.X.ceil() as i32,
@@ -279,7 +279,7 @@ impl DemoWindow {
 
     fn click_handler(&mut self, lparam: LPARAM) -> Result<()> {
         let dpi = self.dpi();
-        let scale = dpi.scale_factor();
+        let scale = dpi / 96.0;
         let x = lparam.0 as u16 as f32;
         let y = (lparam.0 >> 16) as f32;
 
@@ -418,7 +418,7 @@ impl DemoWindow {
         let monitor = unsafe { MonitorFromWindow(self.hwnd(), MONITOR_DEFAULTTONEAREST) };
         let mut dpi = (0, 0);
         unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi.0, &mut dpi.1) }?;
-        self.set_dpi(Dpi::new(dpi.0 as f32));
+        self.set_dpi(dpi.0 as f32);
 
         if cfg!(debug_assertions) {
             println!("initial dpi: {:?}", self.dpi());
@@ -550,9 +550,9 @@ fn create_effect(
     visual: &IDCompositionVisual3,
     rotation: &IDCompositionRotateTransform3D,
     front: bool,
-    dpi: Dpi,
+    dpi: f32,
 ) -> Result<()> {
-    let scale = dpi.scale_factor();
+    let scale = dpi / 96.0;
     let width = CARD_WIDTH * scale;
     let height = CARD_HEIGHT * scale;
 
@@ -582,11 +582,11 @@ fn draw_card_front(
     value: u8,
     format: &IDWriteTextFormat,
     brush: &ID2D1SolidColorBrush,
-    dpi: Dpi,
+    dpi: f32,
 ) -> Result<()> {
     let (dc, dc_offset) = surface.begin_draw(None)?;
-    dpi.set_render_target_dpi(&dc);
-    let scale = dpi.scale_factor();
+    unsafe { dc.SetDpi(dpi, dpi) };
+    let scale = dpi / 96.0;
     let dc_offset = Vector2 {
         X: dc_offset.x as f32 / scale,
         Y: dc_offset.y as f32 / scale,
@@ -622,12 +622,12 @@ fn draw_card_back(
     surface: &IDCompositionSurface,
     bitmap: &ID2D1Bitmap1,
     offset: Vector2,
-    dpi: Dpi,
+    dpi: f32,
 ) -> Result<()> {
     let (dc, dc_offset) = surface.begin_draw(None)?;
     let dc: ID2D1DeviceContext7 = dc.cast()?;
-    dpi.set_render_target_dpi(&dc);
-    let scale = dpi.scale_factor();
+    unsafe { dc.SetDpi(dpi, dpi) };
+    let scale = dpi / 96.0;
     let dc_offset = Vector2 {
         X: dc_offset.x as f32 / scale,
         Y: dc_offset.y as f32 / scale,

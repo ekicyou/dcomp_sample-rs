@@ -4,7 +4,6 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 use windows_numerics::*;
 
 use crate::api::*;
-pub use crate::dpi::Dpi;
 
 /// Windowコンポーネント - ウィンドウ作成に必要な基本パラメータを保持
 /// スタイルや位置・サイズは WindowStyle, WindowPos コンポーネントで指定
@@ -32,7 +31,7 @@ unsafe impl Sync for Window {}
 pub struct WindowHandle {
     pub hwnd: HWND,
     pub instance: HINSTANCE,
-    pub initial_dpi: Dpi,
+    pub initial_dpi: f32,
 }
 
 unsafe impl Send for WindowHandle {}

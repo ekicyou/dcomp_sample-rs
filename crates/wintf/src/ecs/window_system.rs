@@ -4,7 +4,6 @@ use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::UI::HiDpi::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-use crate::dpi::Dpi;
 use crate::ecs::*;
 use crate::process_singleton::*;
 
@@ -71,9 +70,9 @@ pub fn create_windows(
                     unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut x_dpi, &mut y_dpi) };
 
                 let initial_dpi = if dpi_result.is_ok() {
-                    Dpi::new(x_dpi as f32)
+                    x_dpi as f32
                 } else {
-                    Dpi::new(96.0) // デフォルト
+                    96.0 // デフォルト
                 };
 
                 // WindowHandleコンポーネントを追加
