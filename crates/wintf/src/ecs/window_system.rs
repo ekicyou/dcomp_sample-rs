@@ -4,7 +4,7 @@ use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::UI::HiDpi::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-use crate::dpi::*;
+use crate::dpi::Dpi;
 use crate::ecs::*;
 use crate::process_singleton::*;
 
