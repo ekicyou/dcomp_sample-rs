@@ -7,16 +7,11 @@ use crate::api::*;
 pub use crate::dpi::Dpi;
 use crate::{RawPoint, RawSize};
 
-/// Windowコンポーネント - ウィンドウ作成に必要なパラメータを保持
+/// Windowコンポーネント - ウィンドウ作成に必要な基本パラメータを保持
+/// スタイルや位置・サイズは WindowStyle, WindowPos コンポーネントで指定
 #[derive(Component, Debug, Clone)]
 pub struct Window {
     pub title: String,
-    pub style: WINDOW_STYLE,
-    pub ex_style: WINDOW_EX_STYLE,
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
     pub parent: Option<HWND>,
 }
 
@@ -24,12 +19,6 @@ impl Default for Window {
     fn default() -> Self {
         Self {
             title: "Window".to_string(),
-            style: WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-            ex_style: WINDOW_EX_STYLE(0),
-            x: CW_USEDEFAULT,
-            y: CW_USEDEFAULT,
-            width: CW_USEDEFAULT,
-            height: CW_USEDEFAULT,
             parent: None,
         }
     }
@@ -88,7 +77,6 @@ impl DpiTransform {
 
 /// Window Style / Ex Style
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
-#[component(storage = "SparseSet")]
 pub struct WindowStyle {
     pub style: WINDOW_STYLE,
     pub ex_style: WINDOW_EX_STYLE,
@@ -97,7 +85,7 @@ pub struct WindowStyle {
 impl Default for WindowStyle {
     fn default() -> Self {
         Self {
-            style: WS_OVERLAPPEDWINDOW,
+            style: WS_OVERLAPPEDWINDOW | WS_VISIBLE,
             ex_style: WINDOW_EX_STYLE(0),
         }
     }
@@ -138,8 +126,9 @@ impl Default for ZOrder {
 unsafe impl Send for ZOrder {}
 unsafe impl Sync for ZOrder {}
 
-#[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
-#[component(storage = "SparseSet")]
+/// ウィンドウの位置・サイズ・表示オプション
+/// ウィンドウ作成時の初期位置・サイズにも使用される
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct WindowPos {
     pub zorder: ZOrder,
     pub position: Option<RawPoint>,
@@ -155,6 +144,26 @@ pub struct WindowPos {
     pub no_send_changing: bool, // SWP_NOSENDCHANGING: WM_WINDOWPOSCHANGINGを送信しない
     pub defer_erase: bool,      // SWP_DEFERERASE: WM_SYNCPAINTを送信しない
     pub async_window_pos: bool, // SWP_ASYNCWINDOWPOS: 非同期で処理
+}
+
+impl Default for WindowPos {
+    fn default() -> Self {
+        Self {
+            zorder: ZOrder::NoChange,
+            position: Some(RawPoint { x: CW_USEDEFAULT, y: CW_USEDEFAULT }),
+            size: Some(RawSize { width: CW_USEDEFAULT, height: CW_USEDEFAULT }),
+            no_redraw: false,
+            no_activate: false,
+            frame_changed: false,
+            show_window: false,
+            hide_window: false,
+            no_copy_bits: false,
+            no_owner_zorder: false,
+            no_send_changing: false,
+            defer_erase: false,
+            async_window_pos: false,
+        }
+    }
 }
 
 unsafe impl Send for WindowPos {}

@@ -11,27 +11,46 @@ use crate::process_singleton::*;
 /// 未作成のWindowを検出して作成するシステム
 pub fn create_windows(
     mut commands: Commands,
-    query: Query<(Entity, &Window), Without<WindowHandle>>,
+    query: Query<(Entity, &Window, Option<&WindowStyle>, Option<&WindowPos>), Without<WindowHandle>>,
 ) {
     let singleton = WinProcessSingleton::get_or_init();
 
-    for (entity, window) in query.iter() {
+    for (entity, window, opt_style, opt_pos) in query.iter() {
         // Win32ウィンドウを作成
         let title = HSTRING::from(&window.title);
+
+        // WindowStyleが指定されていなければデフォルトを使用
+        let style_comp = opt_style.copied().unwrap_or_default();
+        
+        // WindowPosが指定されていなければデフォルトを使用
+        let pos_comp = opt_pos.copied().unwrap_or_default();
+        
+        // 位置とサイズを取得
+        let (x, y) = if let Some(pos) = pos_comp.position {
+            (pos.x, pos.y)
+        } else {
+            (CW_USEDEFAULT, CW_USEDEFAULT)
+        };
+        
+        let (width, height) = if let Some(size) = pos_comp.size {
+            (size.width, size.height)
+        } else {
+            (CW_USEDEFAULT, CW_USEDEFAULT)
+        };
 
         // EntityのIDをlpCreateParamsとして渡す
         let entity_bits = entity.to_bits() as *mut std::ffi::c_void;
 
         let result = unsafe {
             CreateWindowExW(
-                window.ex_style,
+                style_comp.ex_style,
                 singleton.ecs_window_class_name(), // ECS用のウィンドウクラスを使用
                 &title,
-                window.style,
-                window.x,
-                window.y,
-                window.width,
-                window.height,
+                style_comp.style,
+                x,
+                y,
+                width,
+                height,
                 window.parent,
                 None,
                 Some(singleton.instance()),
