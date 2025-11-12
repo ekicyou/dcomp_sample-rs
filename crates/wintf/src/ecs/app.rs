@@ -1,7 +1,7 @@
 //! アプリケーション全体の状態を管理するリソース
 
 use bevy_ecs::prelude::*;
-use windows::Win32::{Foundation::{HWND, WPARAM, LPARAM}, UI::WindowsAndMessaging::{PostMessageW, PostQuitMessage}};
+use windows::Win32::{Foundation::{HWND, WPARAM, LPARAM}, UI::WindowsAndMessaging::PostMessageW};
 
 /// アプリケーション全体の状態を管理するリソース
 #[derive(Resource)]
@@ -39,23 +39,6 @@ impl App {
     /// ウィンドウが破棄されたときに呼ばれる
     /// 最後のウィンドウが閉じられた場合はtrueを返す
     pub fn on_window_destroyed(&mut self, entity: Entity) -> bool {
-        self.window_count = self.window_count.saturating_sub(1);
-        eprintln!("[App] Window destroyed. Entity: {:?}, Remaining windows: {}", entity, self.window_count);
-        
-        if self.window_count == 0 {
-            eprintln!("[App] Last window closed. Quitting application...");
-            unsafe {
-                PostQuitMessage(0);
-            }
-            true
-        } else {
-            false
-        }
-    }
-
-    /// ウィンドウが破棄されたときに呼ばれる（PostQuitMessageを呼ばないバージョン）
-    /// 最後のウィンドウが閉じられた場合はtrueを返す
-    pub fn on_window_destroyed_no_quit(&mut self, entity: Entity) -> bool {
         self.window_count = self.window_count.saturating_sub(1);
         eprintln!("[App] Window destroyed. Entity: {:?}, Remaining windows: {}", entity, self.window_count);
         

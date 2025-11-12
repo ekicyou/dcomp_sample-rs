@@ -64,7 +64,7 @@ fn on_window_handle_remove(mut world: bevy_ecs::world::DeferredWorld, hook: bevy
         
         // アプリに通知（ウィンドウカウント更新 & 必要ならメッセージ送信）
         if let Some(mut app) = world.get_resource_mut::<crate::ecs::app::App>() {
-            app.on_window_destroyed_no_quit(entity);
+            app.on_window_destroyed(entity);
         }
         
         // ウィンドウクローズを非同期で要求
