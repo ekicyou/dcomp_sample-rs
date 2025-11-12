@@ -38,24 +38,26 @@ pub trait WinState {
     /// Calculate the effective window size (including borders, title bar, etc) for a given client area size.
     /// This is useful when creating a window with a specific client area size.
     fn effective_window_size(&self, client_size: crate::dpi::LxSize) -> Result<crate::dpi::PxSize> {
+        use crate::dpi::Vector2Ext;
+        
         let dpi = self.dpi();
         let client_size = client_size.to_physical(dpi);
         
         let mut rect = RECT {
             left: 0,
             top: 0,
-            right: client_size.width.ceil() as i32,
-            bottom: client_size.height.ceil() as i32,
+            right: client_size.X.ceil() as i32,
+            bottom: client_size.Y.ceil() as i32,
         };
         let hwnd = self.hwnd();
         let style = WINDOW_STYLE(get_window_long_ptr(hwnd, GWL_STYLE)? as u32);
         let ex_style = WINDOW_EX_STYLE(get_window_long_ptr(hwnd, GWL_EXSTYLE)? as u32);
         let dpi_value = dpi.value() as u32;
         unsafe { AdjustWindowRectExForDpi(&mut rect, style, false, ex_style, dpi_value)? }
-        Ok(crate::dpi::PxSize::new(
-            (rect.right - rect.left) as f32,
-            (rect.bottom - rect.top) as f32,
-        ))
+        Ok(windows_numerics::Vector2 {
+            X: (rect.right - rect.left) as f32,
+            Y: (rect.bottom - rect.top) as f32,
+        })
     }
 }
 

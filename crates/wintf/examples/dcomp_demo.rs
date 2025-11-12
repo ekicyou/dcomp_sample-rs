@@ -23,13 +23,13 @@ const CARD_COLUMNS: usize = 6;
 const CARD_MARGIN: LxLength = LxLength::new(15.0);
 const CARD_WIDTH: LxLength = LxLength::new(150.0);
 const CARD_HEIGHT: LxLength = LxLength::new(210.0);
-const CARD_SIZE: LxSize = LxSize::new(CARD_WIDTH.0, CARD_HEIGHT.0);
+const CARD_SIZE: LxSize = LxSize { X: CARD_WIDTH.0, Y: CARD_HEIGHT.0 };
 
 const WINDOW_WIDTH: LxLength =
     LxLength::new((CARD_WIDTH.0 + CARD_MARGIN.0) * (CARD_COLUMNS as f32) + CARD_MARGIN.0);
 const WINDOW_HEIGHT: LxLength =
     LxLength::new((CARD_HEIGHT.0 + CARD_MARGIN.0) * (CARD_ROWS as f32) + CARD_MARGIN.0);
-const WINDOW_SIZE: LxSize = LxSize::new(WINDOW_WIDTH.0, WINDOW_HEIGHT.0);
+const WINDOW_SIZE: LxSize = LxSize { X: WINDOW_WIDTH.0, Y: WINDOW_HEIGHT.0 };
 
 fn main() -> Result<()> {
     human_panic::setup_panic!();
@@ -228,14 +228,14 @@ impl DemoWindow {
 
                 let front_visual = dcomp.create_visual()?;
                 front_visual.set_backface_visibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
-                front_visual.set_offset_x(card.offset.x)?;
-                front_visual.set_offset_y(card.offset.y)?;
+                front_visual.set_offset_x(card.offset.X)?;
+                front_visual.set_offset_y(card.offset.Y)?;
                 root_visual.add_visual(&front_visual, false, None)?;
 
                 let back_visual = dcomp.create_visual()?;
                 back_visual.set_backface_visibility(DCOMPOSITION_BACKFACE_VISIBILITY_HIDDEN)?;
-                back_visual.set_offset_x(card.offset.x)?;
-                back_visual.set_offset_y(card.offset.y)?;
+                back_visual.set_offset_x(card.offset.X)?;
+                back_visual.set_offset_y(card.offset.Y)?;
                 root_visual.add_visual(&back_visual, false, None)?;
 
                 let front_surface = dcomp.create_surface(
@@ -285,10 +285,10 @@ impl DemoWindow {
         let mut next = None;
 
         for (index, card) in self.cards.iter().enumerate() {
-            if x > card.offset.x
-                && y > card.offset.y
-                && x < card.offset.x + width.0
-                && y < card.offset.y + height.0
+            if x > card.offset.X
+                && y > card.offset.Y
+                && x < card.offset.X + width.0
+                && y < card.offset.Y + height.0
             {
                 next = Some(index);
                 break;
@@ -575,7 +575,7 @@ fn draw_card_front(
     let (dc, dc_offset) = surface.begin_draw(None)?;
     dc.set_dpi(dpi);
     let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
-    dc.set_transform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
+    dc.set_transform(&Matrix3x2::translation(dc_offset.X, dc_offset.Y));
 
     dc.clear(Some(&D2D1_COLOR_F {
         r: 1.0,
@@ -612,11 +612,11 @@ fn draw_card_back(
     let dc: ID2D1DeviceContext7 = dc.cast()?;
     dc.set_dpi(dpi);
     let dc_offset: LxPoint = PxPoint::new(dc_offset.x as f32, dc_offset.y as f32).into_dpi(dpi);
-    dc.set_transform(&Matrix3x2::translation(dc_offset.x, dc_offset.y));
+    dc.set_transform(&Matrix3x2::translation(dc_offset.X, dc_offset.Y));
 
     let offset: LxPoint = offset.into_dpi(dpi);
-    let left = offset.x;
-    let top = offset.y;
+    let left = offset.X;
+    let top = offset.Y;
 
     dc.draw_bitmap(
         bitmap,
