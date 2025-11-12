@@ -1,11 +1,10 @@
+use crate::ecs::*;
+use crate::process_singleton::*;
 use bevy_ecs::prelude::*;
 use windows::core::*;
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::UI::HiDpi::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
-
-use crate::ecs::*;
-use crate::process_singleton::*;
 
 /// 未作成のWindowを検出して作成するシステム
 pub fn create_windows(
@@ -95,5 +94,3 @@ pub fn create_windows(
         }
     }
 }
-
-
