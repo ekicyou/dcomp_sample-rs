@@ -122,3 +122,36 @@ impl TransformOrigin {
         Self { x: 0.0, y: 0.0 }
     }
 }
+
+/// すべての変換コンポーネントから最終的なMatrix3x2を計算
+/// 適用順序: TransformOrigin → Scale → Rotate → Skew → Translate
+pub fn compute_transform_matrix(
+    translate: Option<&Translate>,
+    scale: Option<&Scale>,
+    rotate: Option<&Rotate>,
+    skew: Option<&Skew>,
+    origin: Option<&TransformOrigin>,
+) -> Matrix3x2 {
+    let translate = translate.copied().unwrap_or_default();
+    let scale = scale.copied().unwrap_or_default();
+    let rotate = rotate.copied().unwrap_or_default();
+    let skew = skew.copied().unwrap_or_default();
+    let origin = origin.copied().unwrap_or_default();
+
+    // CSS transform-origin を考慮した変換
+    // 1. 原点をTransformOriginに移動
+    // 2. Scale, Rotate, Skewを適用
+    // 3. 原点を元に戻す
+    // 4. Translateを適用
+    
+    let origin_offset = Matrix3x2::translation(-origin.x, -origin.y);
+    let origin_restore = Matrix3x2::translation(origin.x, origin.y);
+    
+    let scale_matrix: Matrix3x2 = scale.into();
+    let rotate_matrix: Matrix3x2 = rotate.into();
+    let skew_matrix: Matrix3x2 = skew.into();
+    let translate_matrix: Matrix3x2 = translate.into();
+
+    // 行列の合成: translate * origin_restore * skew * rotate * scale * origin_offset
+    origin_offset * scale_matrix * rotate_matrix * skew_matrix * origin_restore * translate_matrix
+}
