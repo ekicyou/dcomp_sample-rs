@@ -96,22 +96,4 @@ pub fn create_windows(
     }
 }
 
-/// WindowHandleコンポーネントが追加されたときに反応するシステム
-pub fn on_window_handle_added(
-    query: Query<Entity, Added<WindowHandle>>,
-    mut app: ResMut<crate::ecs::app::App>,
-) {
-    for entity in query.iter() {
-        app.on_window_created(entity);
-    }
-}
 
-/// WindowHandleコンポーネントが削除されたときに反応するシステム
-pub fn on_window_handle_removed(
-    mut removed: RemovedComponents<WindowHandle>,
-    mut app: ResMut<crate::ecs::app::App>,
-) {
-    for entity in removed.read() {
-        app.on_window_destroyed(entity);
-    }
-}

@@ -13,4 +13,4 @@ pub use window::{
     Window, WindowHandle, WindowStyle, WindowPos, ZOrder,
 };
 pub use window_proc::{ecs_wndproc, get_entity_from_hwnd, set_ecs_world};
-pub use window_system::{create_windows, on_window_handle_added, on_window_handle_removed};
+pub use window_system::create_windows;
