@@ -202,8 +202,8 @@ impl Drop for WinThreadMgrInner {
     }
 }
 
-// VSync監視スレッドを起動
-// DwmFlushを使用してVSyncと同期
+/// VSync監視スレッドを起動
+/// DwmFlushを使用してVSyncと同期
 fn spawn_vsync_thread(message_window: HWND, stop_flag: Arc<AtomicBool>) -> thread::JoinHandle<()> {
     // HWNDはSendではないので、isizeとして保持
     let message_window_ptr = message_window.0 as isize;
