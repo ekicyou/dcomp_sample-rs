@@ -9,12 +9,16 @@ use std::future::*;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::*;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
 use windows::core::*;
 use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Dwm::*;
 use windows::Win32::System::Com::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-const TIMER_ID_ECS_TICK: usize = 1;
+// VSync通知用のカスタムメッセージ
+const WM_VSYNC: u32 = WM_APP + 1;
 
 #[derive(Clone)]
 pub struct WinThreadMgr(Arc<WinThreadMgrInner>);
@@ -38,6 +42,8 @@ pub struct WinThreadMgrInner {
     executor_normal: Executor<'static>,
     world: Rc<RefCell<EcsWorld>>,
     message_window: HWND,
+    vsync_thread_stop: Arc<AtomicBool>,
+    vsync_thread_handle: Option<thread::JoinHandle<()>>,
 }
 
 impl WinThreadMgrInner {
@@ -74,20 +80,21 @@ impl WinThreadMgrInner {
             )?
         };
 
-        // ECS更新用タイマーを設定（10ms → 実際は15.6msに丸められる）
-        unsafe {
-            SetTimer(Some(message_window), TIMER_ID_ECS_TICK, 10, None);
-        }
-
         let world = Rc::new(RefCell::new(EcsWorld::new()));
         
         // EcsWorldへの弱参照を登録（wndprocからアクセスするため）
         crate::ecs::set_ecs_world(Rc::downgrade(&world));
 
+        // VSync監視スレッドを起動
+        let vsync_thread_stop = Arc::new(AtomicBool::new(false));
+        let vsync_thread_handle = spawn_vsync_thread(message_window, Arc::clone(&vsync_thread_stop));
+
         let rc = WinThreadMgrInner {
             executor_normal: Executor::new(),
             world,
             message_window,
+            vsync_thread_stop,
+            vsync_thread_handle: Some(vsync_thread_handle),
         };
         let _ = rc.instance();
         Ok(rc)
@@ -150,8 +157,8 @@ impl WinThreadMgrInner {
                         break;
                     }
 
-                    // WM_TIMERメッセージでECSを更新
-                    if msg.message == WM_TIMER && msg.wParam.0 == TIMER_ID_ECS_TICK {
+                    // WM_VSYNCメッセージでECSを更新
+                    if msg.message == WM_VSYNC {
                         let mut world = self.world.borrow_mut();
                         world.try_tick_world();
                         continue;
@@ -180,9 +187,51 @@ impl WinThreadMgrInner {
 
 impl Drop for WinThreadMgrInner {
     fn drop(&mut self) {
+        // VSync監視スレッドを停止
+        self.vsync_thread_stop.store(true, Ordering::Relaxed);
+        
+        // スレッドの終了を待つ
+        if let Some(handle) = self.vsync_thread_handle.take() {
+            let _ = handle.join();
+        }
+        
         unsafe {
-            let _ = KillTimer(Some(self.message_window), TIMER_ID_ECS_TICK);
             let _ = DestroyWindow(self.message_window);
         }
     }
+}
+
+// VSync監視スレッドを起動
+// DwmFlushを使用してVSyncと同期
+fn spawn_vsync_thread(
+    message_window: HWND,
+    stop_flag: Arc<AtomicBool>,
+) -> thread::JoinHandle<()> {
+    // HWNDはSendではないので、isizeとして保持
+    let message_window_ptr = message_window.0 as isize;
+    
+    thread::spawn(move || {
+        // isizeからHWNDを復元
+        let message_window = HWND(message_window_ptr as *mut _);
+        
+        // VSync待機ループ
+        loop {
+            // 停止フラグをチェック
+            if stop_flag.load(Ordering::Relaxed) {
+                break;
+            }
+
+            // DwmFlush: DWM（Desktop Window Manager）のVSyncを待機
+            // この関数は次のVSyncまでブロックする
+            unsafe {
+                if DwmFlush().is_ok() {
+                    // VSync到来 - メッセージウィンドウに通知
+                    let _ = PostMessageW(Some(message_window), WM_VSYNC, WPARAM(0), LPARAM(0));
+                } else {
+                    // エラーの場合は少し待機してリトライ
+                    thread::sleep(std::time::Duration::from_millis(16)); // 約60Hz
+                }
+            }
+        }
+    })
 }
