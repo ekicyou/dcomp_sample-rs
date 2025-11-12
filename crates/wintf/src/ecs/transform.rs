@@ -34,6 +34,13 @@ impl Scale {
     pub fn uniform(scale: f32) -> Self {
         Self { x: scale, y: scale }
     }
+
+    pub fn from_dpi(x_dpi: f32, y_dpi: f32) -> Self {
+        Self {
+            x: x_dpi / 96.0,
+            y: y_dpi / 96.0,
+        }
+    }
 }
 
 /// 回転（CSS transform: rotate に相当）
