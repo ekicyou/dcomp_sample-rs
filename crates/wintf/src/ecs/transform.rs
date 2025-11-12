@@ -52,14 +52,7 @@ impl Scale {
 
 impl From<Scale> for Matrix3x2 {
     fn from(s: Scale) -> Self {
-        Matrix3x2 {
-            M11: s.x,
-            M12: 0.0,
-            M21: 0.0,
-            M22: s.y,
-            M31: 0.0,
-            M32: 0.0,
-        }
+        Matrix3x2::scale(s.x, s.y)
     }
 }
 
@@ -70,17 +63,7 @@ pub struct Rotate(pub f32);
 
 impl From<Rotate> for Matrix3x2 {
     fn from(r: Rotate) -> Self {
-        let radians = r.0.to_radians();
-        let cos = radians.cos();
-        let sin = radians.sin();
-        Matrix3x2 {
-            M11: cos,
-            M12: sin,
-            M21: -sin,
-            M22: cos,
-            M31: 0.0,
-            M32: 0.0,
-        }
+        Matrix3x2::rotation(r.0.to_radians())
     }
 }
 
