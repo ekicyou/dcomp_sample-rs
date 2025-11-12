@@ -1,23 +1,19 @@
 use bevy_ecs::prelude::*;
 
-/// オフセット（追加オフセット）
+/// 平行移動（CSS transform: translate に相当）
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
-pub struct Offset {
+pub struct Translate {
     pub x: f32,
     pub y: f32,
 }
 
-impl Offset {
+impl Translate {
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
 }
 
-/// 回転（度数法、UI用なので0/90/180/270が主）
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
-pub struct Rotation(pub f32);
-
-/// スケール（倍率）
+/// スケール（CSS transform: scale に相当）
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct Scale {
     pub x: f32,
@@ -37,5 +33,51 @@ impl Scale {
 
     pub fn uniform(scale: f32) -> Self {
         Self { x: scale, y: scale }
+    }
+}
+
+/// 回転（CSS transform: rotate に相当）
+/// 角度は度数法で指定（UI用なので0/90/180/270が主）
+#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
+pub struct Rotate(pub f32);
+
+/// 傾斜変換（CSS transform: skew に相当）
+#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
+pub struct Skew {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl Skew {
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+}
+
+/// 変換の基準点（CSS transform-origin に相当）
+/// デフォルトは中心(0.5, 0.5)
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct TransformOrigin {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl Default for TransformOrigin {
+    fn default() -> Self {
+        Self { x: 0.5, y: 0.5 }
+    }
+}
+
+impl TransformOrigin {
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+
+    pub fn center() -> Self {
+        Self { x: 0.5, y: 0.5 }
+    }
+
+    pub fn top_left() -> Self {
+        Self { x: 0.0, y: 0.0 }
     }
 }
