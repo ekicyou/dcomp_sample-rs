@@ -1,6 +1,7 @@
 mod app;
 mod graphics;
 mod layout;
+pub mod transform;
 pub mod window;
 mod window_proc;
 mod window_system;
@@ -9,6 +10,7 @@ pub mod world;
 pub use app::*;
 pub use graphics::*;
 pub use layout::*;
+pub use transform::*;
 pub use window::{
     Window, WindowHandle, WindowStyle, WindowPos, ZOrder,
 };

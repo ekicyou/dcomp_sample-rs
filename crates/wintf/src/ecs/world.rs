@@ -15,9 +15,17 @@ pub struct Input;
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Update;
 
+/// ウィンドウ/ウィジェットのレイアウト計算前スケジュール
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PreLayout;
+
 /// ウィンドウ/ウィジェットのレイアウト計算スケジュール
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Layout;
+
+/// ウィンドウ/ウィジェットのレイアウト計算後スケジュール
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PostLayout;
 
 /// UIセットアップスケジュール（メインスレッド固定）
 ///
@@ -65,7 +73,9 @@ impl EcsWorld {
 
             schedules.insert(Schedule::new(Input));
             schedules.insert(Schedule::new(Update));
+            schedules.insert(Schedule::new(PreLayout));
             schedules.insert(Schedule::new(Layout));
+            schedules.insert(Schedule::new(PostLayout));
 
             // UISetupだけメインスレッド固定
             {
@@ -183,7 +193,9 @@ impl EcsWorld {
         // 各Scheduleを順番に実行
         let _ = self.world.try_run_schedule(Input);
         let _ = self.world.try_run_schedule(Update);
+        let _ = self.world.try_run_schedule(PreLayout);
         let _ = self.world.try_run_schedule(Layout);
+        let _ = self.world.try_run_schedule(PostLayout);
         let _ = self.world.try_run_schedule(UISetup);
         let _ = self.world.try_run_schedule(Draw);
         let _ = self.world.try_run_schedule(RenderSurface);

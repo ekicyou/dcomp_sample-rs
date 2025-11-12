@@ -38,12 +38,17 @@ unsafe impl Send for WindowHandle {}
 unsafe impl Sync for WindowHandle {}
 
 /// WindowHandleコンポーネントが追加された直後に呼ばれるフック
-fn on_window_handle_add(mut world: bevy_ecs::world::DeferredWorld, hook: bevy_ecs::lifecycle::HookContext) {
+fn on_window_handle_add(
+    mut world: bevy_ecs::world::DeferredWorld,
+    hook: bevy_ecs::lifecycle::HookContext,
+) {
     let entity = hook.entity;
     if let Some(handle) = world.get::<WindowHandle>(entity) {
-        println!("[Hook] WindowHandle added to entity {:?}, hwnd {:?}, dpi {}", 
-            entity, handle.hwnd, handle.initial_dpi);
-        
+        println!(
+            "[Hook] WindowHandle added to entity {:?}, hwnd {:?}, dpi {}",
+            entity, handle.hwnd, handle.initial_dpi
+        );
+
         // アプリに通知
         if let Some(mut app) = world.get_resource_mut::<crate::ecs::app::App>() {
             app.on_window_created(entity);
@@ -51,21 +56,25 @@ fn on_window_handle_add(mut world: bevy_ecs::world::DeferredWorld, hook: bevy_ec
     }
 }
 
-
-
 /// WindowHandleコンポーネントが削除される直前に呼ばれるフック
-fn on_window_handle_remove(mut world: bevy_ecs::world::DeferredWorld, hook: bevy_ecs::lifecycle::HookContext) {
+fn on_window_handle_remove(
+    mut world: bevy_ecs::world::DeferredWorld,
+    hook: bevy_ecs::lifecycle::HookContext,
+) {
     let entity = hook.entity;
     // このタイミングではまだWindowHandleにアクセスできる
     if let Some(handle) = world.get::<WindowHandle>(entity) {
         let hwnd = handle.hwnd;
-        println!("[Hook] Entity {:?} being removed, sending WM_CLOSE to hwnd {:?}", entity, hwnd);
-        
+        println!(
+            "[Hook] Entity {:?} being removed, sending WM_CLOSE to hwnd {:?}",
+            entity, hwnd
+        );
+
         // アプリに通知（ウィンドウカウント更新 & 必要ならメッセージ送信）
         if let Some(mut app) = world.get_resource_mut::<crate::ecs::app::App>() {
             app.on_window_destroyed(entity);
         }
-        
+
         // ウィンドウクローズを非同期で要求
         unsafe {
             let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
@@ -184,8 +193,14 @@ impl Default for WindowPos {
     fn default() -> Self {
         Self {
             zorder: ZOrder::NoChange,
-            position: Some(POINT { x: CW_USEDEFAULT, y: CW_USEDEFAULT }),
-            size: Some(SIZE { cx: CW_USEDEFAULT, cy: CW_USEDEFAULT }),
+            position: Some(POINT {
+                x: CW_USEDEFAULT,
+                y: CW_USEDEFAULT,
+            }),
+            size: Some(SIZE {
+                cx: CW_USEDEFAULT,
+                cy: CW_USEDEFAULT,
+            }),
             no_redraw: false,
             no_activate: false,
             frame_changed: false,
