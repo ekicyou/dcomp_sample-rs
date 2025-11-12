@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use windows::core::*;
+use windows::Win32::Foundation::{POINT, SIZE};
 use wintf::ecs::{Window, WindowPos};
 use wintf::*;
 
@@ -17,8 +18,8 @@ fn main() -> Result<()> {
             ..Default::default()
         },
         WindowPos {
-            position: Some(RawPoint { x: 100, y: 100 }),
-            size: Some(RawSize { width: 800, height: 600 }),
+            position: Some(POINT { x: 100, y: 100 }),
+            size: Some(SIZE { cx: 800, cy: 600 }),
             ..Default::default()
         },
     ));
@@ -30,8 +31,8 @@ fn main() -> Result<()> {
             ..Default::default()
         },
         WindowPos {
-            position: Some(RawPoint { x: 950, y: 150 }),
-            size: Some(RawSize { width: 600, height: 400 }),
+            position: Some(POINT { x: 950, y: 150 }),
+            size: Some(SIZE { cx: 600, cy: 400 }),
             ..Default::default()
         },
     ));

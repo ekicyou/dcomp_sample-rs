@@ -50,34 +50,6 @@ impl Dpi {
     }
 }
 
-//=============================================================
-// シンプルな型定義（euclid不使用）
-//=============================================================
 
-/// 物理ピクセル座標（i32）
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct RawPoint {
-    pub x: i32,
-    pub y: i32,
-}
-
-impl RawPoint {
-    pub fn new(x: i32, y: i32) -> Self {
-        Self { x, y }
-    }
-}
-
-/// 物理ピクセルサイズ（i32）
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct RawSize {
-    pub width: i32,
-    pub height: i32,
-}
-
-impl RawSize {
-    pub fn new(width: i32, height: i32) -> Self {
-        Self { width, height }
-    }
-}
 
 

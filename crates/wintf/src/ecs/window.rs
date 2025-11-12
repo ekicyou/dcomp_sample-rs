@@ -5,7 +5,6 @@ use windows_numerics::*;
 
 use crate::api::*;
 pub use crate::dpi::Dpi;
-use crate::{RawPoint, RawSize};
 
 /// Windowコンポーネント - ウィンドウ作成に必要な基本パラメータを保持
 /// スタイルや位置・サイズは WindowStyle, WindowPos コンポーネントで指定
@@ -131,8 +130,8 @@ unsafe impl Sync for ZOrder {}
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct WindowPos {
     pub zorder: ZOrder,
-    pub position: Option<RawPoint>,
-    pub size: Option<RawSize>,
+    pub position: Option<POINT>,
+    pub size: Option<SIZE>,
 
     pub no_redraw: bool,        // SWP_NOREDRAW: 再描画しない
     pub no_activate: bool,      // SWP_NOACTIVATE: ウィンドウをアクティブにしない
@@ -150,8 +149,8 @@ impl Default for WindowPos {
     fn default() -> Self {
         Self {
             zorder: ZOrder::NoChange,
-            position: Some(RawPoint { x: CW_USEDEFAULT, y: CW_USEDEFAULT }),
-            size: Some(RawSize { width: CW_USEDEFAULT, height: CW_USEDEFAULT }),
+            position: Some(POINT { x: CW_USEDEFAULT, y: CW_USEDEFAULT }),
+            size: Some(SIZE { cx: CW_USEDEFAULT, cy: CW_USEDEFAULT }),
             no_redraw: false,
             no_activate: false,
             frame_changed: false,
@@ -218,13 +217,13 @@ impl WindowPos {
     }
 
     /// 位置を設定
-    pub fn with_position(mut self, position: RawPoint) -> Self {
+    pub fn with_position(mut self, position: POINT) -> Self {
         self.position = Some(position);
         self
     }
 
     /// サイズを設定
-    pub fn with_size(mut self, size: RawSize) -> Self {
+    pub fn with_size(mut self, size: SIZE) -> Self {
         self.size = Some(size);
         self
     }
@@ -351,7 +350,7 @@ impl WindowPos {
         };
 
         let (width, height) = if let Some(size) = self.size {
-            (size.width, size.height)
+            (size.cx, size.cy)
         } else {
             (0, 0)
         };

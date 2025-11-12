@@ -11,7 +11,10 @@ use crate::process_singleton::*;
 /// 未作成のWindowを検出して作成するシステム
 pub fn create_windows(
     mut commands: Commands,
-    query: Query<(Entity, &Window, Option<&WindowStyle>, Option<&WindowPos>), Without<WindowHandle>>,
+    query: Query<
+        (Entity, &Window, Option<&WindowStyle>, Option<&WindowPos>),
+        Without<WindowHandle>,
+    >,
 ) {
     let singleton = WinProcessSingleton::get_or_init();
 
@@ -21,19 +24,19 @@ pub fn create_windows(
 
         // WindowStyleが指定されていなければデフォルトを使用
         let style_comp = opt_style.copied().unwrap_or_default();
-        
+
         // WindowPosが指定されていなければデフォルトを使用
         let pos_comp = opt_pos.copied().unwrap_or_default();
-        
+
         // 位置とサイズを取得
         let (x, y) = if let Some(pos) = pos_comp.position {
             (pos.x, pos.y)
         } else {
             (CW_USEDEFAULT, CW_USEDEFAULT)
         };
-        
+
         let (width, height) = if let Some(size) = pos_comp.size {
-            (size.width, size.height)
+            (size.cx, size.cy)
         } else {
             (CW_USEDEFAULT, CW_USEDEFAULT)
         };

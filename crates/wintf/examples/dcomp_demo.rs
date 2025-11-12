@@ -210,9 +210,9 @@ impl DemoWindow {
         let dpi = self.dpi();
         let scale = dpi.scale_factor();
         let card_size_px = Vector2 { X: CARD_SIZE.X * scale, Y: CARD_SIZE.Y * scale };
-        let card_size = RawSize {
-            width: card_size_px.X.ceil() as i32,
-            height: card_size_px.Y.ceil() as i32,
+        let card_size = SIZE {
+            cx: card_size_px.X.ceil() as i32,
+            cy: card_size_px.Y.ceil() as i32,
         };
 
         for row in 0..CARD_ROWS {
@@ -241,8 +241,8 @@ impl DemoWindow {
                 root_visual.add_visual(&back_visual, false, None)?;
 
                 let front_surface = dcomp.create_surface(
-                    card_size.width as u32,
-                    card_size.height as u32,
+                    card_size.cx as u32,
+                    card_size.cy as u32,
                     DXGI_FORMAT_B8G8R8A8_UNORM,
                     DXGI_ALPHA_MODE_PREMULTIPLIED,
                 )?;
@@ -250,8 +250,8 @@ impl DemoWindow {
                 draw_card_front(&front_surface, card.value, &self.format, &brush, dpi)?;
 
                 let back_surface = dcomp.create_surface(
-                    card_size.width as u32,
-                    card_size.height as u32,
+                    card_size.cx as u32,
+                    card_size.cy as u32,
                     DXGI_FORMAT_B8G8R8A8_UNORM,
                     DXGI_ALPHA_MODE_PREMULTIPLIED,
                 )?;
@@ -393,9 +393,9 @@ impl DemoWindow {
 
         let rect = unsafe { &*(lparam.0 as *const RECT) };
         let size_vec = self.effective_window_size(WINDOW_SIZE)?;
-        let size = RawSize {
-            width: size_vec.X.ceil() as i32,
-            height: size_vec.Y.ceil() as i32,
+        let size = SIZE {
+            cx: size_vec.X.ceil() as i32,
+            cy: size_vec.Y.ceil() as i32,
         };
 
         unsafe {
@@ -404,8 +404,8 @@ impl DemoWindow {
                 None,
                 rect.left,
                 rect.top,
-                size.width,
-                size.height,
+                size.cx,
+                size.cy,
                 SWP_NOACTIVATE | SWP_NOZORDER,
             )
         }?;
@@ -425,9 +425,9 @@ impl DemoWindow {
         }
 
         let size_vec = self.effective_window_size(WINDOW_SIZE)?;
-        let size = RawSize {
-            width: size_vec.X.ceil() as i32,
-            height: size_vec.Y.ceil() as i32,
+        let size = SIZE {
+            cx: size_vec.X.ceil() as i32,
+            cy: size_vec.Y.ceil() as i32,
         };
 
         unsafe {
@@ -436,8 +436,8 @@ impl DemoWindow {
                 None,
                 0,
                 0,
-                size.width,
-                size.height,
+                size.cx,
+                size.cy,
                 SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER,
             )
         }
