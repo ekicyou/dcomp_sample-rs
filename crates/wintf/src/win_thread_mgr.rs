@@ -8,8 +8,8 @@ use std::cell::RefCell;
 use std::future::*;
 use std::ops::Deref;
 use std::rc::Rc;
-use std::sync::*;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::*;
 use std::thread;
 use windows::core::*;
 use windows::Win32::Foundation::*;
@@ -81,13 +81,14 @@ impl WinThreadMgrInner {
         };
 
         let world = Rc::new(RefCell::new(EcsWorld::new()));
-        
+
         // EcsWorldへの弱参照を登録（wndprocからアクセスするため）
         crate::ecs::set_ecs_world(Rc::downgrade(&world));
 
         // VSync監視スレッドを起動
         let vsync_thread_stop = Arc::new(AtomicBool::new(false));
-        let vsync_thread_handle = spawn_vsync_thread(message_window, Arc::clone(&vsync_thread_stop));
+        let vsync_thread_handle =
+            spawn_vsync_thread(message_window, Arc::clone(&vsync_thread_stop));
 
         let rc = WinThreadMgrInner {
             executor_normal: Executor::new(),
@@ -189,12 +190,12 @@ impl Drop for WinThreadMgrInner {
     fn drop(&mut self) {
         // VSync監視スレッドを停止
         self.vsync_thread_stop.store(true, Ordering::Relaxed);
-        
+
         // スレッドの終了を待つ
         if let Some(handle) = self.vsync_thread_handle.take() {
             let _ = handle.join();
         }
-        
+
         unsafe {
             let _ = DestroyWindow(self.message_window);
         }
@@ -203,17 +204,14 @@ impl Drop for WinThreadMgrInner {
 
 // VSync監視スレッドを起動
 // DwmFlushを使用してVSyncと同期
-fn spawn_vsync_thread(
-    message_window: HWND,
-    stop_flag: Arc<AtomicBool>,
-) -> thread::JoinHandle<()> {
+fn spawn_vsync_thread(message_window: HWND, stop_flag: Arc<AtomicBool>) -> thread::JoinHandle<()> {
     // HWNDはSendではないので、isizeとして保持
     let message_window_ptr = message_window.0 as isize;
-    
+
     thread::spawn(move || {
         // isizeからHWNDを復元
         let message_window = HWND(message_window_ptr as *mut _);
-        
+
         // VSync待機ループ
         loop {
             // 停止フラグをチェック
@@ -229,7 +227,7 @@ fn spawn_vsync_thread(
                     let _ = PostMessageW(Some(message_window), WM_VSYNC, WPARAM(0), LPARAM(0));
                 } else {
                     // エラーの場合は少し待機してリトライ
-                    thread::sleep(std::time::Duration::from_millis(16)); // 約60Hz
+                    thread::sleep(std::time::Duration::from_millis(15)); // 約60Hz
                 }
             }
         }
