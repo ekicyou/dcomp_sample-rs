@@ -48,7 +48,7 @@ impl App {
                 unsafe {
                     let _ = PostMessageW(
                         Some(HWND(hwnd_raw as *mut _)),
-                        crate::ecs::window::WM_LAST_WINDOW_DESTROYED,
+                        crate::win_thread_mgr::WM_LAST_WINDOW_DESTROYED,
                         WPARAM(0),
                         LPARAM(0),
                     );

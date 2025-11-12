@@ -51,8 +51,7 @@ fn on_window_handle_add(mut world: bevy_ecs::world::DeferredWorld, hook: bevy_ec
     }
 }
 
-/// 独自メッセージ: 最後のウィンドウが破棄されたことを通知
-pub const WM_LAST_WINDOW_DESTROYED: u32 = WM_USER + 100;
+
 
 /// WindowHandleコンポーネントが削除される直前に呼ばれるフック
 fn on_window_handle_remove(mut world: bevy_ecs::world::DeferredWorld, hook: bevy_ecs::lifecycle::HookContext) {

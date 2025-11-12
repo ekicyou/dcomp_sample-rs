@@ -73,7 +73,7 @@ pub(crate) extern "system" fn wndproc(
                 let _ = from_boxed_ptr(ptr);
                 LRESULT(1)
             }
-            crate::ecs::window::WM_LAST_WINDOW_DESTROYED => {
+            crate::win_thread_mgr::WM_LAST_WINDOW_DESTROYED => {
                 // 最後のウィンドウが閉じられた通知を受け取ったらアプリケーションを終了
                 eprintln!("[WinProc] Received WM_LAST_WINDOW_DESTROYED, posting quit message");
                 PostQuitMessage(0);

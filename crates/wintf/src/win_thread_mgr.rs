@@ -17,8 +17,9 @@ use windows::Win32::Graphics::Dwm::*;
 use windows::Win32::System::Com::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-// VSync通知用のカスタムメッセージ
+// カスタムメッセージ定義
 const WM_VSYNC: u32 = WM_APP + 1;
+pub const WM_LAST_WINDOW_DESTROYED: u32 = WM_USER + 100;
 
 #[derive(Clone)]
 pub struct WinThreadMgr(Arc<WinThreadMgrInner>);
@@ -169,7 +170,7 @@ impl WinThreadMgrInner {
                     }
 
                     // WM_LAST_WINDOW_DESTROYEDメッセージでアプリ終了
-                    if msg.message == crate::ecs::window::WM_LAST_WINDOW_DESTROYED {
+                    if msg.message == WM_LAST_WINDOW_DESTROYED {
                         eprintln!("[WinThreadMgr] WM_LAST_WINDOW_DESTROYED received. Calling PostQuitMessage(0).");
                         PostQuitMessage(0);
                         continue;
