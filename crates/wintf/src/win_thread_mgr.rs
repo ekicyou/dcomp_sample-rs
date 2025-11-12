@@ -17,10 +17,11 @@ use windows::Win32::Graphics::Dwm::*;
 use windows::Win32::System::Com::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-// カスタムメッセージ定義
-// WM_APP (0x8000) ベース: アプリケーション固有のメッセージに使用
-const WM_VSYNC: u32 = WM_APP + 1;
-pub const WM_LAST_WINDOW_DESTROYED: u32 = WM_APP + 2;
+// フレームワーク内部用カスタムメッセージ定義
+// WM_USER (0x0400) ベース: ウィンドウクラス/フレームワーク固有のメッセージ
+// WM_APP (0x8000) はアプリケーション側で自由に使用可能
+const WM_VSYNC: u32 = WM_USER + 1;
+pub(crate) const WM_LAST_WINDOW_DESTROYED: u32 = WM_USER + 2;
 
 #[derive(Clone)]
 pub struct WinThreadMgr(Arc<WinThreadMgrInner>);
