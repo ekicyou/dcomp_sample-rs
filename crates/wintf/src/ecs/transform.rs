@@ -1,4 +1,5 @@
 use bevy_ecs::prelude::*;
+use windows_numerics::Matrix3x2;
 
 /// 平行移動（CSS transform: translate に相当）
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
@@ -10,6 +11,12 @@ pub struct Translate {
 impl Translate {
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
+    }
+}
+
+impl From<Translate> for Matrix3x2 {
+    fn from(t: Translate) -> Self {
+        Matrix3x2::translation(t.x, t.y)
     }
 }
 
@@ -43,10 +50,39 @@ impl Scale {
     }
 }
 
+impl From<Scale> for Matrix3x2 {
+    fn from(s: Scale) -> Self {
+        Matrix3x2 {
+            M11: s.x,
+            M12: 0.0,
+            M21: 0.0,
+            M22: s.y,
+            M31: 0.0,
+            M32: 0.0,
+        }
+    }
+}
+
 /// 回転（CSS transform: rotate に相当）
 /// 角度は度数法で指定（UI用なので0/90/180/270が主）
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
 pub struct Rotate(pub f32);
+
+impl From<Rotate> for Matrix3x2 {
+    fn from(r: Rotate) -> Self {
+        let radians = r.0.to_radians();
+        let cos = radians.cos();
+        let sin = radians.sin();
+        Matrix3x2 {
+            M11: cos,
+            M12: sin,
+            M21: -sin,
+            M22: cos,
+            M31: 0.0,
+            M32: 0.0,
+        }
+    }
+}
 
 /// 傾斜変換（CSS transform: skew に相当）
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
@@ -58,6 +94,21 @@ pub struct Skew {
 impl Skew {
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
+    }
+}
+
+impl From<Skew> for Matrix3x2 {
+    fn from(s: Skew) -> Self {
+        let tan_x = s.x.to_radians().tan();
+        let tan_y = s.y.to_radians().tan();
+        Matrix3x2 {
+            M11: 1.0,
+            M12: tan_y,
+            M21: tan_x,
+            M22: 1.0,
+            M31: 0.0,
+            M32: 0.0,
+        }
     }
 }
 
