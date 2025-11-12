@@ -34,127 +34,11 @@ impl Default for LocalScale {
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
 pub struct LocalRotation(pub f32);
 
-/// Z順序（描画順序、大きいほど手前）
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ZOrder(pub i32);
-
-// ===== オフセット・マージン =====
-
 /// オフセット（LocalPositionに加算される追加オフセット）
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
 pub struct Offset {
     pub x: f32,
     pub y: f32,
-}
-
-/// マージン（レイアウト計算時の外側余白）
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
-pub struct Margin {
-    pub left: i32,
-    pub top: i32,
-    pub right: i32,
-    pub bottom: i32,
-}
-
-impl Margin {
-    pub fn uniform(value: i32) -> Self {
-        Self {
-            left: value,
-            top: value,
-            right: value,
-            bottom: value,
-        }
-    }
-
-    pub fn symmetric(horizontal: i32, vertical: i32) -> Self {
-        Self {
-            left: horizontal,
-            top: vertical,
-            right: horizontal,
-            bottom: vertical,
-        }
-    }
-}
-
-/// パディング（レイアウト計算時の内側余白）
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
-pub struct Padding {
-    pub left: i32,
-    pub top: i32,
-    pub right: i32,
-    pub bottom: i32,
-}
-
-impl Padding {
-    pub fn uniform(value: i32) -> Self {
-        Self {
-            left: value,
-            top: value,
-            right: value,
-            bottom: value,
-        }
-    }
-
-    pub fn symmetric(horizontal: i32, vertical: i32) -> Self {
-        Self {
-            left: horizontal,
-            top: vertical,
-            right: horizontal,
-            bottom: vertical,
-        }
-    }
-}
-
-// ===== アンカー・ピボット =====
-
-/// アンカー（親に対する配置基準点、0.0～1.0）
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
-pub struct Anchor {
-    pub x: f32,
-    pub y: f32,
-}
-
-impl Default for Anchor {
-    fn default() -> Self {
-        Self { x: 0.0, y: 0.0 } // 左上
-    }
-}
-
-impl Anchor {
-    pub const TOP_LEFT: Self = Self { x: 0.0, y: 0.0 };
-    pub const TOP_CENTER: Self = Self { x: 0.5, y: 0.0 };
-    pub const TOP_RIGHT: Self = Self { x: 1.0, y: 0.0 };
-    pub const CENTER_LEFT: Self = Self { x: 0.0, y: 0.5 };
-    pub const CENTER: Self = Self { x: 0.5, y: 0.5 };
-    pub const CENTER_RIGHT: Self = Self { x: 1.0, y: 0.5 };
-    pub const BOTTOM_LEFT: Self = Self { x: 0.0, y: 1.0 };
-    pub const BOTTOM_CENTER: Self = Self { x: 0.5, y: 1.0 };
-    pub const BOTTOM_RIGHT: Self = Self { x: 1.0, y: 1.0 };
-}
-
-/// ピボット（自身の回転・スケールの中心点、0.0～1.0）
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
-pub struct Pivot {
-    pub x: f32,
-    pub y: f32,
-}
-
-impl Default for Pivot {
-    fn default() -> Self {
-        Self { x: 0.5, y: 0.5 } // 中心
-    }
-}
-
-impl Pivot {
-    pub const TOP_LEFT: Self = Self { x: 0.0, y: 0.0 };
-    pub const TOP_CENTER: Self = Self { x: 0.5, y: 0.0 };
-    pub const TOP_RIGHT: Self = Self { x: 1.0, y: 0.0 };
-    pub const CENTER_LEFT: Self = Self { x: 0.0, y: 0.5 };
-    pub const CENTER: Self = Self { x: 0.5, y: 0.5 };
-    pub const CENTER_RIGHT: Self = Self { x: 1.0, y: 0.5 };
-    pub const BOTTOM_LEFT: Self = Self { x: 0.0, y: 1.0 };
-    pub const BOTTOM_CENTER: Self = Self { x: 0.5, y: 1.0 };
-    pub const BOTTOM_RIGHT: Self = Self { x: 1.0, y: 1.0 };
 }
 
 // ===== グローバルトランスフォーム（計算結果） =====
@@ -237,64 +121,6 @@ impl Dpi {
     }
 }
 
-// ===== 変更追跡 =====
-
-/// トランスフォーム変更マーカー（再計算が必要）
-#[derive(Component, Default, Clone, Copy, Debug)]
-pub struct TransformDirty;
-
-// ===== 階層構造 =====
-
-/// 親エンティティ
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Parent(pub Entity);
-
-/// 子エンティティリスト（動的に管理される）
-#[derive(Component, Default, Clone, Debug)]
-pub struct Children(pub Vec<Entity>);
-
-impl Children {
-    pub fn new() -> Self {
-        Self(Vec::new())
-    }
-
-    pub fn add(&mut self, child: Entity) {
-        if !self.0.contains(&child) {
-            self.0.push(child);
-        }
-    }
-
-    pub fn remove(&mut self, child: Entity) {
-        self.0.retain(|&e| e != child);
-    }
-
-    pub fn clear(&mut self) {
-        self.0.clear();
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &Entity> {
-        self.0.iter()
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-// ===== 可視性 =====
-
-/// ローカル可視性（このエンティティ自身の可視性）
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Visible(pub bool);
-
-/// グローバル可視性（親の可視性を考慮した結果）
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct GlobalVisible(pub bool);
-
 // ===== ユーティリティ =====
 
 impl LocalPosition {
@@ -370,25 +196,5 @@ impl GlobalScale {
 
     pub fn uniform(scale: f32) -> Self {
         Self { x: scale, y: scale }
-    }
-}
-
-impl Visible {
-    pub fn visible() -> Self {
-        Self(true)
-    }
-
-    pub fn hidden() -> Self {
-        Self(false)
-    }
-}
-
-impl GlobalVisible {
-    pub fn visible() -> Self {
-        Self(true)
-    }
-
-    pub fn hidden() -> Self {
-        Self(false)
     }
 }
