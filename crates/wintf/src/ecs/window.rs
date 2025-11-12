@@ -26,8 +26,8 @@ unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
 /// 作成済みウィンドウのハンドル情報（システムが自動的に設定）
-#[derive(Component, Debug)]
-#[component(storage = "SparseSet")]
+#[derive(Component, Debug, Copy, Clone)]
+#[component(storage = "SparseSet", on_remove = on_window_handle_remove)]
 pub struct WindowHandle {
     pub hwnd: HWND,
     pub instance: HINSTANCE,
@@ -36,6 +36,19 @@ pub struct WindowHandle {
 
 unsafe impl Send for WindowHandle {}
 unsafe impl Sync for WindowHandle {}
+
+/// WindowHandleコンポーネントが削除される直前に呼ばれるフック
+fn on_window_handle_remove(world: bevy_ecs::world::DeferredWorld, hook: bevy_ecs::lifecycle::HookContext) {
+    let entity = hook.entity;
+    // このタイミングではまだWindowHandleにアクセスできる
+    if let Some(handle) = world.get::<WindowHandle>(entity) {
+        let hwnd = handle.hwnd;
+        println!("[Hook] Entity {:?} being removed, sending WM_CLOSE to hwnd {:?}", entity, hwnd);
+        unsafe {
+            let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
+        }
+    }
+}
 
 /// DPI変換行列を保持するコンポーネント
 #[derive(Component, Debug, Clone, Copy, PartialEq)]

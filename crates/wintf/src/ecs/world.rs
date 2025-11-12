@@ -1,5 +1,6 @@
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::*;
+use bevy_ecs::system::*;
 use std::time::Instant;
 
 // 各プライオリティ用のScheduleLabelマーカー構造体
@@ -96,6 +97,23 @@ impl EcsWorld {
     pub fn schedules_mut(&mut self) -> Mut<'_, Schedules> {
         self.has_systems = true;
         self.world.resource_mut::<Schedules>()
+    }
+
+    /// 指定したスケジュールにシステムを追加
+    ///
+    /// # Example
+    /// ```ignore
+    /// world.add_systems(Update, my_system);
+    /// ```
+    pub fn add_systems<M>(
+        &mut self,
+        schedule: impl ScheduleLabel,
+        systems: impl IntoScheduleConfigs<ScheduleSystem, M>,
+    ) {
+        self.has_systems = true;
+        self.world
+            .resource_mut::<Schedules>()
+            .add_systems(schedule, systems);
     }
 
     /// 内部のWorldへの参照を取得
