@@ -3,12 +3,11 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::system::lifetimeless::*;
 use bevy_tasks::*;
 use bevy_utils::*;
+use std::ops::Mul;
 use std::sync::atomic::*;
-use std::sync::mpsc::*;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::*;
 use windows_numerics::Matrix3x2;
-
-use crate::ecs::transform;
 
 /// 平行移動（CSS transform: translate に相当）
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
@@ -170,6 +169,16 @@ pub struct GlobalTransform(pub Matrix3x2);
 impl From<GlobalTransform> for Matrix3x2 {
     fn from(gt: GlobalTransform) -> Self {
         gt.0
+    }
+}
+
+/// GlobalTransform * Transform = GlobalTransform の実装
+impl Mul<Transform> for GlobalTransform {
+    type Output = GlobalTransform;
+
+    fn mul(self, rhs: Transform) -> Self::Output {
+        let transform_matrix: Matrix3x2 = rhs.into();
+        GlobalTransform(self.0 * transform_matrix)
     }
 }
 
@@ -434,9 +443,9 @@ unsafe fn propagate_descendants_unchecked(
 
                 // 変換の伝播はコストが高い - これは、GlobalTransformが変更されていない場合、
                 // 追加の等価性チェックのコストで、サブツリー全体の更新を回避するのに役立つ。
-                let a: Matrix3x2 = (*transform).into();
-                let b: Matrix3x2 = (*p_global_transform).into();
-                global_transform.set_if_neq(GlobalTransform(a * b));
+                let a = *p_global_transform;
+                let b = *transform;
+                global_transform.set_if_neq(a * b);
 
                 children.map(|children| {
                     // エンティティが子を持つ場合にのみ伝播を続ける

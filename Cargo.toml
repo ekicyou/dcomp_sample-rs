@@ -23,6 +23,13 @@ nonmax = "0.5.5"
 bevy_tasks = "0.17.2"
 bevy_utils = "0.17.2"
 
+[workspace.dependencies.bevy_app]
+version = "0.17.2"
+features = [
+    "bevy_reflect",
+    "std",
+]
+
 [workspace.dependencies.bevy_ecs]
 version = "0.17.2"
 features = [
