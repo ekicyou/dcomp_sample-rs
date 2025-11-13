@@ -152,3 +152,22 @@ impl From<Transform> for Matrix3x2 {
             * translate_matrix
     }
 }
+
+/// グローバル変換行列コンポーネント
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+#[repr(transparent)]
+pub struct GlobalTransform(pub Matrix3x2);
+
+impl From<GlobalTransform> for Matrix3x2 {
+    fn from(gt: GlobalTransform) -> Self {
+        gt.0
+    }
+}
+
+/// 変換伝播の最適化のためのマーカーコンポーネント。
+/// このゼロサイズ型（ZST）のマーカーコンポーネントは、変更検出を使用して
+/// 階層内の全てのエンティティを「ダーティ」としてマークする。これは、子孫の
+/// いずれかが変更された`Transform`を持つ場合に発生する。
+/// このコンポーネントが`is_changed()`でマークされて*いない*場合、伝播は停止する。
+#[derive(Component, Clone, Copy, Default, PartialEq, Debug)]
+pub struct TransformTreeChanged;
