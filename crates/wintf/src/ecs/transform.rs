@@ -1,9 +1,8 @@
 use bevy_ecs::prelude::*;
-use bevy_ecs::relationship::Relationship;
 use windows_numerics::Matrix3x2;
 
 /// 平行移動（CSS transform: translate に相当）
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub struct Translate {
     pub x: f32,
     pub y: f32,
@@ -22,7 +21,7 @@ impl From<Translate> for Matrix3x2 {
 }
 
 /// スケール（CSS transform: scale に相当）
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Scale {
     pub x: f32,
     pub y: f32,
@@ -59,7 +58,7 @@ impl From<Scale> for Matrix3x2 {
 
 /// 回転（CSS transform: rotate に相当）
 /// 角度は度数法で指定（UI用なので0/90/180/270が主）
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub struct Rotate(pub f32);
 
 impl From<Rotate> for Matrix3x2 {
@@ -69,7 +68,7 @@ impl From<Rotate> for Matrix3x2 {
 }
 
 /// 傾斜変換（CSS transform: skew に相当）
-#[derive(Component, Default, Clone, Copy, Debug, PartialEq)]
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub struct Skew {
     pub x: f32,
     pub y: f32,
@@ -98,7 +97,7 @@ impl From<Skew> for Matrix3x2 {
 
 /// 変換の基準点（CSS transform-origin に相当）
 /// デフォルトは中心(0.5, 0.5)
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TransformOrigin {
     pub x: f32,
     pub y: f32,
@@ -124,6 +123,36 @@ impl TransformOrigin {
     }
 }
 
+/// 2D変換を表すコンポーネント
+/// Translate、Scale、Rotate、Skew、TransformOriginをまとめて管理
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct Transform {
+    pub translate: Translate,
+    pub scale: Scale,
+    pub rotate: Rotate,
+    pub skew: Skew,
+    pub origin: TransformOrigin,
+}
+
+impl From<Transform> for Matrix3x2 {
+    fn from(transform: Transform) -> Self {
+        let origin_offset = Matrix3x2::translation(-transform.origin.x, -transform.origin.y);
+        let origin_restore = Matrix3x2::translation(transform.origin.x, transform.origin.y);
+
+        let scale_matrix: Matrix3x2 = transform.scale.into();
+        let rotate_matrix: Matrix3x2 = transform.rotate.into();
+        let skew_matrix: Matrix3x2 = transform.skew.into();
+        let translate_matrix: Matrix3x2 = transform.translate.into();
+
+        origin_offset
+            * scale_matrix
+            * rotate_matrix
+            * skew_matrix
+            * origin_restore
+            * translate_matrix
+    }
+}
+
 /// エンティティローカルの変換行列。
 /// TransformOrigin → Scale → Rotate → Skew → Translateを計算した値。
 /// 親子関係は考慮しない。
@@ -137,133 +166,28 @@ impl From<Matrix3x2> for LocalTransform {
     }
 }
 
-/// Globalな変換行列。
-/// エンティティツリーの親子関係から計算する。
-#[repr(transparent)]
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
-pub struct GlobalTransform(pub Matrix3x2);
+/// LocalTransformの変更を追跡するためのマーカーコンポーネント。
+/// Transform関連のコンポーネント（Translate, Scale, Rotate, Skew, TransformOrigin）が
+/// 変更されたときに自動的に追加される。
+/// LocalTransformの更新が完了したら削除される。
+#[derive(Component, Default)]
+#[component(storage = "SparseSet")]
+pub struct LocalTransformChanged;
 
-impl From<Matrix3x2> for GlobalTransform {
-    fn from(matrix: Matrix3x2) -> Self {
-        GlobalTransform(matrix)
-    }
-}
-
-/// すべての変換コンポーネントから最終的なMatrix3x2を計算
-/// 適用順序: TransformOrigin → Scale → Rotate → Skew → Translate
-#[doc(hidden)]
-#[inline]
-pub fn compute_transform_matrix(
-    translate: Option<Translate>,
-    scale: Option<Scale>,
-    rotate: Option<Rotate>,
-    skew: Option<Skew>,
-    origin: Option<TransformOrigin>,
-) -> Matrix3x2 {
-    let translate = translate.unwrap_or_default();
-    let scale = scale.unwrap_or_default();
-    let rotate = rotate.unwrap_or_default();
-    let skew = skew.unwrap_or_default();
-    let origin = origin.unwrap_or_default();
-
-    let origin_offset = Matrix3x2::translation(-origin.x, -origin.y);
-    let origin_restore = Matrix3x2::translation(origin.x, origin.y);
-
-    let scale_matrix: Matrix3x2 = scale.into();
-    let rotate_matrix: Matrix3x2 = rotate.into();
-    let skew_matrix: Matrix3x2 = skew.into();
-    let translate_matrix: Matrix3x2 = translate.into();
-
-    origin_offset * scale_matrix * rotate_matrix * skew_matrix * origin_restore * translate_matrix
-}
-
-/// Transformコンポーネントが変更されたときにLocalTransformを更新するシステム
+/// Transformコンポーネントが変更されたときにLocalTransformを更新または作成し、
+/// LocalTransformChangedマーカーを追加するシステム
 pub fn update_local_transform(
-    mut query: Query<
-        (
-            Option<&Translate>,
-            Option<&Scale>,
-            Option<&Rotate>,
-            Option<&Skew>,
-            Option<&TransformOrigin>,
-            &mut LocalTransform,
-        ),
-        Or<(
-            Changed<Translate>,
-            Changed<Scale>,
-            Changed<Rotate>,
-            Changed<Skew>,
-            Changed<TransformOrigin>,
-        )>,
-    >,
+    mut commands: Commands,
+    query: Query<(Entity, &Transform), Changed<Transform>>,
 ) {
-    for (translate, scale, rotate, skew, origin, mut local_transform) in query.iter_mut() {
-        let matrix = compute_transform_matrix(
-            translate.copied(),
-            scale.copied(),
-            rotate.copied(),
-            skew.copied(),
-            origin.copied(),
-        );
-        *local_transform = matrix.into();
-    }
-}
+    for (entity, transform) in query.iter() {
+        let matrix: Matrix3x2 = (*transform).into();
+        let new_local_transform: LocalTransform = matrix.into();
 
-/// LocalTransformまたは親のGlobalTransformが変更されたときにGlobalTransformを更新するシステム
-/// 階層構造を正しく処理するため、World排他アクセスを使用
-pub fn update_global_transform(world: &mut World) {
-    let mut changed_entities = Vec::new();
+        // LocalTransformを更新または新規作成
+        commands.entity(entity).insert(new_local_transform);
 
-    // 変更されたエンティティを収集
-    {
-        let mut query = world
-            .query_filtered::<Entity, Or<(Changed<LocalTransform>, Changed<GlobalTransform>)>>();
-        for entity in query.iter(world) {
-            changed_entities.push(entity);
-        }
-    }
-
-    // 変更されたエンティティとその子孫を更新
-    for entity in changed_entities {
-        propagate_global_transform(world, entity);
-    }
-}
-
-fn propagate_global_transform(world: &mut World, entity: Entity) {
-    let local_transform = world.get::<LocalTransform>(entity).copied();
-
-    // 親エンティティを取得
-    let parent_entity = if let Some(child_of) = world.get::<ChildOf>(entity) {
-        Some(child_of.get())
-    } else {
-        None
-    };
-
-    if let Some(local) = local_transform {
-        let global_matrix = if let Some(parent) = parent_entity {
-            if let Some(parent_global) = world.get::<GlobalTransform>(parent) {
-                parent_global.0 * local.0
-            } else {
-                local.0
-            }
-        } else {
-            local.0
-        };
-
-        if let Some(mut global) = world.get_mut::<GlobalTransform>(entity) {
-            global.0 = global_matrix;
-        }
-    }
-
-    // 子エンティティを探して伝播
-    let mut query = world.query::<(Entity, &ChildOf)>();
-    let children_entities: Vec<Entity> = query
-        .iter(world)
-        .filter(|(_, child_of)| child_of.get() == entity)
-        .map(|(e, _)| e)
-        .collect();
-
-    for child in children_entities {
-        propagate_global_transform(world, child);
+        // LocalTransformが更新されたことを示すマーカーを追加
+        commands.entity(entity).insert(LocalTransformChanged);
     }
 }
