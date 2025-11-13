@@ -24,8 +24,6 @@ fn try_get_ecs_world() -> Option<Rc<RefCell<crate::ecs::world::EcsWorld>>> {
     ECS_WORLD.get().and_then(|weak| weak.0.upgrade())
 }
 
-
-
 /// ECS専用のウィンドウプロシージャ
 pub extern "system" fn ecs_wndproc(
     hwnd: HWND,
@@ -52,7 +50,7 @@ pub extern "system" fn ecs_wndproc(
                 if let Some(entity) = get_entity_from_hwnd(hwnd) {
                     if let Some(world) = try_get_ecs_world() {
                         let mut world = world.borrow_mut();
-                        
+
                         // エンティティを削除（関連する全コンポーネントも削除される）
                         // on_window_handle_removedシステムが自動的にApp通知を行う
                         world.world_mut().despawn(entity);

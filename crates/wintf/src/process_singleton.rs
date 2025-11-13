@@ -46,7 +46,7 @@ impl WinProcessSingleton {
             let instance = unsafe { GetModuleHandleW(None).unwrap().into() };
             let window_class_name = HSTRING::from(WINTF_CLASS_NAME);
             let ecs_window_class_name = HSTRING::from(WINTF_ECS_CLASS_NAME);
-            
+
             // 既存のウィンドウクラスを登録（dcomp_demo用）
             let wc = WNDCLASSEXW {
                 cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,

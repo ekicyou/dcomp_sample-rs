@@ -213,15 +213,16 @@ pub fn update_local_transform(
 /// 階層構造を正しく処理するため、World排他アクセスを使用
 pub fn update_global_transform(world: &mut World) {
     let mut changed_entities = Vec::new();
-    
+
     // 変更されたエンティティを収集
     {
-        let mut query = world.query_filtered::<Entity, Or<(Changed<LocalTransform>, Changed<GlobalTransform>)>>();
+        let mut query = world
+            .query_filtered::<Entity, Or<(Changed<LocalTransform>, Changed<GlobalTransform>)>>();
         for entity in query.iter(world) {
             changed_entities.push(entity);
         }
     }
-    
+
     // 変更されたエンティティとその子孫を更新
     for entity in changed_entities {
         propagate_global_transform(world, entity);
@@ -230,14 +231,14 @@ pub fn update_global_transform(world: &mut World) {
 
 fn propagate_global_transform(world: &mut World, entity: Entity) {
     let local_transform = world.get::<LocalTransform>(entity).copied();
-    
+
     // 親エンティティを取得
     let parent_entity = if let Some(child_of) = world.get::<ChildOf>(entity) {
         Some(child_of.get())
     } else {
         None
     };
-    
+
     if let Some(local) = local_transform {
         let global_matrix = if let Some(parent) = parent_entity {
             if let Some(parent_global) = world.get::<GlobalTransform>(parent) {
@@ -248,12 +249,12 @@ fn propagate_global_transform(world: &mut World, entity: Entity) {
         } else {
             local.0
         };
-        
+
         if let Some(mut global) = world.get_mut::<GlobalTransform>(entity) {
             global.0 = global_matrix;
         }
     }
-    
+
     // 子エンティティを探して伝播
     let mut query = world.query::<(Entity, &ChildOf)>();
     let children_entities: Vec<Entity> = query
@@ -261,7 +262,7 @@ fn propagate_global_transform(world: &mut World, entity: Entity) {
         .filter(|(_, child_of)| child_of.get() == entity)
         .map(|(e, _)| e)
         .collect();
-    
+
     for child in children_entities {
         propagate_global_transform(world, child);
     }

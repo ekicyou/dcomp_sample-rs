@@ -8,7 +8,6 @@ mod win_style;
 mod win_thread_mgr;
 mod winproc;
 
-
 pub use win_message_handler::*;
 pub use win_state::*;
 pub use win_style::*;

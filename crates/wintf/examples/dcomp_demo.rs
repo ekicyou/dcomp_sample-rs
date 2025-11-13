@@ -23,11 +23,17 @@ const CARD_COLUMNS: usize = 6;
 const CARD_MARGIN: f32 = 15.0;
 const CARD_WIDTH: f32 = 150.0;
 const CARD_HEIGHT: f32 = 210.0;
-const CARD_SIZE: Vector2 = Vector2 { X: CARD_WIDTH, Y: CARD_HEIGHT };
+const CARD_SIZE: Vector2 = Vector2 {
+    X: CARD_WIDTH,
+    Y: CARD_HEIGHT,
+};
 
 const WINDOW_WIDTH: f32 = (CARD_WIDTH + CARD_MARGIN) * (CARD_COLUMNS as f32) + CARD_MARGIN;
 const WINDOW_HEIGHT: f32 = (CARD_HEIGHT + CARD_MARGIN) * (CARD_ROWS as f32) + CARD_MARGIN;
-const WINDOW_SIZE: Vector2 = Vector2 { X: WINDOW_WIDTH, Y: WINDOW_HEIGHT };
+const WINDOW_SIZE: Vector2 = Vector2 {
+    X: WINDOW_WIDTH,
+    Y: WINDOW_HEIGHT,
+};
 
 fn main() -> Result<()> {
     human_panic::setup_panic!();
@@ -209,7 +215,10 @@ impl DemoWindow {
         let bitmap = dc.create_bitmap_from_wic_bitmap(&self.image)?;
         let dpi = self.dpi();
         let scale = dpi / 96.0;
-        let card_size_px = Vector2 { X: CARD_SIZE.X * scale, Y: CARD_SIZE.Y * scale };
+        let card_size_px = Vector2 {
+            X: CARD_SIZE.X * scale,
+            Y: CARD_SIZE.Y * scale,
+        };
         let card_size = SIZE {
             cx: card_size_px.X.ceil() as i32,
             cy: card_size_px.Y.ceil() as i32,
@@ -222,7 +231,10 @@ impl DemoWindow {
                     X: (CARD_WIDTH + CARD_MARGIN) * (column as f32) + CARD_MARGIN,
                     Y: (CARD_HEIGHT + CARD_MARGIN) * (row as f32) + CARD_MARGIN,
                 };
-                card.offset = Vector2 { X: offset_logical.X * scale, Y: offset_logical.Y * scale };
+                card.offset = Vector2 {
+                    X: offset_logical.X * scale,
+                    Y: offset_logical.Y * scale,
+                };
 
                 if card.status == Status::Matched {
                     continue;

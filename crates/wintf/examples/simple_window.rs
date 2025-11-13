@@ -29,7 +29,7 @@ fn auto_close_window_system(world: &mut bevy_ecs::world::World) {
     let should_close = {
         let timer = world.resource::<AutoCloseTimer>();
         let elapsed = timer.start.elapsed().as_secs();
-        
+
         if let Some(last_close) = timer.last_close_time {
             // 前回閉じてから5秒以上経過
             last_close.elapsed().as_secs() >= 5
@@ -49,7 +49,7 @@ fn auto_close_window_system(world: &mut bevy_ecs::world::World) {
 
         if window_count > 0 {
             println!("[Test] Closing one window (remaining: {})...", window_count);
-            
+
             // タイマーの状態を更新
             let mut timer = world.resource_mut::<AutoCloseTimer>();
             timer.last_close_time = Some(Instant::now());
