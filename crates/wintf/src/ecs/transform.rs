@@ -164,6 +164,41 @@ impl From<GlobalTransform> for Matrix3x2 {
     }
 }
 
+/// 階層に属していないエンティティの[`GlobalTransform`]コンポーネントを更新する。
+///
+/// サードパーティプラグインは、このシステムを
+/// [`propagate_parent_transforms`]および[`mark_dirty_trees`]と組み合わせて使用する必要がある。
+pub fn sync_simple_transforms(
+    mut query: ParamSet<(
+        Query<
+            (&Transform, &mut GlobalTransform),
+            (
+                Or<(Changed<Transform>, Added<GlobalTransform>)>,
+                Without<ChildOf>,
+                Without<Children>,
+            ),
+        >,
+        Query<(Ref<Transform>, &mut GlobalTransform), (Without<ChildOf>, Without<Children>)>,
+    )>,
+    mut orphaned: RemovedComponents<ChildOf>,
+) {
+    // 変更されたエンティティを更新
+    query
+        .p0()
+        .par_iter_mut()
+        .for_each(|(transform, mut global_transform)| {
+            *global_transform = GlobalTransform((*transform).into());
+        });
+    // 孤立したエンティティを更新
+    let mut query = query.p1();
+    let mut iter = query.iter_many_mut(orphaned.read());
+    while let Some((transform, mut global_transform)) = iter.fetch_next() {
+        if !transform.is_changed() && !global_transform.is_added() {
+            *global_transform = GlobalTransform((*transform).into());
+        }
+    }
+}
+
 /// 変換伝播の最適化のためのマーカーコンポーネント。
 /// このゼロサイズ型（ZST）のマーカーコンポーネントは、変更検出を使用して
 /// 階層内の全てのエンティティを「ダーティ」としてマークする。これは、子孫の
