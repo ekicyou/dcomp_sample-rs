@@ -20,12 +20,16 @@ async-task = "4.7.1"
 ambassador = "0.4.2"
 taffy = "0.9.1"
 nonmax = "0.5.5"
+bevy_tasks = "0.17.2"
+bevy_utils = "0.17.2"
 
 [workspace.dependencies.bevy_ecs]
 version = "0.17.2"
 features = [
-    "std",
+    "async_executor",
+    "backtrace",
     "bevy_reflect",
+    "std",
     "multi_threaded",
     "serialize",
 ]
