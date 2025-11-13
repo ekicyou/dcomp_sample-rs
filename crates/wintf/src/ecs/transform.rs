@@ -171,3 +171,32 @@ impl From<GlobalTransform> for Matrix3x2 {
 /// このコンポーネントが`is_changed()`でマークされて*いない*場合、伝播は停止する。
 #[derive(Component, Clone, Copy, Default, PartialEq, Debug)]
 pub struct TransformTreeChanged;
+
+/// 静的シーン向けの最適化。「ダーティビット」を階層の祖先に向かって伝播させる。
+/// 変換の伝播は、ダーティビットを持たないエンティティに遭遇した場合、
+/// 階層のサブツリー全体を無視できる。
+pub fn mark_dirty_trees(
+    changed_transforms: Query<
+        Entity,
+        Or<(Changed<Transform>, Changed<ChildOf>, Added<GlobalTransform>)>,
+    >,
+    mut orphaned: RemovedComponents<ChildOf>,
+    mut transforms: Query<(Option<&ChildOf>, &mut TransformTreeChanged)>,
+) {
+    for entity in changed_transforms.iter().chain(orphaned.read()) {
+        let mut next = entity;
+        while let Ok((child_of, mut tree)) = transforms.get_mut(next) {
+            if tree.is_changed() && !tree.is_added() {
+                // コンポーネントが変更されていた場合、このツリーの部分は既に処理済み。
+                // ただし、変更がコンポーネントの追加によって引き起こされた場合は無視する。
+                break;
+            }
+            tree.set_changed();
+            if let Some(parent) = child_of.map(ChildOf::parent) {
+                next = parent;
+            } else {
+                break;
+            };
+        }
+    }
+}
