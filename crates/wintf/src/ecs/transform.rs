@@ -151,6 +151,8 @@ impl From<Matrix3x2> for GlobalTransform {
 
 /// すべての変換コンポーネントから最終的なMatrix3x2を計算
 /// 適用順序: TransformOrigin → Scale → Rotate → Skew → Translate
+#[doc(hidden)]
+#[inline]
 pub fn compute_transform_matrix(
     translate: Option<Translate>,
     scale: Option<Scale>,
