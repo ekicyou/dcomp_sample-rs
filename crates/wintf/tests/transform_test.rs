@@ -19,7 +19,7 @@ fn test_update_local_transform() {
     world.run_system(system_id).unwrap();
 
     let local_transform = world.get::<LocalTransform>(entity).unwrap();
-    
+
     // 期待される変換行列を手動で計算
     // 適用順序: Scale → Rotate → Translate
     let expected = compute_transform_matrix(
@@ -29,7 +29,7 @@ fn test_update_local_transform() {
         None,
         None,
     );
-    
+
     assert_eq!(local_transform.0, expected);
 }
 
@@ -50,7 +50,7 @@ fn test_update_local_transform_with_origin() {
     world.run_system(system_id).unwrap();
 
     let local_transform = world.get::<LocalTransform>(entity).unwrap();
-    
+
     // TransformOriginを考慮した期待値
     let expected = compute_transform_matrix(
         Some(Translate::new(100.0, 100.0)),
@@ -59,7 +59,7 @@ fn test_update_local_transform_with_origin() {
         None,
         Some(TransformOrigin::new(50.0, 50.0)),
     );
-    
+
     assert_eq!(local_transform.0, expected);
 }
 
