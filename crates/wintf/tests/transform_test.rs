@@ -1,3 +1,4 @@
+use bevy_ecs::prelude::*;
 use windows_numerics::Matrix3x2;
 use wintf::ecs::transform::*;
 
@@ -92,4 +93,39 @@ fn test_transform_to_matrix3x2_with_origin() {
     // originが考慮された変換
     assert!((matrix.M11 - 2.0).abs() < 0.001);
     assert!((matrix.M22 - 2.0).abs() < 0.001);
+}
+
+// ========== システムのテスト ==========
+
+/// sync_simple_transformsシステムのテスト
+/// 階層に属していないエンティティのGlobalTransformが更新されることを確認
+#[test]
+fn test_sync_simple_transforms() {
+    let mut world = World::new();
+
+    // 親を持たないエンティティを作成
+    let entity = world
+        .spawn((
+            Transform {
+                translate: Translate::new(50.0, 100.0),
+                scale: Scale::uniform(2.0),
+                ..Default::default()
+            },
+            GlobalTransform::default(),
+        ))
+        .id();
+
+    // sync_simple_transformsシステムを実行
+    let mut schedule = Schedule::default();
+    schedule.add_systems(sync_simple_transforms);
+    schedule.run(&mut world);
+
+    // GlobalTransformが更新されていることを確認
+    let global = world.get::<GlobalTransform>(entity).unwrap();
+    let matrix: Matrix3x2 = (*global).into();
+
+    // 単位行列ではないことを確認（変換が適用されている）
+    let identity = Matrix3x2::identity();
+    assert_ne!(matrix.M31, identity.M31); // X平行移動
+    assert_ne!(matrix.M32, identity.M32); // Y平行移動
 }
