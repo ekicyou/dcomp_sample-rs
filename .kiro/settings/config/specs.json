@@ -1,0 +1,16 @@
+{
+  "structure": "subfolder",
+  "spec_filename": "spec.md",
+  "description": "Specification structure configuration",
+  "options": {
+    "subfolder": {
+      "description": "Create specs in subfolder: .kiro/specs/{feature-name}/spec.md",
+      "metadata_file": "init.json",
+      "default": true
+    },
+    "single_file": {
+      "description": "Create specs as single file: .kiro/specs/{feature-name}.md",
+      "default": false
+    }
+  }
+}

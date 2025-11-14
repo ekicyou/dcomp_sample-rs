@@ -92,6 +92,11 @@ impl EcsWorld {
         // デフォルトシステムの登録
         {
             let mut schedules = world.resource_mut::<Schedules>();
+            schedules.add_systems(
+                UISetup, 
+                crate::ecs::graphics::ensure_graphics_core
+                    .before(crate::ecs::window_system::create_windows)
+            );
             schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
             // on_window_handle_addedとon_window_handle_removedはフックで代替
         }

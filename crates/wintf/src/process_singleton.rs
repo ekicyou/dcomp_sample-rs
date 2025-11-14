@@ -17,6 +17,7 @@ pub struct WinProcessSingleton {
     instance: HINSTANCE,
     window_class_name: HSTRING,
     ecs_window_class_name: HSTRING,
+    #[allow(dead_code)]
     hidden_window: Option<HWND>,
 }
 
@@ -36,6 +37,7 @@ impl WinProcessSingleton {
         &self.ecs_window_class_name
     }
 
+    #[allow(dead_code)]
     pub(crate) fn hidden_window(&self) -> Option<HWND> {
         self.hidden_window
     }
