@@ -129,7 +129,7 @@ impl Default for WindowStyle {
     fn default() -> Self {
         Self {
             style: WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-            ex_style: WINDOW_EX_STYLE(0),
+            ex_style: WS_EX_NOREDIRECTIONBITMAP,
         }
     }
 }
