@@ -1,6 +1,7 @@
 use bevy_ecs::prelude::*;
 use windows_numerics::Matrix3x2;
 use wintf::ecs::transform::*;
+use wintf::ecs::transform_system::*;
 
 #[test]
 fn test_transform_to_matrix3x2_identity() {

@@ -38,36 +38,75 @@
 ### 機能要件 (FR: Functional Requirements)
 
 #### FR1: 型パラメータの抽象化
-- **FR1.1**: `Transform`型を型パラメータ化し、任意のローカル変換型を受け入れる
-  - 条件: `Into<Matrix3x2>`トレイトを実装している型
-  - 目的: 異なる変換表現（3D、アフィン変換など）への対応
-  
-- **FR1.2**: `GlobalTransform`型を型パラメータ化し、任意のグローバル変換型を受け入れる
-  - 条件: `Mul`トレイトで変換の合成が可能な型
-  - 目的: 異なる行列型（3x2、4x4など）への対応
 
-- **FR1.3**: `TransformTreeChanged`マーカーを型パラメータ化
-  - 条件: bevy_ecsの`Component`トレイトを実装
-  - 目的: 独自のダーティトラッキング機構の実装を可能にする
+**スコープ**: 以下の3つの型を型パラメータ化する
+1. `Transform` → ローカル変換型 `L`
+2. `GlobalTransform` → グローバル変換型 `G`
+3. `TransformTreeChanged` → ダーティマーカー型 `M`
 
-#### FR2: 階層関係の抽象化
-- **FR2.1**: `ChildOf`と`Children`コンポーネントを型パラメータ化または抽象化
-  - 現状: bevy_ecsが提供する階層コンポーネントに依存
-  - 要件: カスタム階層構造（例：親子以外の関係グラフ）へ対応
-  - 制約: 現在のbevy_ecsの階層システムとの互換性維持
+**型パラメータの条件**:
 
-- **FR2.2**: 階層トラバーサルの抽象化
-  - `.parent()`メソッドの抽象化
-  - `.iter()`による子要素イテレーションの抽象化
+##### L: ローカル変換型
+```rust
+L: Component + Copy + Into<G>
+```
+- `Component`: bevy_ecsコンポーネントとして使用可能
+- `Copy`: 値渡しによる効率的な処理
+- `Into<G>`: グローバル変換型Gへ変換可能（`sync_simple_transforms`で必要）
 
-#### FR3: 変換合成操作の抽象化
-- **FR3.1**: `GlobalTransform * Transform = GlobalTransform`の演算を型パラメータで表現
-  - トレイト境界: `Mul<LocalT, Output=GlobalT>`
-  - 目的: 異なる変換の合成ルール（左乗算/右乗算）への対応
+**理由**: `sync_simple_transforms`内で `GlobalTransform((*transform).into())` を使用しているため、
+`L` → `G` の変換が必須。
 
-- **FR3.2**: `Into<Matrix3x2>`変換の抽象化
-  - 現状: `Transform`から`Matrix3x2`への変換に依存
-  - 要件: 任意の中間表現への変換をサポート
+##### G: グローバル変換型
+```rust
+G: Component + Copy + PartialEq + Mul<L, Output = G>
+```
+- `Component`: bevy_ecsコンポーネントとして使用可能
+- `Copy`: 値渡しによる効率的な処理
+- `PartialEq`: `set_if_neq`最適化のために必要
+- `Mul<L, Output = G>`: 親のグローバル変換と子のローカル変換を合成（`propagate_descendants_unchecked`で必要）
+
+**理由**: 
+- `PartialEq`は変換伝播時の不要な更新を避けるための最適化
+- `Mul<L, Output = G>`は階層的な変換合成（`parent_global * child_local = child_global`）に必須
+
+##### M: ダーティマーカー型
+```rust
+M: Component
+```
+- `Component`: bevy_ecsコンポーネントとして使用可能
+
+**理由**: bevy_ecsの変更検出機能（`is_changed()`, `set_changed()`）を利用するための最小要件。
+ゼロサイズ型（ZST）であることが望ましいが、型パラメータ制約としては不要。
+
+#### FR2: 階層関係の抽象化（フェーズ2へ延期）
+
+**現状**: `ChildOf`と`Children`は具体型のまま維持
+**理由**: 
+- bevy_ecsの標準型への依存を段階的に解決
+- フェーズ1のリスクを最小化
+
+#### FR3: 変換操作の抽象化
+
+**TransformOpsトレイト**:
+```rust
+pub trait TransformOps<L, G>
+where
+    L: Component + Copy + Into<G>,
+    G: Component + Copy + PartialEq + Mul<L, Output = G>,
+{
+    /// ローカル変換からグローバル変換を作成
+    fn from_local(local: L) -> G;
+    
+    /// グローバル変換とローカル変換を合成
+    fn compose(parent_global: G, child_local: L) -> G;
+}
+```
+
+**設計判断**:
+- `from_local`は`L::into()`のラッパー（将来の拡張性のため）
+- `compose`は`parent_global * child_local`のラッパー
+- トレイト境界で既に必要な制約（`Into<G>`, `Mul<L, Output = G>`）を含む
 
 #### FR4: 並列処理の維持
 - **FR4.1**: `WorkQueue`の動作を維持
