@@ -118,7 +118,7 @@ fn test_sync_simple_transforms() {
 
     // sync_simple_transformsシステムを実行
     let mut schedule = Schedule::default();
-    schedule.add_systems(sync_simple_transforms);
+    schedule.add_systems(sync_simple_transforms::<Transform, GlobalTransform, TransformTreeChanged>);
     schedule.run(&mut world);
 
     // GlobalTransformが更新されていることを確認
