@@ -933,6 +933,427 @@ fn test_generic_transform_system_with_hierarchy() {
 - 関数ドキュメント（各関数）
 - 使用例（doctest）
 
+## タスク分解
+
+### タスク概要
+
+全体を**4つのフェーズ**、**16のタスク**に分解し、段階的に実装を進める。
+
+### Phase 1-1: 基盤実装（3タスク）
+
+#### Task 1.1.1: TransformOpsトレイト定義
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`  
+**内容**:
+```rust
+/// 変換操作を抽象化するトレイト
+pub trait TransformOps<L, G>
+where
+    L: Component + Copy + Into<G>,
+    G: Component + Copy + PartialEq + Mul<L, Output = G>,
+{
+    fn from_local(local: L) -> G;
+    fn compose(parent_global: G, child_local: L) -> G;
+}
+```
+**成果物**: トレイト定義とドキュメント  
+**依存**: なし  
+**工数**: 0.5時間  
+**検証**: コンパイルが通ること
+
+#### Task 1.1.2: デフォルト実装
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`  
+**内容**:
+```rust
+impl TransformOps<Transform, GlobalTransform> for () {
+    fn from_local(local: Transform) -> GlobalTransform {
+        local.into()
+    }
+    
+    fn compose(parent_global: GlobalTransform, child_local: Transform) -> GlobalTransform {
+        parent_global * child_local
+    }
+}
+```
+**成果物**: ユニット型`()`に対する実装  
+**依存**: Task 1.1.1  
+**工数**: 0.5時間  
+**検証**: 単体テストで`from_local`と`compose`の動作確認
+
+#### Task 1.1.3: NodeQuery型エイリアスのジェネリック化
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`  
+**内容**:
+```rust
+type NodeQuery<'w, 's, L, G, M> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        (Ref<'static, L>, Mut<'static, G>, Ref<'static, M>),
+        (Option<Read<Children>>, Read<ChildOf>),
+    ),
+>;
+```
+**成果物**: ジェネリック型エイリアス  
+**依存**: Task 1.1.1  
+**工数**: 0.5時間  
+**検証**: コンパイルが通ること
+
+---
+
+### Phase 1-2: システム関数のジェネリック化（5タスク）
+
+#### Task 1.2.1: sync_simple_transforms_generic実装
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`  
+**内容**: 
+- 既存の`sync_simple_transforms`をベースに型パラメータを追加
+- `Transform` → `L`, `GlobalTransform` → `G`, `TransformTreeChanged` → `M`に置換
+- `Ops::from_local()`を使用した変換に変更
+
+**変更箇所**:
+```rust
+pub fn sync_simple_transforms_generic<L, G, M, Ops>(
+    mut query: ParamSet<(
+        Query<(&L, &mut G), (Or<(Changed<L>, Added<G>)>, Without<ChildOf>, Without<Children>)>,
+        Query<(Ref<L>, &mut G), (Without<ChildOf>, Without<Children>)>,
+    )>,
+    mut orphaned: RemovedComponents<ChildOf>,
+) where
+    L: Component + Copy + Into<G>,
+    G: Component + Copy + PartialEq + Mul<L, Output = G>,
+    M: Component,
+    Ops: TransformOps<L, G>,
+{
+    // *global_transform = GlobalTransform((*transform).into());
+    // ↓
+    *global_transform = Ops::from_local(*transform);
+}
+```
+
+**成果物**: ジェネリック版の関数（約45行）  
+**依存**: Task 1.1.1, Task 1.1.2  
+**工数**: 1.5時間  
+**検証**: 既存の型で呼び出して動作確認
+
+#### Task 1.2.2: mark_dirty_trees_generic実装
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`  
+**内容**:
+- 型パラメータの追加（`L`, `G`, `M`）
+- クエリの型を置換
+- ロジックは変更なし
+
+**変更箇所**:
+```rust
+pub fn mark_dirty_trees_generic<L, G, M>(
+    changed_transforms: Query<Entity, Or<(Changed<L>, Changed<ChildOf>, Added<G>)>>,
+    mut orphaned: RemovedComponents<ChildOf>,
+    mut transforms: Query<(Option<&ChildOf>, &mut M)>,
+) where
+    L: Component + Copy + Into<G>,
+    G: Component + Copy + PartialEq + Mul<L, Output = G>,
+    M: Component,
+{
+    // ロジックは変更なし
+}
+```
+
+**成果物**: ジェネリック版の関数（約25行）  
+**依存**: Task 1.1.1  
+**工数**: 1時間  
+**検証**: 既存の型で呼び出して動作確認
+
+#### Task 1.2.3: propagate_descendants_unchecked_generic実装
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`  
+**内容**:
+- `unsafe`関数の型パラメータ化
+- `Ops::compose()`を使用した変換合成に変更
+
+**変更箇所**:
+```rust
+unsafe fn propagate_descendants_unchecked<L, G, M, Ops>(
+    parent: Entity,
+    p_global_transform: Mut<G>,
+    p_children: &Children,
+    nodes: &NodeQuery<L, G, M>,
+    outbox: &mut Vec<Entity>,
+    queue: &WorkQueue,
+    max_depth: usize,
+) where
+    L: Component + Copy + Into<G>,
+    G: Component + Copy + PartialEq + Mul<L, Output = G>,
+    M: Component,
+    Ops: TransformOps<L, G>,
+{
+    // global_transform.set_if_neq(a * b);
+    // ↓
+    global_transform.set_if_neq(Ops::compose(a, b));
+}
+```
+
+**成果物**: ジェネリック版のunsafe関数（約70行）  
+**依存**: Task 1.1.1, Task 1.1.2, Task 1.1.3  
+**工数**: 2時間  
+**検証**: SAFETYコメントの妥当性確認、既存の型で動作確認
+
+#### Task 1.2.4: propagation_worker_generic実装
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`  
+**内容**:
+- 内部関数の型パラメータ化
+- `NodeQuery<L, G, M>`の使用
+- `propagate_descendants_unchecked_generic`の呼び出し
+
+**成果物**: ジェネリック版の内部関数（約60行）  
+**依存**: Task 1.2.3  
+**工数**: 1.5時間  
+**検証**: 既存の型で動作確認
+
+#### Task 1.2.5: propagate_parent_transforms_generic実装
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`  
+**内容**:
+- 最も複雑な関数の型パラメータ化
+- `WorkQueue`の使用（変更なし）
+- `propagation_worker_generic`の呼び出し
+
+**変更箇所**:
+```rust
+pub fn propagate_parent_transforms_generic<L, G, M, Ops>(
+    mut queue: Local<WorkQueue>,
+    mut roots: Query<(Entity, Ref<L>, &mut G, &Children), (Without<ChildOf>, Changed<M>)>,
+    nodes: NodeQuery<L, G, M>,
+) where
+    L: Component + Copy + Into<G>,
+    G: Component + Copy + PartialEq + Mul<L, Output = G>,
+    M: Component,
+    Ops: TransformOps<L, G>,
+{
+    // *parent_transform = GlobalTransform((*transform).into());
+    // ↓
+    *parent_transform = Ops::from_local(*transform);
+}
+```
+
+**成果物**: ジェネリック版の関数（約60行）  
+**依存**: Task 1.2.4  
+**工数**: 2時間  
+**検証**: 完全な変換伝播システムの動作確認
+
+---
+
+### Phase 1-3: 後方互換性レイヤー（3タスク）
+
+#### Task 1.3.1: 既存関数を型エイリアス経由に変更
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`  
+**内容**:
+- 既存の3つの関数をラッパーに変更
+- 内部でジェネリック版を呼び出す
+
+**変更例**:
+```rust
+pub fn sync_simple_transforms(
+    query: ParamSet<(/* ... */)>,
+    orphaned: RemovedComponents<ChildOf>,
+) {
+    sync_simple_transforms_generic::<Transform, GlobalTransform, TransformTreeChanged, ()>(
+        query,
+        orphaned,
+    )
+}
+```
+
+**成果物**: 3つのラッパー関数  
+**依存**: Task 1.2.1, Task 1.2.2, Task 1.2.5  
+**工数**: 1時間  
+**検証**: 既存のサンプル（`areka.rs`, `dcomp_demo.rs`）がビルド・動作すること
+
+#### Task 1.3.2: モジュールドキュメント更新
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`  
+**内容**:
+- モジュールレベルのドキュメント追加
+- 使用方法の説明（標準 vs ジェネリック版）
+- コード例の追加
+
+**成果物**: モジュールドキュメント（約80行のコメント）  
+**依存**: Task 1.3.1  
+**工数**: 1.5時間  
+**検証**: `cargo doc`でドキュメントが正しく生成されること
+
+#### Task 1.3.3: 関数ドキュメント更新
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`  
+**内容**:
+- 各ジェネリック関数のドキュメント追加
+- 型パラメータの説明
+- トレイト境界の説明
+- 使用例の追加
+
+**成果物**: 5つの関数のドキュメント  
+**依存**: Task 1.3.1  
+**工数**: 2時間  
+**検証**: `cargo doc`とコードレビュー
+
+---
+
+### Phase 1-4: テスト実装（5タスク）
+
+#### Task 1.4.1: TransformOps単体テスト
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`（モジュール内テスト）  
+**内容**:
+```rust
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_transform_ops_from_local() {
+        let local = Transform::default();
+        let global = <()>::from_local(local);
+        assert_eq!(global, GlobalTransform::default());
+    }
+    
+    #[test]
+    fn test_transform_ops_compose() {
+        // 変換合成のテスト
+    }
+}
+```
+
+**成果物**: 2-3個の単体テスト  
+**依存**: Task 1.1.2  
+**工数**: 1時間  
+**検証**: `cargo test`で全テスト通過
+
+#### Task 1.4.2: カスタム変換型のテスト
+**ファイル**: `crates/wintf/src/ecs/transform_system.rs`（モジュール内テスト）  
+**内容**:
+- 簡単なカスタム変換型を定義
+- `TransformOps`を実装
+- ジェネリック版システムで動作確認
+
+**成果物**: カスタム型のテストケース  
+**依存**: Task 1.2.1, Task 1.2.2, Task 1.2.5  
+**工数**: 2時間  
+**検証**: カスタム型でシステムが正しく動作すること
+
+#### Task 1.4.3: 統合テスト
+**ファイル**: `crates/wintf/tests/transform_system_integration.rs`（新規）  
+**内容**:
+- ECSワールドの構築
+- 階層構造の作成（親子エンティティ）
+- 3つのシステムを順次実行
+- 変換結果の検証
+
+**成果物**: 統合テストファイル（約100行）  
+**依存**: Task 1.3.1  
+**工数**: 2.5時間  
+**検証**: `cargo test`で統合テスト通過
+
+#### Task 1.4.4: エッジケーステスト
+**ファイル**: `crates/wintf/tests/transform_system_integration.rs`  
+**内容**:
+- 深い階層（10層以上）
+- 孤立エンティティ（親削除）
+- 並列実行のストレステスト
+
+**成果物**: エッジケーステスト（3-5個）  
+**依存**: Task 1.4.3  
+**工数**: 2時間  
+**検証**: すべてのエッジケースで正しい動作
+
+#### Task 1.4.5: パフォーマンステスト（オプション）
+**ファイル**: `crates/wintf/benches/transform_system_bench.rs`（新規、オプション）  
+**内容**:
+- Criterionを使用したベンチマーク
+- 既存実装 vs ジェネリック版の比較
+- コンパイル時間の測定
+
+**成果物**: ベンチマークファイル（約50行）  
+**依存**: Task 1.3.1  
+**工数**: 2時間（オプション）  
+**検証**: 性能劣化が10%以内であることを確認
+
+---
+
+### タスク依存関係図
+
+```
+Phase 1-1: 基盤実装
+├─ Task 1.1.1 (TransformOpsトレイト) [0.5h]
+├─ Task 1.1.2 (デフォルト実装) [0.5h] ← 1.1.1
+└─ Task 1.1.3 (NodeQuery) [0.5h] ← 1.1.1
+
+Phase 1-2: システム関数
+├─ Task 1.2.1 (sync_simple_transforms) [1.5h] ← 1.1.1, 1.1.2
+├─ Task 1.2.2 (mark_dirty_trees) [1h] ← 1.1.1
+├─ Task 1.2.3 (propagate_descendants) [2h] ← 1.1.1, 1.1.2, 1.1.3
+├─ Task 1.2.4 (propagation_worker) [1.5h] ← 1.2.3
+└─ Task 1.2.5 (propagate_parent_transforms) [2h] ← 1.2.4
+
+Phase 1-3: 後方互換性
+├─ Task 1.3.1 (ラッパー関数) [1h] ← 1.2.1, 1.2.2, 1.2.5
+├─ Task 1.3.2 (モジュールドキュメント) [1.5h] ← 1.3.1
+└─ Task 1.3.3 (関数ドキュメント) [2h] ← 1.3.1
+
+Phase 1-4: テスト
+├─ Task 1.4.1 (単体テスト) [1h] ← 1.1.2
+├─ Task 1.4.2 (カスタム型テスト) [2h] ← 1.2.1, 1.2.2, 1.2.5
+├─ Task 1.4.3 (統合テスト) [2.5h] ← 1.3.1
+├─ Task 1.4.4 (エッジケース) [2h] ← 1.4.3
+└─ Task 1.4.5 (ベンチマーク) [2h] ← 1.3.1 (オプション)
+```
+
+### 工数見積もり
+
+| フェーズ | タスク数 | 工数（時間） | 累積（時間） |
+|---------|---------|-------------|-------------|
+| Phase 1-1: 基盤実装 | 3 | 1.5 | 1.5 |
+| Phase 1-2: システム関数 | 5 | 8.0 | 9.5 |
+| Phase 1-3: 後方互換性 | 3 | 4.5 | 14.0 |
+| Phase 1-4: テスト | 4 | 7.5 | 21.5 |
+| Phase 1-4: テスト（オプション） | +1 | +2.0 | 23.5 |
+| **合計（必須）** | **15** | **21.5** | - |
+| **合計（オプション含む）** | **16** | **23.5** | - |
+
+### 推奨実装順序
+
+#### セッション1（2-3時間）: 基盤構築
+1. Task 1.1.1 → 1.1.2 → 1.1.3
+2. Task 1.4.1（単体テスト）
+
+#### セッション2（3-4時間）: コア機能
+1. Task 1.2.1 → 1.2.2
+2. 中間動作確認
+
+#### セッション3（4-5時間）: 並列処理
+1. Task 1.2.3 → 1.2.4 → 1.2.5
+2. 完全動作確認
+
+#### セッション4（2-3時間）: 互換性
+1. Task 1.3.1
+2. 既存サンプルでの動作確認
+
+#### セッション5（3-4時間）: ドキュメントとテスト
+1. Task 1.3.2 → 1.3.3
+2. Task 1.4.2 → 1.4.3
+
+#### セッション6（2-3時間）: 仕上げ
+1. Task 1.4.4
+2. Task 1.4.5（時間があれば）
+3. 最終レビュー
+
+### クリティカルパス
+
+最も時間がかかる依存チェーン:
+```
+1.1.1 (0.5h) → 1.1.2 (0.5h) → 1.1.3 (0.5h) → 1.2.3 (2h) → 1.2.4 (1.5h) → 1.2.5 (2h) → 1.3.1 (1h) → 1.4.3 (2.5h)
+合計: 10.5時間
+```
+
+このクリティカルパスを優先的に実装することで、早期に全体の動作確認が可能になる。
+
+### リスク管理
+
+| タスク | リスク | 緩和策 |
+|--------|--------|--------|
+| 1.2.3 | unsafe関数の型パラメータ化が複雑 | SAFETYコメントを詳細に記述、段階的に実装 |
+| 1.2.5 | 並列処理の動作確認が難しい | 単体テストとログで詳細に検証 |
+| 1.4.3 | 統合テストの複雑性 | 小さなテストから段階的に構築 |
+
 ## フェーズ
 
 ### Phase 1: 仕様策定
@@ -940,18 +1361,19 @@ fn test_generic_transform_system_with_hierarchy() {
 - [x] 要件定義完了
 - [x] ギャップ分析完了
 - [x] 設計完了
-- [ ] タスク分解
+- [x] タスク分解完了
 
 ### Phase 2: 実装
-- [ ] 実装未開始
+- [ ] 実装開始準備
 
 ## 次のステップ
 
-次のフェーズでは、以下を実施します：
-1. タスク分解: `/kiro-spec-tasks transform-system-generic`
-   - 実装タスクの詳細化
-   - 工数見積もり
-   - 依存関係の整理
+Phase 1（仕様策定）が完了しました。次は実装フェーズに進みます：
+
+1. `/kiro-spec-impl transform-system-generic` - 全タスクの実装を開始
+2. または個別タスク実行: `/kiro-spec-impl transform-system-generic 1.1.1` - 特定タスクのみ実装
+
+**推奨**: セッション1から順次実装することで、段階的に検証しながら進められます。
 
 ---
 _最終更新: 2025-11-14_
