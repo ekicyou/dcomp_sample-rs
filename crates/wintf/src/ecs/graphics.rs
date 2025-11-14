@@ -98,3 +98,44 @@ pub fn ensure_graphics_core(graphics: Option<Res<GraphicsCore>>, mut commands: C
         }
     }
 }
+
+/// ウィンドウごとのグラフィックスリソース
+#[derive(Component, Debug)]
+pub struct WindowGraphics {
+    /// DirectComposition Target (HWNDに関連付けられた合成ターゲット)
+    pub target: IDCompositionTarget,
+    /// Direct2D DeviceContext (このウィンドウでの描画に使用)
+    pub device_context: ID2D1DeviceContext,
+}
+
+unsafe impl Send for WindowGraphics {}
+unsafe impl Sync for WindowGraphics {}
+
+impl WindowGraphics {
+    /// IDCompositionTargetへの参照を取得する
+    pub fn target(&self) -> &IDCompositionTarget {
+        &self.target
+    }
+
+    /// ID2D1DeviceContextへの参照を取得する
+    pub fn device_context(&self) -> &ID2D1DeviceContext {
+        &self.device_context
+    }
+}
+
+/// ウィンドウのルートビジュアルノード
+#[derive(Component, Debug)]
+pub struct Visual {
+    /// ルートビジュアル（ビジュアルツリーの最上位ノード）
+    pub visual: IDCompositionVisual3,
+}
+
+unsafe impl Send for Visual {}
+unsafe impl Sync for Visual {}
+
+impl Visual {
+    /// IDCompositionVisual3への参照を取得する
+    pub fn visual(&self) -> &IDCompositionVisual3 {
+        &self.visual
+    }
+}
