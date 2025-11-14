@@ -26,6 +26,7 @@
   - [ ] Milestone 1: GraphicsCore初期化
   - [ ] Milestone 2: WindowGraphics + Visual作成
   - [ ] Milestone 3: 初めての描画（●■▲）
+  - [ ] Milestone 4: 初めてのウィジット（子要素Visual管理）
 
 ---
 
@@ -44,6 +45,7 @@
 - 〇1: GraphicsCore初期化 → `phase2-m1-graphics-core`
 - 〇2: WindowGraphics + Visual作成 → `phase2-m2-window-graphics`
 - △: 初めての描画（透明背景 + ●■▲） → `phase2-m3-first-rendering`
+- ◇: 初めてのウィジット（子要素Visual管理） → `phase2-m4-first-widget`
 
 ---
 

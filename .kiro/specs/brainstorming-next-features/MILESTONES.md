@@ -182,6 +182,39 @@ fn create_surface(
 
 ---
 
+### ◇: 初めてのウィジット（子要素Visual管理）
+**スコープ**:
+- 子エンティティの作成とVisualツリー管理
+- `ChildOf`リレーションを使った親子関係
+- 子エンティティに`Visual`コンポーネント追加
+- 親Visual（Window）に子Visualを追加（`AddVisual`）
+- 子Visualにも`Surface`を作成して描画
+- Visualツリーの階層的な更新・削除
+
+**描画内容**:
+- Windowには背景として薄い灰色の矩形
+- 子ウィジット1: 小さな赤い円（中央）
+- 子ウィジット2: 小さな青い四角（右下）
+- 子ウィジットは独立したSurfaceを持つ
+
+**成功基準**:
+- ✅ **子エンティティの`Visual`が親の`Visual`に追加される**
+- ✅ **子ウィジットがWindow上に表示される**
+- ✅ 親子関係が正しく管理される（`ChildOf`, `Children`）
+- ✅ 子エンティティを削除すると表示も消える
+- ✅ 階層変換システム（`tree_system`）との統合
+
+**実装要素**:
+- `create_child_visual`システム（子Visualの作成・親への追加）
+- `sync_visual_hierarchy`システム（VisualツリーとECS階層の同期）
+- `remove_child_visual`システム（削除時のクリーンアップ）
+- 子エンティティの`Surface`作成・描画
+- Visualの位置・サイズ管理（`Transform`との連携）
+
+**Kiro仕様**: `phase2-m4-first-widget`
+
+---
+
 ## 実装順序
 
 1. **Phase 2 Milestone 1**: GraphicsCore初期化
@@ -195,6 +228,10 @@ fn create_surface(
 3. **Phase 2 Milestone 3**: 初めての描画（●■▲）
    - 仕様: `phase2-m3-first-rendering`
    - `/kiro-spec-init "phase2-m3-first-rendering"`
+
+4. **Phase 2 Milestone 4**: 初めてのウィジット（子要素Visual管理）
+   - 仕様: `phase2-m4-first-widget`
+   - `/kiro-spec-init "phase2-m4-first-widget"`
 
 ---
 
@@ -220,15 +257,38 @@ Window Entity
 ├─ Visual (IDCompositionVisual) ← ルートビジュアル
 └─ Surface (ID2D1Bitmap) ← Windowに直接描画
 
-【将来の子要素】
-Child Entity (Phase 2以降)
-├─ Visual
-└─ Surface
+【将来の子要素】→【Milestone 4で実装】
+Child Entity
+├─ Visual (IDCompositionVisual) ← 親Visualに追加
+└─ Surface (ID2D1Bitmap) ← 子ウィジット独自の描画
+
+親子関係の管理:
+- ChildOf リレーション（bevy_ecs標準）
+- Children コンポーネント（自動管理）
+- tree_system との統合（Transform伝播）
 ```
 
 ---
 
-## 今後の拡張（Phase 2完了後）
+## Phase 2完了後の拡張
+
+### Milestone 5以降（Phase 2完全完了へ）
+
+**Milestone 5: デバイスロスト対応**
+- `EndDraw`でのエラー検出
+- `WindowGraphics`削除
+- 自動再作成の確認
+- 子Visualも含めた再構築
+
+**Milestone 6: 複数図形の高度な描画**
+- グラデーションブラシ
+- 複雑なパス（ベジェ曲線等）
+- クリッピング
+- 不透明度の制御
+
+---
+
+## 今後の拡張（Phase 3以降）
 
 - 子ビジュアルの追加
 - レイアウトシステムの実装
