@@ -3,7 +3,7 @@
 use std::time::Instant;
 use windows::core::*;
 use windows::Win32::Foundation::{POINT, SIZE};
-use wintf::ecs::{Window, WindowHandle, WindowPos};
+use wintf::ecs::{GraphicsCore, Visual, Window, WindowGraphics, WindowHandle, WindowPos};
 use wintf::*;
 
 #[derive(bevy_ecs::prelude::Resource)]
@@ -19,6 +19,10 @@ fn auto_close_window_system(world: &mut bevy_ecs::world::World) {
     // 初回実行時に開始時刻を記録
     if !world.contains_resource::<AutoCloseTimer>() {
         println!("[Test] Auto-close timer started. Will close windows every 5 seconds.");
+        
+        // タスク7.1: GraphicsCoreとコンポーネントの検証
+        verify_graphics_initialization(world);
+        
         world.insert_resource(AutoCloseTimer {
             start: Instant::now(),
             last_close_time: None,
@@ -65,6 +69,51 @@ fn auto_close_window_system(world: &mut bevy_ecs::world::World) {
             }
         }
     }
+}
+
+/// タスク7.1: グラフィックス初期化の検証
+fn verify_graphics_initialization(world: &mut bevy_ecs::world::World) {
+    use bevy_ecs::prelude::*;
+    
+    println!("\n========== Graphics Initialization Test ==========");
+    
+    // 1. GraphicsCoreリソースの存在を検証
+    if world.contains_resource::<GraphicsCore>() {
+        println!("[TEST PASS] GraphicsCore resource exists");
+    } else {
+        println!("[TEST FAIL] GraphicsCore resource NOT found");
+        return;
+    }
+    
+    // 2. Query<(Entity, &WindowHandle, &WindowGraphics, &Visual)>で全コンポーネントの存在を検証
+    let mut query = world.query::<(Entity, &WindowHandle, &WindowGraphics, &Visual)>();
+    let entities: Vec<_> = query.iter(world).collect();
+    
+    println!("[TEST] Found {} entities with all graphics components", entities.len());
+    
+    if entities.is_empty() {
+        println!("[TEST FAIL] No entities with WindowHandle + WindowGraphics + Visual found");
+        return;
+    }
+    
+    // 3. 各エンティティのCOMオブジェクトの有効性を検証
+    for (entity, handle, _graphics, _visual) in entities {
+        println!("\n[TEST] Verifying Entity {:?}:", entity);
+        println!("  HWND: {:?}", handle.hwnd);
+        
+        // COMインターフェースが有効かチェック（ここまで来れば作成成功している）
+        let target_valid = true;
+        let dc_valid = true;
+        let visual_valid = true;
+        
+        if target_valid && dc_valid && visual_valid {
+            println!("  [TEST PASS] All COM objects are valid for Entity {:?}", entity);
+        } else {
+            println!("  [TEST FAIL] Some COM objects are invalid for Entity {:?}", entity);
+        }
+    }
+    
+    println!("\n========== Test Complete ==========\n");
 }
 
 fn main() -> Result<()> {

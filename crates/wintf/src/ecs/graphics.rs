@@ -272,3 +272,7 @@ pub fn commit_composition(graphics: Option<Res<GraphicsCore>>) {
         eprintln!("[commit_composition] Commit完了");
     }
 }
+
+#[cfg(test)]
+#[path = "graphics_tests.rs"]
+mod graphics_tests;
