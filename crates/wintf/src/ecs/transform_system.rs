@@ -1,45 +1,49 @@
 use bevy_ecs::entity::*;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::lifetimeless::*;
+use bevy_ecs::component::Mutable;
 use bevy_tasks::*;
 use bevy_utils::*;
+use std::ops::Mul;
 use std::sync::atomic::*;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::*;
-
-use super::transform::{GlobalTransform, Transform, TransformTreeChanged};
 
 /// 階層に属していないエンティティの[`GlobalTransform`]コンポーネントを更新する。
 ///
 /// サードパーティプラグインは、このシステムを
 /// [`propagate_parent_transforms`]および[`mark_dirty_trees`]と組み合わせて使用する必要がある。
-pub fn sync_simple_transforms(
+pub fn sync_simple_transforms<L, G, M>(
     mut query: ParamSet<(
         Query<
-            (&Transform, &mut GlobalTransform),
+            (&L, &mut G),
             (
-                Or<(Changed<Transform>, Added<GlobalTransform>)>,
+                Or<(Changed<L>, Added<G>)>,
                 Without<ChildOf>,
                 Without<Children>,
             ),
         >,
-        Query<(Ref<Transform>, &mut GlobalTransform), (Without<ChildOf>, Without<Children>)>,
+        Query<(Ref<L>, &mut G), (Without<ChildOf>, Without<Children>)>,
     )>,
     mut orphaned: RemovedComponents<ChildOf>,
-) {
+) where
+    L: Component + Copy + Into<G>,
+    G: Component<Mutability = Mutable> + Copy + PartialEq + Mul<L, Output = G>,
+    M: Component<Mutability = Mutable>,
+{
     // 変更されたエンティティを更新
     query
         .p0()
         .par_iter_mut()
         .for_each(|(transform, mut global_transform)| {
-            *global_transform = GlobalTransform((*transform).into());
+            *global_transform = (*transform).into();
         });
     // 孤立したエンティティを更新
     let mut query = query.p1();
     let mut iter = query.iter_many_mut(orphaned.read());
     while let Some((transform, mut global_transform)) = iter.fetch_next() {
         if !transform.is_changed() && !global_transform.is_added() {
-            *global_transform = GlobalTransform((*transform).into());
+            *global_transform = (*transform).into();
         }
     }
 }
@@ -47,14 +51,18 @@ pub fn sync_simple_transforms(
 /// 静的シーン向けの最適化。「ダーティビット」を階層の祖先に向かって伝播させる。
 /// 変換の伝播は、ダーティビットを持たないエンティティに遭遇した場合、
 /// 階層のサブツリー全体を無視できる。
-pub fn mark_dirty_trees(
+pub fn mark_dirty_trees<L, G, M>(
     changed_transforms: Query<
         Entity,
-        Or<(Changed<Transform>, Changed<ChildOf>, Added<GlobalTransform>)>,
+        Or<(Changed<L>, Changed<ChildOf>, Added<G>)>,
     >,
     mut orphaned: RemovedComponents<ChildOf>,
-    mut transforms: Query<(Option<&ChildOf>, &mut TransformTreeChanged)>,
-) {
+    mut transforms: Query<(Option<&ChildOf>, &mut M)>,
+) where
+    L: Component + Copy + Into<G>,
+    G: Component<Mutability = Mutable> + Copy + PartialEq + Mul<L, Output = G>,
+    M: Component<Mutability = Mutable>,
+{
     for entity in changed_transforms.iter().chain(orphaned.read()) {
         let mut next = entity;
         while let Ok((child_of, mut tree)) = transforms.get_mut(next) {
@@ -79,26 +87,30 @@ pub fn mark_dirty_trees(
 /// サードパーティプラグインは、このシステムを
 /// [`sync_simple_transforms`](super::sync_simple_transforms)および
 /// [`mark_dirty_trees`](super::mark_dirty_trees)と組み合わせて使用する必要がある。
-pub fn propagate_parent_transforms(
+pub fn propagate_parent_transforms<L, G, M>(
     mut queue: Local<WorkQueue>,
     mut roots: Query<
-        (Entity, Ref<Transform>, &mut GlobalTransform, &Children),
-        (Without<ChildOf>, Changed<TransformTreeChanged>),
+        (Entity, Ref<L>, &mut G, &Children),
+        (Without<ChildOf>, Changed<M>),
     >,
-    nodes: NodeQuery,
-) {
+    nodes: NodeQuery<L, G, M>,
+) where
+    L: Component + Copy + Into<G>,
+    G: Component<Mutability = Mutable> + Copy + PartialEq + Mul<L, Output = G>,
+    M: Component<Mutability = Mutable>,
+{
     // ルートを並列処理し、ワークキューを準備する
     roots.par_iter_mut().for_each_init(
         || queue.local_queue.borrow_local_mut(),
         |outbox, (parent, transform, mut parent_transform, children)| {
-            *parent_transform = GlobalTransform((*transform).into());
+            *parent_transform = (*transform).into();
 
             // SAFETY: この関数に渡される親エンティティは、ルートエンティティクエリの
             // イテレーションから取得される。クエリは互いに素なエンティティをイテレートするため、
             // ミュータブルなエイリアシングを防ぎ、この呼び出しを安全にする。
             #[expect(unsafe_code, reason = "Mutating disjoint entities in parallel")]
             unsafe {
-                propagate_descendants_unchecked(
+                propagate_descendants_unchecked::<L, G, M>(
                     parent,
                     parent_transform,
                     children,
@@ -134,15 +146,20 @@ pub fn propagate_parent_transforms(
     let task_pool = ComputeTaskPool::get_or_init(TaskPool::default);
     task_pool.scope(|s| {
         (1..task_pool.thread_num()) // 最初のワーカーはタスクプールではなくローカルで実行される
-            .for_each(|_| s.spawn(async { propagation_worker(&queue, &nodes) }));
-        propagation_worker(&queue, &nodes);
+            .for_each(|_| s.spawn(async { propagation_worker::<L, G, M>(&queue, &nodes) }));
+        propagation_worker::<L, G, M>(&queue, &nodes);
     });
 }
 
 /// キューから処理された親エンティティを消費し、その[`GlobalTransform`]を
 /// 伝播したら子をキューにプッシュする並列ワーカー。
 #[inline]
-fn propagation_worker(queue: &WorkQueue, nodes: &NodeQuery) {
+fn propagation_worker<L, G, M>(queue: &WorkQueue, nodes: &NodeQuery<L, G, M>)
+where
+    L: Component + Copy + Into<G>,
+    G: Component<Mutability = Mutable> + Copy + PartialEq + Mul<L, Output = G>,
+    M: Component<Mutability = Mutable>,
+{
     let mut outbox = queue.local_queue.borrow_local_mut();
     loop {
         // タイトループでワークキューのロックを取得しようとする。プロファイリングによると、
@@ -186,7 +203,7 @@ fn propagation_worker(queue: &WorkQueue, nodes: &NodeQuery) {
             unsafe {
                 let (_, (_, p_global_transform, _), (p_children, _)) =
                     nodes.get_unchecked(parent).unwrap();
-                propagate_descendants_unchecked(
+                propagate_descendants_unchecked::<L, G, M>(
                     parent,
                     p_global_transform,
                     p_children.unwrap(), // キュー内のすべてのエンティティは子を持つべき
@@ -225,15 +242,19 @@ fn propagation_worker(queue: &WorkQueue, nodes: &NodeQuery) {
 /// 安全性ルールに従っている場合、マルチスレッド伝播が健全であることを保証する。
 #[inline]
 #[expect(unsafe_code, reason = "Mutating disjoint entities in parallel")]
-unsafe fn propagate_descendants_unchecked(
+unsafe fn propagate_descendants_unchecked<L, G, M>(
     parent: Entity,
-    p_global_transform: Mut<GlobalTransform>,
+    p_global_transform: Mut<G>,
     p_children: &Children,
-    nodes: &NodeQuery,
+    nodes: &NodeQuery<L, G, M>,
     outbox: &mut Vec<Entity>,
     queue: &WorkQueue,
     max_depth: usize,
-) {
+) where
+    L: Component + Copy + Into<G>,
+    G: Component<Mutability = Mutable> + Copy + PartialEq + Mul<L, Output = G>,
+    M: Component<Mutability = Mutable>,
+{
     // 反復的な深さ優先探索に使用する入力変数のミュータブルコピーを作成
     let (mut parent, mut p_global_transform, mut p_children) =
         (parent, p_global_transform, p_children);
@@ -296,15 +317,15 @@ unsafe fn propagate_descendants_unchecked(
 
 /// 大きく繰り返し使用されるクエリのエイリアス。親と場合によっては子の両方を持つ
 /// 変換エンティティをクエリするため、これらはルートではない。
-type NodeQuery<'w, 's> = Query<
+type NodeQuery<'w, 's, L, G, M> = Query<
     'w,
     's,
     (
         Entity,
         (
-            Ref<'static, Transform>,
-            Mut<'static, GlobalTransform>,
-            Ref<'static, TransformTreeChanged>,
+            Ref<'static, L>,
+            Mut<'static, G>,
+            Ref<'static, M>,
         ),
         (Option<Read<Children>>, Read<ChildOf>),
     ),
