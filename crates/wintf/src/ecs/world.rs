@@ -5,7 +5,7 @@ use std::time::Instant;
 use windows::Win32::Foundation::HWND;
 
 // 各プライオリティ用のScheduleLabelマーカー構造体
-// 実行順序: Input → Update → PreLayout → Layout → PostLayout → UISetup → Draw → RenderSurface → Composition → CommitComposition
+// 実行順序: Input → Update → PreLayout → Layout → PostLayout → UISetup → Draw → Render → RenderSurface → Composition → CommitComposition
 
 /// 入力処理スケジュール
 ///
@@ -61,6 +61,14 @@ pub struct UISetup;
 /// マルチスレッド実行可能（各ウィンドウのCommandListを並列作成可能）。
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Draw;
+
+/// 描画スケジュール
+///
+/// IDCompositionSurfaceへの描画処理を実行する。
+/// Surface.BeginDraw/EndDrawでDeviceContextを取得し、図形を描画する。
+/// マルチスレッド実行可能（各Surfaceは独立）。
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Render;
 
 /// レンダリングサーフェス更新スケジュール
 ///
@@ -125,6 +133,7 @@ impl EcsWorld {
             }
 
             schedules.insert(Schedule::new(Draw));
+            schedules.insert(Schedule::new(Render));
             schedules.insert(Schedule::new(RenderSurface));
             schedules.insert(Schedule::new(Composition));
             schedules.insert(Schedule::new(CommitComposition));
@@ -148,7 +157,15 @@ impl EcsWorld {
                     crate::ecs::graphics::create_window_graphics,
                     crate::ecs::graphics::create_window_visual
                         .after(crate::ecs::graphics::create_window_graphics),
+                    crate::ecs::graphics::create_window_surface
+                        .after(crate::ecs::graphics::create_window_visual),
                 ),
+            );
+            
+            // Renderスケジュールに描画システムを登録
+            schedules.add_systems(
+                Render,
+                crate::ecs::graphics::render_window,
             );
             
             // CommitCompositionスケジュールにコミットシステムを登録
@@ -260,6 +277,7 @@ impl EcsWorld {
         let _ = self.world.try_run_schedule(PostLayout);
         let _ = self.world.try_run_schedule(UISetup);
         let _ = self.world.try_run_schedule(Draw);
+        let _ = self.world.try_run_schedule(Render);
         let _ = self.world.try_run_schedule(RenderSurface);
         let _ = self.world.try_run_schedule(Composition);
         let _ = self.world.try_run_schedule(CommitComposition);

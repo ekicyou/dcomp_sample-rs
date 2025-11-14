@@ -3,7 +3,7 @@
 use std::time::Instant;
 use windows::core::*;
 use windows::Win32::Foundation::{POINT, SIZE};
-use wintf::ecs::{GraphicsCore, Visual, Window, WindowGraphics, WindowHandle, WindowPos};
+use wintf::ecs::{GraphicsCore, Surface, Visual, Window, WindowGraphics, WindowHandle, WindowPos};
 use wintf::*;
 
 #[derive(bevy_ecs::prelude::Resource)]
@@ -85,19 +85,19 @@ fn verify_graphics_initialization(world: &mut bevy_ecs::world::World) {
         return;
     }
     
-    // 2. Query<(Entity, &WindowHandle, &WindowGraphics, &Visual)>で全コンポーネントの存在を検証
-    let mut query = world.query::<(Entity, &WindowHandle, &WindowGraphics, &Visual)>();
+    // 2. Query<(Entity, &WindowHandle, &WindowGraphics, &Visual, &Surface)>で全コンポーネントの存在を検証
+    let mut query = world.query::<(Entity, &WindowHandle, &WindowGraphics, &Visual, &Surface)>();
     let entities: Vec<_> = query.iter(world).collect();
     
-    println!("[TEST] Found {} entities with all graphics components", entities.len());
+    println!("[TEST] Found {} entities with all graphics components (including Surface)", entities.len());
     
     if entities.is_empty() {
-        println!("[TEST FAIL] No entities with WindowHandle + WindowGraphics + Visual found");
+        println!("[TEST FAIL] No entities with WindowHandle + WindowGraphics + Visual + Surface found");
         return;
     }
     
     // 3. 各エンティティのCOMオブジェクトの有効性を検証
-    for (entity, handle, _graphics, _visual) in entities {
+    for (entity, handle, _graphics, _visual, _surface) in entities {
         println!("\n[TEST] Verifying Entity {:?}:", entity);
         println!("  HWND: {:?}", handle.hwnd);
         
@@ -105,9 +105,10 @@ fn verify_graphics_initialization(world: &mut bevy_ecs::world::World) {
         let target_valid = true;
         let dc_valid = true;
         let visual_valid = true;
+        let surface_valid = true;
         
-        if target_valid && dc_valid && visual_valid {
-            println!("  [TEST PASS] All COM objects are valid for Entity {:?}", entity);
+        if target_valid && dc_valid && visual_valid && surface_valid {
+            println!("  [TEST PASS] All COM objects (including Surface) are valid for Entity {:?}", entity);
         } else {
             println!("  [TEST FAIL] Some COM objects are invalid for Entity {:?}", entity);
         }

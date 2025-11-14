@@ -15,6 +15,18 @@ pub fn d2d_create_device(dxgi: &IDXGIDevice4) -> Result<ID2D1Device> {
     unsafe { D2D1CreateDevice(dxgi, None) }
 }
 
+pub trait D2D1FactoryExt {
+    /// CreatePathGeometry
+    fn create_path_geometry(&self) -> Result<ID2D1PathGeometry>;
+}
+
+impl D2D1FactoryExt for ID2D1Factory {
+    #[inline(always)]
+    fn create_path_geometry(&self) -> Result<ID2D1PathGeometry> {
+        unsafe { self.CreatePathGeometry() }
+    }
+}
+
 pub trait D2D1DeviceExt {
     /// CreateDeviceContext
     fn create_device_context(
@@ -73,6 +85,22 @@ pub trait D2D1DeviceContextExt {
         perspectivetransform: Option<&Matrix4x4>,
     ) where
         P0: Param<ID2D1Bitmap>;
+
+    /// FillEllipse
+    fn fill_ellipse<P0>(&self, ellipse: &D2D1_ELLIPSE, brush: P0)
+    where
+        P0: Param<ID2D1Brush>;
+
+    /// FillRectangle
+    fn fill_rectangle<P0>(&self, rect: &D2D_RECT_F, brush: P0)
+    where
+        P0: Param<ID2D1Brush>;
+
+    /// FillGeometry
+    fn fill_geometry<P0, P1>(&self, geometry: P0, brush: P1)
+    where
+        P0: Param<ID2D1Geometry>,
+        P1: Param<ID2D1Brush>;
 }
 
 impl D2D1DeviceContextExt for ID2D1DeviceContext {
@@ -157,5 +185,30 @@ impl D2D1DeviceContextExt for ID2D1DeviceContext {
                 perspectivetransform,
             )
         }
+    }
+
+    #[inline(always)]
+    fn fill_ellipse<P0>(&self, ellipse: &D2D1_ELLIPSE, brush: P0)
+    where
+        P0: Param<ID2D1Brush>,
+    {
+        unsafe { self.FillEllipse(ellipse, brush) }
+    }
+
+    #[inline(always)]
+    fn fill_rectangle<P0>(&self, rect: &D2D_RECT_F, brush: P0)
+    where
+        P0: Param<ID2D1Brush>,
+    {
+        unsafe { self.FillRectangle(rect, brush) }
+    }
+
+    #[inline(always)]
+    fn fill_geometry<P0, P1>(&self, geometry: P0, brush: P1)
+    where
+        P0: Param<ID2D1Geometry>,
+        P1: Param<ID2D1Brush>,
+    {
+        unsafe { self.FillGeometry(geometry, brush, None) }
     }
 }

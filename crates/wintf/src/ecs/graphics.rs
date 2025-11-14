@@ -140,6 +140,23 @@ impl Visual {
     }
 }
 
+/// ウィンドウの描画サーフェス
+#[derive(Component, Debug)]
+pub struct Surface {
+    /// DirectComposition Surface (描画ターゲット)
+    pub surface: IDCompositionSurface,
+}
+
+unsafe impl Send for Surface {}
+unsafe impl Sync for Surface {}
+
+impl Surface {
+    /// IDCompositionSurfaceへの参照を取得
+    pub fn surface(&self) -> &IDCompositionSurface {
+        &self.surface
+    }
+}
+
 /// WindowHandleが付与されたエンティティに対してWindowGraphicsコンポーネントを作成する
 pub fn create_window_graphics(
     query: Query<(Entity, &crate::ecs::window::WindowHandle), Without<WindowGraphics>>,
@@ -257,6 +274,217 @@ fn create_visual_for_target(
     eprintln!("[create_window_visual] SetRoot完了");
 
     Ok(Visual { visual })
+}
+
+/// WindowGraphicsとVisualが存在するエンティティに対してSurfaceコンポーネントを作成する
+pub fn create_window_surface(
+    query: Query<(Entity, &WindowGraphics, &Visual, Option<&crate::ecs::window::WindowPos>), Without<Surface>>,
+    graphics: Option<Res<GraphicsCore>>,
+    mut commands: Commands,
+) {
+    // GraphicsCoreが存在しない場合は警告してスキップ
+    let Some(graphics) = graphics else {
+        if !query.is_empty() {
+            eprintln!("[create_window_surface] 警告: GraphicsCoreが存在しないため処理をスキップします");
+        }
+        return;
+    };
+
+    for (entity, _wg, visual, window_pos) in query.iter() {
+        // サイズ取得: WindowPosから、なければデフォルト (800, 600)
+        let (width, height) = window_pos
+            .and_then(|pos| pos.size.map(|s| (s.cx as u32, s.cy as u32)))
+            .unwrap_or((800, 600));
+
+        eprintln!(
+            "[create_window_surface] Surface作成開始 (Entity: {:?}, Size: {}x{})",
+            entity, width, height
+        );
+
+        match create_surface_for_window(&graphics, visual, width, height) {
+            Ok(surface_comp) => {
+                eprintln!(
+                    "[create_window_surface] Surface作成完了 (Entity: {:?})",
+                    entity
+                );
+                commands.entity(entity).insert(surface_comp);
+            }
+            Err(e) => {
+                eprintln!(
+                    "[create_window_surface] エラー: Entity {:?}, HRESULT {:?}",
+                    entity, e
+                );
+                // エンティティをスキップして処理を継続
+            }
+        }
+    }
+}
+
+/// Surfaceを作成してVisualに設定する
+fn create_surface_for_window(
+    graphics: &GraphicsCore,
+    visual: &Visual,
+    width: u32,
+    height: u32,
+) -> Result<Surface> {
+    use windows::Win32::Graphics::Dxgi::Common::*;
+
+    // 1. IDCompositionSurface作成
+    eprintln!("[create_window_surface] IDCompositionSurface作成中...");
+    let surface = graphics.dcomp.create_surface(
+        width,
+        height,
+        DXGI_FORMAT_B8G8R8A8_UNORM,
+        DXGI_ALPHA_MODE_PREMULTIPLIED,
+    )?;
+    eprintln!("[create_window_surface] IDCompositionSurface作成完了");
+
+    // 2. VisualにSurfaceを設定
+    eprintln!("[create_window_surface] Visual.SetContent()実行中...");
+    visual.visual.set_content(&surface)?;
+    eprintln!("[create_window_surface] Visual.SetContent()完了");
+
+    Ok(Surface { surface })
+}
+
+/// Surfaceに対して図形を描画する
+pub fn render_window(
+    query: Query<(Entity, &Surface), Added<Surface>>,
+    graphics: Option<Res<GraphicsCore>>,
+) {
+    let Some(graphics) = graphics else {
+        return;
+    };
+
+    for (entity, surface) in query.iter() {
+        eprintln!("[render_window] 描画処理開始 (Entity: {:?})", entity);
+        
+        if let Err(e) = render_shapes(&graphics, &surface.surface) {
+            eprintln!("[render_window] 描画エラー (Entity: {:?}): {:?}", entity, e);
+        } else {
+            eprintln!("[render_window] 描画処理完了 (Entity: {:?})", entity);
+        }
+    }
+}
+
+/// 図形を描画する
+fn render_shapes(
+    _graphics: &GraphicsCore,
+    surface: &IDCompositionSurface,
+) -> Result<()> {
+    use windows::Win32::Graphics::Direct2D::Common::*;
+    use windows_numerics::Vector2;
+
+    // 1. BeginDraw() → DeviceContext取得（描画準備完了）
+    let (dc, _offset) = surface.begin_draw(None)?;
+
+    // 2. Clear(transparent)
+    dc.clear(Some(&D2D1_COLOR_F {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 0.0,
+    }));
+
+    // 3. 赤い円を描画
+    match dc.create_solid_color_brush(
+        &D2D1_COLOR_F { r: 1.0, g: 0.0, b: 0.0, a: 1.0 },
+        None,
+    ) {
+        Ok(red_brush) => {
+            dc.fill_ellipse(
+                &D2D1_ELLIPSE {
+                    point: Vector2 { X: 100.0, Y: 100.0 },
+                    radiusX: 50.0,
+                    radiusY: 50.0,
+                },
+                &red_brush,
+            );
+        }
+        Err(e) => {
+            eprintln!("[render_shapes] 赤いブラシ作成失敗: {:?}", e);
+        }
+    }
+
+    // 4. 緑の四角を描画
+    match dc.create_solid_color_brush(
+        &D2D1_COLOR_F { r: 0.0, g: 1.0, b: 0.0, a: 1.0 },
+        None,
+    ) {
+        Ok(green_brush) => {
+            dc.fill_rectangle(
+                &D2D_RECT_F {
+                    left: 200.0,
+                    top: 50.0,
+                    right: 300.0,
+                    bottom: 150.0,
+                },
+                &green_brush,
+            );
+        }
+        Err(e) => {
+            eprintln!("[render_shapes] 緑のブラシ作成失敗: {:?}", e);
+        }
+    }
+
+    // 5. 青い三角を描画
+    // DeviceContextからFactoryを取得してPathGeometryを作成
+    let factory: ID2D1Factory = unsafe { dc.GetFactory()? };
+    match create_triangle_geometry(&factory) {
+        Ok(triangle) => {
+            match dc.create_solid_color_brush(
+                &D2D1_COLOR_F { r: 0.0, g: 0.0, b: 1.0, a: 1.0 },
+                None,
+            ) {
+                Ok(blue_brush) => {
+                    dc.fill_geometry(&triangle, &blue_brush);
+                }
+                Err(e) => {
+                    eprintln!("[render_shapes] 青いブラシ作成失敗: {:?}", e);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("[render_shapes] PathGeometry作成失敗: {:?}", e);
+        }
+    }
+
+    // 6. EndDraw()
+    unsafe { dc.EndDraw(None, None)? };
+
+    // 7. Surface.EndDraw()
+    surface.end_draw()?;
+
+    Ok(())
+}
+
+/// 三角形のPathGeometryを作成する
+fn create_triangle_geometry(factory: &ID2D1Factory) -> Result<ID2D1PathGeometry> {
+    use windows::Win32::Graphics::Direct2D::Common::*;
+    use windows_numerics::Vector2;
+
+    // PathGeometry作成
+    let geometry = factory.create_path_geometry()?;
+    
+    // GeometrySink取得
+    let sink = unsafe { geometry.Open()? };
+
+    // 三角形の頂点を定義
+    unsafe {
+        sink.BeginFigure(
+            Vector2 { X: 350.0, Y: 50.0 }, // 第1頂点
+            D2D1_FIGURE_BEGIN_FILLED,
+        );
+        
+        sink.AddLine(Vector2 { X: 425.0, Y: 150.0 }); // 第2頂点
+        sink.AddLine(Vector2 { X: 275.0, Y: 150.0 }); // 第3頂点
+        
+        sink.EndFigure(D2D1_FIGURE_END_CLOSED);
+        
+        sink.Close()?;
+    }
+
+    Ok(geometry)
 }
 
 /// DirectCompositionのすべての変更を確定する
