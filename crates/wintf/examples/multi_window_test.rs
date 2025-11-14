@@ -55,7 +55,9 @@ fn main() -> Result<()> {
     
     println!("[Test] Windows spawned. Running schedules...\n");
     
-    // スケジュールを1回実行（ウィンドウ作成とグラフィックス初期化）
+    // スケジュールを2回実行（1回目: ウィンドウ作成、2回目: グラフィックス初期化）
+    world.borrow_mut().try_tick_world();
+    println!("[Test] First tick completed. Running second tick for graphics initialization...\n");
     world.borrow_mut().try_tick_world();
     
     println!("\n[Test] Verifying all windows have graphics components...\n");
@@ -65,8 +67,8 @@ fn main() -> Result<()> {
     use wintf::ecs::{WindowGraphics, Visual};
     
     let entities: Vec<(Entity, HWND)> = {
-        let world_ref = world.borrow();
-        let world_inner = world_ref.world();
+        let mut world_ref = world.borrow_mut();
+        let world_inner = world_ref.world_mut();
         let mut query = world_inner.query::<(Entity, &WindowHandle, &WindowGraphics, &Visual)>();
         query.iter(world_inner).map(|(e, h, _g, _v)| (e, h.hwnd)).collect()
     };
