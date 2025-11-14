@@ -23,6 +23,10 @@ Kiro-style Spec Driven Development implementation on AI-DLC (AI Development Life
 ## Coding Rules
 - テストコードは`tests/`ディレクトリに配置し、ソースコードの肥大化を避ける
 
+## Git Commit Rules
+- Gitコミットメッセージは日本語で記述すること
+- フォーマット: `<type>: <subject>` (例: `feat: 新機能追加`, `fix: バグ修正`, `docs: ドキュメント更新`)
+
 ## Minimal Workflow
 - Phase 0 (optional): `/kiro-steering`, `/kiro-steering-custom`
 - Phase 1 (Specification):
