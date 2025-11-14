@@ -243,3 +243,62 @@ PostLayout:
 - [windows-rs Repository](https://github.com/microsoft/windows-rs) — Rust Windows APIバインディング
 - `.kiro/steering/structure.md` — プロジェクト構造とレイヤードアーキテクチャ
 - `.kiro/specs/phase2-m2-window-graphics/gap-analysis.md` — 実装ギャップ分析
+
+---
+
+## COM API Version Investigation (2025-11-14)
+
+### 目的
+Windows 11環境で利用可能な最新のCOM APIインターフェイスを確認し、現在の実装が最適かを検証。
+
+### 調査結果
+
+#### windows-rs 0.62.2でのインターフェイス対応状況
+
+##### DirectComposition
+- ✅ `IDCompositionDevice` (Windows 8+)
+- ✅ `IDCompositionDevice2` (Windows 8.1+)
+- ✅ `IDCompositionDevice3` (Windows 10 1703+) **← 現在使用中**
+- ❌ `IDCompositionDevice4` (Windows 11 22H2+) - windows-rsで未サポート
+- ✅ `IDCompositionVisual` (Windows 8+)
+- ✅ `IDCompositionVisual2` (Windows 8.1+)
+- ✅ `IDCompositionVisual3` (Windows 10 1703+) **← 現在使用中**
+- ❌ `IDCompositionVisual4` (Windows 11 22H2+) - windows-rsで未サポート
+
+##### Direct2D
+- ✅ `ID2D1Device` ~ `ID2D1Device7` (Device7はWindows 10 1809+)
+- ✅ `ID2D1DeviceContext` ~ `ID2D1DeviceContext7` (DeviceContext7はWindows 10 1809+)
+- ✅ `ID2D1Factory` ~ `ID2D1Factory8` (Factory8はWindows 11+)
+
+#### 現在の実装
+- `crates/wintf/src/ecs/graphics.rs`: `IDCompositionDevice3`, `ID2D1Device`
+- `crates/wintf/src/com/dcomp.rs`: `IDCompositionDevice3`, `IDCompositionVisual3`
+- `crates/wintf/src/com/d2d/mod.rs`: `ID2D1Device`, `ID2D1DeviceContext`
+- `crates/wintf/examples/dcomp_demo.rs`: `ID2D1DeviceContext7`へのcast実績あり（640行目）
+
+### 結論: 現状維持が最適解
+
+#### 理由
+1. **DirectCompositionはDevice3が実質最新**
+   - Device4/Visual4はwindows-rs 0.62.2で未対応
+   - Windows APIとしては存在するが、Rustバインディングが追いついていない
+   - Device3で必要な機能はすべて利用可能
+
+2. **Direct2Dの上位バージョンは必要時にcastで対応可能**
+   - 基本的な描画には`ID2D1Device`、`ID2D1DeviceContext`で十分
+   - 上位バージョン固有機能（HDR、高度なカラー管理等）が必要な場合は`cast()`で対応
+   - `dcomp_demo.rs`で`ID2D1DeviceContext7`への動的キャスト実績あり
+
+3. **実装の柔軟性を維持**
+   - 基本インターフェイスで実装することで、将来的なwindows-rsの更新に容易に対応可能
+   - 特定バージョン固有機能は必要になった時点で追加実装
+
+#### 追加調査事項
+- windows-rsのバージョンを0.62.1から0.62.2に更新済み
+- ビルド検証完了（cargo check --lib成功）
+- `IDCompositionDevice4`/`Visual4`の対応は将来のwindows-rsアップデート待ち
+
+### 参考
+- Microsoft Docs: DirectComposition interfaces
+- windows-rs GitHub: Interface bindings coverage
+- 実装例: `crates/wintf/examples/dcomp_demo.rs`（ID2D1DeviceContext7 cast実装）
