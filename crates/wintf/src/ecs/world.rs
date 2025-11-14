@@ -140,6 +140,22 @@ impl EcsWorld {
             );
             schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
             // on_window_handle_addedとon_window_handle_removedはフックで代替
+            
+            // PostLayoutスケジュールにグラフィックスシステムを登録
+            schedules.add_systems(
+                PostLayout,
+                (
+                    crate::ecs::graphics::create_window_graphics,
+                    crate::ecs::graphics::create_window_visual
+                        .after(crate::ecs::graphics::create_window_graphics),
+                ),
+            );
+            
+            // CommitCompositionスケジュールにコミットシステムを登録
+            schedules.add_systems(
+                CommitComposition,
+                crate::ecs::graphics::commit_composition,
+            );
         }
 
         Self {

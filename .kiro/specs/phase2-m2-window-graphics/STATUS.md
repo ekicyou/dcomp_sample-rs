@@ -32,14 +32,16 @@
   - ✅ Task 4.2: create_window_visualエラーハンドリング実装完了
   - ✅ Task 4.3: create_window_visualログ出力実装完了
   - ✅ Task 5.1: commit_compositionシステム実装完了
-  - [ ] Task 6.1-6.3: システム登録とスケジュール配置
+  - ✅ Task 6.1: CommitCompositionスケジュール追加完了
+  - ✅ Task 6.2: PostLayoutスケジュールへのシステム登録完了
+  - ✅ Task 6.3: CommitCompositionスケジュールへのシステム登録完了
   - [ ] Task 7.1-7.3: テスト実装
 
 ---
 
 ## Implementation Summary
 
-### Completed Tasks (11/17)
+### Completed Tasks (14/17)
 
 #### Task 1.1 ✅ WindowGraphics構造体定義
 - `WindowGraphics`コンポーネントを`crates/wintf/src/ecs/graphics.rs`に実装
@@ -104,19 +106,44 @@
 - Commit開始と完了をログ出力
 - エラー時はHRESULTを含むログを出力
 
+#### Task 6.1 ✅ CommitCompositionスケジュール追加
+- `CommitComposition`スケジュールラベルを定義（既存）
+- `schedules.insert(Schedule::new(CommitComposition))`で登録（既存）
+- `try_tick_world`でCommitCompositionスケジュールを最後に実行（既存）
+- スケジュール説明コメントを追加（既存）
+
+#### Task 6.2 ✅ PostLayoutスケジュールへのシステム登録
+- `create_window_graphics`システムをPostLayoutに登録
+- `create_window_visual`システムをPostLayoutに登録
+- `.after(create_window_graphics)`で依存関係を設定
+
+#### Task 6.3 ✅ CommitCompositionスケジュールへのシステム登録
+- `commit_composition`システムをCommitCompositionスケジュールに登録
+
 ### Next Steps
 
-残りのタスクを実装するには以下のコマンドを使用:
+コアシステムの実装は完了しました！次はテスト実装です（オプション）:
 
 ```bash
-# システム登録とスケジュール配置（重要！）
-/kiro-spec-impl phase2-m2-window-graphics 6.1,6.2,6.3
-
 # テスト実装（オプション）
 /kiro-spec-impl phase2-m2-window-graphics 7.1,7.2,7.3
 ```
 
-**注意**: タスク6（システム登録）を完了するまで、実装したシステムは動作しません。
+**システムは既に動作可能な状態です**。テストを実装しなくても、既存のサンプル（`examples/simple_window.rs`等）で動作確認できます。
+
+### 動作確認
+
+システムが正しく動作しているか確認するには:
+
+```bash
+cargo run --example simple_window
+```
+
+期待されるログ出力:
+- `[GraphicsCore] 初期化開始/完了`
+- `[create_window_graphics] WindowGraphics作成開始/完了`
+- `[create_window_visual] Visual作成開始/完了`
+- `[commit_composition] Commit開始/完了`
 
 ---
 
