@@ -201,3 +201,74 @@ fn create_window_graphics_for_hwnd(
         device_context,
     })
 }
+
+/// WindowGraphicsが存在するエンティティに対してVisualコンポーネントを作成する
+pub fn create_window_visual(
+    query: Query<(Entity, &WindowGraphics), Without<Visual>>,
+    graphics: Option<Res<GraphicsCore>>,
+    mut commands: Commands,
+) {
+    // GraphicsCoreが存在しない場合は警告して処理をスキップ
+    let Some(graphics) = graphics else {
+        if !query.is_empty() {
+            eprintln!("[create_window_visual] 警告: GraphicsCoreが存在しないため処理をスキップします");
+        }
+        return;
+    };
+
+    for (entity, wg) in query.iter() {
+        eprintln!(
+            "[create_window_visual] Visual作成開始 (Entity: {:?})",
+            entity
+        );
+
+        match create_visual_for_target(&graphics, &wg.target) {
+            Ok(visual_comp) => {
+                eprintln!(
+                    "[create_window_visual] Visual作成完了 (Entity: {:?})",
+                    entity
+                );
+                commands.entity(entity).insert(visual_comp);
+            }
+            Err(e) => {
+                eprintln!(
+                    "[create_window_visual] エラー: Entity {:?}, HRESULT {:?}",
+                    entity, e
+                );
+                // エンティティをスキップして処理を継続
+            }
+        }
+    }
+}
+
+/// IDCompositionTargetに対してVisualを作成してルートに設定する
+fn create_visual_for_target(
+    graphics: &GraphicsCore,
+    target: &IDCompositionTarget,
+) -> Result<Visual> {
+    // 1. ビジュアル作成
+    eprintln!("[create_window_visual] IDCompositionVisual3作成中...");
+    let visual = graphics.dcomp.create_visual()?;
+    eprintln!("[create_window_visual] IDCompositionVisual3作成完了");
+
+    // 2. ターゲットにルートとして設定
+    eprintln!("[create_window_visual] SetRoot実行中...");
+    target.set_root(&visual)?;
+    eprintln!("[create_window_visual] SetRoot完了");
+
+    Ok(Visual { visual })
+}
+
+/// DirectCompositionのすべての変更を確定する
+pub fn commit_composition(graphics: Option<Res<GraphicsCore>>) {
+    let Some(graphics) = graphics else {
+        return;
+    };
+
+    eprintln!("[commit_composition] Commit開始");
+    if let Err(e) = graphics.dcomp.commit() {
+        eprintln!("[commit_composition] Commit失敗: HRESULT {:?}", e);
+    } else {
+        eprintln!("[commit_composition] Commit完了");
+    }
+}

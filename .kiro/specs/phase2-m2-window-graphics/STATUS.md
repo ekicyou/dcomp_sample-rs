@@ -28,8 +28,10 @@
   - ✅ Task 3.1: create_window_graphicsシステム実装完了
   - ✅ Task 3.2: create_window_graphicsエラーハンドリング実装完了
   - ✅ Task 3.3: create_window_graphicsログ出力実装完了
-  - [ ] Task 4.1-4.3: create_window_visualシステム実装
-  - [ ] Task 5.1: commit_compositionシステム実装
+  - ✅ Task 4.1: create_window_visualシステム実装完了
+  - ✅ Task 4.2: create_window_visualエラーハンドリング実装完了
+  - ✅ Task 4.3: create_window_visualログ出力実装完了
+  - ✅ Task 5.1: commit_compositionシステム実装完了
   - [ ] Task 6.1-6.3: システム登録とスケジュール配置
   - [ ] Task 7.1-7.3: テスト実装
 
@@ -37,7 +39,7 @@
 
 ## Implementation Summary
 
-### Completed Tasks (7/17)
+### Completed Tasks (11/17)
 
 #### Task 1.1 ✅ WindowGraphics構造体定義
 - `WindowGraphics`コンポーネントを`crates/wintf/src/ecs/graphics.rs`に実装
@@ -77,20 +79,44 @@
 - ID2D1DeviceContext作成成功をログ出力
 - WindowGraphics作成完了をeprintln!で出力
 
+#### Task 4.1 ✅ create_window_visualシステム実装
+- `Query<(Entity, &WindowGraphics), Without<Visual>>`でウィンドウを検出
+- GraphicsCoreリソースからdcompデバイスを取得
+- `create_visual`でIDCompositionVisual3を作成
+- WindowGraphicsのtarget.set_root()でビジュアルをルートに設定
+- VisualコンポーネントをCommandsで挿入
+
+#### Task 4.2 ✅ create_window_visualエラーハンドリング実装
+- GraphicsCoreが存在しない場合は警告ログを出力してスキップ
+- `create_visual`失敗時はエラーログを出力（Entity ID, HRESULTを含む）
+- `set_root`失敗時はエラーログを出力（Entity ID, HRESULTを含む）
+- エラー時もパニックせず処理を継続
+
+#### Task 4.3 ✅ create_window_visualログ出力実装
+- Visual作成開始時にEntity IDをログ出力
+- IDCompositionVisual3作成成功をログ出力
+- SetRoot成功をログ出力
+- Visual作成完了をeprintln!で出力
+
+#### Task 5.1 ✅ commit_compositionシステム実装
+- GraphicsCoreリソースからdcompデバイスを取得
+- `dcomp.commit()`を呼び出してDirectCompositionの変更を確定
+- Commit開始と完了をログ出力
+- エラー時はHRESULTを含むログを出力
+
 ### Next Steps
 
 残りのタスクを実装するには以下のコマンドを使用:
 
 ```bash
-# システム実装タスク
-/kiro-spec-impl phase2-m2-window-graphics 3.1,3.2,3.3,4.1,4.2,4.3,5.1
-
-# システム登録タスク
+# システム登録とスケジュール配置（重要！）
 /kiro-spec-impl phase2-m2-window-graphics 6.1,6.2,6.3
 
-# テスト実装タスク
+# テスト実装（オプション）
 /kiro-spec-impl phase2-m2-window-graphics 7.1,7.2,7.3
 ```
+
+**注意**: タスク6（システム登録）を完了するまで、実装したシステムは動作しません。
 
 ---
 
