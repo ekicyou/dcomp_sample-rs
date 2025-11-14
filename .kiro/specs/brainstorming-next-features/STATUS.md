@@ -1,6 +1,6 @@
 # Status Tracking: brainstorming-next-features
 
-**Last Updated**: 2025-11-14 (Phase 2完了)
+**Last Updated**: 2025-11-14 (✅ 完了)
 
 ---
 
@@ -21,18 +21,19 @@
   - [x] マイルストーン分割完了
   - [x] MILESTONES.md 作成完了
   
-- [ ] **Phase 3**: 実装開始
-  - [ ] 各マイルストーンをKiro仕様として作成
-  - [ ] Milestone 1: GraphicsCore初期化
-  - [ ] Milestone 2: WindowGraphics + Visual作成
-  - [ ] Milestone 3: 初めての描画（●■▲）
-  - [ ] Milestone 4: 初めてのウィジット（子要素Visual管理）
+- [x] **Phase 3**: 実装準備完了
+  - [x] 4つのマイルストーン仕様を作成（Phase 0完了）
+  - [x] 各仕様に依存関係と次ステップを明記
+  - [x] Milestone 1: phase2-m1-graphics-core
+  - [x] Milestone 2: phase2-m2-window-graphics
+  - [x] Milestone 3: phase2-m3-first-rendering
+  - [x] Milestone 4: phase2-m4-first-widget
 
 ---
 
-## Current Phase Details
+## ✅ ブレインストーミング完了
 
-### ✅ ブレインストーミング完了
+## ✅ ブレインストーミング完了
 
 **達成内容**:
 1. ✅ 現状分析（Phase 1完了、既存仕様レビュー）
@@ -40,44 +41,45 @@
 3. ✅ 優先度評価（Phase 2最優先）
 4. ✅ コンポーネント設計確定（GraphicsCore, WindowGraphics, Visual, Surface）
 5. ✅ **マイルストーン分割完了**（MILESTONES.md作成）
+6. ✅ **4つのマイルストーン仕様を作成**（Phase 0完了）
+7. ✅ **依存関係と実装順序を明確化**
 
-**確定したマイルストーン**:
-- 〇1: GraphicsCore初期化 → `phase2-m1-graphics-core`
-- 〇2: WindowGraphics + Visual作成 → `phase2-m2-window-graphics`
-- △: 初めての描画（透明背景 + ●■▲） → `phase2-m3-first-rendering`
-- ◇: 初めてのウィジット（子要素Visual管理） → `phase2-m4-first-widget`
+**成果物**:
+- `REQUIREMENTS.md` - 要件分析
+- `MILESTONES.md` - マイルストーン詳細
+- `phase2-m1-graphics-core/` - Milestone 1仕様
+- `phase2-m2-window-graphics/` - Milestone 2仕様
+- `phase2-m3-first-rendering/` - Milestone 3仕様
+- `phase2-m4-first-widget/` - Milestone 4仕様
 
 ---
 
 ## 次のアクション
 
-各マイルストーンをKiro仕様として作成:
+実装フェーズに移行。Milestone 1から順次開始:
 
 ```bash
-/kiro-spec-init "phase2-m1-graphics-core: GraphicsCore初期化"
+/kiro-spec-requirements phase2-m1-graphics-core
 ```
-
-詳細は `MILESTONES.md` を参照。
 
 ---
 
 ## Notes
 
+- ✅ **ブレインストーミング完了**
 - このブレインストーミングは開発計画策定が目的
-- 実装フェーズは不要（分析と推奨事項の文書化のみ）
-- 次の実際の開発仕様へのインプットとなる
+- Phase 2の4マイルストーン仕様を作成完了
+- 実装は各マイルストーン仕様で個別に進行
 
 ---
 
 ## Next Action
 
-各マイルストーンをKiro仕様として作成:
+実装フェーズ開始:
 
 ```bash
-/kiro-spec-init "phase2-m1-graphics-core: GraphicsCore初期化"
+/kiro-spec-requirements phase2-m1-graphics-core
 ```
-
-詳細は `MILESTONES.md` を参照。
 
 ---
 
