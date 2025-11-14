@@ -139,3 +139,65 @@ impl Visual {
         &self.visual
     }
 }
+
+/// WindowHandleが付与されたエンティティに対してWindowGraphicsコンポーネントを作成する
+pub fn create_window_graphics(
+    query: Query<(Entity, &crate::ecs::window::WindowHandle), Without<WindowGraphics>>,
+    graphics: Option<Res<GraphicsCore>>,
+    mut commands: Commands,
+) {
+    // GraphicsCoreが存在しない場合は警告して処理をスキップ
+    let Some(graphics) = graphics else {
+        if !query.is_empty() {
+            eprintln!("[create_window_graphics] 警告: GraphicsCoreが存在しないため処理をスキップします");
+        }
+        return;
+    };
+
+    for (entity, handle) in query.iter() {
+        eprintln!(
+            "[create_window_graphics] WindowGraphics作成開始 (Entity: {:?}, HWND: {:?})",
+            entity, handle.hwnd
+        );
+
+        match create_window_graphics_for_hwnd(&graphics, handle.hwnd) {
+            Ok(wg) => {
+                eprintln!(
+                    "[create_window_graphics] WindowGraphics作成完了 (Entity: {:?})",
+                    entity
+                );
+                commands.entity(entity).insert(wg);
+            }
+            Err(e) => {
+                eprintln!(
+                    "[create_window_graphics] エラー: Entity {:?}, HWND {:?}, HRESULT {:?}",
+                    entity, handle.hwnd, e
+                );
+                // エンティティをスキップして処理を継続
+            }
+        }
+    }
+}
+
+/// HWNDに対してWindowGraphicsリソースを作成する
+fn create_window_graphics_for_hwnd(
+    graphics: &GraphicsCore,
+    hwnd: HWND,
+) -> Result<WindowGraphics> {
+    use windows::Win32::Graphics::Direct2D::D2D1_DEVICE_CONTEXT_OPTIONS_NONE;
+
+    // 1. CompositionTarget作成
+    eprintln!("[create_window_graphics] IDCompositionTarget作成中...");
+    let target = graphics.desktop.create_target_for_hwnd(hwnd, true)?;
+    eprintln!("[create_window_graphics] IDCompositionTarget作成完了");
+
+    // 2. DeviceContext作成
+    eprintln!("[create_window_graphics] ID2D1DeviceContext作成中...");
+    let device_context = graphics.d2d.create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
+    eprintln!("[create_window_graphics] ID2D1DeviceContext作成完了");
+
+    Ok(WindowGraphics {
+        target,
+        device_context,
+    })
+}
