@@ -63,8 +63,23 @@
 
 ## 🔄 Dependencies
 
-- Milestone 1完了（GraphicsCore初期化）
+### 前提条件
 - Phase 1完了（WindowHandleコンポーネント）
+
+### 依存するマイルストーン
+- ✅ **Milestone 1完了が必須**: `phase2-m1-graphics-core` (GraphicsCore初期化)
+
+---
+
+## ➡️ Next Milestone
+
+このマイルストーン完了後:
+
+```bash
+/kiro-spec-requirements phase2-m3-first-rendering
+```
+
+**次**: `phase2-m3-first-rendering` - 初めての描画（●■▲）
 
 ---
 

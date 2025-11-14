@@ -73,8 +73,26 @@ DirectComposition + Direct2Dの描画パイプライン全体を動作させ、�
 
 ## 🔄 Dependencies
 
-- Milestone 1完了（GraphicsCore初期化）
-- Milestone 2完了（WindowGraphics + Visual作成）
+### 前提条件
+- なし
+
+### 依存するマイルストーン
+- ✅ **Milestone 1完了が必須**: `phase2-m1-graphics-core` (GraphicsCore初期化)
+- ✅ **Milestone 2完了が必須**: `phase2-m2-window-graphics` (WindowGraphics + Visual作成)
+
+---
+
+## ➡️ Next Milestone
+
+このマイルストーン完了後:
+
+```bash
+/kiro-spec-requirements phase2-m4-first-widget
+```
+
+**次**: `phase2-m4-first-widget` - 初めてのウィジット（子要素Visual管理）
+
+**または Phase 2完了**: Milestone 4はオプション。ここで一旦Phase 2を完了とすることも可能。
 
 ---
 

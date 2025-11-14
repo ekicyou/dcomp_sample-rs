@@ -62,8 +62,24 @@ Phase 2「はじめての描画」の基盤となるグローバルリソース�
 
 ## 🔄 Dependencies
 
+### 前提条件
 - Phase 1完了（ウィンドウシステム）
 - COM APIラッパーの基礎実装
+
+### 依存するマイルストーン
+- なし（Phase 2の最初のマイルストーン）
+
+---
+
+## ➡️ Next Milestone
+
+このマイルストーン完了後:
+
+```bash
+/kiro-spec-requirements phase2-m2-window-graphics
+```
+
+**次**: `phase2-m2-window-graphics` - WindowGraphics + Visual作成
 
 ---
 

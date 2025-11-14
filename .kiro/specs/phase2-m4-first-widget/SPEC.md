@@ -69,10 +69,24 @@ Windowエンティティだけでなく、任意の子エンティティでもVi
 
 ## 🔄 Dependencies
 
-- Milestone 1完了（GraphicsCore初期化）
-- Milestone 2完了（WindowGraphics + Visual作成）
-- Milestone 3完了（初めての描画）
-- `tree_system`（Transform伝播）
+### 前提条件
+- `tree_system`（Transform伝播システム）完成済み
+
+### 依存するマイルストーン
+- ✅ **Milestone 1完了が必須**: `phase2-m1-graphics-core` (GraphicsCore初期化)
+- ✅ **Milestone 2完了が必須**: `phase2-m2-window-graphics` (WindowGraphics + Visual作成)
+- ✅ **Milestone 3完了が必須**: `phase2-m3-first-rendering` (初めての描画)
+
+---
+
+## ➡️ Next Milestone
+
+このマイルストーン完了後、**Phase 2完了！** 🎉
+
+次のフェーズ:
+- Phase 3: 透過ウィンドウとヒットテスト
+- Phase 4: 横書きテキスト
+- Phase 5: 画像表示
 
 ---
 
