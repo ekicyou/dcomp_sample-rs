@@ -270,18 +270,6 @@ pub fn render_surface(
             );
             continue;
         }
-
-        if command_list.is_some() {
-            eprintln!(
-                "[render_surface] Surface rendered with CommandList for Entity={:?}",
-                entity
-            );
-        } else {
-            eprintln!(
-                "[render_surface] Surface cleared (no CommandList) for Entity={:?}",
-                entity
-            );
-        }
     }
 }
 
