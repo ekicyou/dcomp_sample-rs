@@ -4,18 +4,23 @@ use windows::Win32::Graphics::Direct2D::ID2D1CommandList;
 /// Direct2D描画命令リスト
 #[derive(Component, Debug)]
 pub struct GraphicsCommandList {
-    command_list: ID2D1CommandList,
+    command_list: Option<ID2D1CommandList>,
 }
 
 impl GraphicsCommandList {
     /// 新しいCommandListコンポーネントを作成
     pub fn new(command_list: ID2D1CommandList) -> Self {
-        Self { command_list }
+        Self { command_list: Some(command_list) }
+    }
+
+    /// 空のCommandListコンポーネントを作成
+    pub fn empty() -> Self {
+        Self { command_list: None }
     }
 
     /// CommandListへの参照を取得
-    pub fn command_list(&self) -> &ID2D1CommandList {
-        &self.command_list
+    pub fn command_list(&self) -> Option<&ID2D1CommandList> {
+        self.command_list.as_ref()
     }
 }
 

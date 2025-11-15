@@ -149,7 +149,7 @@ impl EcsWorld {
             );
             schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
             // on_window_handle_addedとon_window_handle_removedはフックで代替
-            
+
             // PostLayoutスケジュールにグラフィックスシステムを登録
             schedules.add_systems(
                 PostLayout,
@@ -161,27 +161,29 @@ impl EcsWorld {
                         .after(crate::ecs::graphics::create_window_visual),
                 ),
             );
-            
+
             // Drawスケジュールにdraw_rectanglesシステムを登録
             schedules.add_systems(
                 Draw,
-                crate::ecs::widget::shapes::rectangle::draw_rectangles,
+                (
+                    crate::ecs::widget::shapes::rectangle::clear_removed_rectangles,
+                    crate::ecs::widget::shapes::rectangle::draw_rectangles,
+                )
+                    .chain(), // この順序で実行を保証
             );
-            
+
             // Renderスケジュールに描画システムを登録
             schedules.add_systems(
                 Render,
                 (
                     crate::ecs::graphics::render_surface,
                     crate::ecs::graphics::commit_composition,
-                ).chain(),
+                )
+                    .chain(),
             );
-            
+
             // CommitCompositionスケジュールにコミットシステムを登録（廃止予定）
-            schedules.add_systems(
-                CommitComposition,
-                crate::ecs::graphics::commit_composition,
-            );
+            schedules.add_systems(CommitComposition, crate::ecs::graphics::commit_composition);
         }
 
         Self {

@@ -216,7 +216,9 @@ pub fn render_surface(
 
             // CommandListがある場合のみ描画
             if let Some(command_list) = command_list {
-                dc.draw_image(command_list.command_list());
+                if let Some(cmd_list) = command_list.command_list() {
+                    dc.draw_image(cmd_list);
+                }
             }
 
             if let Err(err) = dc.EndDraw(None, None) {
