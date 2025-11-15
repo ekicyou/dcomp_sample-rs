@@ -94,17 +94,21 @@ fn main() -> Result<()> {
         println!("[Timer Thread] 5s: Closing one window");
         let _ = tx.send(Box::new(|world: &mut World| {
             let mut query = world.query::<(Entity, &WindowHandle)>();
-            let window_count = query.iter(world).count();
+            let entities: Vec<_> = query.iter(world).map(|(e, h)| (e, h.hwnd)).collect();
+            let window_count = entities.len();
+
+            println!("[Test] Window count: {}", window_count);
+            println!("[Test] All window entities:");
+            for (entity, hwnd) in &entities {
+                println!("  - Entity={:?}, hwnd={:?}", entity, hwnd);
+            }
 
             if window_count > 0 {
                 println!("[Test] Closing one window (remaining: {})...", window_count);
 
-                if let Some((entity, handle)) = query.iter(world).next() {
-                    println!(
-                        "[Test] Despawning entity {:?} with hwnd {:?}",
-                        entity, handle.hwnd
-                    );
-                    world.despawn(entity);
+                if let Some((entity, hwnd)) = entities.first() {
+                    println!("[Test] Despawning entity {:?} with hwnd {:?}", entity, hwnd);
+                    world.despawn(*entity);
                 }
             }
         }));

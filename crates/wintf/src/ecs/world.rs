@@ -163,14 +163,7 @@ impl EcsWorld {
             );
 
             // Drawスケジュールにdraw_rectanglesシステムを登録
-            schedules.add_systems(
-                Draw,
-                (
-                    crate::ecs::widget::shapes::rectangle::clear_removed_rectangles,
-                    crate::ecs::widget::shapes::rectangle::draw_rectangles,
-                )
-                    .chain(), // この順序で実行を保証
-            );
+            schedules.add_systems(Draw, crate::ecs::widget::shapes::rectangle::draw_rectangles);
 
             // Renderスケジュールに描画システムを登録
             schedules.add_systems(

@@ -2,7 +2,7 @@ use bevy_ecs::component::Component;
 use windows::Win32::Graphics::Direct2D::ID2D1CommandList;
 
 /// Direct2D描画命令リスト
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone, PartialEq)]
 pub struct GraphicsCommandList {
     command_list: Option<ID2D1CommandList>,
 }
@@ -10,7 +10,9 @@ pub struct GraphicsCommandList {
 impl GraphicsCommandList {
     /// 新しいCommandListコンポーネントを作成
     pub fn new(command_list: ID2D1CommandList) -> Self {
-        Self { command_list: Some(command_list) }
+        Self {
+            command_list: Some(command_list),
+        }
     }
 
     /// 空のCommandListコンポーネントを作成

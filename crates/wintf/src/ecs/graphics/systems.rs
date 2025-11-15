@@ -1,5 +1,6 @@
 use crate::com::d2d::*;
 use crate::com::dcomp::*;
+use crate::ecs::graphics::command_list;
 use crate::ecs::graphics::{GraphicsCore, Surface, Visual, WindowGraphics};
 use bevy_ecs::prelude::*;
 use windows::core::{Interface, Result};
@@ -17,7 +18,9 @@ pub fn create_window_graphics(
     // GraphicsCoreが存在しない場合は警告して処理をスキップ
     let Some(graphics) = graphics else {
         if !query.is_empty() {
-            eprintln!("[create_window_graphics] 警告: GraphicsCoreが存在しないため処理をスキップします");
+            eprintln!(
+                "[create_window_graphics] 警告: GraphicsCoreが存在しないため処理をスキップします"
+            );
         }
         return;
     };
@@ -48,17 +51,16 @@ pub fn create_window_graphics(
 }
 
 /// HWNDに対してWindowGraphicsリソースを作成する
-fn create_window_graphics_for_hwnd(
-    graphics: &GraphicsCore,
-    hwnd: HWND,
-) -> Result<WindowGraphics> {
+fn create_window_graphics_for_hwnd(graphics: &GraphicsCore, hwnd: HWND) -> Result<WindowGraphics> {
     use windows::Win32::Graphics::Direct2D::D2D1_DEVICE_CONTEXT_OPTIONS_NONE;
 
     // 1. CompositionTarget作成
     let target = graphics.desktop.create_target_for_hwnd(hwnd, true)?;
 
     // 2. DeviceContext作成
-    let device_context = graphics.d2d.create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
+    let device_context = graphics
+        .d2d
+        .create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
 
     Ok(WindowGraphics {
         target,
@@ -75,7 +77,9 @@ pub fn create_window_visual(
     // GraphicsCoreが存在しない場合は警告して処理をスキップ
     let Some(graphics) = graphics else {
         if !query.is_empty() {
-            eprintln!("[create_window_visual] 警告: GraphicsCoreが存在しないため処理をスキップします");
+            eprintln!(
+                "[create_window_visual] 警告: GraphicsCoreが存在しないため処理をスキップします"
+            );
         }
         return;
     };
@@ -121,14 +125,24 @@ fn create_visual_for_target(
 
 /// WindowGraphicsとVisualが存在するエンティティに対してSurfaceコンポーネントを作成する
 pub fn create_window_surface(
-    query: Query<(Entity, &WindowGraphics, &Visual, Option<&crate::ecs::window::WindowPos>), Without<Surface>>,
+    query: Query<
+        (
+            Entity,
+            &WindowGraphics,
+            &Visual,
+            Option<&crate::ecs::window::WindowPos>,
+        ),
+        Without<Surface>,
+    >,
     graphics: Option<Res<GraphicsCore>>,
     mut commands: Commands,
 ) {
     // GraphicsCoreが存在しない場合は警告してスキップ
     let Some(graphics) = graphics else {
         if !query.is_empty() {
-            eprintln!("[create_window_surface] 警告: GraphicsCoreが存在しないため処理をスキップします");
+            eprintln!(
+                "[create_window_surface] 警告: GraphicsCoreが存在しないため処理をスキップします"
+            );
         }
         return;
     };
@@ -187,14 +201,25 @@ fn create_surface_for_window(
 /// Surfaceへの描画（GraphicsCommandListの有無を統合処理）
 pub fn render_surface(
     query: Query<
-        (Entity, Option<&crate::ecs::graphics::GraphicsCommandList>, &Surface),
-        Or<(Changed<crate::ecs::graphics::GraphicsCommandList>, Changed<Surface>)>
+        (
+            Entity,
+            Option<&crate::ecs::graphics::GraphicsCommandList>,
+            &Surface,
+        ),
+        Or<(
+            Changed<crate::ecs::graphics::GraphicsCommandList>,
+            Changed<Surface>,
+        )>,
     >,
     _graphics_core: Option<Res<GraphicsCore>>,
 ) {
     use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
-    
+
     for (entity, command_list, surface) in query.iter() {
+        let command_list = match command_list {
+            Some(a) => a.command_list(),
+            None => None,
+        };
         eprintln!(
             "[render_surface] Entity={:?}, has_command_list={}",
             entity,
@@ -205,24 +230,33 @@ pub fn render_surface(
         let (dc, _offset) = match surface.surface().begin_draw(None) {
             Ok(result) => result,
             Err(err) => {
-                eprintln!("[render_surface] Failed to begin draw for Entity={:?}: {:?}", entity, err);
+                eprintln!(
+                    "[render_surface] Failed to begin draw for Entity={:?}: {:?}",
+                    entity, err
+                );
                 continue;
             }
         };
 
         unsafe {
             // 透明色クリア（常に実行）
-            dc.clear(Some(&D2D1_COLOR_F { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }));
+            dc.clear(Some(&D2D1_COLOR_F {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
+            }));
 
             // CommandListがある場合のみ描画
             if let Some(command_list) = command_list {
-                if let Some(cmd_list) = command_list.command_list() {
-                    dc.draw_image(cmd_list);
-                }
+                dc.draw_image(command_list);
             }
 
             if let Err(err) = dc.EndDraw(None, None) {
-                eprintln!("[render_surface] EndDraw failed for Entity={:?}: {:?}", entity, err);
+                eprintln!(
+                    "[render_surface] EndDraw failed for Entity={:?}: {:?}",
+                    entity, err
+                );
                 let _ = surface.surface().end_draw();
                 continue;
             }
@@ -230,14 +264,23 @@ pub fn render_surface(
 
         // Surface描画終了
         if let Err(err) = surface.surface().end_draw() {
-            eprintln!("[render_surface] Failed to end draw for Entity={:?}: {:?}", entity, err);
+            eprintln!(
+                "[render_surface] Failed to end draw for Entity={:?}: {:?}",
+                entity, err
+            );
             continue;
         }
 
         if command_list.is_some() {
-            eprintln!("[render_surface] Surface rendered with CommandList for Entity={:?}", entity);
+            eprintln!(
+                "[render_surface] Surface rendered with CommandList for Entity={:?}",
+                entity
+            );
         } else {
-            eprintln!("[render_surface] Surface cleared (no CommandList) for Entity={:?}", entity);
+            eprintln!(
+                "[render_surface] Surface cleared (no CommandList) for Entity={:?}",
+                entity
+            );
         }
     }
 }

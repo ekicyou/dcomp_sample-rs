@@ -57,6 +57,7 @@ pub mod colors {
 
 /// 四角形ウィジット
 #[derive(Component, Debug, Clone)]
+#[component(on_remove = on_rectangle_remove)]
 pub struct Rectangle {
     /// X座標（ピクセル単位）
     pub x: f32,
@@ -70,6 +71,17 @@ pub struct Rectangle {
     pub color: Color,
 }
 
+/// Rectangleコンポーネントが削除される時に呼ばれるフック
+fn on_rectangle_remove(
+    mut world: bevy_ecs::world::DeferredWorld,
+    hook: bevy_ecs::lifecycle::HookContext,
+) {
+    let entity = hook.entity;
+    // GraphicsCommandListを取得して中身をクリア(Changed検出のため)
+    if let Some(mut cmd_list) = world.get_mut::<GraphicsCommandList>(entity) {
+        cmd_list.set_if_neq(GraphicsCommandList::empty());
+    }
+}
 /// RectangleコンポーネントからGraphicsCommandListを生成
 pub fn draw_rectangles(
     mut commands: Commands,
@@ -181,13 +193,5 @@ pub fn draw_rectangles(
             "[draw_rectangles] CommandList created for Entity={:?}",
             entity
         );
-    }
-}
-
-/// Rectangleコンポーネントが削除された時にGraphicsCommandListを空にする
-pub fn clear_removed_rectangles(mut commands: Commands, mut removed: RemovedComponents<Rectangle>) {
-    for entity in removed.read() {
-        eprintln!("[clear_removed_rectangles] Rectangle removed from Entity={:?}, setting empty GraphicsCommandList", entity);
-        commands.entity(entity).insert(GraphicsCommandList::empty());
     }
 }
