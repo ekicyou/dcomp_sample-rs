@@ -1,7 +1,7 @@
 # Status: progress-review-2025-11
 
 **Last Updated**: 2025-11-15  
-**Current Phase**: Phase 1 - Requirements
+**Current Phase**: Phase 2 - Design
 
 ---
 
@@ -16,8 +16,12 @@
   - ✅ 8 requirements defined
   - ✅ 46 acceptance criteria specified
   
-- [ ] **Phase 2**: Design
-  - [ ] 設計待ち
+- [x] **Phase 2**: Design
+  - ✅ design.md created
+  - ✅ Review methodology defined
+  - ✅ Analysis frameworks defined (SWOT, Impact×Difficulty Matrix)
+  - ✅ Document templates prepared
+  - ✅ 7 output documents specified
   
 - [ ] **Phase 3**: Tasks
   - [ ] タスク分解待ち
@@ -29,13 +33,13 @@
 
 ## Next Action
 
-Phase 1（要件定義）が完了しました。設計フェーズに進みます：
+Phase 2（設計）が完了しました。タスク分解フェーズに進みます：
 
 ```bash
-/kiro-spec-design progress-review-2025-11 -y
+/kiro-spec-tasks progress-review-2025-11 -y
 ```
 
-設計フェーズでは、レビュー・分析の具体的な方法論を定義します。
+タスク分解フェーズでは、実装フェーズで実施する具体的なレビュー・分析タスクを定義します。
 
 ---
 
