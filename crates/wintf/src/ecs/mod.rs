@@ -3,6 +3,7 @@ mod graphics;
 mod layout;
 pub mod transform;
 pub mod tree_system;
+pub mod widget;
 pub mod window;
 mod window_proc;
 mod window_system;

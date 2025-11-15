@@ -33,6 +33,8 @@ pub trait D2D1DeviceExt {
         &self,
         options: D2D1_DEVICE_CONTEXT_OPTIONS,
     ) -> Result<ID2D1DeviceContext>;
+    /// CreateCommandList
+    fn create_command_list(&self) -> Result<ID2D1CommandList>;
 }
 
 impl D2D1DeviceExt for ID2D1Device {
@@ -42,6 +44,39 @@ impl D2D1DeviceExt for ID2D1Device {
         options: D2D1_DEVICE_CONTEXT_OPTIONS,
     ) -> Result<ID2D1DeviceContext> {
         unsafe { self.CreateDeviceContext(options) }
+    }
+
+    #[inline(always)]
+    fn create_command_list(&self) -> Result<ID2D1CommandList> {
+        unsafe {
+            let dc = self.create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
+            dc.CreateCommandList()
+        }
+    }
+}
+
+pub trait D2D1CommandListExt {
+    /// CommandListを開いてDeviceContextを取得
+    fn open(&self) -> Result<ID2D1DeviceContext>;
+    /// CommandListを閉じる
+    fn close(&self) -> Result<()>;
+}
+
+impl D2D1CommandListExt for ID2D1CommandList {
+    #[inline(always)]
+    fn open(&self) -> Result<ID2D1DeviceContext> {
+        unsafe {
+            // ID2D1CommandListは直接Openできない
+            // 代わりにキャストでID2D1Imageとして扱う
+            Err(Error::from_hresult(windows::Win32::Foundation::E_NOTIMPL))
+        }
+    }
+
+    #[inline(always)]
+    fn close(&self) -> Result<()> {
+        unsafe { 
+            self.Close()
+        }
     }
 }
 
@@ -101,6 +136,11 @@ pub trait D2D1DeviceContextExt {
     where
         P0: Param<ID2D1Geometry>,
         P1: Param<ID2D1Brush>;
+
+    /// DrawImage
+    fn draw_image<P0>(&self, image: P0)
+    where
+        P0: Param<ID2D1Image>;
 }
 
 impl D2D1DeviceContextExt for ID2D1DeviceContext {
@@ -210,5 +250,21 @@ impl D2D1DeviceContextExt for ID2D1DeviceContext {
         P1: Param<ID2D1Brush>,
     {
         unsafe { self.FillGeometry(geometry, brush, None) }
+    }
+
+    #[inline(always)]
+    fn draw_image<P0>(&self, image: P0)
+    where
+        P0: Param<ID2D1Image>,
+    {
+        unsafe {
+            self.DrawImage(
+                image,
+                None,
+                None,
+                D2D1_INTERPOLATION_MODE_LINEAR,
+                D2D1_COMPOSITE_MODE_SOURCE_OVER,
+            )
+        }
     }
 }

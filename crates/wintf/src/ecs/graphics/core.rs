@@ -1,0 +1,108 @@
+use crate::com::d2d::*;
+use crate::com::d3d11::*;
+use crate::com::dcomp::*;
+use crate::com::dwrite::*;
+use bevy_ecs::prelude::*;
+use windows::core::{Interface, Result};
+use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Direct2D::*;
+use windows::Win32::Graphics::Direct3D::*;
+use windows::Win32::Graphics::Direct3D11::*;
+use windows::Win32::Graphics::DirectComposition::*;
+use windows::Win32::Graphics::DirectWrite::*;
+use windows::Win32::Graphics::Dxgi::*;
+
+#[derive(Resource, Debug)]
+pub struct GraphicsCore {
+    pub d3d: ID3D11Device,
+    pub dxgi: IDXGIDevice4,
+    pub d2d_factory: ID2D1Factory,
+    pub d2d: ID2D1Device,
+    pub dwrite_factory: IDWriteFactory2,
+    pub desktop: IDCompositionDesktopDevice,
+    pub dcomp: IDCompositionDevice3,
+}
+
+unsafe impl Send for GraphicsCore {}
+unsafe impl Sync for GraphicsCore {}
+
+impl GraphicsCore {
+    pub fn new() -> Result<Self> {
+        eprintln!("[GraphicsCore] 初期化開始");
+        
+        let d3d = create_device_3d()?;
+        let dxgi = d3d.cast()?;
+        let d2d_factory = create_d2d_factory()?;
+        let d2d = d2d_create_device(&dxgi)?;
+        let dwrite_factory = dwrite_create_factory(DWRITE_FACTORY_TYPE_SHARED)?;
+        let desktop = dcomp_create_desktop_device(&d2d)?;
+        let dcomp: IDCompositionDevice3 = desktop.cast()?;
+        
+        eprintln!("[GraphicsCore] 初期化完了");
+        
+        Ok(Self {
+            d3d,
+            dxgi,
+            d2d_factory,
+            d2d,
+            dwrite_factory,
+            desktop,
+            dcomp,
+        })
+    }
+
+    pub fn d2d_factory(&self) -> &ID2D1Factory {
+        &self.d2d_factory
+    }
+
+    pub fn d2d_device(&self) -> &ID2D1Device {
+        &self.d2d
+    }
+}
+
+/// D2DFactoryを作成（マルチスレッド対応）
+fn create_d2d_factory() -> Result<ID2D1Factory> {
+    #[allow(unused_imports)]
+    use windows::Win32::Graphics::Direct2D::Common::*;
+    
+    unsafe {
+        D2D1CreateFactory::<ID2D1Factory>(
+            D2D1_FACTORY_TYPE_MULTI_THREADED,
+            None,
+        )
+    }
+}
+
+fn create_device_3d() -> Result<ID3D11Device> {
+    #[cfg(debug_assertions)]
+    let flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_DEBUG;
+    
+    #[cfg(not(debug_assertions))]
+    let flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+    
+    d3d11_create_device(
+        None,
+        D3D_DRIVER_TYPE_HARDWARE,
+        HMODULE::default(),
+        flags,
+        None,
+        D3D11_SDK_VERSION,
+        None,
+        None,
+    )
+}
+
+/// GraphicsCoreが存在しない場合に作成するシステム
+pub fn ensure_graphics_core(graphics: Option<Res<GraphicsCore>>, mut commands: Commands) {
+    if graphics.is_none() {
+        match GraphicsCore::new() {
+            Ok(graphics) => {
+                commands.insert_resource(graphics);
+            }
+            Err(e) => {
+                eprintln!("[GraphicsCore] 初期化失敗: {:?}", e);
+                panic!("GraphicsCoreの初期化に失敗しました。アプリケーションを終了します。");
+            }
+        }
+    }
+}

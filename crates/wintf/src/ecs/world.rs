@@ -162,13 +162,22 @@ impl EcsWorld {
                 ),
             );
             
+            // Drawスケジュールにdraw_rectanglesシステムを登録
+            schedules.add_systems(
+                Draw,
+                crate::ecs::widget::shapes::rectangle::draw_rectangles,
+            );
+            
             // Renderスケジュールに描画システムを登録
             schedules.add_systems(
                 Render,
-                crate::ecs::graphics::render_window,
+                (
+                    crate::ecs::graphics::render_surface,
+                    crate::ecs::graphics::commit_composition,
+                ).chain(),
             );
             
-            // CommitCompositionスケジュールにコミットシステムを登録
+            // CommitCompositionスケジュールにコミットシステムを登録（廃止予定）
             schedules.add_systems(
                 CommitComposition,
                 crate::ecs::graphics::commit_composition,

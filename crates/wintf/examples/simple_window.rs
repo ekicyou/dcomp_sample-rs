@@ -4,6 +4,7 @@ use std::time::Instant;
 use windows::core::*;
 use windows::Win32::Foundation::{POINT, SIZE};
 use wintf::ecs::{GraphicsCore, Surface, Visual, Window, WindowGraphics, WindowHandle, WindowPos};
+use wintf::ecs::widget::shapes::{Rectangle, colors};
 use wintf::*;
 
 #[derive(bevy_ecs::prelude::Resource)]
@@ -71,7 +72,7 @@ fn auto_close_window_system(world: &mut bevy_ecs::world::World) {
     }
 }
 
-/// タスク7.1: グラフィックス初期化の検証
+/// グラフィックス初期化の検証
 fn verify_graphics_initialization(world: &mut bevy_ecs::world::World) {
     use bevy_ecs::prelude::*;
     
@@ -129,9 +130,9 @@ fn main() -> Result<()> {
         .add_systems(wintf::ecs::world::Update, auto_close_window_system);
 
     // 1つ目のWindowコンポーネントを持つEntityを作成
-    world.borrow_mut().world_mut().spawn((
+    let window1_entity = world.borrow_mut().world_mut().spawn((
         Window {
-            title: "wintf - ECS Window 1 (will close after 5s)".to_string(),
+            title: "wintf - ECS Window 1 (Red Rectangle)".to_string(),
             ..Default::default()
         },
         WindowPos {
@@ -139,12 +140,19 @@ fn main() -> Result<()> {
             size: Some(SIZE { cx: 800, cy: 600 }),
             ..Default::default()
         },
-    ));
+        Rectangle {
+            x: 100.0,
+            y: 100.0,
+            width: 200.0,
+            height: 150.0,
+            color: colors::RED,
+        },
+    )).id();
 
     // 2つ目のWindowコンポーネントを持つEntityを作成
-    world.borrow_mut().world_mut().spawn((
+    let window2_entity = world.borrow_mut().world_mut().spawn((
         Window {
-            title: "wintf - ECS Window 2".to_string(),
+            title: "wintf - ECS Window 2 (Blue Rectangle)".to_string(),
             ..Default::default()
         },
         WindowPos {
@@ -152,9 +160,23 @@ fn main() -> Result<()> {
             size: Some(SIZE { cx: 600, cy: 400 }),
             ..Default::default()
         },
-    ));
+        Rectangle {
+            x: 150.0,
+            y: 150.0,
+            width: 180.0,
+            height: 120.0,
+            color: colors::BLUE,
+        },
+    )).id();
 
-    println!("[Test] Two windows created. Windows will close every 5 seconds.");
+    println!("[Test] Two windows created with rectangles:");
+    println!("  Window 1 (Entity {:?}): Red rectangle at (100, 100), size 200x150", window1_entity);
+    println!("  Window 2 (Entity {:?}): Blue rectangle at (150, 150), size 180x120", window2_entity);
+    println!("\nWidget描画の例:");
+    println!("  1. WindowエンティティにRectangleコンポーネントを追加");
+    println!("  2. draw_rectanglesシステムが自動的にGraphicsCommandListを生成");
+    println!("  3. render_surfaceシステムがSurfaceに描画");
+    println!("  4. commit_compositionで画面に表示");
 
     // メッセージループを開始（システムが自動的にウィンドウを作成）
     mgr.run()?;
