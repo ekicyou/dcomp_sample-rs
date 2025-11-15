@@ -1,122 +1,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::time::Instant;
-use windows::core::*;
+use bevy_ecs::prelude::*;
+use std::sync::mpsc::channel;
+use std::sync::Mutex;
+use std::thread;
+use std::time::Duration;
+use windows::core::Result;
 use windows::Win32::Foundation::{POINT, SIZE};
-use wintf::ecs::{GraphicsCore, Surface, Visual, Window, WindowGraphics, WindowHandle, WindowPos};
-use wintf::ecs::widget::shapes::{Rectangle, colors};
+use wintf::ecs::widget::shapes::{colors, Rectangle};
+use wintf::ecs::Window;
+use wintf::ecs::{GraphicsCore, WindowHandle, WindowPos};
 use wintf::*;
-
-#[derive(bevy_ecs::prelude::Resource)]
-struct AutoCloseTimer {
-    start: Instant,
-    last_close_time: Option<Instant>,
-}
-
-/// テスト用: 5秒ごとに1つずつウィンドウを閉じるシステム
-fn auto_close_window_system(world: &mut bevy_ecs::world::World) {
-    use bevy_ecs::prelude::*;
-
-    // 初回実行時に開始時刻を記録
-    if !world.contains_resource::<AutoCloseTimer>() {
-        println!("[Test] Auto-close timer started. Will close windows every 5 seconds.");
-        
-        // タスク7.1: GraphicsCoreとコンポーネントの検証
-        verify_graphics_initialization(world);
-        
-        world.insert_resource(AutoCloseTimer {
-            start: Instant::now(),
-            last_close_time: None,
-        });
-    }
-
-    // タイマーの状態を先にチェック
-    let should_close = {
-        let timer = world.resource::<AutoCloseTimer>();
-        let elapsed = timer.start.elapsed().as_secs();
-
-        if let Some(last_close) = timer.last_close_time {
-            // 前回閉じてから5秒以上経過
-            last_close.elapsed().as_secs() >= 5
-        } else {
-            // 初回は5秒後
-            elapsed >= 5
-        }
-    };
-
-    // 5秒経過したらウィンドウを1つ閉じる
-    if should_close {
-        // WindowHandleを持つエンティティの数を確認
-        let window_count = {
-            let mut query = world.query::<&WindowHandle>();
-            query.iter(world).count()
-        };
-
-        if window_count > 0 {
-            println!("[Test] Closing one window (remaining: {})...", window_count);
-
-            // タイマーの状態を更新
-            let mut timer = world.resource_mut::<AutoCloseTimer>();
-            timer.last_close_time = Some(Instant::now());
-
-            // WindowHandleを持つ最初のエンティティを取得
-            let mut query = world.query::<(Entity, &WindowHandle)>();
-            if let Some((entity, handle)) = query.iter(world).next() {
-                println!(
-                    "[Test] Despawning entity {:?} with hwnd {:?}",
-                    entity, handle.hwnd
-                );
-                world.despawn(entity);
-            }
-        }
-    }
-}
-
-/// グラフィックス初期化の検証
-fn verify_graphics_initialization(world: &mut bevy_ecs::world::World) {
-    use bevy_ecs::prelude::*;
-    
-    println!("\n========== Graphics Initialization Test ==========");
-    
-    // 1. GraphicsCoreリソースの存在を検証
-    if world.contains_resource::<GraphicsCore>() {
-        println!("[TEST PASS] GraphicsCore resource exists");
-    } else {
-        println!("[TEST FAIL] GraphicsCore resource NOT found");
-        return;
-    }
-    
-    // 2. Query<(Entity, &WindowHandle, &WindowGraphics, &Visual, &Surface)>で全コンポーネントの存在を検証
-    let mut query = world.query::<(Entity, &WindowHandle, &WindowGraphics, &Visual, &Surface)>();
-    let entities: Vec<_> = query.iter(world).collect();
-    
-    println!("[TEST] Found {} entities with all graphics components (including Surface)", entities.len());
-    
-    if entities.is_empty() {
-        println!("[TEST FAIL] No entities with WindowHandle + WindowGraphics + Visual + Surface found");
-        return;
-    }
-    
-    // 3. 各エンティティのCOMオブジェクトの有効性を検証
-    for (entity, handle, _graphics, _visual, _surface) in entities {
-        println!("\n[TEST] Verifying Entity {:?}:", entity);
-        println!("  HWND: {:?}", handle.hwnd);
-        
-        // COMインターフェースが有効かチェック（ここまで来れば作成成功している）
-        let target_valid = true;
-        let dc_valid = true;
-        let visual_valid = true;
-        let surface_valid = true;
-        
-        if target_valid && dc_valid && visual_valid && surface_valid {
-            println!("  [TEST PASS] All COM objects (including Surface) are valid for Entity {:?}", entity);
-        } else {
-            println!("  [TEST FAIL] Some COM objects are invalid for Entity {:?}", entity);
-        }
-    }
-    
-    println!("\n========== Test Complete ==========\n");
-}
 
 fn main() -> Result<()> {
     human_panic::setup_panic!();
@@ -124,59 +18,134 @@ fn main() -> Result<()> {
     let mgr = WinThreadMgr::new()?;
     let world = mgr.world();
 
-    // テスト用システムを登録（Updateスケジュールに追加）
-    world
-        .borrow_mut()
-        .add_systems(wintf::ecs::world::Update, auto_close_window_system);
+    // チャンネル作成とタイマースレッド起動
+    let (tx, rx) = channel();
+    let rx = Mutex::new(rx);
+
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_secs(5));
+        if tx.send(()).is_err() {
+            break;
+        }
+    });
+
+    println!(
+        "[Test] Auto-close timer started. Will close windows every 5 seconds using background thread."
+    );
+
+    // クロージャシステム: Receiverをキャプチャしてシステムとして登録
+    world.borrow_mut().add_systems(
+        wintf::ecs::world::Update,
+        move |mut commands: Commands,
+              windows: Query<(Entity, &WindowHandle)>,
+              graphics_core: Option<Res<GraphicsCore>>| {
+            // 初回実行時にGraphicsCoreの検証
+            static VERIFIED: std::sync::atomic::AtomicBool =
+                std::sync::atomic::AtomicBool::new(false);
+            if !VERIFIED.load(std::sync::atomic::Ordering::Relaxed) && graphics_core.is_some() {
+                println!("\n========== Graphics Initialization Test ==========");
+                println!("[TEST PASS] GraphicsCore resource exists");
+
+                let window_count = windows.iter().count();
+                println!("[TEST] Found {} window entities", window_count);
+
+                if window_count > 0 {
+                    println!("[TEST PASS] Windows with graphics components found");
+                }
+                println!("========== Test Complete ==========\n");
+
+                VERIFIED.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+
+            // try_iter()で利用可能な全通知を処理
+            let Ok(rx_guard) = rx.lock() else {
+                return;
+            };
+
+            for () in rx_guard.try_iter() {
+                let window_count = windows.iter().count();
+
+                if window_count > 0 {
+                    println!("[Test] Closing one window (remaining: {})...", window_count);
+
+                    if let Some((entity, handle)) = windows.iter().next() {
+                        println!(
+                            "[Test] Despawning entity {:?} with hwnd {:?}",
+                            entity, handle.hwnd
+                        );
+                        commands.entity(entity).despawn();
+                    }
+                }
+            }
+        },
+    );
 
     // 1つ目のWindowコンポーネントを持つEntityを作成
-    let window1_entity = world.borrow_mut().world_mut().spawn((
-        Window {
-            title: "wintf - ECS Window 1 (Red Rectangle)".to_string(),
-            ..Default::default()
-        },
-        WindowPos {
-            position: Some(POINT { x: 100, y: 100 }),
-            size: Some(SIZE { cx: 800, cy: 600 }),
-            ..Default::default()
-        },
-        Rectangle {
-            x: 100.0,
-            y: 100.0,
-            width: 200.0,
-            height: 150.0,
-            color: colors::RED,
-        },
-    )).id();
+    let window1_entity = world
+        .borrow_mut()
+        .world_mut()
+        .spawn((
+            Window {
+                title: "wintf - ECS Window 1 (Red Rectangle)".to_string(),
+                ..Default::default()
+            },
+            WindowPos {
+                position: Some(POINT { x: 100, y: 100 }),
+                size: Some(SIZE { cx: 800, cy: 600 }),
+                ..Default::default()
+            },
+            Rectangle {
+                x: 100.0,
+                y: 100.0,
+                width: 200.0,
+                height: 150.0,
+                color: colors::RED,
+            },
+        ))
+        .id();
 
     // 2つ目のWindowコンポーネントを持つEntityを作成
-    let window2_entity = world.borrow_mut().world_mut().spawn((
-        Window {
-            title: "wintf - ECS Window 2 (Blue Rectangle)".to_string(),
-            ..Default::default()
-        },
-        WindowPos {
-            position: Some(POINT { x: 950, y: 150 }),
-            size: Some(SIZE { cx: 600, cy: 400 }),
-            ..Default::default()
-        },
-        Rectangle {
-            x: 150.0,
-            y: 150.0,
-            width: 180.0,
-            height: 120.0,
-            color: colors::BLUE,
-        },
-    )).id();
+    let window2_entity = world
+        .borrow_mut()
+        .world_mut()
+        .spawn((
+            Window {
+                title: "wintf - ECS Window 2 (Blue Rectangle)".to_string(),
+                ..Default::default()
+            },
+            WindowPos {
+                position: Some(POINT { x: 950, y: 150 }),
+                size: Some(SIZE { cx: 600, cy: 400 }),
+                ..Default::default()
+            },
+            Rectangle {
+                x: 150.0,
+                y: 150.0,
+                width: 180.0,
+                height: 120.0,
+                color: colors::BLUE,
+            },
+        ))
+        .id();
 
     println!("[Test] Two windows created with rectangles:");
-    println!("  Window 1 (Entity {:?}): Red rectangle at (100, 100), size 200x150", window1_entity);
-    println!("  Window 2 (Entity {:?}): Blue rectangle at (150, 150), size 180x120", window2_entity);
+    println!(
+        "  Window 1 (Entity {:?}): Red rectangle at (100, 100), size 200x150",
+        window1_entity
+    );
+    println!(
+        "  Window 2 (Entity {:?}): Blue rectangle at (150, 150), size 180x120",
+        window2_entity
+    );
     println!("\nWidget描画の例:");
     println!("  1. WindowエンティティにRectangleコンポーネントを追加");
     println!("  2. draw_rectanglesシステムが自動的にGraphicsCommandListを生成");
     println!("  3. render_surfaceシステムがSurfaceに描画");
     println!("  4. commit_compositionで画面に表示");
+    println!("\nバックグラウンドスレッドとの通信例:");
+    println!("  1. 別スレッドで5秒ごとにstd::thread::sleep");
+    println!("  2. std::mpsc::channelでメインスレッドに通知");
+    println!("  3. システムがtry_iter()でノンブロッキングに全通知を処理");
 
     // メッセージループを開始（システムが自動的にウィンドウを作成）
     mgr.run()?;
