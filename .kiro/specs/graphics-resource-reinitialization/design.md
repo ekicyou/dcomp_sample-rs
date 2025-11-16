@@ -379,7 +379,7 @@ impl GraphicsCore {
 **Implementation Notes**
 - **Integration**: 既存のGraphicsCore実装を`Option<T>`ラップに変更
 - **Validation**: new()時にD3D_FEATURE_LEVELをチェック、BGRAサポート必須
-- **Risks**: デバイス作成失敗時はNone維持で次フレーム再試行（無限ループリスクあり、将来的に回数制限を検討）
+- **Risks**: デバイス作成失敗時はNone維持で次フレーム再試行 — 失敗が継続してもUIフレームワークはパニックせず、アプリケーション側で対処を判断
 
 ### ECS / Components
 
@@ -580,7 +580,7 @@ pub fn init_graphics_core(
 **Implementation Notes**
 - **Integration**: PostLayoutスケジュールの最初に追加（`.add_systems(PostLayout, init_graphics_core)`）
 - **Validation**: GraphicsCore::new()のResult<T>をmatchでハンドリング
-- **Risks**: 初期化失敗時はエラーログ出力、内部None維持で次フレーム再試行（無限ループリスク）
+- **Risks**: 初期化失敗時はエラーログ出力、内部None維持で次フレーム再試行 — 初期化が継続的に失敗する環境でも、UIフレームワークはパニックせず試行を継続
 
 #### init_window_graphics
 
@@ -796,9 +796,9 @@ pub fn cleanup_graphics_needs_init(
 - **Invariants**: いずれか無効ならマーカー保持
 
 **Implementation Notes**
-- **Integration**: `.add_systems(PostLayout, cleanup_graphics_needs_init.after(init_window_surface))`
+- **Integration**: `.add_systems(Draw, cleanup_graphics_needs_init)` — Drawスケジュールで実行し、PostLayout内の他の初期化システム（将来追加される可能性）との競合を回避
 - **Validation**: 各コンポーネントのis_valid()チェック
-- **Risks**: 新Widget追加時、このシステムに新コンポーネントの有効性チェックを追加必要（将来的にOption<&T>パターンで拡張性向上を検討）
+- **Risks**: なし — GraphicsNeedsInitマーカーの削除のみを行うため、新Widget追加時もシステム変更不要
 
 #### detect_device_lost
 
@@ -837,9 +837,9 @@ pub fn detect_device_lost(
 - **Invariants**: GraphicsCore存在前提
 
 **Implementation Notes**
-- **Integration**: Updateスケジュールで実行（PostLayoutより前）
-- **Validation**: Windows API HRESULTチェック、特定エラーコード（DXGI_ERROR_DEVICE_REMOVED等）検出
-- **Risks**: デバイスロスト検出ロジックの実装複雑性（将来的に実装、現状はプレースホルダー）
+- **Scope**: 本仕様のスコープ外 — 本システムは初期化システムの洗練に焦点を当てており、デバイスロスト検出の具体的な実装は別仕様で対応
+- **Integration**: 破棄検出システム（別途実装）がGraphicsCore.invalidate()を呼び出すことで、本初期化システムが自動的に再初期化フローを開始
+- **Note**: Windows APIエラー時（DXGI_ERROR_DEVICE_REMOVED、DXGI_ERROR_DEVICE_RESET等）に初期化をマークする仕組みとして設計されるが、詳細実装は本仕様の対象外
 
 #### invalidate_dependent_components
 
@@ -942,10 +942,10 @@ bevy_ecsのメモリレイアウトに準拠。Archetypeによる最適化。
 
 ### Error Strategy
 
-- **GraphicsCore初期化失敗**: エラーログ出力、内部None維持、次フレーム再試行
-- **コンポーネント初期化失敗**: エラーログ出力、マーカー保持、次フレーム再試行
+- **GraphicsCore初期化失敗**: エラーログ出力、内部None維持、次フレーム再試行 — 初期化失敗が継続する場合でも、UIフレームワークはパニックせず初期化を試行し続ける。アプリケーション継続またはハングアップの判断はアプリケーション側の責務
+- **コンポーネント初期化失敗**: エラーログ出力、マーカー保持、次フレーム再試行 — 同一フレーム内での再試行は行わず、次フレームで再度初期化システムが実行される
 - **依存関係違反**: 初期化スキップ（例: WindowGraphics無効時、Visual初期化しない）
-- **Panic回避**: 全エラーはResult<T>でハンドリング、unwrap()禁止
+- **Panic回避**: 全エラーはResult<T>でハンドリング、unwrap()禁止 — UIフレームワークは初期化失敗に対して寛容であり、画面が出せなくてもアプリケーションが継続できるよう設計
 
 ### Error Categories and Responses
 
