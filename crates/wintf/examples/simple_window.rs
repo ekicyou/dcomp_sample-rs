@@ -16,6 +16,12 @@ use wintf::*;
 /// &mut World に直接アクセスできる（排他システムで実行）
 type WorldCommand = Box<dyn FnOnce(&mut World) + Send>;
 
+#[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
+pub struct Window1;
+
+#[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
+pub struct Window2;
+
 fn main() -> Result<()> {
     human_panic::setup_panic!();
 
@@ -33,6 +39,7 @@ fn main() -> Result<()> {
         let _ = tx.send(Box::new(|world: &mut World| {
             // 1つ目のWindow
             world.spawn((
+                Window1,
                 Window {
                     title: "wintf - ECS Window 1 (Red Rectangle)".to_string(),
                     ..Default::default()
@@ -53,6 +60,7 @@ fn main() -> Result<()> {
 
             // 2つ目のWindow
             world.spawn((
+                Window2,
                 Window {
                     title: "wintf - ECS Window 2 (Blue Rectangle)".to_string(),
                     ..Default::default()
@@ -74,65 +82,36 @@ fn main() -> Result<()> {
             println!("[Test] Two windows created");
         }));
 
-        // 3秒: 1つ目のWindowからRectangleコンポーネントを削除
-        thread::sleep(Duration::from_secs(3));
+        // 2秒: Window1からRectangleコンポーネントを削除
+        thread::sleep(Duration::from_secs(2));
         println!("[Timer Thread] 3s: Removing Rectangle from first window");
         let _ = tx.send(Box::new(|world: &mut World| {
-            let mut query = world.query::<(Entity, &WindowHandle)>();
-
-            if let Some((entity, handle)) = query.iter(world).next() {
-                println!(
-                    "[Test] Removing Rectangle component from entity {:?} (hwnd {:?})",
-                    entity, handle.hwnd
-                );
+            let mut query = world.query_filtered::<Entity, With<Window1>>();
+            if let Some(entity) = query.iter(world).next() {
+                println!("[Test] Removing Rectangle component from entity {entity:?})");
                 world.entity_mut(entity).remove::<Rectangle>();
             }
         }));
 
-        // 5秒: Windowを1つ削除
+        // 4秒: Window2を削除
         thread::sleep(Duration::from_secs(2));
         println!("[Timer Thread] 5s: Closing one window");
         let _ = tx.send(Box::new(|world: &mut World| {
-            let mut query = world.query::<(Entity, &WindowHandle)>();
-            let entities: Vec<_> = query.iter(world).map(|(e, h)| (e, h.hwnd)).collect();
-            let window_count = entities.len();
-
-            println!("[Test] Window count: {}", window_count);
-            println!("[Test] All window entities:");
-            for (entity, hwnd) in &entities {
-                println!("  - Entity={:?}, hwnd={:?}", entity, hwnd);
-            }
-
-            if window_count > 0 {
-                println!("[Test] Closing one window (remaining: {})...", window_count);
-
-                if let Some((entity, hwnd)) = entities.first() {
-                    println!("[Test] Despawning entity {:?} with hwnd {:?}", entity, hwnd);
-                    world.despawn(*entity);
-                }
+            let mut query = world.query_filtered::<Entity, With<Window2>>();
+            if let Some(entity) = query.iter(world).next() {
+                println!("[Test] Removing Window2 entity {entity:?})");
+                world.despawn(entity);
             }
         }));
 
-        // 10秒: Windowを1つ削除（これでアプリ終了）
-        thread::sleep(Duration::from_secs(5));
+        // 6秒: Windo1を削除（これでアプリ終了）
+        thread::sleep(Duration::from_secs(2));
         println!("[Timer Thread] 10s: Closing last window");
         let _ = tx.send(Box::new(|world: &mut World| {
-            let mut query = world.query::<(Entity, &WindowHandle)>();
-            let window_count = query.iter(world).count();
-
-            if window_count > 0 {
-                println!(
-                    "[Test] Closing last window (remaining: {})...",
-                    window_count
-                );
-
-                if let Some((entity, handle)) = query.iter(world).next() {
-                    println!(
-                        "[Test] Despawning entity {:?} with hwnd {:?}",
-                        entity, handle.hwnd
-                    );
-                    world.despawn(entity);
-                }
+            let mut query = world.query_filtered::<Entity, With<Window1>>();
+            if let Some(entity) = query.iter(world).next() {
+                println!("[Test] Removing Window2 entity {entity:?})");
+                world.despawn(entity);
             }
         }));
     });
