@@ -186,12 +186,9 @@ pub fn commit_composition(
         }
     };
 
-    eprintln!("[Frame {}] [commit_composition] Calling Commit", frame_count.0);
     if let Err(e) = dcomp.commit() {
         eprintln!("[Frame {}] [commit_composition] Commit失敗: HRESULT {:?}", frame_count.0, e);
         eprintln!("[Frame {}] [commit_composition] Commit失敗 HRESULT: 0x{:08X}", frame_count.0, e.code().0);
-    } else {
-        eprintln!("[Frame {}] [commit_composition] Commit succeeded", frame_count.0);
     }
 }
 
