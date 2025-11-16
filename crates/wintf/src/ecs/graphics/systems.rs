@@ -414,6 +414,17 @@ pub fn cleanup_graphics_needs_init(
     }
 }
 
+/// GraphicsNeedsInit時に古いGraphicsCommandListを削除
+pub fn cleanup_command_list_on_reinit(
+    query: Query<Entity, (With<GraphicsNeedsInit>, With<crate::ecs::graphics::GraphicsCommandList>)>,
+    mut commands: Commands,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).remove::<crate::ecs::graphics::GraphicsCommandList>();
+        eprintln!("[cleanup_command_list_on_reinit] GraphicsCommandList削除 (Entity: {:?})", entity);
+    }
+}
+
 /// 依存コンポーネント無効化
 pub fn invalidate_dependent_components(
     graphics: Option<Res<GraphicsCore>>,

@@ -153,8 +153,10 @@ impl EcsWorld {
                 PostLayout,
                 (
                     crate::ecs::graphics::init_graphics_core,
-                    crate::ecs::graphics::init_window_graphics
+                    crate::ecs::graphics::cleanup_command_list_on_reinit
                         .after(crate::ecs::graphics::init_graphics_core),
+                    crate::ecs::graphics::init_window_graphics
+                        .after(crate::ecs::graphics::cleanup_command_list_on_reinit),
                     crate::ecs::graphics::init_window_visual
                         .after(crate::ecs::graphics::init_window_graphics),
                     crate::ecs::graphics::init_window_surface

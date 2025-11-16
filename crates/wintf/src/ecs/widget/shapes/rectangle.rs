@@ -1,5 +1,5 @@
 use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt, D2D1DeviceExt};
-use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore};
+use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore, WindowGraphics};
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::*;
 use windows::Win32::Graphics::Direct2D::Common::{D2D1_COLOR_F, D2D_RECT_F};
@@ -85,7 +85,10 @@ fn on_rectangle_remove(
 /// RectangleコンポーネントからGraphicsCommandListを生成
 pub fn draw_rectangles(
     mut commands: Commands,
-    query: Query<(Entity, &Rectangle), Changed<Rectangle>>,
+    query: Query<(Entity, &Rectangle, &WindowGraphics), Or<(
+        Changed<Rectangle>,
+        Without<GraphicsCommandList>,
+    )>>,
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
     let Some(graphics_core) = graphics_core else {
@@ -93,7 +96,12 @@ pub fn draw_rectangles(
         return;
     };
 
-    for (entity, rectangle) in query.iter() {
+    for (entity, rectangle, window_graphics) in query.iter() {
+        // WindowGraphicsが無効なら後回し
+        if !window_graphics.is_valid() {
+            continue;
+        }
+        
         eprintln!("[draw_rectangles] Entity={:?}", entity);
         eprintln!(
             "[draw_rectangles] Rectangle: x={}, y={}, width={}, height={}, color=({},{},{},{})",
