@@ -173,14 +173,10 @@ impl EcsWorld {
                 ),
             );
 
-            // Renderスケジュールに描画システムを登録
+            // RenderSurfaceスケジュールに描画システムを登録
             schedules.add_systems(
-                Render,
-                (
-                    crate::ecs::graphics::render_surface,
-                    crate::ecs::graphics::commit_composition,
-                )
-                    .chain(),
+                RenderSurface,
+                crate::ecs::graphics::render_surface,
             );
 
             // CommitCompositionスケジュールにコミットシステムを登録
