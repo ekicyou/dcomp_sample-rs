@@ -234,7 +234,10 @@ pub fn init_window_graphics(
     graphics: Res<GraphicsCore>,
     mut query: Query<
         (Entity, &crate::ecs::window::WindowHandle, Option<&mut WindowGraphics>),
-        With<GraphicsNeedsInit>
+        Or<(
+            Without<WindowGraphics>,
+            With<GraphicsNeedsInit>,
+        )>
     >,
     mut commands: Commands,
 ) {
@@ -287,7 +290,10 @@ pub fn init_window_visual(
     graphics: Res<GraphicsCore>,
     mut query: Query<
         (Entity, &WindowGraphics, Option<&mut Visual>),
-        With<GraphicsNeedsInit>
+        Or<(
+            Without<Visual>,
+            With<GraphicsNeedsInit>,
+        )>
     >,
     mut commands: Commands,
 ) {
@@ -341,7 +347,10 @@ pub fn init_window_surface(
     graphics: Res<GraphicsCore>,
     mut query: Query<
         (Entity, &WindowGraphics, &Visual, Option<&mut Surface>, Option<&crate::ecs::window::WindowPos>),
-        With<GraphicsNeedsInit>
+        Or<(
+            Without<Surface>,
+            With<GraphicsNeedsInit>,
+        )>
     >,
     mut commands: Commands,
 ) {

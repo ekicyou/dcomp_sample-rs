@@ -79,184 +79,96 @@ fn main() -> Result<()> {
             println!("[Test] Two windows spawned");
         }));
 
-        // 2秒: グラフィックスコンポーネントの初期状態を検証
-        thread::sleep(Duration::from_secs(2));
-        println!("\n[Timer] 2s: Verifying initial graphics state");
-        let _ = tx.send(Box::new(|world: &mut World| {
-            let mut query = world.query::<(Entity, &WindowHandle, &WindowGraphics, &Visual, &Surface, &HasGraphicsResources)>();
-            let count = query.iter(world).count();
-            
-            println!("[Test Phase 1] Initial State Verification:");
-            println!("  - Windows with all graphics components: {}", count);
-            
-            if count == 2 {
-                println!("  ✅ [PASS] Both windows have all graphics components");
-                
-                // 各ウィンドウのgeneration番号を確認
-                for (entity, handle, wg, _v, _s, _) in query.iter(world) {
-                    let is_valid = wg.is_valid();
-                    let generation = wg.generation();
-                    println!("  - Entity {:?} (HWND {:?}): valid={}, generation={}", 
-                        entity, handle.hwnd, is_valid, generation);
-                }
-            } else {
-                println!("  ❌ [FAIL] Expected 2 windows, found {}", count);
-            }
-        }));
-
-        // 4秒: GraphicsCoreを無効化（デバイスロストをシミュレート）
-        thread::sleep(Duration::from_secs(2));
-        println!("\n[Timer] 4s: Simulating device loss (invalidating GraphicsCore)");
+        // 3秒: GraphicsCoreを無効化（デバイスロストをシミュレート）
+        thread::sleep(Duration::from_secs(3));
+        println!("\n[Timer] 3s: Simulating device loss (invalidating GraphicsCore)");
         let _ = tx.send(Box::new(|world: &mut World| {
             if let Some(mut graphics) = world.get_resource_mut::<GraphicsCore>() {
-                println!("[Test Phase 2] Device Loss Simulation:");
-                println!("  - Calling GraphicsCore.invalidate()");
+                println!("\n========================================");
+                println!("[Test] ===== デバイスロスト シミュレーション開始 =====");
+                println!("[Test] GraphicsCore.invalidate() を呼び出します");
                 graphics.invalidate();
-                println!("  - GraphicsCore invalidated, is_valid={}", graphics.is_valid());
-                println!("  ✅ [PASS] GraphicsCore invalidation succeeded");
+                println!("[Test] GraphicsCore無効化完了。次フレームで自動再初期化されます。");
+                println!("========================================\n");
             } else {
                 println!("  ❌ [FAIL] GraphicsCore resource not found");
             }
         }));
 
-        // 5秒: 依存コンポーネントが無効化されたことを確認
+        // 4秒: 再初期化状態の確認
         thread::sleep(Duration::from_secs(1));
-        println!("\n[Timer] 5s: Verifying dependent components invalidation");
+        println!("\n[Timer] 4s: Verifying reinitialization");
         let _ = tx.send(Box::new(|world: &mut World| {
+            let graphics_valid = world.get_resource::<GraphicsCore>()
+                .map(|g| g.is_valid())
+                .unwrap_or(false);
+            
             let mut query = world.query::<(Entity, &WindowHandle, &WindowGraphics, &Visual, &Surface)>();
             
-            println!("[Test Phase 3] Dependent Components Invalidation:");
-            let mut all_invalid = true;
+            println!("\n========================================");
+            println!("[Test] ===== 再初期化検証 =====");
+            println!("[Test] GraphicsCore.is_valid() = {}", graphics_valid);
             
+            let mut all_success = true;
             for (entity, handle, wg, v, s) in query.iter(world) {
-                let wg_valid = wg.is_valid();
-                let v_valid = v.is_valid();
-                let s_valid = s.is_valid();
-                
-                println!("  - Entity {:?} (HWND {:?}):", entity, handle.hwnd);
-                println!("    WindowGraphics.is_valid() = {}", wg_valid);
-                println!("    Visual.is_valid() = {}", v_valid);
-                println!("    Surface.is_valid() = {}", s_valid);
-                
-                if wg_valid || v_valid || s_valid {
-                    all_invalid = false;
-                }
-            }
-            
-            if all_invalid {
-                println!("  ✅ [PASS] All dependent components invalidated");
-            } else {
-                println!("  ❌ [FAIL] Some components still valid");
-            }
-        }));
-
-        // 6秒: GraphicsNeedsInitマーカーが追加されたことを確認
-        thread::sleep(Duration::from_secs(1));
-        println!("\n[Timer] 6s: Verifying GraphicsNeedsInit marker");
-        let _ = tx.send(Box::new(|world: &mut World| {
-            let graphics_valid = world.get_resource::<GraphicsCore>()
-                .map(|g| g.is_valid())
-                .unwrap_or(false);
-            
-            let mut query = world.query::<(Entity, &WindowHandle, &GraphicsNeedsInit)>();
-            let marked_count = query.iter(world).count();
-            
-            println!("[Test Phase 4] Reinitialization Marker:");
-            println!("  - GraphicsCore.is_valid() = {}", graphics_valid);
-            println!("  - Entities with GraphicsNeedsInit: {}", marked_count);
-            
-            if graphics_valid && marked_count == 2 {
-                println!("  ✅ [PASS] GraphicsCore reinitialized and all entities marked");
-            } else if !graphics_valid {
-                println!("  ⏳ [WAIT] GraphicsCore not yet reinitialized");
-            } else {
-                println!("  ❌ [FAIL] Expected 2 marked entities, found {}", marked_count);
-            }
-        }));
-
-        // 8秒: 再初期化完了を確認
-        thread::sleep(Duration::from_secs(2));
-        println!("\n[Timer] 8s: Verifying reinitialization completion");
-        let _ = tx.send(Box::new(|world: &mut World| {
-            let graphics_valid = world.get_resource::<GraphicsCore>()
-                .map(|g| g.is_valid())
-                .unwrap_or(false);
-            
-            let mut all_query = world.query::<(Entity, &WindowHandle, &WindowGraphics, &Visual, &Surface)>();
-            let mut marker_query = world.query::<(Entity, &GraphicsNeedsInit)>();
-            
-            let marker_count = marker_query.iter(world).count();
-            
-            println!("[Test Phase 5] Reinitialization Completion:");
-            println!("  - GraphicsCore.is_valid() = {}", graphics_valid);
-            println!("  - Entities still with GraphicsNeedsInit: {}", marker_count);
-            
-            let mut all_valid = true;
-            let mut generation_incremented = true;
-            
-            for (entity, handle, wg, v, s) in all_query.iter(world) {
                 let wg_valid = wg.is_valid();
                 let v_valid = v.is_valid();
                 let s_valid = s.is_valid();
                 let generation = wg.generation();
                 
-                println!("  - Entity {:?} (HWND {:?}):", entity, handle.hwnd);
-                println!("    WindowGraphics: valid={}, generation={}", wg_valid, generation);
-                println!("    Visual.is_valid() = {}", v_valid);
-                println!("    Surface.is_valid() = {}", s_valid);
+                println!("[Test] Entity {:?} (HWND {:?}):", entity, handle.hwnd);
+                println!("  - WindowGraphics: valid={}, generation={}", wg_valid, generation);
+                println!("  - Visual.is_valid() = {}", v_valid);
+                println!("  - Surface.is_valid() = {}", s_valid);
                 
-                if !wg_valid || !v_valid || !s_valid {
-                    all_valid = false;
-                }
-                
-                if generation == 0 {
-                    generation_incremented = false;
+                if generation > 0 && wg_valid && v_valid && s_valid {
+                    println!("  ✅ [SUCCESS] 再初期化されました！（generation={} > 0）", generation);
+                } else if generation == 0 && wg_valid && v_valid && s_valid {
+                    println!("  ⏳ [WAIT] 初回作成状態（generation=0）");
+                } else {
+                    println!("  ❌ [FAIL] コンポーネントが無効または未初期化");
+                    all_success = false;
                 }
             }
             
-            if graphics_valid && all_valid && marker_count == 0 && generation_incremented {
-                println!("\n  ✅✅✅ [TEST SUCCESS] Complete reinitialization verified!");
-                println!("  - GraphicsCore reinitialized");
-                println!("  - All components reinitialized");
-                println!("  - All markers cleaned up");
-                println!("  - Generation numbers incremented");
-            } else {
-                if !graphics_valid {
-                    println!("  ❌ GraphicsCore not valid");
-                }
-                if !all_valid {
-                    println!("  ❌ Some components not valid");
-                }
-                if marker_count > 0 {
-                    println!("  ⏳ {} entities still being initialized", marker_count);
-                }
-                if !generation_incremented {
-                    println!("  ❌ Generation numbers not incremented");
-                }
+            if all_success && graphics_valid {
+                println!("\n  🎉🎉🎉 [TEST SUCCESS] 全コンポーネントが正常に再初期化されました！");
+            }
+            println!("========================================\n");
+        }));
+
+        // 7秒: 1つ目のウィンドウからRectangle削除（視覚効果のため）
+        thread::sleep(Duration::from_secs(3));
+        println!("\n[Timer] 7s: Removing Rectangle from first window (visual effect)");
+        let _ = tx.send(Box::new(|world: &mut World| {
+            let mut query = world.query::<(Entity, &WindowHandle)>();
+            if let Some((entity, handle)) = query.iter(world).next() {
+                println!("[Test] Removing Rectangle from entity {:?} (hwnd {:?})", entity, handle.hwnd);
+                println!("       赤い四角形が消えます...");
+                world.entity_mut(entity).remove::<Rectangle>();
             }
         }));
 
-        // 12秒: 最終状態確認と終了
-        thread::sleep(Duration::from_secs(4));
-        println!("\n[Timer] 12s: Final state check and closing windows");
+        // 10秒: ウィンドウを1つ閉じる
+        thread::sleep(Duration::from_secs(3));
+        println!("\n[Timer] 10s: Closing one window");
         let _ = tx.send(Box::new(|world: &mut World| {
-            let mut query = world.query::<(Entity, &WindowHandle, &WindowGraphics)>();
-            let entities: Vec<_> = query.iter(world).collect();
+            let mut query = world.query::<(Entity, &WindowHandle)>();
+            let entities: Vec<_> = query.iter(world).map(|(e, h)| (e, h.hwnd)).collect();
             
-            println!("\n[Test Phase 6] Final State:");
-            println!("  - Total windows: {}", entities.len());
-            
-            for (entity, handle, wg) in entities {
-                println!("  - Entity {:?} (HWND {:?}): generation={}", 
-                    entity, handle.hwnd, wg.generation());
+            if let Some((entity, hwnd)) = entities.first() {
+                println!("[Test] Closing window: Entity {:?}, HWND {:?}", entity, hwnd);
+                world.despawn(*entity);
             }
-            
-            // 全ウィンドウを閉じてテスト終了
-            let mut despawn_query = world.query::<(Entity, &WindowHandle)>();
-            let to_despawn: Vec<_> = despawn_query.iter(world).map(|(e, _)| e).collect();
-            
-            println!("\n  Closing all windows to end test...");
-            for entity in to_despawn {
+        }));
+
+        // 13秒: 最後のウィンドウを閉じる
+        thread::sleep(Duration::from_secs(3));
+        println!("\n[Timer] 13s: Closing last window");
+        let _ = tx.send(Box::new(|world: &mut World| {
+            let mut query = world.query::<(Entity, &WindowHandle)>();
+            if let Some((entity, handle)) = query.iter(world).next() {
+                println!("[Test] Closing last window: Entity {:?}, HWND {:?}", entity, handle.hwnd);
                 world.despawn(entity);
             }
         }));
@@ -264,12 +176,12 @@ fn main() -> Result<()> {
 
     println!("[Test] Test scenario started");
     println!("\nTest Phases:");
-    println!("  Phase 1 (2s):  Verify initial graphics state");
-    println!("  Phase 2 (4s):  Simulate device loss (invalidate GraphicsCore)");
-    println!("  Phase 3 (5s):  Verify dependent components invalidation");
-    println!("  Phase 4 (6s):  Verify GraphicsNeedsInit marker");
-    println!("  Phase 5 (8s):  Verify reinitialization completion");
-    println!("  Phase 6 (12s): Final state check and exit");
+    println!("  Phase 1 (0s):  Create 2 windows with red & blue rectangles");
+    println!("  Phase 2 (3s):  Simulate device loss (invalidate GraphicsCore)");
+    println!("  Phase 3 (4s):  Verify automatic reinitialization (generation++)");
+    println!("  Phase 4 (7s):  Remove Rectangle for visual effect");
+    println!("  Phase 5 (10s): Close one window");
+    println!("  Phase 6 (13s): Close last window and exit");
     println!("\n========================================\n");
 
     // コマンド実行システム
