@@ -702,3 +702,109 @@ if let Err(err) = dc.EndDraw(None, None) {
 **参考資料**:
 - Microsoft公式ドキュメント: IDCompositionSurface::BeginDraw
 - Direct2D Error Codes: D2DERR_WRONG_STATE (0x88990001)
+
+---
+
+## 🔍 実装と調査結果 (Implementation & Investigation Results)
+
+### Phase 1 実装完了 (2025-11-16)
+
+#### 実装内容
+1. ✅ `render_surface`のエラーハンドリング改善
+   - `EndDraw`失敗時に`surface.end_draw()`を呼ばないように修正
+   - HRESULTコードの16進数表示を追加
+   
+2. ✅ `commit_composition`の詳細ログ追加
+   - Commit実行前後のログ
+   - エラー時のHRESULT表示
+
+3. ✅ FrameCountリソース追加
+   - フレーム番号によるログ追跡を実現
+   - 各システムで`Res<FrameCount>`参照
+
+4. ✅ スケジュール設定の修正
+   - `render_surface`をRenderSurfaceスケジュールに移動
+   - `commit_composition`の重複登録を削除
+
+#### 検証結果
+
+**エラー発生タイミング**:
+```
+[Frame 1] GraphicsCore初期化 + Commit成功
+[Frame 2] Surface作成 + render_surface実行 + Commit失敗（D2DERR_WRONG_STATE）
+[Frame 3以降] すべてのCommit成功
+```
+
+**重要な発見**:
+- ✅ エラーは**Frame 2（初回描画フレーム）で1回だけ**発生
+- ✅ `render_surface`自体は正常動作（BeginDraw/EndDraw成功）
+- ✅ 問題は`commit_composition`で発生
+- ❌ **並列実行は原因ではない**（SingleThreaded化してもエラー発生）
+
+### 根本原因の分析
+
+#### D2DERR_WRONG_STATEとは
+- Direct2Dオブジェクトが不正な状態でメソッドが呼ばれた時に発生
+- BeginDraw/EndDrawの不整合、RenderTarget状態エラーなど
+
+#### 現在の問題
+**Surface作成直後の同じフレーム内でCommitを実行**している：
+```
+Frame 2の実行順序:
+1. PostLayout: init_window_surface（Visual::set_content(Surface)で設定）
+2. Draw: draw_rectangles（CommandList生成）
+3. RenderSurface: render_surface（Surface描画）
+4. CommitComposition: commit_composition ← ここで失敗
+```
+
+**推測される原因**:
+- DirectCompositionは非同期APIのため、`Visual::set_content(Surface)`や`Surface::EndDraw()`の効果が**即座に反映されない**
+- 内部状態の初期化が完了する前に`Commit()`が呼ばれている
+- Frame 3以降は状態が安定しているため成功
+
+### 試行した対策
+
+#### 1. RenderSurfaceのSingleThreaded化
+**結果**: ❌ エラーは解決せず
+**結論**: 並列実行が原因ではない
+
+### 残存する問題
+
+**状態**: Frame 2で1回だけCommitが失敗  
+**影響**: 描画結果には影響なし（Frame 3で正常化）  
+**頻度**: 初回Surface作成時に100%再現
+
+### 今後の対策候補
+
+#### Option 1: Commit失敗時のリトライ機構
+```rust
+pub fn commit_composition(...) {
+    let mut retry_count = 0;
+    loop {
+        match dcomp.commit() {
+            Ok(_) => break,
+            Err(e) if e.code() == HRESULT(0x88990001) && retry_count < 3 => {
+                retry_count += 1;
+                eprintln!("[Frame {}] Commit failed, retrying ({}/3)", frame_count.0, retry_count);
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            Err(e) => {
+                eprintln!("[Frame {}] Commit failed: {:?}", frame_count.0, e);
+                break;
+            }
+        }
+    }
+}
+```
+
+#### Option 2: 初回Surface作成時は1フレーム待機
+- 新規Surfaceに`NewlyCreated`マーカーを追加
+- 最初のフレームでは描画をスキップ
+
+#### Option 3: エラーを無視（既知の制限として扱う）
+- 実害がないため、ログレベルをWARNINGに変更
+- ドキュメントに記載
+
+**Phase**: Investigation Complete  
+**Status**: ⚠️ Known Issue - Frame 2 Commit Failure  
+**Updated**: 2025-11-16
