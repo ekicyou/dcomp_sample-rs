@@ -88,11 +88,12 @@ pub fn render_surface(
         )>,
     >,
     _graphics_core: Option<Res<GraphicsCore>>,
+    frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 
     for (entity, command_list, surface) in query.iter() {
-        eprintln!("[render_surface] === Processing Entity={:?} ===", entity);
+        eprintln!("[Frame {}] [render_surface] === Processing Entity={:?} ===", frame_count.0, entity);
         
         if !surface.is_valid() {
             eprintln!("[render_surface] Surface invalid for Entity={:?}, skipping", entity);
@@ -172,31 +173,34 @@ pub fn render_surface(
 }
 
 /// DirectCompositionのすべての変更を確定する
-pub fn commit_composition(graphics: Option<Res<GraphicsCore>>) {
+pub fn commit_composition(
+    graphics: Option<Res<GraphicsCore>>,
+    frame_count: Res<crate::ecs::world::FrameCount>,
+) {
     let Some(graphics) = graphics else {
-        eprintln!("[commit_composition] GraphicsCore not available");
+        eprintln!("[Frame {}] [commit_composition] GraphicsCore not available", frame_count.0);
         return;
     };
 
     if !graphics.is_valid() {
-        eprintln!("[commit_composition] GraphicsCore is invalid");
+        eprintln!("[Frame {}] [commit_composition] GraphicsCore is invalid", frame_count.0);
         return;
     }
 
     let dcomp = match graphics.dcomp() {
         Some(d) => d,
         None => {
-            eprintln!("[commit_composition] DComp device not available");
+            eprintln!("[Frame {}] [commit_composition] DComp device not available", frame_count.0);
             return;
         }
     };
 
-    eprintln!("[commit_composition] Calling Commit");
+    eprintln!("[Frame {}] [commit_composition] Calling Commit", frame_count.0);
     if let Err(e) = dcomp.commit() {
-        eprintln!("[commit_composition] Commit失敗: HRESULT {:?}", e);
-        eprintln!("[commit_composition] Commit失敗 HRESULT: 0x{:08X}", e.code().0);
+        eprintln!("[Frame {}] [commit_composition] Commit失敗: HRESULT {:?}", frame_count.0, e);
+        eprintln!("[Frame {}] [commit_composition] Commit失敗 HRESULT: 0x{:08X}", frame_count.0, e.code().0);
     } else {
-        eprintln!("[commit_composition] Commit succeeded");
+        eprintln!("[Frame {}] [commit_composition] Commit succeeded", frame_count.0);
     }
 }
 
@@ -207,6 +211,7 @@ pub fn init_graphics_core(
     graphics: Option<ResMut<GraphicsCore>>,
     query: Query<Entity, With<HasGraphicsResources>>,
     mut commands: Commands,
+    frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     match graphics {
         Some(mut gc) => {
@@ -214,38 +219,38 @@ pub fn init_graphics_core(
                 return;
             }
             
-            eprintln!("[init_graphics_core] GraphicsCore再初期化を開始");
+            eprintln!("[Frame {}] [init_graphics_core] GraphicsCore再初期化を開始", frame_count.0);
             match GraphicsCore::new() {
                 Ok(new_gc) => {
                     *gc = new_gc;
-                    eprintln!("[init_graphics_core] GraphicsCore再初期化完了");
+                    eprintln!("[Frame {}] [init_graphics_core] GraphicsCore再初期化完了", frame_count.0);
                     
                     let count = query.iter().count();
-                    eprintln!("[init_graphics_core] {}個のエンティティにGraphicsNeedsInitマーカーを追加", count);
+                    eprintln!("[Frame {}] [init_graphics_core] {}個のエンティティにGraphicsNeedsInitマーカーを追加", frame_count.0, count);
                     for entity in query.iter() {
                         commands.entity(entity).insert(GraphicsNeedsInit);
                     }
                 }
                 Err(e) => {
-                    eprintln!("[init_graphics_core] GraphicsCore再初期化失敗: {:?}", e);
+                    eprintln!("[Frame {}] [init_graphics_core] GraphicsCore再初期化失敗: {:?}", frame_count.0, e);
                 }
             }
         }
         None => {
-            eprintln!("[init_graphics_core] GraphicsCore初期化を開始");
+            eprintln!("[Frame {}] [init_graphics_core] GraphicsCore初期化を開始", frame_count.0);
             match GraphicsCore::new() {
                 Ok(gc) => {
-                    eprintln!("[init_graphics_core] GraphicsCore初期化完了");
+                    eprintln!("[Frame {}] [init_graphics_core] GraphicsCore初期化完了", frame_count.0);
                     commands.insert_resource(gc);
                     
                     let count = query.iter().count();
-                    eprintln!("[init_graphics_core] {}個のエンティティにGraphicsNeedsInitマーカーを追加", count);
+                    eprintln!("[Frame {}] [init_graphics_core] {}個のエンティティにGraphicsNeedsInitマーカーを追加", frame_count.0, count);
                     for entity in query.iter() {
                         commands.entity(entity).insert(GraphicsNeedsInit);
                     }
                 }
                 Err(e) => {
-                    eprintln!("[init_graphics_core] GraphicsCore初期化失敗: {:?}", e);
+                    eprintln!("[Frame {}] [init_graphics_core] GraphicsCore初期化失敗: {:?}", frame_count.0, e);
                 }
             }
         }
@@ -376,6 +381,7 @@ pub fn init_window_surface(
         )>
     >,
     mut commands: Commands,
+    frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     if !graphics.is_valid() {
         return;
@@ -392,27 +398,27 @@ pub fn init_window_surface(
 
         match surface {
             None => {
-                eprintln!("[init_window_surface] Surface新規作成 (Entity: {:?}, Size: {}x{})", entity, width, height);
+                eprintln!("[Frame {}] [init_window_surface] Surface新規作成 (Entity: {:?}, Size: {}x{})", frame_count.0, entity, width, height);
                 match create_surface_for_window(&graphics, visual, width, height) {
                     Ok(s) => {
-                        eprintln!("[init_window_surface] Surface作成完了 (Entity: {:?})", entity);
+                        eprintln!("[Frame {}] [init_window_surface] Surface作成完了 (Entity: {:?})", frame_count.0, entity);
                         commands.entity(entity).insert(s);
                     }
                     Err(e) => {
-                        eprintln!("[init_window_surface] エラー: Entity {:?}, HRESULT {:?}", entity, e);
+                        eprintln!("[Frame {}] [init_window_surface] エラー: Entity {:?}, HRESULT {:?}", frame_count.0, entity, e);
                     }
                 }
             }
             Some(mut s) => {
                 if !s.is_valid() {
-                    eprintln!("[init_window_surface] Surface再初期化 (Entity: {:?}, Size: {}x{})", entity, width, height);
+                    eprintln!("[Frame {}] [init_window_surface] Surface再初期化 (Entity: {:?}, Size: {}x{})", frame_count.0, entity, width, height);
                     match create_surface_for_window(&graphics, visual, width, height) {
                         Ok(new_s) => {
                             *s = new_s;
-                            eprintln!("[init_window_surface] Surface再初期化完了 (Entity: {:?})", entity);
+                            eprintln!("[Frame {}] [init_window_surface] Surface再初期化完了 (Entity: {:?})", frame_count.0, entity);
                         }
                         Err(e) => {
-                            eprintln!("[init_window_surface] 再初期化エラー: Entity {:?}, HRESULT {:?}", entity, e);
+                            eprintln!("[Frame {}] [init_window_surface] 再初期化エラー: Entity {:?}, HRESULT {:?}", frame_count.0, entity, e);
                         }
                     }
                 }

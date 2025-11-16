@@ -4,6 +4,10 @@ use bevy_ecs::system::*;
 use std::time::Instant;
 use windows::Win32::Foundation::HWND;
 
+/// フレームカウンタリソース
+#[derive(Resource, Default, Debug)]
+pub struct FrameCount(pub u32);
+
 // 各プライオリティ用のScheduleLabelマーカー構造体
 // 実行順序: Input → Update → PreLayout → Layout → PostLayout → UISetup → Draw → Render → RenderSurface → Composition → CommitComposition
 
@@ -113,6 +117,7 @@ impl EcsWorld {
 
         // リソースの初期化
         world.insert_resource(crate::ecs::app::App::new());
+        world.insert_resource(FrameCount::default());
 
         // スケジュールの登録
         {
@@ -275,6 +280,11 @@ impl EcsWorld {
         // システムが登録されていない場合はスキップ
         if !self.has_systems {
             return false;
+        }
+
+        // FrameCountをインクリメント
+        if let Some(mut frame_count) = self.world.get_resource_mut::<FrameCount>() {
+            frame_count.0 += 1;
         }
 
         // 各Scheduleを順番に実行
