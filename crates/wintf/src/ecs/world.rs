@@ -150,7 +150,24 @@ impl EcsWorld {
             schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
             // on_window_handle_addedとon_window_handle_removedはフックで代替
 
-            // PostLayoutスケジュールにグラフィックスシステムを登録
+            // PostLayoutスケジュールに新しい初期化システムを登録
+            schedules.add_systems(
+                PostLayout,
+                (
+                    crate::ecs::graphics::init_graphics_core,
+                    crate::ecs::graphics::init_window_graphics
+                        .after(crate::ecs::graphics::init_graphics_core),
+                    crate::ecs::graphics::init_window_visual
+                        .after(crate::ecs::graphics::init_window_graphics),
+                    crate::ecs::graphics::init_window_surface
+                        .after(crate::ecs::graphics::init_window_visual),
+                ),
+            );
+
+            // Drawスケジュールにクリーンアップシステムを登録
+            schedules.add_systems(Draw, crate::ecs::graphics::cleanup_graphics_needs_init);
+
+            // 既存の初期化システム（後で削除予定）
             schedules.add_systems(
                 PostLayout,
                 (
@@ -177,6 +194,9 @@ impl EcsWorld {
 
             // CommitCompositionスケジュールにコミットシステムを登録（廃止予定）
             schedules.add_systems(CommitComposition, crate::ecs::graphics::commit_composition);
+
+            // Updateスケジュールに依存コンポーネント無効化システムを登録
+            schedules.add_systems(Update, crate::ecs::graphics::invalidate_dependent_components);
         }
 
         Self {

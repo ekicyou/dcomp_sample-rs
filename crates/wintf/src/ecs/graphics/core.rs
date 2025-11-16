@@ -12,8 +12,8 @@ use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::DirectWrite::*;
 use windows::Win32::Graphics::Dxgi::*;
 
-#[derive(Resource, Debug)]
-pub struct GraphicsCore {
+#[derive(Debug)]
+struct GraphicsCoreInner {
     pub d3d: ID3D11Device,
     pub dxgi: IDXGIDevice4,
     pub d2d_factory: ID2D1Factory,
@@ -21,6 +21,11 @@ pub struct GraphicsCore {
     pub dwrite_factory: IDWriteFactory2,
     pub desktop: IDCompositionDesktopDevice,
     pub dcomp: IDCompositionDevice3,
+}
+
+#[derive(Resource, Debug)]
+pub struct GraphicsCore {
+    inner: Option<GraphicsCoreInner>,
 }
 
 unsafe impl Send for GraphicsCore {}
@@ -41,22 +46,52 @@ impl GraphicsCore {
         eprintln!("[GraphicsCore] 初期化完了");
         
         Ok(Self {
-            d3d,
-            dxgi,
-            d2d_factory,
-            d2d,
-            dwrite_factory,
-            desktop,
-            dcomp,
+            inner: Some(GraphicsCoreInner {
+                d3d,
+                dxgi,
+                d2d_factory,
+                d2d,
+                dwrite_factory,
+                desktop,
+                dcomp,
+            })
         })
     }
 
-    pub fn d2d_factory(&self) -> &ID2D1Factory {
-        &self.d2d_factory
+    pub fn invalidate(&mut self) {
+        self.inner = None;
     }
 
-    pub fn d2d_device(&self) -> &ID2D1Device {
-        &self.d2d
+    pub fn is_valid(&self) -> bool {
+        self.inner.is_some()
+    }
+
+    pub fn d2d_factory(&self) -> Option<&ID2D1Factory> {
+        self.inner.as_ref().map(|i| &i.d2d_factory)
+    }
+
+    pub fn d2d_device(&self) -> Option<&ID2D1Device> {
+        self.inner.as_ref().map(|i| &i.d2d)
+    }
+
+    pub fn dcomp(&self) -> Option<&IDCompositionDevice3> {
+        self.inner.as_ref().map(|i| &i.dcomp)
+    }
+
+    pub fn desktop(&self) -> Option<&IDCompositionDesktopDevice> {
+        self.inner.as_ref().map(|i| &i.desktop)
+    }
+
+    pub fn dwrite_factory(&self) -> Option<&IDWriteFactory2> {
+        self.inner.as_ref().map(|i| &i.dwrite_factory)
+    }
+
+    pub fn d3d(&self) -> Option<&ID3D11Device> {
+        self.inner.as_ref().map(|i| &i.d3d)
+    }
+
+    pub fn dxgi(&self) -> Option<&IDXGIDevice4> {
+        self.inner.as_ref().map(|i| &i.dxgi)
     }
 }
 

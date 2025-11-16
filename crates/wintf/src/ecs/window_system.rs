@@ -75,11 +75,14 @@ pub fn create_windows(
                 };
 
                 // WindowHandleコンポーネントを追加
-                commands.entity(entity).insert(WindowHandle {
-                    hwnd,
-                    instance: singleton.instance(),
-                    initial_dpi,
-                });
+                commands.entity(entity).insert((
+                    WindowHandle {
+                        hwnd,
+                        instance: singleton.instance(),
+                        initial_dpi,
+                    },
+                    crate::ecs::graphics::HasGraphicsResources,
+                ));
 
                 // ウィンドウを表示
                 unsafe {

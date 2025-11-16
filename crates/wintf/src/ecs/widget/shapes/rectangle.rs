@@ -108,7 +108,18 @@ pub fn draw_rectangles(
         );
 
         // DeviceContextとCommandList生成
-        let dc = match graphics_core.d2d_device().create_device_context(
+        let d2d_device = match graphics_core.d2d_device() {
+            Some(d) => d,
+            None => {
+                eprintln!(
+                    "[draw_rectangles] GraphicsCore無効のためスキップ (Entity={:?})",
+                    entity
+                );
+                continue;
+            }
+        };
+
+        let dc = match d2d_device.create_device_context(
             windows::Win32::Graphics::Direct2D::D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
         ) {
             Ok(dc) => dc,
