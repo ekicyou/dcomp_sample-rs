@@ -92,7 +92,10 @@ pub fn render_surface(
     use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 
     for (entity, command_list, surface) in query.iter() {
+        eprintln!("[render_surface] === Processing Entity={:?} ===", entity);
+        
         if !surface.is_valid() {
+            eprintln!("[render_surface] Surface invalid for Entity={:?}, skipping", entity);
             continue;
         }
 
@@ -112,11 +115,17 @@ pub fn render_surface(
             None => continue,
         };
         let (dc, _offset) = match surface_ref.begin_draw(None) {
-            Ok(result) => result,
+            Ok(result) => {
+                eprintln!(
+                    "[render_surface] BeginDraw succeeded for Entity={:?}, offset=({}, {})",
+                    entity, result.1.x, result.1.y
+                );
+                result
+            }
             Err(err) => {
                 eprintln!(
-                    "[render_surface] Failed to begin draw for Entity={:?}: {:?}",
-                    entity, err
+                    "[render_surface] BeginDraw failed for Entity={:?}: {:?}, HRESULT: 0x{:08X}",
+                    entity, err, err.code().0
                 );
                 continue;
             }
@@ -133,15 +142,18 @@ pub fn render_surface(
 
             // CommandListがある場合のみ描画
             if let Some(command_list) = command_list {
+                eprintln!("[render_surface] Drawing command_list for Entity={:?}", entity);
                 dc.draw_image(command_list);
             }
 
+            eprintln!("[render_surface] Calling EndDraw for Entity={:?}", entity);
             if let Err(err) = dc.EndDraw(None, None) {
                 eprintln!(
                     "[render_surface] EndDraw failed for Entity={:?}: {:?}",
                     entity, err
                 );
-                let _ = surface_ref.end_draw();
+                eprintln!("[render_surface] HRESULT: 0x{:08X}", err.code().0);
+                // surface_ref.end_draw()は呼ばない（状態不整合のため）
                 continue;
             }
         }
@@ -154,6 +166,8 @@ pub fn render_surface(
             );
             continue;
         }
+        
+        eprintln!("[render_surface] === Completed Entity={:?} ===", entity);
     }
 }
 
