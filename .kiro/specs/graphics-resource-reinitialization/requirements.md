@@ -9,13 +9,24 @@ wintfライブラリにおいて、GraphicsCoreリソース（DirectComposition�
 
 この要件は、デバイスロスト、GPUリセット、ウィンドウの再作成などの状況で、アプリケーションが安定して動作し続けることを保証します。
 
+### コンポーネント命名規則
+
+現在の実装では以下のコンポーネントを使用していますが、将来的には論理情報とグラフィックスリソースを分離する予定です：
+
+- **Visual** → 将来的に **VisualGraphics** に改名予定（現在は実質的にグラフィックスリソースのみ）
+- **Surface** → 将来的に **SurfaceGraphics** に改名予定（現在は実質的にグラフィックスリソースのみ）
+- **WindowGraphics** → すでに適切な命名（変更なし）
+
+本要件定義では現在の実装に合わせて `Visual`、`Surface` という名称を使用します。
+
 ### 検証済み技術制約
 
 調査の結果、以下の技術制約が確認されました：
 
-1. **Bevy ECS Resource削除検出**: `RemovedComponents<T>`はComponentのみ対応。Resource削除検出にはポーリング方式（`Option<Res<T>>`チェック）が必要。
-2. **コンポーネント状態管理**: 遅延初期化パターン（Lazy Initialization Pattern）を採用。内部を`Option<T>`でラップし、`get_or_init()`で自動初期化。
-3. **Changed<T>検出の制御**: `Mut<T>`は`deref_mut()`時点で自動的にChangedマークするため、`bypass_change_detection()`経由で`get_or_init()`を呼び出し、不要な変更検出を回避。`invalidate()`と実際の再初期化のみが変更を検知。
+1. **Bevy ECS Resource管理**: GraphicsCoreリソース自体も内部データを`Option<T>`でラップし、破棄時はNoneに設定。初期化システムはNoneを検出して初期化を実行。
+2. **2マーカーコンポーネント方式**: 拡張性とパフォーマンスを両立するため、静的マーカー`HasGraphicsResources`（リソース使用宣言）と動的マーカー`GraphicsNeedsInit`（初期化状態）を使用。内部データを`Option<T>`でラップし、初期化システムは`Query<&mut T, With<GraphicsNeedsInit>>`で対象を絞る。
+3. **一括マーキングパターン**: GraphicsCore初期化システムが、初期化完了時に`Query<Entity, With<HasGraphicsResources>>`で全対象エンティティを取得し、`Commands::entity(entity).insert(GraphicsNeedsInit)`で一括追加。これにより新Widgetコンポーネント追加時もシステム変更不要。
+4. **ECSスケジューリング最適化**: 初期化システムは`Query<&mut T, With<GraphicsNeedsInit>>`、参照システムは`Query<&T, Without<GraphicsNeedsInit>>`を使用し、読み取り専用アクセスを最大化することでBevy ECSの並列実行最適化を活用（Archetype-levelフィルタリング）。
 
 検証テスト:
 - `tests/resource_removal_detection_test.rs` - Resource削除検出の動作確認（6テスト合格）
@@ -24,80 +35,116 @@ wintfライブラリにおいて、GraphicsCoreリソース（DirectComposition�
 
 ## Requirements
 
-### Requirement 1: GraphicsCore破棄検知と遅延初期化パターン
+### Requirement 1: GraphicsCore破棄検知と2マーカーコンポーネントパターン
 
-**Objective:** Graphicsリソース管理者として、GraphicsCoreが破棄されたことを検知し、依存コンポーネントに遅延初期化パターンを適用したい。これにより、無効なリソースへのアクセスを防止し、必要なタイミングで自動的に再初期化する。
+**Objective:** Graphicsリソース管理者として、GraphicsCoreが破棄されたことを検知し、依存コンポーネントに2種類のマーカーコンポーネントを使用して初期化要求を明示したい。静的マーカー（HasGraphicsResources）でリソース使用を宣言し、動的マーカー（GraphicsNeedsInit）で初期化状態を管理することで、拡張性とパフォーマンスを両立する。
 
-#### Acceptance Criteria (1-1: Resource削除検知)
+#### Acceptance Criteria (1-1: GraphicsCore破棄検知)
 
-1. When GraphicsCoreリソースが削除される、the Graphicsシステムはポーリング方式（`Option<Res<GraphicsCore>>`チェック）で削除を検知しなければならない
-2. When GraphicsCore削除が検知される、the GraphicsシステムはすべてのWindowGraphics、Visual、Surfaceコンポーネントに対して`invalidate()`を呼び出さなければならない
-3. The GraphicsCore削除検知システムは毎フレーム実行され、1フレームの遅延を許容しなければならない
+1. The GraphicsCoreリソースは内部データを`Option<T>`でラップしなければならない
+2. When グラフィックデバイスロストなどの破棄イベントが検出される、the 破棄検出システムはGraphicsCoreの`invalidate()`を呼び出し、内部をNoneに設定しなければならない
+3. When GraphicsCoreが無効化される、the システムはすべてのWindowGraphics、Visual、Surfaceコンポーネントに対して`invalidate()`を呼び出さなければならない
+4. The GraphicsCore破棄検知システムは毎フレーム実行され、1フレームの遅延を許容しなければならない
 
-#### Acceptance Criteria (1-2: 遅延初期化パターン)
+#### Acceptance Criteria (1-2: 2マーカーコンポーネントパターンと一括マーキング)
 
 1. The WindowGraphics、Visual、Surfaceコンポーネントは内部データを`Option<T>`でラップしなければならない
-2. The 各コンポーネントは`invalidate()`メソッドで内部をNoneに設定しなければならない
-3. The 各コンポーネントは`get_or_init()`メソッドでNone検出時に自動初期化を実行しなければならない
-4. When 有効なデータが存在する、the `get_or_init()`は再初期化せずにデータ参照を返さなければならない
-5. The 世代番号（generation）フィールドで初期化回数を追跡しなければならない
+2. The 各コンポーネント（GraphicsCore含む）は`invalidate()`メソッドで内部をNoneに設定しなければならない
+3. The 静的マーカーコンポーネント（`HasGraphicsResources`）を定義し、グラフィックスリソースを使用する全エンティティに永続的に付与しなければならない
+4. The 動的マーカーコンポーネント（`GraphicsNeedsInit`）を定義し、初期化が必要な状態を示さなければならない
+5. When GraphicsCore初期化システムが初期化を完了する、the システムは`Query<Entity, With<HasGraphicsResources>>`で全対象エンティティを取得し、`Commands::entity(entity).insert(GraphicsNeedsInit)`で一括マーキングしなければならない
+6. When 各エンティティのグラフィックスコンポーネント初期化が完了する、the クリーンアップシステムは`GraphicsNeedsInit`マーカーを削除しなければならない
+7. The 世代番号（generation）フィールドで初期化回数を追跡しなければならない
+8. The 新しいWidgetタイプ（ButtonGraphics、TextGraphicsなど）追加時、spawn時に`HasGraphicsResources`マーカーを付与するだけで自動的に再初期化フローに組み込まれなければならない
 
-### Requirement 2: GraphicsCore再初期化トリガー
+### Requirement 2: GraphicsCore初期化システム
 
-**Objective:** システム管理者として、GraphicsCoreを適切なタイミングで再初期化したい。これにより、グラフィックス機能を復旧させる。
-
-#### Acceptance Criteria
-
-1. When アプリケーションがGraphicsCore再初期化を要求する、the Graphicsシステムは新しいGraphicsCoreリソースを作成しなければならない
-2. If GraphicsCore作成に失敗する、then the Graphicsシステムはエラーログを出力し、再試行可能な状態を維持しなければならない
-3. When GraphicsCoreが正常に再作成される、the Graphicsシステムは依存コンポーネントの再初期化フローを開始しなければならない
-4. The ensure_graphics_coreシステムはGraphicsCore不在時に自動的に初期化を試みなければならない
-
-### Requirement 3: WindowGraphics遅延再初期化
-
-**Objective:** ウィンドウ管理者として、GraphicsCore再作成後に既存ウィンドウのWindowGraphicsを遅延初期化したい。これにより、ウィンドウの描画機能を効率的に復旧させる。
-
-#### Acceptance Criteria (3-1: 自動再初期化)
-
-1. When WindowGraphicsの`get_or_init()`が呼ばれる、if 内部がNoneならば、the 新しいIDCompositionTargetとID2D1DeviceContextを生成しなければならない
-2. When WindowGraphics初期化に成功する、the `get_or_init()`はデータ参照を返し、世代番号をインクリメントしなければならない
-3. When WindowGraphics初期化に失敗する、the `get_or_init()`はエラーログを出力し、panicまたはデフォルト値を返さなければならない
-
-#### Acceptance Criteria (3-2: 使用パターン)
-
-1. The 描画システムはWindowGraphicsアクセス時に`wg.bypass_change_detection().get_or_init()`を呼び出さなければならない
-2. The `bypass_change_detection()`は不要なChanged検出を回避し、実際の再初期化のみが変更をマークしなければならない
-3. The `get_or_init()`は可変参照（`&mut self`）を要求し、並行アクセスを防止しなければならない
-4. When 複数のエンティティが再初期化を必要とする、the システムは必要なもののみを初期化しなければならない（遅延初期化の利点）
-
-### Requirement 4: Visual/Surface再初期化
-
-**Objective:** 描画管理者として、WindowGraphics再作成後にVisualとSurfaceコンポーネントを再初期化したい。これにより、ビジュアルツリーと描画サーフェスを復旧させる。
+**Objective:** システム管理者として、GraphicsCoreを適切なタイミングで初期化・再初期化したい。これにより、グラフィックス機能を確立・復旧させる。
 
 #### Acceptance Criteria
 
-1. When WindowGraphicsが再作成される、the Graphicsシステムは関連するVisualコンポーネントを無効としてマークしなければならない
-2. When 無効なVisualが検出される、the Graphicsシステムは新しいIDCompositionVisual3を生成し、CompositionTargetに設定しなければならない
-3. When Visualが再作成される、the Graphicsシステムは関連するSurfaceコンポーネントを無効としてマークしなければならない
-4. When 無効なSurfaceが検出される、the Graphicsシステムは新しいIDCompositionSurfaceを生成し、Visualに関連付けなければならない
-5. The Graphicsシステムは再初期化の順序（WindowGraphics → Visual → Surface）を保証しなければならない
+1. The init_graphics_coreシステムは毎フレーム実行され、GraphicsCoreの内部が`None`の場合に初期化を実行しなければならない
+2. When GraphicsCore初期化を開始する、the システムは新しいDirectComposition、Direct2D、Direct3D11デバイスを作成しなければならない
+3. If GraphicsCore作成に失敗する、then the システムはエラーログを出力し、内部をNoneのまま維持して次フレームで再試行可能にしなければならない
+4. When GraphicsCore初期化が正常に完了する、the システムは`Query<Entity, With<HasGraphicsResources>>`で全エンティティを取得し、`Commands::entity(entity).insert(GraphicsNeedsInit)`で一括マーキングしなければならない
+5. When 一括マーキングが完了する（apply_deferred後）、the 各コンポーネント初期化システムが順次実行されなければならない
+6. The init_graphics_coreシステムはPostLayoutスケジュールの最初に実行され、すべてのコンポーネント初期化システムより前でなければならない
+
+### Requirement 3: WindowGraphics初期化システム
+
+**Objective:** ウィンドウ管理者として、WindowGraphicsの新規作成と再初期化を統一的に処理する専用システムを実装したい。これにより、通常の初期化フローと再初期化フローを一元管理し、ウィンドウの描画機能を効率的に復旧させる。
+
+#### Acceptance Criteria (3-1: 統合初期化システム)
+
+1. The `init_window_graphics`システムは新規作成と再初期化の両方を処理しなければならない
+2. When WindowHandleが存在しWindowGraphicsが存在しない、the システムは新しいWindowGraphicsを作成しなければならない
+3. When `GraphicsNeedsInit`マーカーが存在しWindowGraphicsが無効状態、the システムは既存WindowGraphicsを再初期化しなければならない
+4. When 再初期化が完了する、the システムは新しいIDCompositionTargetとID2D1DeviceContextを生成し、世代番号をインクリメントしなければならない
+5. The システムは`is_valid()`でWindowGraphicsの有効性をチェックし、有効ならスキップしなければならない
+6. When 初期化が失敗する、the システムはエラーログを出力し、マーカーを保持して次フレームで再試行可能にしなければならない
+
+#### Acceptance Criteria (3-2: 参照システムとの分離)
+
+1. The 初期化システムは`Query<&mut WindowGraphics, With<GraphicsNeedsInit>>`で初期化が必要なエンティティのみを取得しなければならない
+2. The 描画システムは`Query<&WindowGraphics, Without<GraphicsNeedsInit>>`で読み取り専用アクセスし、初期化済みエンティティのみを処理しなければならない
+3. The Bevy ECSは初期化システムと描画システムを並列実行できなければならない（異なるエンティティセットを操作）
+4. The `is_valid()`メソッドで内部データの有効性をチェックし、無効なら処理をスキップしなければならない
+
+### Requirement 4: Visual/Surface初期化システム
+
+**Objective:** 描画管理者として、VisualとSurfaceコンポーネントの新規作成と再初期化を統一的に処理する専用システムを実装したい。これにより、ビジュアルツリーと描画サーフェスを効率的に管理する。
+
+#### Acceptance Criteria (4-1: Visual初期化システム)
+
+1. The `init_window_visual`システムは新規作成と再初期化の両方を処理しなければならない
+2. When WindowGraphicsが存在しVisualが存在しない、the システムは新しいVisualを作成しなければならない
+3. When `GraphicsNeedsInit`マーカーが存在しVisualが無効状態、the システムは既存Visualを再初期化しなければならない
+4. When Visual初期化が完了する、the システムは新しいIDCompositionVisual3を生成し、CompositionTargetに設定しなければならない
+5. The システムは`Query<&Visual, Without<GraphicsNeedsInit>>`による読み取り専用アクセスを可能にしなければならない
+6. The システムは`is_valid()`でVisualの有効性をチェックし、有効ならスキップしなければならない
+7. The システムはWindowGraphicsが無効な場合、初期化をスキップしなければならない（依存関係の保証）
+
+#### Acceptance Criteria (4-2: Surface初期化システム)
+
+1. The `init_window_surface`システムは新規作成と再初期化の両方を処理しなければならない
+2. When WindowGraphicsとVisualが存在しSurfaceが存在しない、the システムは新しいSurfaceを作成しなければならない
+3. When `GraphicsNeedsInit`マーカーが存在しSurfaceが無効状態、the システムは既存Surfaceを再初期化しなければならない
+4. When Surface初期化が完了する、the システムは新しいIDCompositionSurfaceを生成し、Visualに関連付けなければならない
+5. The システムは`Query<&Surface, Without<GraphicsNeedsInit>>`による読み取り専用アクセスを可能にしなければならない
+6. The システムは`is_valid()`でSurfaceの有効性をチェックし、有効ならスキップしなければならない
+7. The システムはWindowGraphicsまたはVisualが無効な場合、初期化をスキップしなければならない（依存関係の保証）
+
+#### Acceptance Criteria (4-3: 初期化順序制御とクリーンアップ)
+
+1. The init_graphics_coreシステムはPostLayoutスケジュールで最初に実行され、初期化完了時に全HasGraphicsResourcesエンティティへ`GraphicsNeedsInit`を一括追加しなければならない
+2. The init_window_graphicsシステムはinit_graphics_coreの後に実行されなければならない（`.after(init_graphics_core)`）
+3. The init_window_visualシステムはinit_window_graphicsの後に実行されなければならない（`.after(init_window_graphics)`）
+4. The init_window_surfaceシステムはinit_window_visualの後に実行されなければならない（`.after(init_window_visual)`）
+5. The cleanup_graphics_needs_initシステムはinit_window_surfaceの後に実行されなければならない（`.after(init_window_surface)`）
+6. The cleanup_graphics_needs_initシステムは、各エンティティのWindowGraphics、Visual、Surfaceすべてが有効な場合のみ`GraphicsNeedsInit`マーカーを削除しなければならない
+7. The 描画システムはRenderスケジュールで実行され、すべての初期化システムが完了した後でなければならない
 
 ### Requirement 5: ECS整合性とChanged<T>検出
 
 **Objective:** ECSアーキテクトとして、リソース再初期化中のECS Worldの整合性を保証し、変更検出機構を活用したい。これにより、他のシステムへの影響を最小化し、効率的な更新フローを実現する。
 
-#### Acceptance Criteria (5-1: Changed検出)
+#### Acceptance Criteria (5-1: Changed検出とマーカー)
 
 1. When コンポーネントの`invalidate()`が呼ばれる、the Bevy ECSの変更検出機構（`Changed<T>`）は変更を検知しなければならない
-2. When コンポーネントの`get_or_init()`が再初期化を実行する、the Bevy ECSの変更検出機構（`Changed<T>`）は変更を検知しなければならない
+2. When 初期化システムがコンポーネントを再初期化する、the Bevy ECSの変更検出機構（`Changed<T>`）は変更を検知しなければならない
 3. The 依存システムは`Query<&T, Changed<T>>`で再初期化されたコンポーネントのみを効率的に処理できなければならない
-4. When 有効なデータが存在し`get_or_init()`が再初期化しない、the 変更検出は発生してはならない
+4. The マーカーコンポーネントの追加・削除も`Changed`として検出され、依存システムが反応できなければならない
 
-#### Acceptance Criteria (5-2: ECS整合性)
+#### Acceptance Criteria (5-2: ECS整合性とスケジューリング最適化)
 
 1. While GraphicsCore再初期化が進行中、the Graphicsシステムは並行する描画リクエストを安全に処理しなければならない
-2. When コンポーネントが無効状態の時、the 描画システムは`get_or_init()`を呼び出すか処理をスキップしなければならない
-3. The コンポーネントの状態遷移（Valid→Invalid→Valid）はアトミックに実行されなければならない
+2. When コンポーネントが無効状態の時（マーカーあり）、the 描画システムは`Without<GraphicsNeedsInit>`フィルタで自動的にスキップしなければならない
+3. The 初期化システム（`Query<&mut T, With<GraphicsNeedsInit>>`）と参照システム（`Query<&T, Without<GraphicsNeedsInit>>`）は異なるエンティティセットを操作し、Bevy ECSが並列実行できなければならない
+4. The コンポーネントの状態遷移（Valid→Invalid→Valid）はアトミックに実行されなければならない
+5. The マーカーコンポーネントの追加・削除はCommandsバッファ経由で実行され、apply_deferred()後に反映されなければならない
+6. The `HasGraphicsResources`マーカーはエンティティのspawn時に付与され、エンティティのライフタイム全体で永続しなければならない
+7. The `GraphicsNeedsInit`マーカーは各エンティティのグラフィックスコンポーネント初期化が完了するまで保持されなければならない
+8. The 新しいWidgetタイプ追加時、既存の初期化システム・クリーンアップシステムの変更なしに`HasGraphicsResources`マーカーで自動的に再初期化フローに統合されなければならない（Archetype-levelクエリ最適化活用）
 
 ### Requirement 6: エラーハンドリングとログ
 
