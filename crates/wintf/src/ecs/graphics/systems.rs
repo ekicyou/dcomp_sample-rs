@@ -146,25 +146,16 @@ pub fn render_surface(
                 eprintln!("[render_surface] Drawing command_list for Entity={:?}", entity);
                 dc.draw_image(command_list);
             }
-
-            eprintln!("[render_surface] Calling EndDraw for Entity={:?}", entity);
-            if let Err(err) = dc.EndDraw(None, None) {
-                eprintln!(
-                    "[render_surface] EndDraw failed for Entity={:?}: {:?}",
-                    entity, err
-                );
-                eprintln!("[render_surface] HRESULT: 0x{:08X}", err.code().0);
-                // surface_ref.end_draw()は呼ばない（状態不整合のため）
-                continue;
-            }
         }
 
         // Surface描画終了
+        eprintln!("[render_surface] Calling surface.end_draw for Entity={:?}", entity);
         if let Err(err) = surface_ref.end_draw() {
             eprintln!(
-                "[render_surface] Failed to end draw for Entity={:?}: {:?}",
+                "[render_surface] surface.end_draw failed for Entity={:?}: {:?}",
                 entity, err
             );
+            eprintln!("[render_surface] HRESULT: 0x{:08X}", err.code().0);
             continue;
         }
         
@@ -268,6 +259,7 @@ pub fn init_window_graphics(
         )>
     >,
     mut commands: Commands,
+    frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     if !graphics.is_valid() {
         return;
@@ -276,20 +268,20 @@ pub fn init_window_graphics(
     for (entity, handle, window_graphics) in query.iter_mut() {
         match window_graphics {
             None => {
-                eprintln!("[init_window_graphics] WindowGraphics新規作成 (Entity: {:?})", entity);
+                eprintln!("[Frame {}] [init_window_graphics] WindowGraphics新規作成 (Entity: {:?})", frame_count.0, entity);
                 match create_window_graphics_for_hwnd(&graphics, handle.hwnd) {
                     Ok(wg) => {
-                        eprintln!("[init_window_graphics] WindowGraphics作成完了 (Entity: {:?})", entity);
+                        eprintln!("[Frame {}] [init_window_graphics] WindowGraphics作成完了 (Entity: {:?})", frame_count.0, entity);
                         commands.entity(entity).insert(wg);
                     }
                     Err(e) => {
-                        eprintln!("[init_window_graphics] エラー: Entity {:?}, HRESULT {:?}", entity, e);
+                        eprintln!("[Frame {}] [init_window_graphics] エラー: Entity {:?}, HRESULT {:?}", frame_count.0, entity, e);
                     }
                 }
             }
             Some(mut wg) => {
                 if !wg.is_valid() {
-                    eprintln!("[init_window_graphics] WindowGraphics再初期化 (Entity: {:?})", entity);
+                    eprintln!("[Frame {}] [init_window_graphics] WindowGraphics再初期化 (Entity: {:?})", frame_count.0, entity);
                     let old_generation = wg.generation();
                     match create_window_graphics_for_hwnd(&graphics, handle.hwnd) {
                         Ok(new_wg) => {
@@ -300,11 +292,11 @@ pub fn init_window_graphics(
                             while wg.generation() < new_generation {
                                 wg.increment_generation();
                             }
-                            eprintln!("[init_window_graphics] WindowGraphics再初期化完了 (Entity: {:?}, generation: {} -> {})", 
-                                entity, old_generation, wg.generation());
+                            eprintln!("[Frame {}] [init_window_graphics] WindowGraphics再初期化完了 (Entity: {:?}, generation: {} -> {})", 
+                                frame_count.0, entity, old_generation, wg.generation());
                         }
                         Err(e) => {
-                            eprintln!("[init_window_graphics] 再初期化エラー: Entity {:?}, HRESULT {:?}", entity, e);
+                            eprintln!("[Frame {}] [init_window_graphics] 再初期化エラー: Entity {:?}, HRESULT {:?}", frame_count.0, entity, e);
                         }
                     }
                 }
@@ -324,6 +316,7 @@ pub fn init_window_visual(
         )>
     >,
     mut commands: Commands,
+    frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     if !graphics.is_valid() {
         return;
@@ -341,27 +334,27 @@ pub fn init_window_visual(
 
         match visual {
             None => {
-                eprintln!("[init_window_visual] Visual新規作成 (Entity: {:?})", entity);
+                eprintln!("[Frame {}] [init_window_visual] Visual新規作成 (Entity: {:?})", frame_count.0, entity);
                 match create_visual_for_target(&graphics, target) {
                     Ok(v) => {
-                        eprintln!("[init_window_visual] Visual作成完了 (Entity: {:?})", entity);
+                        eprintln!("[Frame {}] [init_window_visual] Visual作成完了 (Entity: {:?})", frame_count.0, entity);
                         commands.entity(entity).insert(v);
                     }
                     Err(e) => {
-                        eprintln!("[init_window_visual] エラー: Entity {:?}, HRESULT {:?}", entity, e);
+                        eprintln!("[Frame {}] [init_window_visual] エラー: Entity {:?}, HRESULT {:?}", frame_count.0, entity, e);
                     }
                 }
             }
             Some(mut v) => {
                 if !v.is_valid() {
-                    eprintln!("[init_window_visual] Visual再初期化 (Entity: {:?})", entity);
+                    eprintln!("[Frame {}] [init_window_visual] Visual再初期化 (Entity: {:?})", frame_count.0, entity);
                     match create_visual_for_target(&graphics, target) {
                         Ok(new_v) => {
                             *v = new_v;
-                            eprintln!("[init_window_visual] Visual再初期化完了 (Entity: {:?})", entity);
+                            eprintln!("[Frame {}] [init_window_visual] Visual再初期化完了 (Entity: {:?})", frame_count.0, entity);
                         }
                         Err(e) => {
-                            eprintln!("[init_window_visual] 再初期化エラー: Entity {:?}, HRESULT {:?}", entity, e);
+                            eprintln!("[Frame {}] [init_window_visual] 再初期化エラー: Entity {:?}, HRESULT {:?}", frame_count.0, entity, e);
                         }
                     }
                 }
