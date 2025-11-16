@@ -805,6 +805,52 @@ pub fn commit_composition(...) {
 - 実害がないため、ログレベルをWARNINGに変更
 - ドキュメントに記載
 
-**Phase**: Investigation Complete  
-**Status**: ⚠️ Known Issue - Frame 2 Commit Failure  
+---
+
+## ✅ 最終解決 (Final Resolution)
+
+### 根本原因の特定 (2025-11-16)
+
+**不要な`dc.EndDraw()`の呼び出しが原因**
+
+`IDCompositionSurface::BeginDraw()`で返されるDeviceContextは特殊で、明示的に`dc.EndDraw()`を呼ぶ必要がありませんでした。`surface.end_draw()`が内部で適切に処理します。
+
+### 実装の修正
+
+**誤った実装**:
+```rust
+let (dc, _offset) = surface.begin_draw(None)?;
+dc.clear(...);
+dc.draw_image(...);
+dc.EndDraw(None, None)?;  // ← 不要！これが原因
+surface.end_draw()?;
+```
+
+**正しい実装** (dcomp_demo.rsと同じパターン):
+```rust
+let (dc, _offset) = surface.begin_draw(None)?;
+dc.clear(...);
+dc.draw_image(...);
+// dc.EndDraw()は呼ばない
+surface.end_draw()?;  // ← これだけでOK
+```
+
+### 検証結果
+
+- ✅ Frame 2（初回2ウィンドウ描画）: エラーなし
+- ✅ Frame 362（Rectangle削除時）: エラーなし
+- ✅ すべてのフレームで`D2DERR_WRONG_STATE`が発生しない
+- ✅ すべての受け入れ基準を満たす
+
+### 修正内容
+
+**ファイル**: `crates/wintf/src/ecs/graphics/systems.rs`  
+**関数**: `render_surface`
+
+- 不要な`dc.EndDraw()`の呼び出しを削除
+- `surface.end_draw()`のみを呼ぶように修正
+- エラーハンドリングを簡素化
+
+**Phase**: Complete  
+**Status**: ✅ Resolved  
 **Updated**: 2025-11-16
