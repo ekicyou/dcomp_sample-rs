@@ -4,6 +4,7 @@ use windows::Win32::Graphics::DirectComposition::*;
 
 /// ウィンドウごとのグラフィックスリソース
 #[derive(Component, Debug)]
+#[component(storage = "SparseSet")]
 pub struct WindowGraphics {
     /// DirectComposition Target (HWNDに関連付けられた合成ターゲット)
     pub target: IDCompositionTarget,
