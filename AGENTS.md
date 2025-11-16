@@ -17,6 +17,15 @@ Kiro-style Spec Driven Development implementation on AI-DLC (AI Development Life
 - Check `.kiro/specs/` for active specifications
 - Use `/kiro-spec-status [feature-name]` to check progress
 
+### Completed Specifications Archive
+- Completed specs should be moved to `.kiro/specs/archive/` to keep active specs focused
+- Archive criteria:
+  - All implementation tasks are completed
+  - Code is merged to main branch
+  - No pending issues or follow-up work
+- Use `/kiro-spec-status {feature}` to verify completion before archiving
+- Archive command: `Move-Item .kiro/specs/{feature} .kiro/specs/archive/{feature}`
+
 ## Development Guidelines
 - Think in English, but generate responses in Japanese (思考は英語、回答の生成は日本語で行うように)
 
