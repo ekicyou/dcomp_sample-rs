@@ -142,15 +142,13 @@ impl EcsWorld {
         // デフォルトシステムの登録
         {
             let mut schedules = world.resource_mut::<Schedules>();
-            schedules.add_systems(
-                UISetup,
-                crate::ecs::graphics::ensure_graphics_core
-                    .before(crate::ecs::window_system::create_windows),
-            );
             schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
             // on_window_handle_addedとon_window_handle_removedはフックで代替
 
-            // PostLayoutスケジュールに新しい初期化システムを登録
+            // Updateスケジュールに依存コンポーネント無効化システムを登録
+            schedules.add_systems(Update, crate::ecs::graphics::invalidate_dependent_components);
+
+            // PostLayoutスケジュールにグラフィックス初期化システムを登録
             schedules.add_systems(
                 PostLayout,
                 (
@@ -164,23 +162,14 @@ impl EcsWorld {
                 ),
             );
 
-            // Drawスケジュールにクリーンアップシステムを登録
-            schedules.add_systems(Draw, crate::ecs::graphics::cleanup_graphics_needs_init);
-
-            // 既存の初期化システム（後で削除予定）
+            // Drawスケジュールにクリーンアップシステムとウィジェット描画システムを登録
             schedules.add_systems(
-                PostLayout,
+                Draw,
                 (
-                    crate::ecs::graphics::create_window_graphics,
-                    crate::ecs::graphics::create_window_visual
-                        .after(crate::ecs::graphics::create_window_graphics),
-                    crate::ecs::graphics::create_window_surface
-                        .after(crate::ecs::graphics::create_window_visual),
+                    crate::ecs::graphics::cleanup_graphics_needs_init,
+                    crate::ecs::widget::shapes::rectangle::draw_rectangles,
                 ),
             );
-
-            // Drawスケジュールにdraw_rectanglesシステムを登録
-            schedules.add_systems(Draw, crate::ecs::widget::shapes::rectangle::draw_rectangles);
 
             // Renderスケジュールに描画システムを登録
             schedules.add_systems(
@@ -192,11 +181,8 @@ impl EcsWorld {
                     .chain(),
             );
 
-            // CommitCompositionスケジュールにコミットシステムを登録（廃止予定）
+            // CommitCompositionスケジュールにコミットシステムを登録
             schedules.add_systems(CommitComposition, crate::ecs::graphics::commit_composition);
-
-            // Updateスケジュールに依存コンポーネント無効化システムを登録
-            schedules.add_systems(Update, crate::ecs::graphics::invalidate_dependent_components);
         }
 
         Self {

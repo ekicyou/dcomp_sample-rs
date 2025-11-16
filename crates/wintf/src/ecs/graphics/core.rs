@@ -126,18 +126,3 @@ fn create_device_3d() -> Result<ID3D11Device> {
         None,
     )
 }
-
-/// GraphicsCoreが存在しない場合に作成するシステム
-pub fn ensure_graphics_core(graphics: Option<Res<GraphicsCore>>, mut commands: Commands) {
-    if graphics.is_none() {
-        match GraphicsCore::new() {
-            Ok(graphics) => {
-                commands.insert_resource(graphics);
-            }
-            Err(e) => {
-                eprintln!("[GraphicsCore] 初期化失敗: {:?}", e);
-                panic!("GraphicsCoreの初期化に失敗しました。アプリケーションを終了します。");
-            }
-        }
-    }
-}

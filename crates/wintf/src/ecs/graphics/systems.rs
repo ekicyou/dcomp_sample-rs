@@ -1,54 +1,13 @@
 use crate::com::d2d::*;
 use crate::com::dcomp::*;
-use crate::ecs::graphics::command_list;
 use crate::ecs::graphics::{GraphicsCore, GraphicsNeedsInit, HasGraphicsResources, Surface, Visual, WindowGraphics};
 use bevy_ecs::prelude::*;
-use windows::core::{Interface, Result};
+use windows::core::Result;
 use windows::Win32::Foundation::*;
-use windows::Win32::Graphics::Direct2D::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
 
-/// WindowHandleが付与されたエンティティに対してWindowGraphicsコンポーネントを作成する
-pub fn create_window_graphics(
-    query: Query<(Entity, &crate::ecs::window::WindowHandle), Without<WindowGraphics>>,
-    graphics: Option<Res<GraphicsCore>>,
-    mut commands: Commands,
-) {
-    // GraphicsCoreが存在しない場合は警告して処理をスキップ
-    let Some(graphics) = graphics else {
-        if !query.is_empty() {
-            eprintln!(
-                "[create_window_graphics] 警告: GraphicsCoreが存在しないため処理をスキップします"
-            );
-        }
-        return;
-    };
-
-    for (entity, handle) in query.iter() {
-        eprintln!(
-            "[create_window_graphics] WindowGraphics作成開始 (Entity: {:?}, HWND: {:?})",
-            entity, handle.hwnd
-        );
-
-        match create_window_graphics_for_hwnd(&graphics, handle.hwnd) {
-            Ok(wg) => {
-                eprintln!(
-                    "[create_window_graphics] WindowGraphics作成完了 (Entity: {:?})",
-                    entity
-                );
-                commands.entity(entity).insert(wg);
-            }
-            Err(e) => {
-                eprintln!(
-                    "[create_window_graphics] エラー: Entity {:?}, HWND {:?}, HRESULT {:?}",
-                    entity, handle.hwnd, e
-                );
-                // エンティティをスキップして処理を継続
-            }
-        }
-    }
-}
+// ========== ヘルパー関数 ==========
 
 /// HWNDに対してWindowGraphicsリソースを作成する
 fn create_window_graphics_for_hwnd(graphics: &GraphicsCore, hwnd: HWND) -> Result<WindowGraphics> {
@@ -69,58 +28,6 @@ fn create_window_graphics_for_hwnd(graphics: &GraphicsCore, hwnd: HWND) -> Resul
     Ok(WindowGraphics::new(target, device_context))
 }
 
-/// WindowGraphicsが存在するエンティティに対してVisualコンポーネントを作成する
-pub fn create_window_visual(
-    query: Query<(Entity, &WindowGraphics), Without<Visual>>,
-    graphics: Option<Res<GraphicsCore>>,
-    mut commands: Commands,
-) {
-    // GraphicsCoreが存在しない場合は警告して処理をスキップ
-    let Some(graphics) = graphics else {
-        if !query.is_empty() {
-            eprintln!(
-                "[create_window_visual] 警告: GraphicsCoreが存在しないため処理をスキップします"
-            );
-        }
-        return;
-    };
-
-    for (entity, wg) in query.iter() {
-        eprintln!(
-            "[create_window_visual] Visual作成開始 (Entity: {:?})",
-            entity
-        );
-
-        let target = match wg.target() {
-            Some(t) => t,
-            None => {
-                eprintln!(
-                    "[create_window_visual] WindowGraphicsが無効 (Entity: {:?})",
-                    entity
-                );
-                continue;
-            }
-        };
-
-        match create_visual_for_target(&graphics, target) {
-            Ok(visual_comp) => {
-                eprintln!(
-                    "[create_window_visual] Visual作成完了 (Entity: {:?})",
-                    entity
-                );
-                commands.entity(entity).insert(visual_comp);
-            }
-            Err(e) => {
-                eprintln!(
-                    "[create_window_visual] エラー: Entity {:?}, HRESULT {:?}",
-                    entity, e
-                );
-                // エンティティをスキップして処理を継続
-            }
-        }
-    }
-}
-
 /// IDCompositionTargetに対してVisualを作成してルートに設定する
 fn create_visual_for_target(
     graphics: &GraphicsCore,
@@ -138,60 +45,6 @@ fn create_visual_for_target(
     target.set_root(&visual)?;
 
     Ok(Visual::new(visual))
-}
-
-/// WindowGraphicsとVisualが存在するエンティティに対してSurfaceコンポーネントを作成する
-pub fn create_window_surface(
-    query: Query<
-        (
-            Entity,
-            &WindowGraphics,
-            &Visual,
-            Option<&crate::ecs::window::WindowPos>,
-        ),
-        Without<Surface>,
-    >,
-    graphics: Option<Res<GraphicsCore>>,
-    mut commands: Commands,
-) {
-    // GraphicsCoreが存在しない場合は警告してスキップ
-    let Some(graphics) = graphics else {
-        if !query.is_empty() {
-            eprintln!(
-                "[create_window_surface] 警告: GraphicsCoreが存在しないため処理をスキップします"
-            );
-        }
-        return;
-    };
-
-    for (entity, _wg, visual, window_pos) in query.iter() {
-        // サイズ取得: WindowPosから、なければデフォルト (800, 600)
-        let (width, height) = window_pos
-            .and_then(|pos| pos.size.map(|s| (s.cx as u32, s.cy as u32)))
-            .unwrap_or((800, 600));
-
-        eprintln!(
-            "[create_window_surface] Surface作成開始 (Entity: {:?}, Size: {}x{})",
-            entity, width, height
-        );
-
-        match create_surface_for_window(&graphics, visual, width, height) {
-            Ok(surface_comp) => {
-                eprintln!(
-                    "[create_window_surface] Surface作成完了 (Entity: {:?})",
-                    entity
-                );
-                commands.entity(entity).insert(surface_comp);
-            }
-            Err(e) => {
-                eprintln!(
-                    "[create_window_surface] エラー: Entity {:?}, HRESULT {:?}",
-                    entity, e
-                );
-                // エンティティをスキップして処理を継続
-            }
-        }
-    }
 }
 
 /// Surfaceを作成してVisualに設定する
@@ -221,7 +74,7 @@ fn create_surface_for_window(
     Ok(Surface::new(surface))
 }
 
-/// Surfaceへの描画（GraphicsCommandListの有無を統合処理）
+// ========== 描画システム ==========/// Surfaceへの描画（GraphicsCommandListの有無を統合処理）
 pub fn render_surface(
     query: Query<
         (
@@ -406,12 +259,18 @@ pub fn init_window_graphics(
             Some(mut wg) => {
                 if !wg.is_valid() {
                     eprintln!("[init_window_graphics] WindowGraphics再初期化 (Entity: {:?})", entity);
+                    let old_generation = wg.generation();
                     match create_window_graphics_for_hwnd(&graphics, handle.hwnd) {
                         Ok(new_wg) => {
+                            // 古いgenerationを引き継いでインクリメント
+                            let new_generation = old_generation.wrapping_add(1);
                             *wg = new_wg;
-                            wg.increment_generation();
-                            eprintln!("[init_window_graphics] WindowGraphics再初期化完了 (Entity: {:?}, generation: {})", 
-                                entity, wg.generation());
+                            // generation を手動で設定（newのデフォルトは0なので）
+                            while wg.generation() < new_generation {
+                                wg.increment_generation();
+                            }
+                            eprintln!("[init_window_graphics] WindowGraphics再初期化完了 (Entity: {:?}, generation: {} -> {})", 
+                                entity, old_generation, wg.generation());
                         }
                         Err(e) => {
                             eprintln!("[init_window_graphics] 再初期化エラー: Entity {:?}, HRESULT {:?}", entity, e);
