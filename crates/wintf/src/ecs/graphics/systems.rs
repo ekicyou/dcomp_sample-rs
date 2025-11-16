@@ -174,20 +174,29 @@ pub fn render_surface(
 /// DirectCompositionのすべての変更を確定する
 pub fn commit_composition(graphics: Option<Res<GraphicsCore>>) {
     let Some(graphics) = graphics else {
+        eprintln!("[commit_composition] GraphicsCore not available");
         return;
     };
 
     if !graphics.is_valid() {
+        eprintln!("[commit_composition] GraphicsCore is invalid");
         return;
     }
 
     let dcomp = match graphics.dcomp() {
         Some(d) => d,
-        None => return,
+        None => {
+            eprintln!("[commit_composition] DComp device not available");
+            return;
+        }
     };
 
+    eprintln!("[commit_composition] Calling Commit");
     if let Err(e) = dcomp.commit() {
         eprintln!("[commit_composition] Commit失敗: HRESULT {:?}", e);
+        eprintln!("[commit_composition] Commit失敗 HRESULT: 0x{:08X}", e.code().0);
+    } else {
+        eprintln!("[commit_composition] Commit succeeded");
     }
 }
 
