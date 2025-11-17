@@ -175,6 +175,7 @@ impl EcsWorld {
                 (
                     crate::ecs::graphics::cleanup_graphics_needs_init,
                     crate::ecs::widget::shapes::rectangle::draw_rectangles,
+                    crate::ecs::widget::text::draw_labels,
                 ),
             );
 

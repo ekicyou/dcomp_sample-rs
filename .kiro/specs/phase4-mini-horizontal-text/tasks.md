@@ -22,7 +22,7 @@
 
 ### 1. COM APIラッパー拡張
 
-- [ ] 1.1 (P) DirectWriteファクトリー拡張トレイト実装
+- [x] 1.1 (P) DirectWriteファクトリー拡張トレイト実装
   - `com/dwrite.rs`に`DWriteFactoryExt`トレイト定義
   - `create_text_layout`メソッド実装: UTF-8文字列をPCWSTRに変換してIDWriteTextLayout生成
   - UTF-8→UTF-16変換はwindows-rsのParam<PCWSTR>トレイトで自動処理
@@ -30,7 +30,7 @@
   - COM API呼び出しのエラーハンドリング（windows::core::Result）
   - _Requirements: 3_
 
-- [ ] 1.2 (P) Direct2Dデバイスコンテキスト拡張トレイト実装
+- [x] 1.2 (P) Direct2Dデバイスコンテキスト拡張トレイト実装
   - `com/d2d/mod.rs`に`D2D1DeviceContextExt`トレイト定義
   - `draw_text_layout`メソッド実装: IDWriteTextLayoutを指定座標に描画
   - D2D1_DRAW_TEXT_OPTIONSパラメータサポート
@@ -40,7 +40,7 @@
 
 ### 2. ECSコンポーネント定義
 
-- [ ] 2.1 (P) Labelコンポーネント実装
+- [x] 2.1 (P) Labelコンポーネント実装
   - `ecs/widget/text/label.rs`作成
   - Labelコンポーネント定義: text, font_family, font_size, color, x, y フィールド
   - bevy_ecsのComponentトレイト実装
@@ -49,7 +49,7 @@
   - SparseSet storage指定でランダムアクセス最適化
   - _Requirements: 4_
 
-- [ ] 2.2 (P) TextLayoutコンポーネント実装
+- [x] 2.2 (P) TextLayoutコンポーネント実装
   - `ecs/widget/text/label.rs`に追加（同ファイルで関連コンポーネントをグループ化）
   - TextLayoutコンポーネント定義: Option<IDWriteTextLayout>をラップ
   - SparseSet storage指定
@@ -59,7 +59,7 @@
 
 ### 3. draw_labelsシステム実装
 
-- [ ] 3.1 Labelエンティティクエリとリソース取得
+- [x] 3.1 Labelエンティティクエリとリソース取得
   - `ecs/widget/text/draw_labels.rs`作成
   - draw_labels関数定義: Commands, Query, Res<GraphicsCore>パラメータ
   - Query: (Entity, &Label, &WindowGraphics), Or<(Changed<Label>, Without<GraphicsCommandList>)>
@@ -67,14 +67,14 @@
   - WindowGraphicsの有効性確認（is_valid()）
   - _Requirements: 6, 8_
 
-- [ ] 3.2 TextFormatとTextLayout生成
+- [x] 3.2 TextFormatとTextLayout生成
   - Label情報からTextFormat作成: font_family, font_size, DWRITE_FONT_WEIGHT_NORMAL等
   - ロケール指定（"ja-JP"）
   - create_text_layoutでIDWriteTextLayout生成（max_width/height: f32::MAX）
   - エラー時はeprintln!でログ出力、該当エンティティをスキップ
   - _Requirements: 2, 3_
 
-- [ ] 3.3 CommandList生成とテキスト描画命令記録
+- [x] 3.3 CommandList生成とテキスト描画命令記録
   - d2d_device.create_device_context呼び出し（D2D1_DEVICE_CONTEXT_OPTIONS_NONE）
   - unsafe { dc.CreateCommandList() } でCommandList生成
   - unsafe { dc.SetTarget(&command_list) } でターゲット設定
@@ -87,7 +87,7 @@
   - Rectangle実装（draw_rectangles）と同パターン厳守
   - _Requirements: 6, 7_
 
-- [ ] 3.4 GraphicsCommandListとTextLayoutコンポーネント挿入
+- [x] 3.4 GraphicsCommandListとTextLayoutコンポーネント挿入
   - commands.entity(entity).insert((GraphicsCommandList::new(command_list), TextLayout::new(text_layout)))
   - Changed<Label>による次フレーム以降の再生成スキップを実現
   - エラー時も処理継続（1エンティティのエラーが全体に影響しない）
@@ -95,14 +95,14 @@
 
 ### 4. システム統合
 
-- [ ] 4.1 textモジュール登録とエクスポート
+- [x] 4.1 textモジュール登録とエクスポート
   - `ecs/widget/text/mod.rs`作成
   - `pub mod label;`, `pub mod draw_labels;`
   - `pub use label::{Label, TextLayout};`, `pub use draw_labels::draw_labels;`
   - `ecs/widget/mod.rs`に`pub mod text;`追加
   - _Requirements: 4, 5, 6_
 
-- [ ] 4.2 Drawスケジュールにdraw_labelsシステム登録
+- [x] 4.2 Drawスケジュールにdraw_labelsシステム登録
   - `ecs/world.rs`のDrawスケジュールに`draw_labels`追加
   - render_surfaceシステムの前に実行されるよう順序制御（.before(render_surface)）
   - 既存のdraw_rectanglesと並列実行可能（依存関係なし）
@@ -110,7 +110,7 @@
 
 ### 5. サンプルアプリケーション
 
-- [ ] 5.1 simple_window.rs拡張またはlabel_demo.rs作成
+- [x] 5.1 simple_window.rs拡張またはlabel_demo.rs作成
   - 既存の`examples/simple_window.rs`にLabel使用例追加、または`examples/label_demo.rs`新規作成
   - "Hello, World!"と"こんにちは"を異なる座標に表示
   - 異なるフォントサイズ（例: 16.0, 24.0, 32.0）と色（白、赤、青）の複数Label
@@ -121,7 +121,7 @@
 
 ### 6. 統合テストと動作検証
 
-- [ ] 6.1* ベースライン描画テスト（任意）
+- [x] 6.1* ベースライン描画テスト（任意）
   - `tests/`ディレクトリにテストファイル作成（例: `label_rendering_test.rs`）
   - Label + TextLayoutコンポーネント生成を検証
   - GraphicsCommandList生成を検証
@@ -129,14 +129,14 @@
   - サンプルアプリケーション実行で視覚的確認を優先し、自動テストは補助的位置づけ
   - _Requirements: 1, 2, 3, 4, 5, 7, 10_
 
-- [ ] 6.2 パフォーマンス検証
+- [x] 6.2 パフォーマンス検証
   - 10個のLabelエンティティを生成してフレームレート確認
   - Changed<Label>によるTextLayout再生成スキップを確認（ログまたはデバッグ出力）
   - Vsync同期で60fps維持を確認
   - 必要に応じてTextFormat生成キャッシング検討（Phase 4ではスコープ外）
   - _Requirements: 9_
 
-- [ ] 6.3 複数Label表示と描画順序確認
+- [x] 6.3 複数Label表示と描画順序確認
   - 単一Windowに対して複数Label（異なる座標・色・サイズ）を配置
   - 全てのLabelが正しく描画されることを確認
   - 描画順序（エンティティID順）を視覚的に検証

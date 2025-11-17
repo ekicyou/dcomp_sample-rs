@@ -21,6 +21,17 @@ pub trait DWriteFactoryExt {
     where
         P0: Param<PCWSTR>,
         P1: Param<IDWriteFontCollection>;
+
+    /// CreateTextLayout
+    fn create_text_layout<P0>(
+        &self,
+        text: P0,
+        text_format: &IDWriteTextFormat,
+        max_width: f32,
+        max_height: f32,
+    ) -> Result<IDWriteTextLayout>
+    where
+        P0: Param<PCWSTR>;
 }
 
 impl DWriteFactoryExt for IDWriteFactory2 {
@@ -49,6 +60,41 @@ impl DWriteFactoryExt for IDWriteFactory2 {
                 fontsize,
                 localename,
             )
+        }
+    }
+
+    fn create_text_layout<P0>(
+        &self,
+        text: P0,
+        text_format: &IDWriteTextFormat,
+        max_width: f32,
+        max_height: f32,
+    ) -> Result<IDWriteTextLayout>
+    where
+        P0: Param<PCWSTR>,
+    {
+        unsafe {
+            let text_param = text.param();
+            let text_pcwstr = text_param.abi();
+
+            // Calculate string length and create slice
+            if text_pcwstr.is_null() {
+                // Empty string case
+                let empty: &[u16] = &[];
+                return self.CreateTextLayout(empty, text_format, max_width, max_height);
+            }
+
+            let mut len = 0;
+            let mut ptr = text_pcwstr.0 as *const u16;
+            while *ptr != 0 {
+                len += 1;
+                ptr = ptr.add(1);
+            }
+
+            // Create slice from raw pointer
+            let text_slice = core::slice::from_raw_parts(text_pcwstr.0 as *const u16, len);
+            
+            self.CreateTextLayout(text_slice, text_format, max_width, max_height)
         }
     }
 }

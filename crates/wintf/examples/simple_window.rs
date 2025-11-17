@@ -8,6 +8,7 @@ use std::time::Duration;
 use windows::core::Result;
 use windows::Win32::Foundation::{POINT, SIZE};
 use wintf::ecs::widget::shapes::{colors, Rectangle};
+use wintf::ecs::widget::text::Label;
 use wintf::ecs::Window;
 use wintf::ecs::{GraphicsCore, WindowHandle, WindowPos};
 use wintf::*;
@@ -41,7 +42,7 @@ fn main() -> Result<()> {
             world.spawn((
                 Window1,
                 Window {
-                    title: "wintf - ECS Window 1 (Red Rectangle)".to_string(),
+                    title: "wintf - ECS Window 1 (Red Rectangle + Label)".to_string(),
                     ..Default::default()
                 },
                 WindowPos {
@@ -56,13 +57,21 @@ fn main() -> Result<()> {
                     height: 150.0,
                     color: colors::RED,
                 },
+                Label {
+                    text: "こんにちは、世界！".to_string(),
+                    font_family: "メイリオ".to_string(),
+                    font_size: 24.0,
+                    color: colors::BLACK,
+                    x: 120.0,
+                    y: 280.0,
+                },
             ));
 
             // 2つ目のWindow
             world.spawn((
                 Window2,
                 Window {
-                    title: "wintf - ECS Window 2 (Blue Rectangle)".to_string(),
+                    title: "wintf - ECS Window 2 (Blue Rectangle + Multi Label)".to_string(),
                     ..Default::default()
                 },
                 WindowPos {
@@ -76,6 +85,14 @@ fn main() -> Result<()> {
                     width: 180.0,
                     height: 120.0,
                     color: colors::BLUE,
+                },
+                Label {
+                    text: "Hello, DirectWrite!".to_string(),
+                    font_family: "Arial".to_string(),
+                    font_size: 20.0,
+                    color: colors::GREEN,
+                    x: 50.0,
+                    y: 50.0,
                 },
             ));
 

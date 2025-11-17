@@ -74,9 +74,7 @@ impl D2D1CommandListExt for ID2D1CommandList {
 
     #[inline(always)]
     fn close(&self) -> Result<()> {
-        unsafe { 
-            self.Close()
-        }
+        unsafe { self.Close() }
     }
 }
 
@@ -109,6 +107,17 @@ pub trait D2D1DeviceContextExt {
         P0: Param<HSTRING>,
         P1: Param<IDWriteTextFormat>,
         P2: Param<ID2D1Brush>;
+
+    /// DrawTextLayout
+    fn draw_text_layout<P0, P1>(
+        &self,
+        origin: Vector2,
+        text_layout: P0,
+        default_fill_brush: P1,
+        options: D2D1_DRAW_TEXT_OPTIONS,
+    ) where
+        P0: Param<IDWriteTextLayout>,
+        P1: Param<ID2D1Brush>;
 
     fn draw_bitmap<P0>(
         &self,
@@ -197,6 +206,22 @@ impl D2D1DeviceContextExt for ID2D1DeviceContext {
                 options,
                 measuring_mode,
             )
+        }
+    }
+
+    #[inline(always)]
+    fn draw_text_layout<P0, P1>(
+        &self,
+        origin: Vector2,
+        text_layout: P0,
+        default_fill_brush: P1,
+        options: D2D1_DRAW_TEXT_OPTIONS,
+    ) where
+        P0: Param<IDWriteTextLayout>,
+        P1: Param<ID2D1Brush>,
+    {
+        unsafe {
+            self.DrawTextLayout(origin, text_layout, default_fill_brush, options)
         }
     }
 
