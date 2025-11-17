@@ -1,15 +1,13 @@
-use crate::com::d2d::D2D1DeviceExt;
+use crate::com::d2d::{D2D1DeviceExt, D2D1DeviceContextExt};
+use crate::com::dcomp::{DCompositionDesktopDeviceExt, DCompositionDeviceExt, DCompositionTargetExt, DCompositionVisualExt, DCompositionSurfaceExt};
 use crate::ecs::layout::GlobalArrangement;
-use crate::ecs::window::{Window, WindowHandle};
+use crate::ecs::window::Window;
 use crate::ecs::graphics::{GraphicsCore, GraphicsNeedsInit, HasGraphicsResources, SurfaceGraphics, VisualGraphics, WindowGraphics};
 use bevy_ecs::prelude::*;
-use windows::core::*;
+use bevy_ecs::hierarchy::Children;
 use windows::Win32::Foundation::*;
-use windows::Win32::Graphics::Direct2D::*;
-use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
-use windows::Win32::Graphics::Dxgi::*;
 
 // ========== ヘルパー関数 ==========
 
@@ -85,7 +83,8 @@ fn create_surface_for_window(
 // ========== 描画システム ==========/// Surfaceへの描画（GraphicsCommandListの有無を統合処理）
 pub fn render_surface(
     windows: Query<(Entity, &SurfaceGraphics), With<Window>>,
-    widgets: Query<(Option<&GlobalArrangement>, Option<&crate::ecs::graphics::GraphicsCommandList>, Option<&bevy_ecs::hierarchy::Children>)>,
+    widgets: Query<(Option<&GlobalArrangement>, Option<&crate::ecs::graphics::GraphicsCommandList>)>,
+    hierarchy: Query<&Children>,
     _graphics_core: Option<Res<GraphicsCore>>,
     frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
@@ -137,7 +136,7 @@ pub fn render_surface(
         }));
 
         // Window自身を描画
-        if let Ok((global_arr, cmd_list, _)) = widgets.get(window_entity) {
+        if let Ok((global_arr, cmd_list)) = widgets.get(window_entity) {
             if let Some(arr) = global_arr {
                 dc.set_transform(&arr.0);
             }
@@ -153,9 +152,9 @@ pub fn render_surface(
         }
 
         // 全子孫を深さ優先で描画
-        for descendant in widgets.iter_descendants_depth_first::<bevy_ecs::hierarchy::Children>(window_entity) {
+        for descendant in hierarchy.iter_descendants_depth_first::<Children>(window_entity) {
             match widgets.get(descendant) {
-                Ok((global_arr, cmd_list, _)) => {
+                Ok((global_arr, cmd_list)) => {
                     if let Some(arr) = global_arr {
                         dc.set_transform(&arr.0);
                     }

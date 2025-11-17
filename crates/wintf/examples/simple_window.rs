@@ -1,14 +1,17 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use bevy_ecs::prelude::*;
+use bevy_ecs::hierarchy::ChildOf;
 use std::sync::mpsc::channel;
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 use windows::core::Result;
 use windows::Win32::Foundation::{POINT, SIZE};
+use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use wintf::ecs::widget::shapes::{colors, Rectangle};
 use wintf::ecs::widget::text::Label;
+use wintf::ecs::{Arrangement, Offset, LayoutScale};
 use wintf::ecs::Window;
 use wintf::ecs::{GraphicsCore, WindowHandle, WindowPos};
 use wintf::*;
@@ -18,10 +21,7 @@ use wintf::*;
 type WorldCommand = Box<dyn FnOnce(&mut World) + Send>;
 
 #[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
-pub struct Window1;
-
-#[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
-pub struct Window2;
+pub struct HierarchyWindow;
 
 fn main() -> Result<()> {
     human_panic::setup_panic!();
@@ -33,16 +33,16 @@ fn main() -> Result<()> {
     let (tx, rx) = channel::<WorldCommand>();
     let rx = Mutex::new(rx);
 
-    // タイマースレッド: シナリオベースでコマンドを送信
+    // タイマースレッド: 階層構造のデモ
     thread::spawn(move || {
-        // 0秒: すぐにWindowを2つ作成
-        println!("[Timer Thread] 0s: Creating two windows");
+        // 0秒: 4階層構造のWindowを作成
+        println!("[Timer Thread] 0s: Creating hierarchical window with 6 Rectangles + 2 Labels");
         let _ = tx.send(Box::new(|world: &mut World| {
-            // 1つ目のWindow
-            world.spawn((
-                Window1,
+            // Window Entity (ルート)
+            let window_entity = world.spawn((
+                HierarchyWindow,
                 Window {
-                    title: "wintf - ECS Window 1 (Red Rectangle + Label)".to_string(),
+                    title: "wintf - Visual Tree Demo (4-Level Hierarchy)".to_string(),
                     ..Default::default()
                 },
                 WindowPos {
@@ -50,101 +50,117 @@ fn main() -> Result<()> {
                     size: Some(SIZE { cx: 800, cy: 600 }),
                     ..Default::default()
                 },
+            )).id();
+
+            // Rectangle1 (青、200x150、offset: 20,20)
+            let rect1 = world.spawn((
                 Rectangle {
-                    x: 100.0,
-                    y: 100.0,
                     width: 200.0,
                     height: 150.0,
-                    color: colors::RED,
-                },
-                Label {
-                    text: "こんにちは、世界！".to_string(),
-                    font_family: "メイリオ".to_string(),
-                    font_size: 24.0,
-                    color: colors::BLACK,
-                    x: 120.0,
-                    y: 280.0,
-                },
-            ));
-
-            // 2つ目のWindow
-            world.spawn((
-                Window2,
-                Window {
-                    title: "wintf - ECS Window 2 (Blue Rectangle + Multi Label)".to_string(),
-                    ..Default::default()
-                },
-                WindowPos {
-                    position: Some(POINT { x: 950, y: 150 }),
-                    size: Some(SIZE { cx: 600, cy: 400 }),
-                    ..Default::default()
-                },
-                Rectangle {
-                    x: 150.0,
-                    y: 150.0,
-                    width: 180.0,
-                    height: 120.0,
                     color: colors::BLUE,
                 },
-                Label {
-                    text: "Hello, DirectWrite!".to_string(),
-                    font_family: "Arial".to_string(),
-                    font_size: 20.0,
-                    color: colors::GREEN,
-                    x: 50.0,
-                    y: 50.0,
+                Arrangement {
+                    offset: Offset { x: 20.0, y: 20.0 },
+                    scale: LayoutScale::default(),
                 },
+                ChildOf(window_entity),
+            )).id();
+
+            // Rectangle1-1 (緑、80x60、offset: 10,10)
+            let rect1_1 = world.spawn((
+                Rectangle {
+                    width: 80.0,
+                    height: 60.0,
+                    color: colors::GREEN,
+                },
+                Arrangement {
+                    offset: Offset { x: 10.0, y: 10.0 },
+                    scale: LayoutScale::default(),
+                },
+                ChildOf(rect1),
+            )).id();
+
+            // Label1 (赤「Hello」、offset: 5,5) - Rectangle1-1の子
+            world.spawn((
+                Label {
+                    text: "Hello".to_string(),
+                    font_family: "MS Gothic".to_string(),
+                    font_size: 16.0,
+                    color: colors::RED,
+                },
+                Arrangement {
+                    offset: Offset { x: 5.0, y: 5.0 },
+                    scale: LayoutScale::default(),
+                },
+                ChildOf(rect1_1),
             ));
 
-            println!("[Test] Two windows created");
+            // Rectangle1-2 (黄、80x60、offset: 10,80)
+            let rect1_2 = world.spawn((
+                Rectangle {
+                    width: 80.0,
+                    height: 60.0,
+                    color: D2D1_COLOR_F { r: 1.0, g: 1.0, b: 0.0, a: 1.0 }, // 黄色
+                },
+                Arrangement {
+                    offset: Offset { x: 10.0, y: 80.0 },
+                    scale: LayoutScale::default(),
+                },
+                ChildOf(rect1),
+            )).id();
+
+            // Rectangle1-2-1 (紫、60x40、offset: 10,10)
+            let rect1_2_1 = world.spawn((
+                Rectangle {
+                    width: 60.0,
+                    height: 40.0,
+                    color: D2D1_COLOR_F { r: 0.5, g: 0.0, b: 0.5, a: 1.0 }, // 紫色
+                },
+                Arrangement {
+                    offset: Offset { x: 10.0, y: 10.0 },
+                    scale: LayoutScale::default(),
+                },
+                ChildOf(rect1_2),
+            )).id();
+
+            // Label2 (白「World」、offset: 5,5) - Rectangle1-2-1の子
+            world.spawn((
+                Label {
+                    text: "World".to_string(),
+                    font_family: "MS Gothic".to_string(),
+                    font_size: 16.0,
+                    color: colors::WHITE,
+                },
+                Arrangement {
+                    offset: Offset { x: 5.0, y: 5.0 },
+                    scale: LayoutScale::default(),
+                },
+                ChildOf(rect1_2_1),
+            ));
+
+            println!("[Test] Hierarchical window created with:");
+            println!("  Window (root)");
+            println!("  └─ Rectangle1 (blue, 200x150 @ 20,20)");
+            println!("     ├─ Rectangle1-1 (green, 80x60 @ 10,10)");
+            println!("     │  └─ Label1 (red 'Hello' @ 5,5)");
+            println!("     └─ Rectangle1-2 (yellow, 80x60 @ 10,80)");
+            println!("        └─ Rectangle1-2-1 (purple, 60x40 @ 10,10)");
+            println!("           └─ Label2 (white 'World' @ 5,5)");
         }));
 
-        // 2秒: Window1からRectangleコンポーネントを削除
-        thread::sleep(Duration::from_secs(2));
-        println!("[Timer Thread] 2s: Removing Rectangle from first window");
+        // 10秒: Windowを削除（アプリ終了）
+        thread::sleep(Duration::from_secs(10));
+        println!("[Timer Thread] 10s: Closing window");
         let _ = tx.send(Box::new(|world: &mut World| {
-            let mut query = world.query_filtered::<Entity, With<Window1>>();
+            let mut query = world.query_filtered::<Entity, With<HierarchyWindow>>();
             if let Some(entity) = query.iter(world).next() {
-                println!("[Test] Removing Rectangle component from entity {entity:?})");
-                world.entity_mut(entity).remove::<Rectangle>();
-            }
-        }));
-
-        // 4秒: Window2からRectangleコンポーネントを削除
-        thread::sleep(Duration::from_secs(2));
-        println!("[Timer Thread] 4s: Removing Rectangle from second window");
-        let _ = tx.send(Box::new(|world: &mut World| {
-            let mut query = world.query_filtered::<Entity, With<Window2>>();
-            if let Some(entity) = query.iter(world).next() {
-                println!("[Test] Removing Rectangle component from entity {entity:?})");
-                world.entity_mut(entity).remove::<Rectangle>();
-            }
-        }));
-
-        // 6秒: Window2を削除
-        thread::sleep(Duration::from_secs(2));
-        println!("[Timer Thread] 6s: Closing second window");
-        let _ = tx.send(Box::new(|world: &mut World| {
-            let mut query = world.query_filtered::<Entity, With<Window2>>();
-            if let Some(entity) = query.iter(world).next() {
-                println!("[Test] Removing Window2 entity {entity:?})");
-                world.despawn(entity);
-            }
-        }));
-
-        // 8秒: Window1を削除（これでアプリ終了）
-        thread::sleep(Duration::from_secs(2));
-        println!("[Timer Thread] 8s: Closing last window");
-        let _ = tx.send(Box::new(|world: &mut World| {
-            let mut query = world.query_filtered::<Entity, With<Window1>>();
-            if let Some(entity) = query.iter(world).next() {
-                println!("[Test] Removing Window1 entity {entity:?})");
+                println!("[Test] Removing Window entity {entity:?})");
                 world.despawn(entity);
             }
         }));
     });
 
-    println!("[Test] Timer thread started. Scenario: Create windows at 0s, remove Rectangles at 2s and 4s, close at 6s and 8s.");
+    println!("[Test] Timer thread started. Hierarchical visual tree demo for 10 seconds.");
 
     // 排他システム: 受信したクロージャを実行（&mut World に直接アクセス）
     world
@@ -181,17 +197,14 @@ fn main() -> Result<()> {
             }
         });
 
-    println!("\nWidget描画の例:");
-    println!("  1. WindowエンティティにRectangleコンポーネントを追加");
-    println!("  2. draw_rectanglesシステムが自動的にGraphicsCommandListを生成");
-    println!("  3. render_surfaceシステムがSurfaceに描画");
-    println!("  4. commit_compositionで画面に表示");
-    println!("\nバックグラウンドスレッドでのシナリオテスト:");
-    println!("  0s: タイマースレッドがWindowを2つ作成するコマンドを送信");
-    println!("  2s: 1つ目のWindowからRectangleコンポーネントを削除");
-    println!("  4s: 2つ目のWindowからRectangleコンポーネントを削除");
-    println!("  6s: 2つ目のWindowを削除するコマンドを送信");
-    println!("  8s: 最後のWindowを削除してアプリ終了");
+    println!("\nビジュアルツリー階層描画の例:");
+    println!("  1. Window Entity (ルート)");
+    println!("  2. Rectangle1 (青) → Rectangle1-1 (緑) → Label1 (赤 'Hello')");
+    println!("  3. Rectangle1 (青) → Rectangle1-2 (黄) → Rectangle1-2-1 (紫) → Label2 (白 'World')");
+    println!("  4. 各EntityにArrangementコンポーネントで座標を指定");
+    println!("  5. GlobalArrangementが自動的に親から子へ伝播");
+    println!("  6. render_surfaceが階層的に描画（深さ優先）");
+    println!("\n10秒後に自動的にWindowを閉じてアプリ終了します。");
 
     // メッセージループを開始（システムが自動的にウィンドウを作成）
     mgr.run()?;
