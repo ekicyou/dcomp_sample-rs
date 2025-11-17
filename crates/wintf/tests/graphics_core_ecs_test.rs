@@ -3,14 +3,14 @@
 //! このテストは以下を検証します:
 //! - GraphicsCoreがECSリソースとして登録されること
 //! - システムからアクセス可能であること
-//! - ensure_graphics_coreシステムが正しく動作すること
+//! - init_graphics_coreシステムが正しく動作すること
 
 use bevy_ecs::prelude::*;
-use wintf::ecs::{ensure_graphics_core, GraphicsCore};
+use wintf::ecs::{init_graphics_core, GraphicsCore};
 
 #[test]
-fn test_ensure_graphics_core_creates_resource() {
-    // ensure_graphics_coreシステムがリソースを作成することを確認
+fn test_init_graphics_core_creates_resource() {
+    // init_graphics_coreシステムがリソースを作成することを確認
 
     let mut world = World::new();
 
@@ -20,8 +20,8 @@ fn test_ensure_graphics_core_creates_resource() {
         "初期状態ではGraphicsCoreリソースは存在しない"
     );
 
-    // ensure_graphics_coreシステムを作成して実行
-    let mut system = IntoSystem::into_system(ensure_graphics_core);
+    // init_graphics_coreシステムを作成して実行
+    let mut system = IntoSystem::into_system(init_graphics_core);
     system.initialize(&mut world);
     let _ = system.run((), &mut world);
 
@@ -32,15 +32,15 @@ fn test_ensure_graphics_core_creates_resource() {
     let graphics_res = world.get_resource::<GraphicsCore>();
     assert!(
         graphics_res.is_some(),
-        "ensure_graphics_core実行後、GraphicsCoreリソースが存在すること"
+        "init_graphics_core実行後、GraphicsCoreリソースが存在すること"
     );
 
-    eprintln!("✅ ensure_graphics_core - リソース作成成功");
+    eprintln!("✅ init_graphics_core - リソース作成成功");
 }
 
 #[test]
-fn test_ensure_graphics_core_idempotent() {
-    // ensure_graphics_coreが冪等であることを確認
+fn test_init_graphics_core_idempotent() {
+    // init_graphics_coreが冪等であることを確認
     // （既にリソースが存在する場合は何もしない）
 
     let mut world = World::new();
@@ -55,8 +55,8 @@ fn test_ensure_graphics_core_idempotent() {
         "事前にGraphicsCoreが存在"
     );
 
-    // ensure_graphics_coreシステムを実行
-    let mut system = IntoSystem::into_system(ensure_graphics_core);
+    // init_graphics_coreシステムを実行
+    let mut system = IntoSystem::into_system(init_graphics_core);
     system.initialize(&mut world);
     let _ = system.run((), &mut world);
     system.apply_deferred(&mut world);
@@ -65,21 +65,21 @@ fn test_ensure_graphics_core_idempotent() {
     let graphics_after = world.get_resource::<GraphicsCore>();
     assert!(
         graphics_after.is_some(),
-        "ensure_graphics_core実行後もGraphicsCoreは存在"
+        "init_graphics_core実行後もGraphicsCoreは存在"
     );
 
-    eprintln!("✅ ensure_graphics_core - 冪等性確認（既存リソースを保持）");
+    eprintln!("✅ init_graphics_core - 冪等性確認（既存リソースを保持）");
 }
 
 #[test]
-fn test_ensure_graphics_core_in_schedule() {
-    // スケジュール内でensure_graphics_coreが正しく動作することを確認
+fn test_init_graphics_core_in_schedule() {
+    // スケジュール内でinit_graphics_coreが正しく動作することを確認
 
     let mut world = World::new();
     let mut schedule = Schedule::default();
 
-    // ensure_graphics_coreをスケジュールに追加
-    schedule.add_systems(ensure_graphics_core);
+    // init_graphics_coreをスケジュールに追加
+    schedule.add_systems(init_graphics_core);
 
     // 初期状態ではリソースが存在しない
     assert!(
@@ -96,7 +96,7 @@ fn test_ensure_graphics_core_in_schedule() {
         "スケジュール実行後、リソースが存在する"
     );
 
-    eprintln!("✅ ensure_graphics_core - スケジュール内で正常動作");
+    eprintln!("✅ init_graphics_core - スケジュール内で正常動作");
 }
 
 #[test]
@@ -252,3 +252,4 @@ fn test_graphics_core_lifecycle() {
 
     eprintln!("✅ GraphicsCore - ライフサイクル管理正常");
 }
+
