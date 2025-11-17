@@ -18,6 +18,7 @@ struct GraphicsCoreInner {
     pub dxgi: IDXGIDevice4,
     pub d2d_factory: ID2D1Factory,
     pub d2d: ID2D1Device,
+    pub d2d_device_context: ID2D1DeviceContext,  // グローバル共有DeviceContext
     pub dwrite_factory: IDWriteFactory2,
     pub desktop: IDCompositionDesktopDevice,
     pub dcomp: IDCompositionDevice3,
@@ -39,6 +40,11 @@ impl GraphicsCore {
         let dxgi = d3d.cast()?;
         let d2d_factory = create_d2d_factory()?;
         let d2d = d2d_create_device(&dxgi)?;
+        
+        // グローバル共有DeviceContextを作成
+        let d2d_device_context = d2d.create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
+        eprintln!("[GraphicsCore] グローバルDeviceContext作成完了");
+        
         let dwrite_factory = dwrite_create_factory(DWRITE_FACTORY_TYPE_SHARED)?;
         let desktop = dcomp_create_desktop_device(&d2d)?;
         let dcomp: IDCompositionDevice3 = desktop.cast()?;
@@ -51,6 +57,7 @@ impl GraphicsCore {
                 dxgi,
                 d2d_factory,
                 d2d,
+                d2d_device_context,
                 dwrite_factory,
                 desktop,
                 dcomp,
@@ -84,6 +91,11 @@ impl GraphicsCore {
 
     pub fn dwrite_factory(&self) -> Option<&IDWriteFactory2> {
         self.inner.as_ref().map(|i| &i.dwrite_factory)
+    }
+    
+    /// グローバル共有DeviceContextへの参照を取得
+    pub fn device_context(&self) -> Option<&ID2D1DeviceContext> {
+        self.inner.as_ref().map(|i| &i.d2d_device_context)
     }
 
     pub fn d3d(&self) -> Option<&ID3D11Device> {

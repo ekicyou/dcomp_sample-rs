@@ -1,5 +1,5 @@
 use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt, D2D1DeviceExt};
-use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore, WindowGraphics};
+use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore};
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::*;
 use windows::Win32::Graphics::Direct2D::Common::{D2D1_COLOR_F, D2D_RECT_F};
@@ -81,7 +81,7 @@ fn on_rectangle_remove(
 /// RectangleコンポーネントからGraphicsCommandListを生成
 pub fn draw_rectangles(
     mut commands: Commands,
-    query: Query<(Entity, &Rectangle, &WindowGraphics), Or<(
+    query: Query<(Entity, &Rectangle), Or<(
         Changed<Rectangle>,
         Without<GraphicsCommandList>,
     )>>,
@@ -92,12 +92,7 @@ pub fn draw_rectangles(
         return;
     };
 
-    for (entity, rectangle, window_graphics) in query.iter() {
-        // WindowGraphicsが無効なら後回し
-        if !window_graphics.is_valid() {
-            continue;
-        }
-        
+    for (entity, rectangle) in query.iter() {
         eprintln!("[draw_rectangles] Entity={:?}", entity);
         eprintln!(
             "[draw_rectangles] Rectangle: width={}, height={}, color=({},{},{},{})",
@@ -110,25 +105,13 @@ pub fn draw_rectangles(
         );
 
         // DeviceContextとCommandList生成
-        let d2d_device = match graphics_core.d2d_device() {
-            Some(d) => d,
+        // グローバル共有DeviceContextを取得
+        let dc = match graphics_core.device_context() {
+            Some(dc) => dc,
             None => {
                 eprintln!(
-                    "[draw_rectangles] GraphicsCore無効のためスキップ (Entity={:?})",
+                    "[draw_rectangles] DeviceContext not available for Entity={:?}",
                     entity
-                );
-                continue;
-            }
-        };
-
-        let dc = match d2d_device.create_device_context(
-            windows::Win32::Graphics::Direct2D::D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
-        ) {
-            Ok(dc) => dc,
-            Err(err) => {
-                eprintln!(
-                    "[draw_rectangles] Failed to create DeviceContext for Entity={:?}: {:?}",
-                    entity, err
                 );
                 continue;
             }

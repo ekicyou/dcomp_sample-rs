@@ -1,6 +1,6 @@
-use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt, D2D1DeviceExt};
+use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt};
 use crate::com::dwrite::DWriteFactoryExt;
-use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore, WindowGraphics};
+use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore};
 use crate::ecs::widget::shapes::rectangle::colors;
 use crate::ecs::widget::text::{Label, TextLayoutResource};
 use bevy_ecs::prelude::*;
@@ -16,7 +16,7 @@ use windows_numerics::Vector2;
 pub fn draw_labels(
     mut commands: Commands,
     query: Query<
-        (Entity, &Label, &WindowGraphics),
+        (Entity, &Label),
         Or<(Changed<Label>, Without<GraphicsCommandList>)>,
     >,
     graphics_core: Option<Res<GraphicsCore>>,
@@ -31,17 +31,13 @@ pub fn draw_labels(
         return;
     };
 
-    let Some(d2d_device) = graphics_core.d2d_device() else {
-        eprintln!("[draw_labels] Direct2D device not available");
+    // グローバル共有DeviceContextを取得
+    let Some(dc) = graphics_core.device_context() else {
+        eprintln!("[draw_labels] DeviceContext not available");
         return;
     };
 
-    for (entity, label, window_graphics) in query.iter() {
-        // WindowGraphicsが無効なら後回し
-        if !window_graphics.is_valid() {
-            continue;
-        }
-
+    for (entity, label) in query.iter() {
         #[cfg(debug_assertions)]
         eprintln!(
             "[draw_labels] Entity={:?}, text='{}', font='{}', size={}pt",
@@ -88,20 +84,7 @@ pub fn draw_labels(
             }
         };
 
-        // DeviceContextとCommandList生成
-        let dc = match d2d_device.create_device_context(
-            windows::Win32::Graphics::Direct2D::D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
-        ) {
-            Ok(dc) => dc,
-            Err(err) => {
-                eprintln!(
-                    "[draw_labels] Failed to create DeviceContext for Entity={:?}: {:?}",
-                    entity, err
-                );
-                continue;
-            }
-        };
-
+        // CommandList生成
         let command_list = match unsafe { dc.CreateCommandList() } {
             Ok(cl) => cl,
             Err(err) => {
