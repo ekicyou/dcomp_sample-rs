@@ -12,11 +12,16 @@
 
 現在、COMリソースを保持するコンポーネントには以下のような命名の不統一が存在する：
 
+**既存のGPUリソース**:
 - `WindowGraphics` (D2D1DeviceContext + IDCompositionTarget) - ウィンドウレベル
 - `Visual` (IDCompositionVisual3) - ウィジェットレベル（現在はWindow直下だが将来は個別Entity）
 - `Surface` (IDCompositionSurface) - ウィジェットレベル（現在はWindow直下だが将来は個別Entity）
 
-この不統一は、将来追加されるテキスト関連コンポーネント（`TextLayout`、`TextFormat`など）やブラシ・ジオメトリなどの描画リソースコンポーネントとの整合性を欠く。統一的な命名規則により、コードベースの可読性と保守性を向上させる。
+**新規追加されたCPUリソース（phase4-mini-horizontal-text実装時）**:
+- `TextLayout` (IDWriteTextLayout) - ウィジェットレベル、CPUリソース（**改名対象**: `TextLayoutResource`）
+- GraphicsCore内の`IDWriteFactory2` - システムレベル、CPUリソース
+
+この不統一は、将来追加されるテキスト関連コンポーネント（`TextFormat`など）やブラシ・ジオメトリなどの描画リソースコンポーネントとの整合性を欠く。統一的な命名規則により、コードベースの可読性と保守性を向上させる。
 
 ### 現在の実装状況と将来の設計
 
@@ -77,13 +82,25 @@
 
 **Objective:** システム開発者として、ウィジェット（ビジュアルツリー要素）レベルで管理されるCOMリソースコンポーネントの命名を統一したい。これにより、将来のビジュアルツリー実装に備えた一貫性が確保される。
 
-#### Acceptance Criteria (Widget Level)
+#### Acceptance Criteria (Widget Level - GPU Resources)
 
 1. The wintfシステムは、`Visual`コンポーネントを`VisualGraphics`に改名しなければならない
 2. The wintfシステムは、`Surface`コンポーネントを`SurfaceGraphics`に改名しなければならない
 3. When コンポーネント改名が実施された時、wintfシステムはすべての参照箇所（システム、クエリ、型注釈）を更新しなければならない
 4. The wintfシステムは、改名後も`VisualGraphics`と`SurfaceGraphics`がウィジェットレベルのGPUリソースであることをドキュメントで明記しなければならない
 5. The wintfシステムは、改名後もCOMオブジェクトへのアクセスメソッド名（`visual()`, `surface()`）を維持しなければならない
+
+#### Acceptance Criteria (Widget Level - CPU Resources)
+
+1. The wintfシステムは、`TextLayout`コンポーネントを`TextLayoutResource`に改名しなければならない
+2. The wintfシステムは、`TextLayoutResource`を複数のテキスト関連ウィジット（Label、将来のTextBlock、Button等）で再利用可能にしなければならない
+3. When TextLayoutコンポーネント改名が実施された時、wintfシステムは以下のファイルを更新しなければならない:
+   - `crates/wintf/src/ecs/widget/text/label.rs` (コンポーネント定義)
+   - `crates/wintf/src/ecs/widget/text/draw_labels.rs` (システム実装)
+   - `crates/wintf/src/ecs/widget/text/mod.rs` (モジュールエクスポート)
+4. The wintfシステムは、`TextLayoutResource`がCPUリソース（IDWriteTextLayout）であり、デバイスロスト対応が不要であることをドキュメントで明記しなければならない
+5. The wintfシステムは、改名後もCOMオブジェクトへのアクセスメソッド名（`get()`）を維持しなければならない
+6. The wintfシステムは、`TextLayoutResource`に`invalidate()`メソッドや`generation`フィールドを実装してはならない（CPUリソースのため不要）
 
 **Objective:** システム開発者として、将来追加されるウィジェット固有のCOMリソースコンポーネント（Label、Rectangle等）の命名規則を定義したい。これにより、一貫した拡張が可能になる。
 
@@ -96,9 +113,9 @@
    - Buttonウィジェット用ビットマップ → `ButtonBitmapGraphics`（将来追加時）
 3. When 新しいウィジェット用CPUリソースコンポーネントが追加される時、wintfシステムは`{LogicalComponent}Resource`命名規則に従わなければならない
 4. The wintfシステムは、以下のCPUリソース命名例に従わなければならない:
-   - LabelウィジェットのTextLayout → `LabelTextLayoutResource`
-   - LabelウィジェットのTextFormat → `LabelTextFormatResource`
-   - 図形のPathGeometry → `ShapeGeometryResource`
+   - テキストレイアウト → `TextLayoutResource`（複数ウィジットで再利用: Label、TextBlock、Button等）
+   - テキストフォーマット → `TextFormatResource`（複数ウィジットで再利用可能）
+   - 図形のPathGeometry → `PathGeometryResource`
 5. The wintfシステムは、COMリソースコンポーネント内部のアクセスメソッド名を、ラップするCOMインターフェイス型に対応させなければならない（例: `text_layout()`, `brush()`）
 
 ---
@@ -162,11 +179,14 @@
 #### Acceptance Criteria (Consistency)
 
 1. The wintfシステムは、`ecs/graphics/components.rs`内のすべてのGPUリソースコンポーネントが`XxxGraphics`命名規則に従わなければならない
-2. When 新しいCOMリソースコンポーネントが追加される時、wintfシステムはレビュー時に命名規則準拠を確認しなければならない
-3. If COMオブジェクトを保持しないコンポーネントが存在する場合、wintfシステムは`Graphics`または`Resource`サフィックスを付けてはならない（例: `HasGraphicsResources`、`GraphicsNeedsInit`）
-4. The wintfシステムは、マーカーコンポーネント（データを持たないコンポーネント）に対して`Graphics`または`Resource`サフィックスを使用してはならない
-5. When デバイスロスト対応が必要なリソースが追加される時、wintfシステムは`Graphics`サフィックスと`invalidate()`/`generation`機能を実装しなければならない
-6. When デバイス非依存なリソースが追加される時、wintfシステムは`Resource`サフィックスを使用し、再初期化機構を省略しなければならない
+2. The wintfシステムは、`ecs/widget/text/label.rs`内のすべてのCPUリソースコンポーネントが`XxxResource`命名規則に従わなければならない
+3. When 新しいCOMリソースコンポーネントが追加される時、wintfシステムはレビュー時に命名規則準拠を確認しなければならない
+4. If COMオブジェクトを保持しないコンポーネントが存在する場合、wintfシステムは`Graphics`または`Resource`サフィックスを付けてはならない（例: `HasGraphicsResources`、`GraphicsNeedsInit`、`Label`）
+5. The wintfシステムは、マーカーコンポーネント（データを持たないコンポーネント）に対して`Graphics`または`Resource`サフィックスを使用してはならない
+6. When デバイスロスト対応が必要なリソースが追加される時、wintfシステムは`Graphics`サフィックスと`invalidate()`/`generation`機能を実装しなければならない
+7. When デバイス非依存なリソースが追加される時、wintfシステムは`Resource`サフィックスを使用し、再初期化機構を省略しなければならない
+8. The wintfシステムは、`TextLayoutResource`のような既存CPUリソースが改名規則に準拠していることを確認しなければならない
+9. The wintfシステムは、`TextLayoutResource`が複数のウィジェットタイプ（Label、TextBlock、Button等）で再利用可能であることをドキュメントで説明しなければならない
 
 ---
 
@@ -186,16 +206,22 @@
 ## Dependencies
 
 - 既存のECSコンポーネント実装（`ecs/graphics/components.rs`）
-- 既存のシステム実装（`ecs/graphics/systems.rs`、`ecs/window_system.rs`など）
-- 既存のテストコード（`tests/graphics_core_ecs_test.rs`など）
+- 新規追加されたテキストコンポーネント（`ecs/widget/text/label.rs`）
+- 既存のシステム実装（`ecs/graphics/systems.rs`、`ecs/window_system.rs`、`ecs/widget/text/draw_labels.rs`など）
+- 既存のテストコード（`tests/graphics_core_ecs_test.rs`、`tests/graphics_reinit_unit_test.rs`など）
 - 既存のデバイスロスト対応システム（`invalidate_dependent_components`、`cleanup_command_list_on_reinit`）
+- 新規追加されたDirectWrite統合（GraphicsCore内の`IDWriteFactory2`）
 
 ---
 
 ## Success Metrics
 
 - すべてのGPUリソースコンポーネントが`XxxGraphics`命名規則に準拠
-- すべてのCPUリソースコンポーネントが`XxxResource`命名規則に準拠（将来追加時）
+- すべてのCPUリソースコンポーネントが`XxxResource`命名規則に準拠
+  - `TextLayout`→`TextLayoutResource`（既存実装の改名、複数ウィジェットで再利用可能）
 - すべての既存テストが改名後も成功
 - `cargo build`が警告なしで成功
+- `cargo test`が警告なしで成功
 - ドキュメント（`structure.md`）が命名規則（GPU/CPU区別含む）を明記
+- `TextLayoutResource`の再利用性（Label、TextBlock、Button等での使用）がドキュメント化される
+- phase4-mini-horizontal-textの実装と命名規則が整合している

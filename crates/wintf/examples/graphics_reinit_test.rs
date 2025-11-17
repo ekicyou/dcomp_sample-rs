@@ -13,7 +13,7 @@ use wintf::ecs::{GraphicsCore, Surface, Visual, WindowGraphics, WindowHandle, Wi
 use wintf::*;
 
 /// GraphicsCore再初期化システムの統合テスト
-/// 
+///
 /// このテストは以下を検証します:
 /// - GraphicsCore初期化とコンポーネントの自動初期化
 /// - GraphicsCore無効化による依存コンポーネントの自動無効化
@@ -24,7 +24,7 @@ type WorldCommand = Box<dyn FnOnce(&mut World) + Send>;
 
 fn main() -> Result<()> {
     println!("\n========== GraphicsCore Reinitialization Test ==========\n");
-    
+
     human_panic::setup_panic!();
 
     let mgr = WinThreadMgr::new()?;
@@ -99,30 +99,38 @@ fn main() -> Result<()> {
         thread::sleep(Duration::from_secs(1));
         println!("\n[Timer] 4s: Verifying reinitialization");
         let _ = tx.send(Box::new(|world: &mut World| {
-            let graphics_valid = world.get_resource::<GraphicsCore>()
+            let graphics_valid = world
+                .get_resource::<GraphicsCore>()
                 .map(|g| g.is_valid())
                 .unwrap_or(false);
-            
-            let mut query = world.query::<(Entity, &WindowHandle, &WindowGraphics, &Visual, &Surface)>();
-            
+
+            let mut query =
+                world.query::<(Entity, &WindowHandle, &WindowGraphics, &Visual, &Surface)>();
+
             println!("\n========================================");
             println!("[Test] ===== 再初期化検証 =====");
             println!("[Test] GraphicsCore.is_valid() = {}", graphics_valid);
-            
+
             let mut all_success = true;
             for (entity, handle, wg, v, s) in query.iter(world) {
                 let wg_valid = wg.is_valid();
                 let v_valid = v.is_valid();
                 let s_valid = s.is_valid();
                 let generation = wg.generation();
-                
+
                 println!("[Test] Entity {:?} (HWND {:?}):", entity, handle.hwnd);
-                println!("  - WindowGraphics: valid={}, generation={}", wg_valid, generation);
+                println!(
+                    "  - WindowGraphics: valid={}, generation={}",
+                    wg_valid, generation
+                );
                 println!("  - Visual.is_valid() = {}", v_valid);
                 println!("  - Surface.is_valid() = {}", s_valid);
-                
+
                 if generation > 0 && wg_valid && v_valid && s_valid {
-                    println!("  ✅ [SUCCESS] 再初期化されました！（generation={} > 0）", generation);
+                    println!(
+                        "  ✅ [SUCCESS] 再初期化されました！（generation={} > 0）",
+                        generation
+                    );
                 } else if generation == 0 && wg_valid && v_valid && s_valid {
                     println!("  ⏳ [WAIT] 初回作成状態（generation=0）");
                 } else {
@@ -130,7 +138,7 @@ fn main() -> Result<()> {
                     all_success = false;
                 }
             }
-            
+
             if all_success && graphics_valid {
                 println!("\n  🎉🎉🎉 [TEST SUCCESS] 全コンポーネントが正常に再初期化されました！");
             }
@@ -143,7 +151,10 @@ fn main() -> Result<()> {
         let _ = tx.send(Box::new(|world: &mut World| {
             let mut query = world.query::<(Entity, &WindowHandle)>();
             if let Some((entity, handle)) = query.iter(world).next() {
-                println!("[Test] Removing Rectangle from entity {:?} (hwnd {:?})", entity, handle.hwnd);
+                println!(
+                    "[Test] Removing Rectangle from entity {:?} (hwnd {:?})",
+                    entity, handle.hwnd
+                );
                 println!("       赤い四角形が消えます...");
                 world.entity_mut(entity).remove::<Rectangle>();
             }
@@ -155,9 +166,12 @@ fn main() -> Result<()> {
         let _ = tx.send(Box::new(|world: &mut World| {
             let mut query = world.query::<(Entity, &WindowHandle)>();
             let entities: Vec<_> = query.iter(world).map(|(e, h)| (e, h.hwnd)).collect();
-            
+
             if let Some((entity, hwnd)) = entities.first() {
-                println!("[Test] Closing window: Entity {:?}, HWND {:?}", entity, hwnd);
+                println!(
+                    "[Test] Closing window: Entity {:?}, HWND {:?}",
+                    entity, hwnd
+                );
                 world.despawn(*entity);
             }
         }));
@@ -168,7 +182,10 @@ fn main() -> Result<()> {
         let _ = tx.send(Box::new(|world: &mut World| {
             let mut query = world.query::<(Entity, &WindowHandle)>();
             if let Some((entity, handle)) = query.iter(world).next() {
-                println!("[Test] Closing last window: Entity {:?}, HWND {:?}", entity, handle.hwnd);
+                println!(
+                    "[Test] Closing last window: Entity {:?}, HWND {:?}",
+                    entity, handle.hwnd
+                );
                 world.despawn(entity);
             }
         }));
