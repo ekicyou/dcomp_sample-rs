@@ -145,23 +145,21 @@ pub fn render_surface(
                 }
             };
 
-        unsafe {
-            // 透明色クリア（常に実行）
-            dc.clear(Some(&D2D1_COLOR_F {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 0.0,
-            }));
+        // 透明色クリア（常に実行）
+        dc.clear(Some(&D2D1_COLOR_F {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 0.0,
+        }));
 
-            // CommandListがある場合のみ描画
-            if let Some(command_list) = command_list {
-                eprintln!(
-                    "[render_surface] Drawing command_list for Entity={:?}",
-                    entity
-                );
-                dc.draw_image(command_list);
-            }
+        // CommandListがある場合のみ描画
+        if let Some(command_list) = command_list {
+            eprintln!(
+                "[render_surface] Drawing command_list for Entity={:?}",
+                entity
+            );
+            dc.draw_image(command_list);
         }
 
         // Surface描画終了

@@ -65,11 +65,9 @@ pub trait D2D1CommandListExt {
 impl D2D1CommandListExt for ID2D1CommandList {
     #[inline(always)]
     fn open(&self) -> Result<ID2D1DeviceContext> {
-        unsafe {
-            // ID2D1CommandListは直接Openできない
-            // 代わりにキャストでID2D1Imageとして扱う
-            Err(Error::from_hresult(windows::Win32::Foundation::E_NOTIMPL))
-        }
+        // ID2D1CommandListは直接Openできない
+        // 代わりにキャストでID2D1Imageとして扱う
+        Err(Error::from_hresult(windows::Win32::Foundation::E_NOTIMPL))
     }
 
     #[inline(always)]
@@ -220,9 +218,7 @@ impl D2D1DeviceContextExt for ID2D1DeviceContext {
         P0: Param<IDWriteTextLayout>,
         P1: Param<ID2D1Brush>,
     {
-        unsafe {
-            self.DrawTextLayout(origin, text_layout, default_fill_brush, options)
-        }
+        unsafe { self.DrawTextLayout(origin, text_layout, default_fill_brush, options) }
     }
 
     #[inline(always)]
