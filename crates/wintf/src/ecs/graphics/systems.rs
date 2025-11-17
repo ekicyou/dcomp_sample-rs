@@ -156,7 +156,13 @@ pub fn render_surface(
             match widgets.get(descendant) {
                 Ok((global_arr, cmd_list)) => {
                     if let Some(arr) = global_arr {
+                        eprintln!(
+                            "[render_surface] SetTransform for Entity={:?}: M11={}, M12={}, M21={}, M22={}, M31={}, M32={}",
+                            descendant, arr.0.M11, arr.0.M12, arr.0.M21, arr.0.M22, arr.0.M31, arr.0.M32
+                        );
                         dc.set_transform(&arr.0);
+                    } else {
+                        eprintln!("[render_surface] No GlobalArrangement for Entity={:?}", descendant);
                     }
                     if let Some(list) = cmd_list {
                         if let Some(command_list) = list.command_list() {

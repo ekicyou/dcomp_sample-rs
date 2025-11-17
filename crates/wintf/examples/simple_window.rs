@@ -11,7 +11,7 @@ use windows::Win32::Foundation::{POINT, SIZE};
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use wintf::ecs::widget::shapes::{colors, Rectangle};
 use wintf::ecs::widget::text::Label;
-use wintf::ecs::{Arrangement, Offset, LayoutScale};
+use wintf::ecs::{Arrangement, Offset, LayoutScale, GlobalArrangement, ArrangementTreeChanged};
 use wintf::ecs::Window;
 use wintf::ecs::{GraphicsCore, WindowHandle, WindowPos};
 use wintf::*;
@@ -63,6 +63,8 @@ fn main() -> Result<()> {
                     offset: Offset { x: 20.0, y: 20.0 },
                     scale: LayoutScale::default(),
                 },
+                GlobalArrangement::default(),
+                ArrangementTreeChanged,
                 ChildOf(window_entity),
             )).id();
 
@@ -77,6 +79,8 @@ fn main() -> Result<()> {
                     offset: Offset { x: 10.0, y: 10.0 },
                     scale: LayoutScale::default(),
                 },
+                GlobalArrangement::default(),
+                ArrangementTreeChanged,
                 ChildOf(rect1),
             )).id();
 
@@ -92,6 +96,8 @@ fn main() -> Result<()> {
                     offset: Offset { x: 5.0, y: 5.0 },
                     scale: LayoutScale::default(),
                 },
+                GlobalArrangement::default(),
+                ArrangementTreeChanged,
                 ChildOf(rect1_1),
             ));
 
@@ -106,6 +112,8 @@ fn main() -> Result<()> {
                     offset: Offset { x: 10.0, y: 80.0 },
                     scale: LayoutScale::default(),
                 },
+                GlobalArrangement::default(),
+                ArrangementTreeChanged,
                 ChildOf(rect1),
             )).id();
 
@@ -120,6 +128,8 @@ fn main() -> Result<()> {
                     offset: Offset { x: 10.0, y: 10.0 },
                     scale: LayoutScale::default(),
                 },
+                GlobalArrangement::default(),
+                ArrangementTreeChanged,
                 ChildOf(rect1_2),
             )).id();
 
@@ -135,6 +145,8 @@ fn main() -> Result<()> {
                     offset: Offset { x: 5.0, y: 5.0 },
                     scale: LayoutScale::default(),
                 },
+                GlobalArrangement::default(),
+                ArrangementTreeChanged,
                 ChildOf(rect1_2_1),
             ));
 
