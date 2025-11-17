@@ -3,7 +3,7 @@
 /// このテストはGraphicsCore、WindowGraphics、Visual、Surfaceの
 /// Option<T>ラップと状態遷移機能をテストします。
 
-use wintf::ecs::{GraphicsCore, Surface, Visual, WindowGraphics};
+use wintf::ecs::{GraphicsCore, Surface, Visual};
 
 #[test]
 fn test_graphics_core_invalidate_and_is_valid() {

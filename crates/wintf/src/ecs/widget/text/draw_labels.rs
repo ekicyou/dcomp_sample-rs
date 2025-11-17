@@ -1,15 +1,15 @@
 use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt, D2D1DeviceExt};
 use crate::com::dwrite::DWriteFactoryExt;
 use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore, WindowGraphics};
-use crate::ecs::widget::text::{Label, TextLayout};
 use crate::ecs::widget::shapes::rectangle::colors;
+use crate::ecs::widget::text::{Label, TextLayout};
 use bevy_ecs::prelude::*;
 use windows::Win32::Graphics::Direct2D::D2D1_DRAW_TEXT_OPTIONS_NONE;
 use windows::Win32::Graphics::DirectWrite::*;
 use windows_numerics::Vector2;
 
 /// Labelコンポーネントから GraphicsCommandList を生成
-/// 
+///
 /// Changed<Label> または GraphicsCommandList がないエンティティを対象に、
 /// DirectWrite を使用してテキストレイアウトを生成し、
 /// Direct2D の CommandList に描画命令を記録する。

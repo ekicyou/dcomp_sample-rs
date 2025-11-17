@@ -252,4 +252,3 @@ fn test_graphics_core_lifecycle() {
 
     eprintln!("✅ GraphicsCore - ライフサイクル管理正常");
 }
-

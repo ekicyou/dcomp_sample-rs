@@ -9,7 +9,7 @@ use windows::Win32::Graphics::DirectWrite::IDWriteTextLayout;
 pub type Color = D2D1_COLOR_F;
 
 /// Labelコンポーネント: テキスト表示ウィジット
-/// 
+///
 /// # フィールド
 /// - `text`: 表示するテキスト (UTF-8)
 /// - `font_family`: フォントファミリー名 (例: "メイリオ", "Arial")
@@ -48,10 +48,7 @@ impl Default for Label {
 
 /// Labelコンポーネント削除時のフック
 /// GraphicsCommandListをクリアしてChanged検出に対応
-fn on_label_remove(
-    mut world: DeferredWorld,
-    hook: bevy_ecs::lifecycle::HookContext,
-) {
+fn on_label_remove(mut world: DeferredWorld, hook: bevy_ecs::lifecycle::HookContext) {
     let entity = hook.entity;
     // GraphicsCommandListを取得して中身をクリア(Changed検出のため)
     if let Some(mut cmd_list) = world.get_mut::<GraphicsCommandList>(entity) {
@@ -60,7 +57,7 @@ fn on_label_remove(
 }
 
 /// TextLayoutコンポーネント: IDWriteTextLayoutのキャッシュ
-/// 
+///
 /// Labelコンポーネントから生成されたTextLayoutを保持。
 /// Labelが変更されない限り、再生成せず再利用される。
 #[derive(Component)]
@@ -90,10 +87,7 @@ impl TextLayout {
 
 /// TextLayoutコンポーネント削除時のフック
 /// COMオブジェクトはDropで自動解放されるため、ログ出力のみ
-fn on_text_layout_remove(
-    _world: DeferredWorld,
-    hook: bevy_ecs::lifecycle::HookContext,
-) {
+fn on_text_layout_remove(_world: DeferredWorld, hook: bevy_ecs::lifecycle::HookContext) {
     #[cfg(debug_assertions)]
     println!("[TextLayout] Removed from Entity={:?}", hook.entity);
 }

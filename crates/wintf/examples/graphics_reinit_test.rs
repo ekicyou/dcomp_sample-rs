@@ -9,7 +9,7 @@ use windows::core::Result;
 use windows::Win32::Foundation::{POINT, SIZE};
 use wintf::ecs::widget::shapes::{colors, Rectangle};
 use wintf::ecs::Window;
-use wintf::ecs::{GraphicsCore, GraphicsNeedsInit, HasGraphicsResources, Surface, Visual, WindowGraphics, WindowHandle, WindowPos};
+use wintf::ecs::{GraphicsCore, Surface, Visual, WindowGraphics, WindowHandle, WindowPos};
 use wintf::*;
 
 /// GraphicsCore再初期化システムの統合テスト

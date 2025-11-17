@@ -93,7 +93,7 @@ impl DWriteFactoryExt for IDWriteFactory2 {
 
             // Create slice from raw pointer
             let text_slice = core::slice::from_raw_parts(text_pcwstr.0 as *const u16, len);
-            
+
             self.CreateTextLayout(text_slice, text_format, max_width, max_height)
         }
     }

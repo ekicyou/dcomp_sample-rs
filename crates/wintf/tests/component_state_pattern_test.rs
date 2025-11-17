@@ -10,6 +10,7 @@ use bevy_ecs::prelude::*;
 // ===== モックデータ =====
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct MockGraphicsData {
     id: u32,
 }
