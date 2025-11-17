@@ -1,9 +1,9 @@
 {
     "feature_name": "com-resource-naming-unification",
     "created_at": "2025-11-17T00:00:00Z",
-    "updated_at": "2025-11-17T10:50:00Z",
+    "updated_at": "2025-11-17T11:09:05Z",
     "language": "ja",
-    "phase": "completed",
+    "phase": "approved",
     "approvals": {
         "requirements": {
             "generated": true,
@@ -19,9 +19,17 @@
             "generated": true,
             "approved": true,
             "approved_at": "2025-11-17T10:41:40Z"
+        },
+        "implementation": {
+            "completed": true,
+            "validated": true,
+            "approved": true,
+            "approved_at": "2025-11-17T11:09:05Z"
         }
     },
     "ready_for_implementation": true,
     "implementation_completed": true,
-    "completed_at": "2025-11-17T10:50:00Z"
+    "completed_at": "2025-11-17T10:50:00Z",
+    "validated_at": "2025-11-17T11:09:05Z",
+    "approved_at": "2025-11-17T11:09:05Z"
 }
