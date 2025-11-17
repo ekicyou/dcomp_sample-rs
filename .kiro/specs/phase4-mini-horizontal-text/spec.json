@@ -1,0 +1,29 @@
+{
+    "feature_id": "phase4-mini-horizontal-text",
+    "title": "DirectWrite横書きテキストレンダリング",
+    "language": "ja",
+    "created_at": "2025-11-15",
+    "updated_at": "2025-11-17",
+    "phase": "design-generated",
+    "approvals": {
+        "requirements": {
+            "generated": true,
+            "approved": true,
+            "approved_at": "2025-11-17"
+        },
+        "design": {
+            "generated": true,
+            "approved": false
+        },
+        "tasks": {
+            "generated": false,
+            "approved": false
+        }
+    },
+    "metadata": {
+        "route": "モチベーションGO!ルート（ルートA）",
+        "complexity": "M",
+        "risk": "Low",
+        "estimated_days": "5-6"
+    }
+}

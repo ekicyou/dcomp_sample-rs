@@ -1,7 +1,7 @@
 # Status: phase4-mini-horizontal-text
 
 **Last Updated**: 2025-11-17  
-**Current Phase**: Phase 1 - Gap Analysis Complete
+**Current Phase**: Phase 2 - Design Approved
 
 ---
 
@@ -16,13 +16,22 @@
   - ✅ gap-analysis.md completed (2025-11-17)
   - ✅ Requirements approved (2025-11-17)
 
+- [x] **Phase 2**: Design
+  - ✅ design.md generated (2025-11-17)
+  - ✅ research.md generated (2025-11-17)
+  - ✅ Design approved (2025-11-17)
+  - ✅ Critical issues resolved:
+    - Requirement 6.1: Updateスケジュール→Drawスケジュール修正
+    - draw_labels実装: 正しいCommandList生成パターンに修正
+
 ---
 
 ## Next Action
 
-**Requirements Approved - Proceed to Design Phase:**
+**Design Approved - Proceed to Task Generation:**
+
 ```bash
-/kiro-spec-design phase4-mini-horizontal-text -y
+/kiro-spec-tasks phase4-mini-horizontal-text -y
 ```
 
 ---

@@ -103,7 +103,7 @@
 
 #### Acceptance Criteria
 
-1. The wintfシステムは、Updateスケジュールで実行されるdraw_labelsシステムを提供しなければならない
+1. The wintfシステムは、Drawスケジュールで実行されるdraw_labelsシステムを提供しなければならない
 2. When draw_labelsシステムが実行される時、LabelとWindowHandleコンポーネントを持つ全てのエンティティをクエリしなければならない
 3. When Labelコンポーネントが変更された時、draw_labelsシステムは新しいTextLayoutを生成しなければならない
 4. When TextLayoutが存在する時、draw_labelsシステムはID2D1DeviceContextのDrawTextLayoutメソッドを呼び出してテキストを描画しなければならない
