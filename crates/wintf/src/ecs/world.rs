@@ -166,6 +166,8 @@ impl EcsWorld {
                         .after(crate::ecs::graphics::init_window_graphics),
                     crate::ecs::graphics::init_window_surface
                         .after(crate::ecs::graphics::init_window_visual),
+                    crate::ecs::window_system::init_window_arrangement
+                        .after(crate::ecs::graphics::init_window_surface),
                 ),
             );
 
@@ -176,7 +178,16 @@ impl EcsWorld {
                     crate::ecs::graphics::cleanup_graphics_needs_init,
                     crate::ecs::widget::shapes::rectangle::draw_rectangles,
                     crate::ecs::widget::text::draw_labels,
-                ),
+                ).chain(),
+            );
+            
+            schedules.add_systems(
+                Draw,
+                (
+                    crate::ecs::arrangement::sync_simple_arrangements,
+                    crate::ecs::arrangement::mark_dirty_arrangement_trees,
+                    crate::ecs::arrangement::propagate_global_arrangements,
+                ).chain(),
             );
 
             // RenderSurfaceスケジュールに描画システムを登録

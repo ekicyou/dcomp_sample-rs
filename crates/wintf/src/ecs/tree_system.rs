@@ -317,7 +317,7 @@ unsafe fn propagate_descendants_unchecked<L, G, M>(
 
 /// 大きく繰り返し使用されるクエリのエイリアス。親と場合によっては子の両方を持つ
 /// 変換エンティティをクエリするため、これらはルートではない。
-type NodeQuery<'w, 's, L, G, M> = Query<
+pub type NodeQuery<'w, 's, L, G, M> = Query<
     'w,
     's,
     (

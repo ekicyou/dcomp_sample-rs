@@ -59,10 +59,6 @@ pub mod colors {
 #[derive(Component, Debug, Clone)]
 #[component(on_remove = on_rectangle_remove)]
 pub struct Rectangle {
-    /// X座標（ピクセル単位）
-    pub x: f32,
-    /// Y座標（ピクセル単位）
-    pub y: f32,
     /// 幅（ピクセル単位）
     pub width: f32,
     /// 高さ（ピクセル単位）
@@ -104,9 +100,7 @@ pub fn draw_rectangles(
         
         eprintln!("[draw_rectangles] Entity={:?}", entity);
         eprintln!(
-            "[draw_rectangles] Rectangle: x={}, y={}, width={}, height={}, color=({},{},{},{})",
-            rectangle.x,
-            rectangle.y,
+            "[draw_rectangles] Rectangle: width={}, height={}, color=({},{},{},{})",
             rectangle.width,
             rectangle.height,
             rectangle.color.r,
@@ -163,12 +157,12 @@ pub fn draw_rectangles(
             // 透明色クリア
             dc.clear(Some(&colors::TRANSPARENT));
 
-            // 四角形描画
+            // 四角形描画（原点0,0から描画）
             let rect = D2D_RECT_F {
-                left: rectangle.x,
-                top: rectangle.y,
-                right: rectangle.x + rectangle.width,
-                bottom: rectangle.y + rectangle.height,
+                left: 0.0,
+                top: 0.0,
+                right: rectangle.width,
+                bottom: rectangle.height,
             };
 
             // ソリッドカラーブラシ作成

@@ -6,6 +6,20 @@ use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::UI::HiDpi::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
+/// Window EntityにArrangementコンポーネントを自動追加するシステム
+pub fn init_window_arrangement(
+    mut commands: Commands,
+    query: Query<Entity, (With<Window>, Without<Arrangement>)>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).insert((
+            Arrangement::default(),
+            GlobalArrangement::default(),
+            ArrangementTreeChanged,
+        ));
+    }
+}
+
 /// 未作成のWindowを検出して作成するシステム
 pub fn create_windows(
     mut commands: Commands,

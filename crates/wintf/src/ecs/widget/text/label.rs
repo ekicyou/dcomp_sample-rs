@@ -15,8 +15,6 @@ pub type Color = D2D1_COLOR_F;
 /// - `font_family`: フォントファミリー名 (例: "メイリオ", "Arial")
 /// - `font_size`: フォントサイズ (pt単位, 範囲: 8.0～72.0)
 /// - `color`: テキスト色 (RGBA, 各成分 0.0～1.0)
-/// - `x`: X座標 (ピクセル)
-/// - `y`: Y座標 (ピクセル)
 #[derive(Component)]
 #[component(storage = "SparseSet", on_remove = on_label_remove)]
 pub struct Label {
@@ -24,8 +22,6 @@ pub struct Label {
     pub font_family: String,
     pub font_size: f32,
     pub color: Color,
-    pub x: f32,
-    pub y: f32,
 }
 
 impl Default for Label {
@@ -40,8 +36,6 @@ impl Default for Label {
                 b: 0.0,
                 a: 1.0,
             }, // 黒色
-            x: 0.0,
-            y: 0.0,
         }
     }
 }

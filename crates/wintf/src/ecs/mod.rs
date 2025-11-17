@@ -1,4 +1,5 @@
 mod app;
+mod arrangement;
 mod graphics;
 mod layout;
 pub mod transform;
@@ -10,6 +11,8 @@ mod window_system;
 pub mod world;
 
 pub use app::*;
+pub use arrangement::*;
+pub use bevy_ecs::hierarchy::{ChildOf, Children};
 pub use graphics::*;
 pub use layout::*;
 pub use transform::*;

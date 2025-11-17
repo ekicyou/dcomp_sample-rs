@@ -44,8 +44,8 @@ pub fn draw_labels(
 
         #[cfg(debug_assertions)]
         eprintln!(
-            "[draw_labels] Entity={:?}, text='{}', font='{}', size={}pt, pos=({}, {})",
-            entity, label.text, label.font_family, label.font_size, label.x, label.y
+            "[draw_labels] Entity={:?}, text='{}', font='{}', size={}pt",
+            entity, label.text, label.font_family, label.font_size
         );
 
         // TextFormat作成
@@ -141,11 +141,8 @@ pub fn draw_labels(
             }
         };
 
-        // テキスト描画
-        let origin = Vector2 {
-            X: label.x,
-            Y: label.y,
-        };
+        // テキスト描画（原点0,0から描画）
+        let origin = Vector2 { X: 0.0, Y: 0.0 };
         dc.draw_text_layout(origin, &text_layout, &brush, D2D1_DRAW_TEXT_OPTIONS_NONE);
 
         // 描画終了

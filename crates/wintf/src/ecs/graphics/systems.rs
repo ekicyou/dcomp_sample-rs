@@ -1,18 +1,20 @@
-use crate::com::d2d::*;
-use crate::com::dcomp::*;
-use crate::ecs::graphics::{
-    GraphicsCore, GraphicsNeedsInit, HasGraphicsResources, SurfaceGraphics, VisualGraphics, WindowGraphics,
-};
+use crate::com::d2d::D2D1DeviceExt;
+use crate::ecs::layout::GlobalArrangement;
+use crate::ecs::window::{Window, WindowHandle};
+use crate::ecs::graphics::{GraphicsCore, GraphicsNeedsInit, HasGraphicsResources, SurfaceGraphics, VisualGraphics, WindowGraphics};
 use bevy_ecs::prelude::*;
-use windows::core::Result;
+use windows::core::*;
 use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Direct2D::*;
+use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
+use windows::Win32::Graphics::Dxgi::*;
 
 // ========== ヘルパー関数 ==========
 
 /// HWNDに対してWindowGraphicsリソースを作成する
-fn create_window_graphics_for_hwnd(graphics: &GraphicsCore, hwnd: HWND) -> Result<WindowGraphics> {
+fn create_window_graphics_for_hwnd(graphics: &GraphicsCore, hwnd: HWND) -> windows::core::Result<WindowGraphics> {
     use windows::Win32::Graphics::Direct2D::D2D1_DEVICE_CONTEXT_OPTIONS_NONE;
 
     if !graphics.is_valid() {
@@ -38,7 +40,7 @@ fn create_window_graphics_for_hwnd(graphics: &GraphicsCore, hwnd: HWND) -> Resul
 fn create_visual_for_target(
     graphics: &GraphicsCore,
     target: &IDCompositionTarget,
-) -> Result<VisualGraphics> {
+) -> windows::core::Result<VisualGraphics> {
     if !graphics.is_valid() {
         return Err(windows::core::Error::from(E_FAIL));
     }
@@ -59,7 +61,7 @@ fn create_surface_for_window(
     visual: &VisualGraphics,
     width: u32,
     height: u32,
-) -> Result<SurfaceGraphics> {
+) -> windows::core::Result<SurfaceGraphics> {
     if !graphics.is_valid() {
         return Err(windows::core::Error::from(E_FAIL));
     }
@@ -82,68 +84,49 @@ fn create_surface_for_window(
 
 // ========== 描画システム ==========/// Surfaceへの描画（GraphicsCommandListの有無を統合処理）
 pub fn render_surface(
-    query: Query<
-        (
-            Entity,
-            Option<&crate::ecs::graphics::GraphicsCommandList>,
-            &SurfaceGraphics,
-        ),
-        Or<(
-            Changed<crate::ecs::graphics::GraphicsCommandList>,
-            Changed<SurfaceGraphics>,
-        )>,
-    >,
+    windows: Query<(Entity, &SurfaceGraphics), With<Window>>,
+    widgets: Query<(Option<&GlobalArrangement>, Option<&crate::ecs::graphics::GraphicsCommandList>, Option<&bevy_ecs::hierarchy::Children>)>,
     _graphics_core: Option<Res<GraphicsCore>>,
     frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 
-    for (entity, command_list, surface) in query.iter() {
+    for (window_entity, surface) in windows.iter() {
         eprintln!(
-            "[Frame {}] [render_surface] === Processing Entity={:?} ===",
-            frame_count.0, entity
+            "[Frame {}] [render_surface] === Processing Window Entity={:?} ===",
+            frame_count.0, window_entity
         );
 
         if !surface.is_valid() {
             eprintln!(
-                "[render_surface] Surface invalid for Entity={:?}, skipping",
-                entity
+                "[render_surface] Surface invalid for Window Entity={:?}, skipping",
+                window_entity
             );
             continue;
         }
-
-        let command_list = match command_list {
-            Some(a) => a.command_list(),
-            None => None,
-        };
-        eprintln!(
-            "[render_surface] Entity={:?}, has_command_list={}",
-            entity,
-            command_list.is_some()
-        );
 
         // Surface描画開始
         let surface_ref = match surface.surface() {
             Some(s) => s,
             None => continue,
         };
-        let (dc, _offset) =
-            match surface_ref.begin_draw(None) {
-                Ok(result) => {
-                    eprintln!(
-                        "[render_surface] BeginDraw succeeded for Entity={:?}, offset=({}, {})",
-                        entity, result.1.x, result.1.y
-                    );
-                    result
-                }
-                Err(err) => {
-                    eprintln!(
-                    "[render_surface] BeginDraw failed for Entity={:?}: {:?}, HRESULT: 0x{:08X}",
-                    entity, err, err.code().0
+        
+        let (dc, _offset) = match surface_ref.begin_draw(None) {
+            Ok(result) => {
+                eprintln!(
+                    "[render_surface] BeginDraw succeeded for Window Entity={:?}, offset=({}, {})",
+                    window_entity, result.1.x, result.1.y
                 );
-                    continue;
-                }
-            };
+                result
+            }
+            Err(err) => {
+                eprintln!(
+                    "[render_surface] BeginDraw failed for Window Entity={:?}: {:?}, HRESULT: 0x{:08X}",
+                    window_entity, err, err.code().0
+                );
+                continue;
+            }
+        };
 
         // 透明色クリア（常に実行）
         dc.clear(Some(&D2D1_COLOR_F {
@@ -153,30 +136,66 @@ pub fn render_surface(
             a: 0.0,
         }));
 
-        // CommandListがある場合のみ描画
-        if let Some(command_list) = command_list {
-            eprintln!(
-                "[render_surface] Drawing command_list for Entity={:?}",
-                entity
-            );
-            dc.draw_image(command_list);
+        // Window自身を描画
+        if let Ok((global_arr, cmd_list, _)) = widgets.get(window_entity) {
+            if let Some(arr) = global_arr {
+                dc.set_transform(&arr.0);
+            }
+            if let Some(list) = cmd_list {
+                if let Some(command_list) = list.command_list() {
+                    eprintln!(
+                        "[render_surface] Drawing Window CommandList for Entity={:?}",
+                        window_entity
+                    );
+                    dc.draw_image(command_list);
+                }
+            }
+        }
+
+        // 全子孫を深さ優先で描画
+        for descendant in widgets.iter_descendants_depth_first::<bevy_ecs::hierarchy::Children>(window_entity) {
+            match widgets.get(descendant) {
+                Ok((global_arr, cmd_list, _)) => {
+                    if let Some(arr) = global_arr {
+                        dc.set_transform(&arr.0);
+                    }
+                    if let Some(list) = cmd_list {
+                        if let Some(command_list) = list.command_list() {
+                            eprintln!(
+                                "[render_surface] Drawing child CommandList for Entity={:?}",
+                                descendant
+                            );
+                            dc.draw_image(command_list);
+                        }
+                    }
+                }
+                Err(bevy_ecs::query::QueryEntityError::QueryDoesNotMatch(..)) => {
+                    // Entityが存在するがQueryに一致しない（正常）
+                }
+                Err(e) => {
+                    eprintln!(
+                        "[render_surface] Query error for Entity={:?}: {:?}",
+                        descendant, e
+                    );
+                }
+            }
         }
 
         // Surface描画終了
         eprintln!(
-            "[render_surface] Calling surface.end_draw for Entity={:?}",
-            entity
+            "[render_surface] Calling surface.end_draw for Window Entity={:?}",
+            window_entity
         );
         if let Err(err) = surface_ref.end_draw() {
             eprintln!(
-                "[render_surface] surface.end_draw failed for Entity={:?}: {:?}",
-                entity, err
+                "[render_surface] surface.end_draw failed for Window Entity={:?}: {:?}",
+                window_entity, err
             );
             eprintln!("[render_surface] HRESULT: 0x{:08X}", err.code().0);
             continue;
         }
 
-        eprintln!("[render_surface] === Completed Entity={:?} ===", entity);
+        eprintln!("[render_surface] === Completed Window Entity={:?} ===", window_entity);
     }
 }
 
