@@ -62,11 +62,11 @@ fn on_label_remove(mut world: DeferredWorld, hook: bevy_ecs::lifecycle::HookCont
 /// Labelが変更されない限り、再生成せず再利用される。
 #[derive(Component)]
 #[component(storage = "SparseSet", on_remove = on_text_layout_remove)]
-pub struct TextLayout {
+pub struct TextLayoutResource {
     layout: Option<IDWriteTextLayout>,
 }
 
-impl TextLayout {
+impl TextLayoutResource {
     /// 新しいTextLayoutコンポーネントを作成
     pub fn new(layout: IDWriteTextLayout) -> Self {
         Self {
@@ -89,5 +89,5 @@ impl TextLayout {
 /// COMオブジェクトはDropで自動解放されるため、ログ出力のみ
 fn on_text_layout_remove(_world: DeferredWorld, hook: bevy_ecs::lifecycle::HookContext) {
     #[cfg(debug_assertions)]
-    println!("[TextLayout] Removed from Entity={:?}", hook.entity);
+    println!("[TextLayoutResource] Removed from Entity={:?}", hook.entity);
 }

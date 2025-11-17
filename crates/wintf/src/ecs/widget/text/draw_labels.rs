@@ -2,7 +2,7 @@ use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt, D2D1DeviceExt};
 use crate::com::dwrite::DWriteFactoryExt;
 use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore, WindowGraphics};
 use crate::ecs::widget::shapes::rectangle::colors;
-use crate::ecs::widget::text::{Label, TextLayout};
+use crate::ecs::widget::text::{Label, TextLayoutResource};
 use bevy_ecs::prelude::*;
 use windows::Win32::Graphics::Direct2D::D2D1_DRAW_TEXT_OPTIONS_NONE;
 use windows::Win32::Graphics::DirectWrite::*;
@@ -166,10 +166,10 @@ pub fn draw_labels(
             continue;
         }
 
-        // GraphicsCommandListとTextLayoutをエンティティに挿入
+        // GraphicsCommandListとTextLayoutResourceをエンティティに挿入
         commands.entity(entity).insert((
             GraphicsCommandList::new(command_list),
-            TextLayout::new(text_layout),
+            TextLayoutResource::new(text_layout),
         ));
     }
 }

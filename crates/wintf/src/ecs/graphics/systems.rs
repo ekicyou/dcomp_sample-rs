@@ -1,7 +1,7 @@
 use crate::com::d2d::*;
 use crate::com::dcomp::*;
 use crate::ecs::graphics::{
-    GraphicsCore, GraphicsNeedsInit, HasGraphicsResources, Surface, Visual, WindowGraphics,
+    GraphicsCore, GraphicsNeedsInit, HasGraphicsResources, SurfaceGraphics, VisualGraphics, WindowGraphics,
 };
 use bevy_ecs::prelude::*;
 use windows::core::Result;
@@ -38,7 +38,7 @@ fn create_window_graphics_for_hwnd(graphics: &GraphicsCore, hwnd: HWND) -> Resul
 fn create_visual_for_target(
     graphics: &GraphicsCore,
     target: &IDCompositionTarget,
-) -> Result<Visual> {
+) -> Result<VisualGraphics> {
     if !graphics.is_valid() {
         return Err(windows::core::Error::from(E_FAIL));
     }
@@ -50,16 +50,16 @@ fn create_visual_for_target(
     // 2. ターゲットにルートとして設定
     target.set_root(&visual)?;
 
-    Ok(Visual::new(visual))
+    Ok(VisualGraphics::new(visual))
 }
 
 /// Surfaceを作成してVisualに設定する
 fn create_surface_for_window(
     graphics: &GraphicsCore,
-    visual: &Visual,
+    visual: &VisualGraphics,
     width: u32,
     height: u32,
-) -> Result<Surface> {
+) -> Result<SurfaceGraphics> {
     if !graphics.is_valid() {
         return Err(windows::core::Error::from(E_FAIL));
     }
@@ -77,7 +77,7 @@ fn create_surface_for_window(
     let visual_ref = visual.visual().ok_or(windows::core::Error::from(E_FAIL))?;
     visual_ref.set_content(&surface)?;
 
-    Ok(Surface::new(surface))
+    Ok(SurfaceGraphics::new(surface))
 }
 
 // ========== 描画システム ==========/// Surfaceへの描画（GraphicsCommandListの有無を統合処理）
@@ -86,11 +86,11 @@ pub fn render_surface(
         (
             Entity,
             Option<&crate::ecs::graphics::GraphicsCommandList>,
-            &Surface,
+            &SurfaceGraphics,
         ),
         Or<(
             Changed<crate::ecs::graphics::GraphicsCommandList>,
-            Changed<Surface>,
+            Changed<SurfaceGraphics>,
         )>,
     >,
     _graphics_core: Option<Res<GraphicsCore>>,
@@ -367,8 +367,8 @@ pub fn init_window_graphics(
 pub fn init_window_visual(
     graphics: Res<GraphicsCore>,
     mut query: Query<
-        (Entity, &WindowGraphics, Option<&mut Visual>),
-        Or<(Without<Visual>, With<GraphicsNeedsInit>)>,
+        (Entity, &WindowGraphics, Option<&mut VisualGraphics>),
+        Or<(Without<VisualGraphics>, With<GraphicsNeedsInit>)>,
     >,
     mut commands: Commands,
     frame_count: Res<crate::ecs::world::FrameCount>,
@@ -440,11 +440,11 @@ pub fn init_window_surface(
         (
             Entity,
             &WindowGraphics,
-            &Visual,
-            Option<&mut Surface>,
+            &VisualGraphics,
+            Option<&mut SurfaceGraphics>,
             Option<&crate::ecs::window::WindowPos>,
         ),
-        Or<(Without<Surface>, With<GraphicsNeedsInit>)>,
+        Or<(Without<SurfaceGraphics>, With<GraphicsNeedsInit>)>,
     >,
     mut commands: Commands,
     frame_count: Res<crate::ecs::world::FrameCount>,
@@ -504,7 +504,7 @@ pub fn init_window_surface(
 
 /// GraphicsNeedsInitマーカー削除・初期化完了判定
 pub fn cleanup_graphics_needs_init(
-    query: Query<(Entity, &WindowGraphics, &Visual, &Surface), With<GraphicsNeedsInit>>,
+    query: Query<(Entity, &WindowGraphics, &VisualGraphics, &SurfaceGraphics), With<GraphicsNeedsInit>>,
     mut commands: Commands,
 ) {
     for (entity, window_graphics, visual, surface) in query.iter() {
@@ -544,8 +544,8 @@ pub fn cleanup_command_list_on_reinit(
 pub fn invalidate_dependent_components(
     graphics: Option<Res<GraphicsCore>>,
     mut window_graphics_query: Query<&mut WindowGraphics>,
-    mut visual_query: Query<&mut Visual>,
-    mut surface_query: Query<&mut Surface>,
+    mut visual_query: Query<&mut VisualGraphics>,
+    mut surface_query: Query<&mut SurfaceGraphics>,
 ) {
     if let Some(gc) = graphics {
         if !gc.is_valid() {

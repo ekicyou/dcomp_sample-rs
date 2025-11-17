@@ -64,12 +64,12 @@ fn main() -> Result<()> {
     
     // 検証: 3つのエンティティがすべてのコンポーネントを持つことを確認
     use bevy_ecs::prelude::*;
-    use wintf::ecs::{WindowGraphics, Visual};
+    use wintf::ecs::{WindowGraphics, VisualGraphics};
     
     let entities: Vec<(Entity, HWND)> = {
         let mut world_ref = world.borrow_mut();
         let world_inner = world_ref.world_mut();
-        let mut query = world_inner.query::<(Entity, &WindowHandle, &WindowGraphics, &Visual)>();
+        let mut query = world_inner.query::<(Entity, &WindowHandle, &WindowGraphics, &VisualGraphics)>();
         query.iter(world_inner).map(|(e, h, _g, _v)| (e, h.hwnd)).collect()
     };
     

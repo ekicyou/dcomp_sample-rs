@@ -64,14 +64,14 @@ impl WindowGraphics {
 
 /// ウィンドウのルートビジュアルノード
 #[derive(Component, Debug)]
-pub struct Visual {
+pub struct VisualGraphics {
     inner: Option<IDCompositionVisual3>,
 }
 
-unsafe impl Send for Visual {}
-unsafe impl Sync for Visual {}
+unsafe impl Send for VisualGraphics {}
+unsafe impl Sync for VisualGraphics {}
 
-impl Visual {
+impl VisualGraphics {
     pub fn new(visual: IDCompositionVisual3) -> Self {
         Self { inner: Some(visual) }
     }
@@ -92,14 +92,14 @@ impl Visual {
 
 /// ウィンドウの描画サーフェス
 #[derive(Component, Debug)]
-pub struct Surface {
+pub struct SurfaceGraphics {
     inner: Option<IDCompositionSurface>,
 }
 
-unsafe impl Send for Surface {}
-unsafe impl Sync for Surface {}
+unsafe impl Send for SurfaceGraphics {}
+unsafe impl Sync for SurfaceGraphics {}
 
-impl Surface {
+impl SurfaceGraphics {
     pub fn new(surface: IDCompositionSurface) -> Self {
         Self { inner: Some(surface) }
     }

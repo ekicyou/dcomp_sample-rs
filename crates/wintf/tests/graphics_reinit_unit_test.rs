@@ -2,7 +2,7 @@
 ///
 /// このテストはGraphicsCore、WindowGraphics、Visual、Surfaceの
 /// Option<T>ラップと状態遷移機能をテストします。
-use wintf::ecs::{GraphicsCore, Surface, Visual};
+use wintf::ecs::{GraphicsCore, SurfaceGraphics, VisualGraphics};
 
 #[test]
 fn test_graphics_core_invalidate_and_is_valid() {
@@ -52,7 +52,7 @@ fn test_visual_new_and_invalidate() {
     let dcomp = graphics.dcomp().expect("dcomp取得失敗");
 
     let visual_raw = dcomp.create_visual().expect("Visual作成失敗");
-    let mut visual = Visual::new(visual_raw);
+    let mut visual = VisualGraphics::new(visual_raw);
 
     // 初期状態: 有効
     assert!(visual.is_valid(), "Visual should be valid after creation");
@@ -90,7 +90,7 @@ fn test_surface_new_and_invalidate() {
         )
         .expect("Surface作成失敗");
 
-    let mut surface = Surface::new(surface_raw);
+    let mut surface = SurfaceGraphics::new(surface_raw);
 
     // 初期状態: 有効
     assert!(surface.is_valid(), "Surface should be valid after creation");

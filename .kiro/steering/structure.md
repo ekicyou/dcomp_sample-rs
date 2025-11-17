@@ -55,6 +55,44 @@
 - **Functions**: `snake_case`
 - **Constants**: `SCREAMING_SNAKE_CASE`
 
+### Component Naming Conventions
+
+COMオブジェクトをラップするECSコンポーネントは、以下の命名規則に従う：
+
+#### GPUリソース (`XxxGraphics`)
+- **特性**: Direct3D/Direct2D/DirectCompositionデバイスに依存
+- **デバイスロスト対応**: `invalidate()`メソッドと`generation`フィールドを実装
+- **命名**: `XxxGraphics`サフィックス
+- **例**:
+  - `WindowGraphics` - ウィンドウレベルGPU資源
+  - `VisualGraphics` - ウィジェットレベルGPU資源
+  - `SurfaceGraphics` - ウィジェットレベルGPU資源
+  - 将来: `BrushGraphics`, `BitmapGraphics`
+
+#### CPUリソース (`XxxResource`)
+- **特性**: デバイス非依存、永続的
+- **デバイスロスト対応**: 不要（通常の参照カウント管理のみ）
+- **命名**: `XxxResource`サフィックス
+- **例**:
+  - `TextLayoutResource` - テキストレイアウト（Label、TextBlock等で再利用）
+  - 将来: `TextFormatResource`, `PathGeometryResource`
+
+#### レベル分類
+- **ウィンドウレベル**: Windowエンティティに配置（例: `WindowGraphics`）
+- **ウィジェットレベル**: 個別ウィジェットエンティティに配置（例: `VisualGraphics`, `TextLayoutResource`）
+- **共有リソース**: 複数ウィジェットで再利用（例: 将来の`BrushGraphics`、`GeometryResource`）
+
+#### 非COMコンポーネント
+- **論理コンポーネント**: サフィックスなし（例: `Label`, `Rectangle`, `Button`）
+- **マーカーコンポーネント**: 用途に応じた名前（例: `HasGraphicsResources`, `GraphicsNeedsInit`）
+
+#### COMアクセスメソッド命名
+COMリソースコンポーネント内部のアクセスメソッドは、COMインターフェイス型に対応：
+- `WindowGraphics::target()` → `Option<&IDCompositionTarget>`
+- `VisualGraphics::visual()` → `Option<&IDCompositionVisual3>`
+- `SurfaceGraphics::surface()` → `Option<&IDCompositionSurface>`
+- `TextLayoutResource::get()` → `Option<&IDWriteTextLayout>`
+
 ## Import Organization
 
 ```rust

@@ -9,7 +9,7 @@ use windows::core::Result;
 use windows::Win32::Foundation::{POINT, SIZE};
 use wintf::ecs::widget::shapes::{colors, Rectangle};
 use wintf::ecs::Window;
-use wintf::ecs::{GraphicsCore, Surface, Visual, WindowGraphics, WindowHandle, WindowPos};
+use wintf::ecs::{GraphicsCore, SurfaceGraphics, VisualGraphics, WindowGraphics, WindowHandle, WindowPos};
 use wintf::*;
 
 /// GraphicsCore再初期化システムの統合テスト
@@ -105,7 +105,7 @@ fn main() -> Result<()> {
                 .unwrap_or(false);
 
             let mut query =
-                world.query::<(Entity, &WindowHandle, &WindowGraphics, &Visual, &Surface)>();
+                world.query::<(Entity, &WindowHandle, &WindowGraphics, &VisualGraphics, &SurfaceGraphics)>();
 
             println!("\n========================================");
             println!("[Test] ===== 再初期化検証 =====");

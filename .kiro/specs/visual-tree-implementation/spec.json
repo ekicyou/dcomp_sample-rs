@@ -1,0 +1,22 @@
+{
+    "feature_name": "visual-tree-implementation",
+    "created_at": "2025-11-17",
+    "updated_at": "2025-11-17",
+    "language": "ja",
+    "phase": "requirements-generated",
+    "approvals": {
+        "requirements": {
+            "generated": true,
+            "approved": false
+        },
+        "design": {
+            "generated": false,
+            "approved": false
+        },
+        "tasks": {
+            "generated": false,
+            "approved": false
+        }
+    },
+    "ready_for_implementation": false
+}
