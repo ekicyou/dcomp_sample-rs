@@ -6,7 +6,7 @@
 //! - init_graphics_coreシステムが正しく動作すること
 
 use bevy_ecs::prelude::*;
-use wintf::ecs::{init_graphics_core, GraphicsCore};
+use wintf::ecs::{init_graphics_core, FrameCount, GraphicsCore};
 
 #[test]
 fn test_init_graphics_core_creates_resource() {
@@ -15,7 +15,7 @@ fn test_init_graphics_core_creates_resource() {
     let mut world = World::new();
     
     // FrameCountリソースを追加
-    world.insert_resource(wintf::ecs::FrameCount::default());
+    world.insert_resource(FrameCount::default());
 
     // 初期状態ではGraphicsCoreリソースが存在しないことを確認
     assert!(
@@ -81,7 +81,7 @@ fn test_init_graphics_core_in_schedule() {
     let mut world = World::new();
     
     // FrameCountリソースを追加
-    world.insert_resource(wintf::ecs::FrameCount::default());
+    world.insert_resource(FrameCount::default());
     
     let mut schedule = Schedule::default();
 
