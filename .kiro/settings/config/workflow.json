@@ -1,0 +1,11 @@
+{
+  "description": "Kiro workflow behavior configuration",
+  "validation": {
+    "auto_commit_on_approval": true,
+    "commit_message_template": "approve: {feature_title}\n\n- 検証完了: {validation_summary}\n- spec.json更新: phase={phase}\n- implementation.approved=true"
+  },
+  "implementation": {
+    "auto_commit_on_complete": false,
+    "commit_message_template": "feat: {feature_title}\n\n{implementation_summary}"
+  }
+}
