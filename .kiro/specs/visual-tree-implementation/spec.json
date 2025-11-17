@@ -3,7 +3,7 @@
     "created_at": "2025-11-17",
     "updated_at": "2025-11-17",
     "language": "ja",
-    "phase": "design-approved",
+    "phase": "tasks-generated",
     "approvals": {
         "requirements": {
             "generated": true,
@@ -21,9 +21,16 @@
             "approved_at": "2025-11-17"
         },
         "tasks": {
-            "generated": false,
-            "approved": false
+            "generated": true,
+            "approved": true,
+            "approved_at": "2025-11-17"
         }
     },
-    "ready_for_implementation": false
+    "ready_for_implementation": true,
+    "tasks": {
+        "total": 38,
+        "completed": 0,
+        "phases": 6,
+        "estimated_days": "5-7"
+    }
 }
