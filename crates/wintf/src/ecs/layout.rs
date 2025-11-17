@@ -47,6 +47,7 @@ impl Default for LayoutScale {
 
 /// ローカルレイアウト配置（オフセット + スケール）
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
+#[component(on_add = on_arrangement_add)]
 pub struct Arrangement {
     pub offset: Offset,
     pub scale: LayoutScale,
@@ -59,6 +60,16 @@ impl Default for Arrangement {
             scale: LayoutScale::default(),
         }
     }
+}
+
+fn on_arrangement_add(
+    mut world: bevy_ecs::world::DeferredWorld,
+    hook: bevy_ecs::lifecycle::HookContext,
+) {
+    world.commands().entity(hook.entity).insert((
+        GlobalArrangement::default(),
+        ArrangementTreeChanged,
+    ));
 }
 
 /// グローバルレイアウト変換（親からの累積変換）

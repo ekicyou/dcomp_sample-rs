@@ -1,4 +1,4 @@
-use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt, D2D1DeviceExt};
+use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt};
 use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore};
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::*;
