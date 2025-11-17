@@ -49,8 +49,6 @@ fn main() -> Result<()> {
                     ..Default::default()
                 },
                 Rectangle {
-                    x: 50.0,
-                    y: 50.0,
                     width: 200.0,
                     height: 150.0,
                     color: colors::RED,
@@ -68,8 +66,6 @@ fn main() -> Result<()> {
                     ..Default::default()
                 },
                 Rectangle {
-                    x: 50.0,
-                    y: 50.0,
                     width: 200.0,
                     height: 150.0,
                     color: colors::BLUE,
