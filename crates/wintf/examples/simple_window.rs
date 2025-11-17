@@ -84,7 +84,7 @@ fn main() -> Result<()> {
 
         // 2秒: Window1からRectangleコンポーネントを削除
         thread::sleep(Duration::from_secs(2));
-        println!("[Timer Thread] 3s: Removing Rectangle from first window");
+        println!("[Timer Thread] 2s: Removing Rectangle from first window");
         let _ = tx.send(Box::new(|world: &mut World| {
             let mut query = world.query_filtered::<Entity, With<Window1>>();
             if let Some(entity) = query.iter(world).next() {
@@ -93,9 +93,20 @@ fn main() -> Result<()> {
             }
         }));
 
-        // 4秒: Window2を削除
+        // 4秒: Window2からRectangleコンポーネントを削除
         thread::sleep(Duration::from_secs(2));
-        println!("[Timer Thread] 5s: Closing one window");
+        println!("[Timer Thread] 4s: Removing Rectangle from second window");
+        let _ = tx.send(Box::new(|world: &mut World| {
+            let mut query = world.query_filtered::<Entity, With<Window2>>();
+            if let Some(entity) = query.iter(world).next() {
+                println!("[Test] Removing Rectangle component from entity {entity:?})");
+                world.entity_mut(entity).remove::<Rectangle>();
+            }
+        }));
+
+        // 6秒: Window2を削除
+        thread::sleep(Duration::from_secs(2));
+        println!("[Timer Thread] 6s: Closing second window");
         let _ = tx.send(Box::new(|world: &mut World| {
             let mut query = world.query_filtered::<Entity, With<Window2>>();
             if let Some(entity) = query.iter(world).next() {
@@ -104,19 +115,19 @@ fn main() -> Result<()> {
             }
         }));
 
-        // 6秒: Windo1を削除（これでアプリ終了）
+        // 8秒: Window1を削除（これでアプリ終了）
         thread::sleep(Duration::from_secs(2));
-        println!("[Timer Thread] 10s: Closing last window");
+        println!("[Timer Thread] 8s: Closing last window");
         let _ = tx.send(Box::new(|world: &mut World| {
             let mut query = world.query_filtered::<Entity, With<Window1>>();
             if let Some(entity) = query.iter(world).next() {
-                println!("[Test] Removing Window2 entity {entity:?})");
+                println!("[Test] Removing Window1 entity {entity:?})");
                 world.despawn(entity);
             }
         }));
     });
 
-    println!("[Test] Timer thread started. Scenario: Create windows at 0s, remove Rectangle at 3s, close at 5s and 10s.");
+    println!("[Test] Timer thread started. Scenario: Create windows at 0s, remove Rectangles at 2s and 4s, close at 6s and 8s.");
 
     // 排他システム: 受信したクロージャを実行（&mut World に直接アクセス）
     world
@@ -160,9 +171,10 @@ fn main() -> Result<()> {
     println!("  4. commit_compositionで画面に表示");
     println!("\nバックグラウンドスレッドでのシナリオテスト:");
     println!("  0s: タイマースレッドがWindowを2つ作成するコマンドを送信");
-    println!("  3s: 1つ目のWindowからRectangleコンポーネントを削除");
-    println!("  5s: Windowを1つ削除するコマンドを送信");
-    println!("  10s: 最後のWindowを削除してアプリ終了");
+    println!("  2s: 1つ目のWindowからRectangleコンポーネントを削除");
+    println!("  4s: 2つ目のWindowからRectangleコンポーネントを削除");
+    println!("  6s: 2つ目のWindowを削除するコマンドを送信");
+    println!("  8s: 最後のWindowを削除してアプリ終了");
 
     // メッセージループを開始（システムが自動的にウィンドウを作成）
     mgr.run()?;
