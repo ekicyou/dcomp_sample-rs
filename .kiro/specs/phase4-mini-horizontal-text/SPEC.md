@@ -59,7 +59,8 @@ crates/wintf/src/
 ### コンポーネント設計
 
 #### Labelウィジット
-\\\ust
+\\\
+ust
 #[derive(Component)]
 pub struct Label {
     pub text: String,
@@ -72,7 +73,8 @@ pub struct Label {
 \\\
 
 #### TextLayout（キャッシュ）
-\\\ust
+\\\
+ust
 #[derive(Component)]
 pub struct TextLayout {
     layout: IDWriteTextLayout,
@@ -105,7 +107,7 @@ pub struct TextLayout {
 - ✅ 日本語（\"こんにちは\"）が表示される
 - ✅ フォント・サイズ・色が指定できる
 - ✅ 複数のLabelが同時表示可能
-- ✅ 120fps以上のパフォーマンスを維持
+- ✅ 60fps以上のパフォーマンスを維持（Vsync同期環境）
 
 ---
 
