@@ -72,6 +72,24 @@ sequenceDiagram
     Hook->>Entity: Insert VisualGraphics & SurfaceGraphics
 ```
 
+### ウィンドウ統合フロー (重要)
+`Visual`コンポーネントがウィンドウのルートエンティティに追加された場合、生成された`VisualGraphics`をウィンドウのCompositionTargetに接続する必要がある。
+
+```mermaid
+sequenceDiagram
+    participant Entity
+    participant WindowSystem
+    participant WindowGraphics
+    participant VisualGraphics
+    
+    Note over Entity: Has WindowGraphics & VisualGraphics
+    WindowSystem->>Entity: Query (WindowGraphics, VisualGraphics)
+    WindowSystem->>WindowGraphics: Get CompositionTarget
+    WindowSystem->>VisualGraphics: Get IDCompositionVisual
+    WindowSystem->>WindowGraphics: target.SetRoot(visual)
+    WindowSystem->>WindowGraphics: Commit
+```
+
 ## 要件トレーサビリティ
 
 | Requirement | Summary | Components | Interfaces | Flows |
