@@ -60,7 +60,7 @@ pub struct SurfaceUpdateRequested;
   6. `Commands`を使用して`SurfaceUpdateRequested`をremove。
 
 ### 3.3 `draw_recursive` (Helper)
-再帰的に描画コマンドを発行する。パフォーマンスのため `#[inline]` を付与する。
+再帰的に描画コマンドを発行する。
 
 - **Arguments**: `entity`, `offset`, `command_list_query`, `children_query`, `surface_query`
 - **Logic**:
