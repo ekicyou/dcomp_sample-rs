@@ -1,4 +1,6 @@
+use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::prelude::*;
+use bevy_ecs::world::DeferredWorld;
 use windows::Win32::Graphics::Direct2D::*;
 use windows::Win32::Graphics::DirectComposition::*;
 
@@ -30,7 +32,10 @@ unsafe impl Sync for WindowGraphics {}
 impl WindowGraphics {
     pub fn new(target: IDCompositionTarget, device_context: ID2D1DeviceContext) -> Self {
         Self {
-            inner: Some(WindowGraphicsInner { target, device_context }),
+            inner: Some(WindowGraphicsInner {
+                target,
+                device_context,
+            }),
             generation: 0,
         }
     }
@@ -51,13 +56,11 @@ impl WindowGraphics {
         self.generation = self.generation.wrapping_add(1);
     }
 
-    /// IDCompositionTargetへの参照を取得する
-    pub fn target(&self) -> Option<&IDCompositionTarget> {
+    pub fn get_target(&self) -> Option<&IDCompositionTarget> {
         self.inner.as_ref().map(|i| &i.target)
     }
 
-    /// ID2D1DeviceContextへの参照を取得する
-    pub fn device_context(&self) -> Option<&ID2D1DeviceContext> {
+    pub fn get_dc(&self) -> Option<&ID2D1DeviceContext> {
         self.inner.as_ref().map(|i| &i.device_context)
     }
 }
@@ -73,7 +76,9 @@ unsafe impl Sync for VisualGraphics {}
 
 impl VisualGraphics {
     pub fn new(visual: IDCompositionVisual3) -> Self {
-        Self { inner: Some(visual) }
+        Self {
+            inner: Some(visual),
+        }
     }
 
     pub fn invalidate(&mut self) {
@@ -91,7 +96,8 @@ impl VisualGraphics {
 }
 
 /// ウィンドウの描画サーフェス
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Default)]
+#[component(on_add = on_surface_graphics_changed, on_replace = on_surface_graphics_changed)]
 pub struct SurfaceGraphics {
     inner: Option<IDCompositionSurface>,
 }
@@ -101,7 +107,9 @@ unsafe impl Sync for SurfaceGraphics {}
 
 impl SurfaceGraphics {
     pub fn new(surface: IDCompositionSurface) -> Self {
-        Self { inner: Some(surface) }
+        Self {
+            inner: Some(surface),
+        }
     }
 
     pub fn invalidate(&mut self) {
@@ -117,3 +125,14 @@ impl SurfaceGraphics {
         self.inner.as_ref()
     }
 }
+
+fn on_surface_graphics_changed(mut world: DeferredWorld, context: HookContext) {
+    let mut commands = world.commands();
+    commands
+        .entity(context.entity)
+        .insert(SurfaceUpdateRequested);
+}
+
+/// 描画更新が必要なサーフェスを示すマーカーコンポーネント
+#[derive(Component, Default)]
+pub struct SurfaceUpdateRequested;

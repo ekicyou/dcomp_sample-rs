@@ -1,10 +1,17 @@
-use crate::com::d2d::{D2D1DeviceExt, D2D1DeviceContextExt};
-use crate::com::dcomp::{DCompositionDesktopDeviceExt, DCompositionDeviceExt, DCompositionTargetExt, DCompositionVisualExt, DCompositionSurfaceExt};
+use super::command_list::GraphicsCommandList;
+use super::components::SurfaceUpdateRequested;
+use crate::com::d2d::{D2D1DeviceContextExt, D2D1DeviceExt};
+use crate::com::dcomp::{
+    DCompositionDesktopDeviceExt, DCompositionDeviceExt, DCompositionSurfaceExt,
+    DCompositionTargetExt, DCompositionVisualExt,
+};
+use crate::ecs::graphics::{
+    GraphicsCore, GraphicsNeedsInit, HasGraphicsResources, SurfaceGraphics, VisualGraphics,
+    WindowGraphics,
+};
 use crate::ecs::layout::GlobalArrangement;
-use crate::ecs::window::Window;
-use crate::ecs::graphics::{GraphicsCore, GraphicsNeedsInit, HasGraphicsResources, SurfaceGraphics, VisualGraphics, WindowGraphics};
+use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::*;
-use bevy_ecs::hierarchy::Children;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
@@ -12,7 +19,10 @@ use windows::Win32::Graphics::Dxgi::Common::*;
 // ========== ヘルパー関数 ==========
 
 /// HWNDに対してWindowGraphicsリソースを作成する
-fn create_window_graphics_for_hwnd(graphics: &GraphicsCore, hwnd: HWND) -> windows::core::Result<WindowGraphics> {
+fn create_window_graphics_for_hwnd(
+    graphics: &GraphicsCore,
+    hwnd: HWND,
+) -> windows::core::Result<WindowGraphics> {
     use windows::Win32::Graphics::Direct2D::D2D1_DEVICE_CONTEXT_OPTIONS_NONE;
 
     if !graphics.is_valid() {
@@ -80,26 +90,72 @@ fn create_surface_for_window(
     Ok(SurfaceGraphics::new(surface))
 }
 
+fn draw_recursive(
+    entity: Entity,
+    dc: &windows::Win32::Graphics::Direct2D::ID2D1DeviceContext,
+    widgets: &Query<(Option<&GlobalArrangement>, Option<&GraphicsCommandList>)>,
+    hierarchy: &Query<&Children>,
+    surface_query: &Query<&SurfaceGraphics>,
+    is_root: bool,
+) {
+    use windows::Win32::Graphics::Direct2D::Common::D2D1_COMPOSITE_MODE_SOURCE_OVER;
+    use windows::Win32::Graphics::Direct2D::D2D1_INTERPOLATION_MODE_LINEAR;
+
+    // Nested Surface Check
+    if !is_root && surface_query.contains(entity) {
+        return;
+    }
+
+    // Draw current entity
+    if let Ok((global_arr, cmd_list)) = widgets.get(entity) {
+        if let Some(arr) = global_arr {
+            dc.set_transform(&arr.0);
+        }
+        if let Some(list) = cmd_list {
+            if let Some(command_list) = list.command_list() {
+                unsafe {
+                    dc.DrawImage(
+                        command_list,
+                        None,
+                        None,
+                        D2D1_INTERPOLATION_MODE_LINEAR,
+                        D2D1_COMPOSITE_MODE_SOURCE_OVER,
+                    );
+                }
+            }
+        }
+    }
+
+    // Recurse
+    if let Ok(children) = hierarchy.get(entity) {
+        for child in children.iter() {
+            draw_recursive(child, dc, widgets, hierarchy, surface_query, false);
+        }
+    }
+}
+
 // ========== 描画システム ==========/// Surfaceへの描画（GraphicsCommandListの有無を統合処理）
 pub fn render_surface(
-    windows: Query<(Entity, &SurfaceGraphics), With<Window>>,
-    widgets: Query<(Option<&GlobalArrangement>, Option<&crate::ecs::graphics::GraphicsCommandList>)>,
+    mut commands: Commands,
+    surfaces: Query<(Entity, &SurfaceGraphics), With<SurfaceUpdateRequested>>,
+    widgets: Query<(Option<&GlobalArrangement>, Option<&GraphicsCommandList>)>,
     hierarchy: Query<&Children>,
+    surface_query: Query<&SurfaceGraphics>,
     _graphics_core: Option<Res<GraphicsCore>>,
     frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 
-    for (window_entity, surface) in windows.iter() {
+    for (entity, surface) in surfaces.iter() {
         eprintln!(
-            "[Frame {}] [render_surface] === Processing Window Entity={:?} ===",
-            frame_count.0, window_entity
+            "[Frame {}] [render_surface] === Processing Surface Entity={:?} ===",
+            frame_count.0, entity
         );
 
         if !surface.is_valid() {
             eprintln!(
-                "[render_surface] Surface invalid for Window Entity={:?}, skipping",
-                window_entity
+                "[render_surface] Surface invalid for Entity={:?}, skipping",
+                entity
             );
             continue;
         }
@@ -109,23 +165,24 @@ pub fn render_surface(
             Some(s) => s,
             None => continue,
         };
-        
-        let (dc, _offset) = match surface_ref.begin_draw(None) {
-            Ok(result) => {
-                eprintln!(
-                    "[render_surface] BeginDraw succeeded for Window Entity={:?}, offset=({}, {})",
-                    window_entity, result.1.x, result.1.y
+
+        let (dc, _offset) =
+            match surface_ref.begin_draw(None) {
+                Ok(result) => {
+                    eprintln!(
+                        "[render_surface] BeginDraw succeeded for Entity={:?}, offset=({}, {})",
+                        entity, result.1.x, result.1.y
+                    );
+                    result
+                }
+                Err(err) => {
+                    eprintln!(
+                    "[render_surface] BeginDraw failed for Entity={:?}: {:?}, HRESULT: 0x{:08X}",
+                    entity, err, err.code().0
                 );
-                result
-            }
-            Err(err) => {
-                eprintln!(
-                    "[render_surface] BeginDraw failed for Window Entity={:?}: {:?}, HRESULT: 0x{:08X}",
-                    window_entity, err, err.code().0
-                );
-                continue;
-            }
-        };
+                    continue;
+                }
+            };
 
         // 透明色クリア（常に実行）
         dc.clear(Some(&D2D1_COLOR_F {
@@ -135,72 +192,16 @@ pub fn render_surface(
             a: 0.0,
         }));
 
-        // Window自身を描画
-        if let Ok((global_arr, cmd_list)) = widgets.get(window_entity) {
-            if let Some(arr) = global_arr {
-                dc.set_transform(&arr.0);
-            }
-            if let Some(list) = cmd_list {
-                if let Some(command_list) = list.command_list() {
-                    eprintln!(
-                        "[render_surface] Drawing Window CommandList for Entity={:?}",
-                        window_entity
-                    );
-                    dc.draw_image(command_list);
-                }
-            }
+        // Recursive draw
+        draw_recursive(entity, &dc, &widgets, &hierarchy, &surface_query, true);
+
+        // EndDraw
+        if let Err(e) = surface_ref.end_draw() {
+            eprintln!("[render_surface] EndDraw failed: {:?}", e);
         }
 
-        // 全子孫を深さ優先で描画
-        for descendant in hierarchy.iter_descendants_depth_first::<Children>(window_entity) {
-            match widgets.get(descendant) {
-                Ok((global_arr, cmd_list)) => {
-                    if let Some(arr) = global_arr {
-                        eprintln!(
-                            "[render_surface] SetTransform for Entity={:?}: M11={}, M12={}, M21={}, M22={}, M31={}, M32={}",
-                            descendant, arr.0.M11, arr.0.M12, arr.0.M21, arr.0.M22, arr.0.M31, arr.0.M32
-                        );
-                        dc.set_transform(&arr.0);
-                    } else {
-                        eprintln!("[render_surface] No GlobalArrangement for Entity={:?}", descendant);
-                    }
-                    if let Some(list) = cmd_list {
-                        if let Some(command_list) = list.command_list() {
-                            eprintln!(
-                                "[render_surface] Drawing child CommandList for Entity={:?}",
-                                descendant
-                            );
-                            dc.draw_image(command_list);
-                        }
-                    }
-                }
-                Err(bevy_ecs::query::QueryEntityError::QueryDoesNotMatch(..)) => {
-                    // Entityが存在するがQueryに一致しない（正常）
-                }
-                Err(e) => {
-                    eprintln!(
-                        "[render_surface] Query error for Entity={:?}: {:?}",
-                        descendant, e
-                    );
-                }
-            }
-        }
-
-        // Surface描画終了
-        eprintln!(
-            "[render_surface] Calling surface.end_draw for Window Entity={:?}",
-            window_entity
-        );
-        if let Err(err) = surface_ref.end_draw() {
-            eprintln!(
-                "[render_surface] surface.end_draw failed for Window Entity={:?}: {:?}",
-                window_entity, err
-            );
-            eprintln!("[render_surface] HRESULT: 0x{:08X}", err.code().0);
-            continue;
-        }
-
-        eprintln!("[render_surface] === Completed Window Entity={:?} ===", window_entity);
+        // Remove marker
+        commands.entity(entity).remove::<SurfaceUpdateRequested>();
     }
 }
 
@@ -406,7 +407,7 @@ pub fn init_window_visual(
             continue;
         }
 
-        let target = match window_graphics.target() {
+        let target = match window_graphics.get_target() {
             Some(t) => t,
             None => continue,
         };
@@ -508,12 +509,13 @@ pub fn init_window_surface(
                     }
                 }
             }
-            Some(mut s) => {
+            Some(s) => {
                 if !s.is_valid() {
                     eprintln!("[Frame {}] [init_window_surface] Surface再初期化 (Entity: {:?}, Size: {}x{})", frame_count.0, entity, width, height);
                     match create_surface_for_window(&graphics, visual, width, height) {
                         Ok(new_s) => {
-                            *s = new_s;
+                            // Use commands to trigger on_replace hook
+                            commands.entity(entity).insert(new_s);
                             eprintln!("[Frame {}] [init_window_surface] Surface再初期化完了 (Entity: {:?})", frame_count.0, entity);
                         }
                         Err(e) => {
@@ -528,7 +530,10 @@ pub fn init_window_surface(
 
 /// GraphicsNeedsInitマーカー削除・初期化完了判定
 pub fn cleanup_graphics_needs_init(
-    query: Query<(Entity, &WindowGraphics, &VisualGraphics, &SurfaceGraphics), With<GraphicsNeedsInit>>,
+    query: Query<
+        (Entity, &WindowGraphics, &VisualGraphics, &SurfaceGraphics),
+        With<GraphicsNeedsInit>,
+    >,
     mut commands: Commands,
 ) {
     for (entity, window_graphics, visual, surface) in query.iter() {
@@ -585,6 +590,38 @@ pub fn invalidate_dependent_components(
             }
             for mut s in surface_query.iter_mut() {
                 s.invalidate();
+            }
+        }
+    }
+}
+
+/// 変更検知システム：描画内容や配置に変更があった場合、親サーフェスに更新要求マーカーを付与する
+pub fn mark_dirty_surfaces(
+    mut commands: Commands,
+    changed_query: Query<
+        Entity,
+        (
+            Or<(
+                Changed<GraphicsCommandList>,
+                Changed<GlobalArrangement>,
+                Changed<Children>,
+            )>,
+        ),
+    >,
+    parent_query: Query<&ChildOf>,
+    surface_query: Query<&SurfaceGraphics>,
+) {
+    for entity in changed_query.iter() {
+        let mut current = entity;
+        loop {
+            if surface_query.contains(current) {
+                commands.entity(current).insert(SurfaceUpdateRequested);
+                break;
+            }
+            if let Ok(parent) = parent_query.get(current) {
+                current = parent.parent();
+            } else {
+                break;
             }
         }
     }

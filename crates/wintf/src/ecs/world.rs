@@ -151,7 +151,10 @@ impl EcsWorld {
             // on_window_handle_addedとon_window_handle_removedはフックで代替
 
             // Updateスケジュールに依存コンポーネント無効化システムを登録
-            schedules.add_systems(Update, crate::ecs::graphics::invalidate_dependent_components);
+            schedules.add_systems(
+                Update,
+                crate::ecs::graphics::invalidate_dependent_components,
+            );
 
             // PostLayoutスケジュールにグラフィックス初期化システムを登録
             schedules.add_systems(
@@ -178,23 +181,25 @@ impl EcsWorld {
                     crate::ecs::graphics::cleanup_graphics_needs_init,
                     crate::ecs::widget::shapes::rectangle::draw_rectangles,
                     crate::ecs::widget::text::draw_labels,
-                ).chain(),
+                )
+                    .chain(),
             );
-            
+
             schedules.add_systems(
                 Draw,
                 (
                     crate::ecs::arrangement::sync_simple_arrangements,
                     crate::ecs::arrangement::mark_dirty_arrangement_trees,
                     crate::ecs::arrangement::propagate_global_arrangements,
-                ).chain(),
+                )
+                    .chain(),
             );
 
+            // Renderスケジュールに変更検知システムを登録
+            schedules.add_systems(Render, crate::ecs::graphics::mark_dirty_surfaces);
+
             // RenderSurfaceスケジュールに描画システムを登録
-            schedules.add_systems(
-                RenderSurface,
-                crate::ecs::graphics::render_surface,
-            );
+            schedules.add_systems(RenderSurface, crate::ecs::graphics::render_surface);
 
             // CommitCompositionスケジュールにコミットシステムを登録
             schedules.add_systems(CommitComposition, crate::ecs::graphics::commit_composition);
