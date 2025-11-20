@@ -175,8 +175,8 @@ fn main() -> Result<()> {
             let v_container = world
                 .spawn((
                     Rectangle {
-                        width: 200.0,
-                        height: 300.0,
+                        width: 300.0,
+                        height: 200.0,
                         color: D2D1_COLOR_F {
                             r: 0.8,
                             g: 0.8,
@@ -196,11 +196,10 @@ fn main() -> Result<()> {
             world.spawn((
                 Label {
                     text: "縦書き\nテスト".to_string(),
-                    font_family: "Meiryo".to_string(),
+                    font_family: "メイリオ".to_string(),
                     font_size: 24.0,
                     color: colors::BLACK,
-                    //direction: TextDirection::VerticalRightToLeft,
-                    direction: TextDirection::HorizontalLeftToRight,
+                    direction: TextDirection::VerticalRightToLeft,
                 },
                 Arrangement {
                     offset: Offset { x: 10.0, y: 10.0 },
@@ -212,7 +211,7 @@ fn main() -> Result<()> {
             // Horizontal RTL Label (Black, "RTL Test", offset: 100, 10)
             world.spawn((
                 Label {
-                    text: "RTL Test".to_string(),
+                    text: "RTL Test \u{05E9}\u{05DC}\u{05D5}\u{05DD}".to_string(),
                     font_family: "Arial".to_string(),
                     font_size: 24.0,
                     color: colors::BLACK,
@@ -228,7 +227,7 @@ fn main() -> Result<()> {
 
             println!("  └─ Vertical Container (gray, 200x300 @ 300,20)");
             println!("     ├─ Vertical Label (black '縦書き\\nテスト' @ 10,10)");
-            println!("     └─ RTL Label (black 'RTL Test' @ 100,10)");
+            println!("     └─ RTL Label (black 'RTL Test (Shalom)' @ 100,10)");
         }));
 
         // 10秒: Windowを削除（アプリ終了）

@@ -88,22 +88,32 @@ pub fn draw_labels(
         }
 
         // TextLayout作成
+        // maxWidth/maxHeightを0にしてNO_WRAPを指定することで、
+        // コンテンツサイズに合わせてレイアウトさせる。
+        // RTLの場合、maxWidthが無限大だと右端が無限遠になってしまうため。
         let text_hstring = windows::core::HSTRING::from(&label.text);
-        let text_layout = match dwrite_factory.create_text_layout(
-            &text_hstring,
-            &text_format,
-            f32::MAX,
-            f32::MAX,
-        ) {
-            Ok(layout) => layout,
-            Err(err) => {
-                eprintln!(
-                    "[draw_labels] Failed to create TextLayout for Entity={:?}: {:?}",
-                    entity, err
-                );
-                continue;
-            }
-        };
+        let text_layout =
+            match dwrite_factory.create_text_layout(&text_hstring, &text_format, 0.0, 0.0) {
+                Ok(layout) => layout,
+                Err(err) => {
+                    eprintln!(
+                        "[draw_labels] Failed to create TextLayout for Entity={:?}: {:?}",
+                        entity, err
+                    );
+                    continue;
+                }
+            };
+
+        // 折り返しなしに設定
+        unsafe {
+            let _ = text_layout.SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+        }
+
+        // メトリクス取得（描画位置調整のために先に取得）
+        let mut metrics = DWRITE_TEXT_METRICS::default();
+        unsafe {
+            let _ = text_layout.GetMetrics(&mut metrics);
+        }
 
         // CommandList生成
         let command_list = match unsafe { dc.CreateCommandList() } {
@@ -145,8 +155,16 @@ pub fn draw_labels(
             }
         };
 
-        // テキスト描画（原点0,0から描画）
-        let origin = Vector2 { X: 0.0, Y: 0.0 };
+        // テキスト描画
+        // RTL（縦書き含む）の場合、レイアウト幅0でNO_WRAPにすると、
+        // テキストは原点から左側（負のX方向）にはみ出して描画されるため、metrics.leftは負の値になる。
+        // これを正の領域（0,0〜）に持ってくるため、origin.Xを -metrics.left だけずらす。
+        // LTRの場合は metrics.left は通常0なので影響しない。
+        let origin = Vector2 {
+            X: -metrics.left,
+            Y: -metrics.top, // topも念のため補正
+        };
+
         dc.draw_text_layout(origin, &text_layout, &brush, D2D1_DRAW_TEXT_OPTIONS_NONE);
 
         // 描画終了
@@ -167,27 +185,15 @@ pub fn draw_labels(
             continue;
         }
 
-        // メトリクス取得
-        let mut metrics = DWRITE_TEXT_METRICS::default();
-        unsafe {
-            let _ = text_layout.GetMetrics(&mut metrics);
-        }
-
-        // 縦書きの場合は幅と高さを入れ替える（物理サイズとして扱うため）
-        // DirectWriteのmetrics.width/heightはレイアウト座標系（ReadingDirection/FlowDirection）に基づく。
-        // 縦書き（ReadingDirection=TopToBottom）の場合、widthは物理的な高さ、heightは物理的な幅に対応する。
-        let (width, height) = match label.direction {
-            TextDirection::VerticalRightToLeft | TextDirection::VerticalLeftToRight => {
-                (metrics.height, metrics.width)
-            }
-            _ => (metrics.width, metrics.height),
-        };
-
         // GraphicsCommandListとTextLayoutResource、TextLayoutMetricsをエンティティに挿入
+        // metrics.width/heightは物理サイズ（スクリーン座標系）として扱われるため、そのまま使用する。
         commands.entity(entity).insert((
             GraphicsCommandList::new(command_list),
             TextLayoutResource::new(text_layout),
-            TextLayoutMetrics { width, height },
+            TextLayoutMetrics {
+                width: metrics.width,
+                height: metrics.height,
+            },
         ));
     }
 }
