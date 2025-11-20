@@ -96,3 +96,25 @@ app.add_systems(Update, (
    - クエリフィルタの追加。
    - マーカー削除処理の追加。
 4. **Update Scheduling**: `world.rs` でシステム登録順序を修正。
+5. **Add Tests**: `crates/wintf/tests/surface_optimization_test.rs` を作成し、ロジックを検証。
+
+## 6. Test Plan
+
+### 6.1 Unit Testing (Logic Verification)
+実際の描画を行わず、ECSのロジックのみを検証するテストを作成する。
+
+- **File**: `crates/wintf/tests/surface_optimization_test.rs`
+- **Scenarios**:
+  1. **Propagation**: 子要素の変更が親サーフェスに伝播し、マーカーが付与されること。
+  2. **Nested Surface Isolation**: ネストされたサーフェスがある場合、変更が親サーフェス（外側）に伝播せず、該当するサーフェス（内側）で止まること。
+  3. **Marker Cleanup**: 描画システム実行後にマーカーが削除されること。
+
+### 6.2 Regression Testing (Visual Verification)
+既存のサンプルアプリを使用して、描画崩れがないことと、静止時の負荷軽減を確認する。
+
+- **Target**: `examples/simple_window.rs`
+- **Verification**:
+  - アプリ起動後、描画が正常に行われること。
+  - ログ出力を一時的に有効化し、静止時に `render_surface` が実行されていない（ログが出ない）ことを確認。
+  - ウィンドウリサイズ等の操作時に、適切に再描画が行われることを確認。
+  - **Note**: 現状のサンプルでは `SurfaceGraphics` のネスト構造は存在しないため、ネストの検証はユニットテストに依存する。
