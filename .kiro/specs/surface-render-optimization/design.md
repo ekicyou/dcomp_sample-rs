@@ -1,7 +1,7 @@
 # Design: surface-render-optimization
 
 **Feature**: Surface Render Optimization
-**Status**: Draft
+**Status**: Approved
 
 ## 1. Architecture Overview
 
