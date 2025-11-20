@@ -3,7 +3,7 @@ use super::components::SurfaceUpdateRequested;
 use crate::com::d2d::{D2D1DeviceContextExt, D2D1DeviceExt};
 use crate::com::dcomp::{
     DCompositionDesktopDeviceExt, DCompositionDeviceExt, DCompositionSurfaceExt,
-    DCompositionTargetExt, DCompositionVisualExt,
+    DCompositionVisualExt,
 };
 use crate::ecs::graphics::{
     GraphicsCore, GraphicsNeedsInit, HasGraphicsResources, SurfaceGraphics, VisualGraphics,
@@ -13,7 +13,6 @@ use crate::ecs::layout::GlobalArrangement;
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::*;
 use windows::Win32::Foundation::*;
-use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
 
 // ========== ヘルパー関数 ==========
@@ -44,25 +43,6 @@ fn create_window_graphics_for_hwnd(
     Ok(WindowGraphics::new(target, device_context))
 }
 
-/// IDCompositionTargetに対してVisualを作成してルートに設定する
-fn create_visual_for_target(
-    graphics: &GraphicsCore,
-    target: &IDCompositionTarget,
-) -> windows::core::Result<VisualGraphics> {
-    if !graphics.is_valid() {
-        return Err(windows::core::Error::from(E_FAIL));
-    }
-
-    // 1. ビジュアル作成
-    let dcomp = graphics.dcomp().ok_or(windows::core::Error::from(E_FAIL))?;
-    let visual = dcomp.create_visual()?;
-
-    // 2. ターゲットにルートとして設定
-    target.set_root(&visual)?;
-
-    Ok(VisualGraphics::new(visual))
-}
-
 /// Surfaceを作成してVisualに設定する
 fn create_surface_for_window(
     graphics: &GraphicsCore,
@@ -87,7 +67,7 @@ fn create_surface_for_window(
     let visual_ref = visual.visual().ok_or(windows::core::Error::from(E_FAIL))?;
     visual_ref.set_content(&surface)?;
 
-    Ok(SurfaceGraphics::new(surface))
+    Ok(SurfaceGraphics::new(surface, (width, height)))
 }
 
 fn draw_recursive(
@@ -388,74 +368,17 @@ pub fn init_window_graphics(
     }
 }
 
-/// Visual初期化・再初期化
+/// Visual初期化・再初期化 (Deprecated: Use Visual component)
 pub fn init_window_visual(
-    graphics: Res<GraphicsCore>,
-    mut query: Query<
+    _graphics: Res<GraphicsCore>,
+    _query: Query<
         (Entity, &WindowGraphics, Option<&mut VisualGraphics>),
         Or<(Without<VisualGraphics>, With<GraphicsNeedsInit>)>,
     >,
-    mut commands: Commands,
-    frame_count: Res<crate::ecs::world::FrameCount>,
+    _commands: Commands,
+    _frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
-    if !graphics.is_valid() {
-        return;
-    }
-
-    for (entity, window_graphics, visual) in query.iter_mut() {
-        if !window_graphics.is_valid() {
-            continue;
-        }
-
-        let target = match window_graphics.get_target() {
-            Some(t) => t,
-            None => continue,
-        };
-
-        match visual {
-            None => {
-                eprintln!(
-                    "[Frame {}] [init_window_visual] Visual新規作成 (Entity: {:?})",
-                    frame_count.0, entity
-                );
-                match create_visual_for_target(&graphics, target) {
-                    Ok(v) => {
-                        eprintln!(
-                            "[Frame {}] [init_window_visual] Visual作成完了 (Entity: {:?})",
-                            frame_count.0, entity
-                        );
-                        commands.entity(entity).insert(v);
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "[Frame {}] [init_window_visual] エラー: Entity {:?}, HRESULT {:?}",
-                            frame_count.0, entity, e
-                        );
-                    }
-                }
-            }
-            Some(mut v) => {
-                if !v.is_valid() {
-                    eprintln!(
-                        "[Frame {}] [init_window_visual] Visual再初期化 (Entity: {:?})",
-                        frame_count.0, entity
-                    );
-                    match create_visual_for_target(&graphics, target) {
-                        Ok(new_v) => {
-                            *v = new_v;
-                            eprintln!(
-                                "[Frame {}] [init_window_visual] Visual再初期化完了 (Entity: {:?})",
-                                frame_count.0, entity
-                            );
-                        }
-                        Err(e) => {
-                            eprintln!("[Frame {}] [init_window_visual] 再初期化エラー: Entity {:?}, HRESULT {:?}", frame_count.0, entity, e);
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // Deprecated: Visual creation is now handled by visual_resource_management_system
 }
 
 /// Surface初期化・再初期化
@@ -510,8 +433,9 @@ pub fn init_window_surface(
                 }
             }
             Some(s) => {
-                if !s.is_valid() {
-                    eprintln!("[Frame {}] [init_window_surface] Surface再初期化 (Entity: {:?}, Size: {}x{})", frame_count.0, entity, width, height);
+                if !s.is_valid() || s.size != (width, height) {
+                    eprintln!("[Frame {}] [init_window_surface] Surface再初期化/リサイズ (Entity: {:?}, Size: {}x{} -> {}x{})", 
+                        frame_count.0, entity, s.size.0, s.size.1, width, height);
                     match create_surface_for_window(&graphics, visual, width, height) {
                         Ok(new_s) => {
                             // Use commands to trigger on_replace hook

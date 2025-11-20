@@ -3,6 +3,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::world::DeferredWorld;
 use windows::Win32::Graphics::Direct2D::*;
 use windows::Win32::Graphics::DirectComposition::*;
+use windows_numerics::Vector2;
 
 /// グラフィックスリソースを使用するエンティティを宣言（静的マーカー）
 #[derive(Component, Default)]
@@ -100,20 +101,23 @@ impl VisualGraphics {
 #[component(on_add = on_surface_graphics_changed, on_replace = on_surface_graphics_changed)]
 pub struct SurfaceGraphics {
     inner: Option<IDCompositionSurface>,
+    pub size: (u32, u32),
 }
 
 unsafe impl Send for SurfaceGraphics {}
 unsafe impl Sync for SurfaceGraphics {}
 
 impl SurfaceGraphics {
-    pub fn new(surface: IDCompositionSurface) -> Self {
+    pub fn new(surface: IDCompositionSurface, size: (u32, u32)) -> Self {
         Self {
             inner: Some(surface),
+            size,
         }
     }
 
     pub fn invalidate(&mut self) {
         self.inner = None;
+        self.size = (0, 0);
     }
 
     pub fn is_valid(&self) -> bool {
@@ -148,3 +152,23 @@ fn on_surface_graphics_changed(mut world: DeferredWorld, context: HookContext) {
 /// 描画更新が必要なサーフェスを示すマーカーコンポーネント
 #[derive(Component, Default)]
 pub struct SurfaceUpdateRequested;
+
+/// 論理的なVisualコンポーネント
+#[derive(Component, Debug, Clone)]
+pub struct Visual {
+    pub is_visible: bool,
+    pub opacity: f32,
+    pub transform_origin: Vector2,
+    pub size: Vector2,
+}
+
+impl Default for Visual {
+    fn default() -> Self {
+        Self {
+            is_visible: true,
+            opacity: 1.0,
+            transform_origin: Vector2::default(),
+            size: Vector2 { X: 100.0, Y: 100.0 },
+        }
+    }
+}

@@ -1,0 +1,128 @@
+use crate::com::dcomp::DCompositionDeviceExt;
+use crate::ecs::graphics::{
+    GraphicsCore, GraphicsNeedsInit, SurfaceGraphics, Visual, VisualGraphics, WindowGraphics,
+};
+use bevy_ecs::prelude::*;
+use windows::Win32::Graphics::DirectComposition::*;
+use windows::Win32::Graphics::Dxgi::Common::*;
+
+fn create_visual_resources(
+    commands: &mut Commands,
+    entity: Entity,
+    visual: &Visual,
+    dcomp: &IDCompositionDevice3,
+) {
+    // 1. Create Visual
+    let visual_res = dcomp.create_visual();
+    match visual_res {
+        Ok(v3) => {
+            // FIXME: SetOpacity and SetVisible not found on IDCompositionVisual in windows 0.62?
+            // if let Ok(visual_base) = v3.cast::<IDCompositionVisual>() {
+            //     unsafe {
+            //         let _ = visual_base.SetOpacity(visual.opacity);
+            //         let _ = visual_base.SetVisible(visual.is_visible.into());
+            //     }
+            // }
+
+            commands
+                .entity(entity)
+                .insert(VisualGraphics::new(v3.clone()));
+
+            // 2. Create Surface (Requirement R2: Always create surface)
+            // Use size from Visual component
+            let width = visual.size.X as u32;
+            let height = visual.size.Y as u32;
+
+            // Ensure non-zero size
+            let width = if width == 0 { 1 } else { width };
+            let height = if height == 0 { 1 } else { height };
+
+            let surface_res = dcomp.create_surface(
+                width,
+                height,
+                DXGI_FORMAT_B8G8R8A8_UNORM,
+                DXGI_ALPHA_MODE_PREMULTIPLIED,
+            );
+
+            match surface_res {
+                Ok(surface) => {
+                    // Set content
+                    unsafe {
+                        let _ = v3.SetContent(&surface);
+                    }
+                    commands
+                        .entity(entity)
+                        .insert(SurfaceGraphics::new(surface, (width, height)));
+                }
+                Err(e) => {
+                    eprintln!("Failed to create surface: {:?}", e);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to create visual: {:?}", e);
+        }
+    }
+}
+
+/// Visualコンポーネントに基づいてGPUリソースを管理するシステム
+pub fn visual_resource_management_system(
+    mut commands: Commands,
+    graphics: Res<GraphicsCore>,
+    query: Query<(Entity, &Visual), Added<Visual>>,
+) {
+    if !graphics.is_valid() {
+        return;
+    }
+
+    let dcomp = match graphics.dcomp() {
+        Some(d) => d,
+        None => return,
+    };
+
+    for (entity, visual) in query.iter() {
+        create_visual_resources(&mut commands, entity, visual, dcomp);
+    }
+}
+
+/// Visualリソースの再初期化システム
+pub fn visual_reinit_system(
+    mut commands: Commands,
+    graphics: Res<GraphicsCore>,
+    query: Query<(Entity, &Visual), With<GraphicsNeedsInit>>,
+) {
+    if !graphics.is_valid() {
+        return;
+    }
+
+    let dcomp = match graphics.dcomp() {
+        Some(d) => d,
+        None => return,
+    };
+
+    for (entity, visual) in query.iter() {
+        create_visual_resources(&mut commands, entity, visual, dcomp);
+    }
+}
+
+/// WindowGraphicsとVisualGraphicsを紐付けるシステム
+///
+/// WindowGraphicsを持つエンティティにVisualGraphicsが追加された場合、
+/// そのVisualをウィンドウのルートVisualとして設定する。
+pub fn window_visual_integration_system(
+    query: Query<(&WindowGraphics, &VisualGraphics), Changed<VisualGraphics>>,
+) {
+    for (window_graphics, visual_graphics) in query.iter() {
+        if let Some(target) = window_graphics.get_target() {
+            if let Some(visual) = visual_graphics.visual() {
+                unsafe {
+                    // SetRoot takes IDCompositionVisual.
+                    // visual is IDCompositionVisual3.
+                    // We can cast or pass it if it implements Param.
+                    // Using raw SetRoot for now.
+                    let _ = target.SetRoot(visual);
+                }
+            }
+        }
+    }
+}

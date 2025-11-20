@@ -2,9 +2,11 @@ use crate::ecs::*;
 use crate::process_singleton::*;
 use bevy_ecs::prelude::*;
 use windows::core::*;
+use windows::Win32::Foundation::RECT;
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::UI::HiDpi::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
+use windows_numerics::Vector2;
 
 /// Window EntityにArrangementコンポーネントを自動追加するシステム
 pub fn init_window_arrangement(
@@ -88,6 +90,14 @@ pub fn create_windows(
                     96.0 // デフォルト
                 };
 
+                // 実際のクライアント領域のサイズを取得
+                let mut rect = RECT::default();
+                unsafe {
+                    let _ = GetClientRect(hwnd, &mut rect);
+                }
+                let width = (rect.right - rect.left) as f32;
+                let height = (rect.bottom - rect.top) as f32;
+
                 // WindowHandleコンポーネントを追加
                 commands.entity(entity).insert((
                     WindowHandle {
@@ -96,6 +106,13 @@ pub fn create_windows(
                         initial_dpi,
                     },
                     crate::ecs::graphics::HasGraphicsResources,
+                    crate::ecs::graphics::Visual {
+                        size: Vector2 {
+                            X: width,
+                            Y: height,
+                        },
+                        ..Default::default()
+                    },
                 ));
 
                 // ウィンドウを表示

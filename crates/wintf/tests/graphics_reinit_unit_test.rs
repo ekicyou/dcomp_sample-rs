@@ -90,7 +90,7 @@ fn test_surface_new_and_invalidate() {
         )
         .expect("Surface作成失敗");
 
-    let mut surface = SurfaceGraphics::new(surface_raw);
+    let mut surface = SurfaceGraphics::new(surface_raw, (800, 600));
 
     // 初期状態: 有効
     assert!(surface.is_valid(), "Surface should be valid after creation");

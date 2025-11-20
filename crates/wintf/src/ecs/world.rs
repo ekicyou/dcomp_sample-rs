@@ -66,15 +66,13 @@ pub struct UISetup;
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Draw;
 
-/// 描画スケジュール
+/// サーフェス更新前スケジュール
 ///
-/// IDCompositionSurfaceへの描画処理を実行する。
-/// Surface.BeginDraw/EndDrawでDeviceContextを取得し、図形を描画する。
-/// マルチスレッド実行可能（各Surfaceは独立）。
+/// IDCompositionSurfaceへの更新前に行う。
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Render;
+pub struct PreRenderSurface;
 
-/// レンダリングサーフェス更新スケジュール
+/// サーフェス更新スケジュール
 ///
 /// IDCompositionSurfaceへの描画を実行する。
 /// BeginDraw/EndDrawでSurfaceを取得し、ID2D1DeviceContextで描画を行う。
@@ -138,7 +136,7 @@ impl EcsWorld {
             }
 
             schedules.insert(Schedule::new(Draw));
-            schedules.insert(Schedule::new(Render));
+            schedules.insert(Schedule::new(PreRenderSurface));
             schedules.insert(Schedule::new(RenderSurface));
             schedules.insert(Schedule::new(Composition));
             schedules.insert(Schedule::new(CommitComposition));
@@ -165,10 +163,17 @@ impl EcsWorld {
                         .after(crate::ecs::graphics::init_graphics_core),
                     crate::ecs::graphics::init_window_graphics
                         .after(crate::ecs::graphics::cleanup_command_list_on_reinit),
-                    crate::ecs::graphics::init_window_visual
+                    // Visualリソース管理システム (新規作成・再作成)
+                    crate::ecs::graphics::visual_resource_management_system
                         .after(crate::ecs::graphics::init_window_graphics),
+                    crate::ecs::graphics::visual_reinit_system
+                        .after(crate::ecs::graphics::visual_resource_management_system),
+                    // WindowとVisualの紐付け
+                    crate::ecs::graphics::window_visual_integration_system
+                        .after(crate::ecs::graphics::visual_reinit_system),
+                    // Surface管理 (リサイズ対応)
                     crate::ecs::graphics::init_window_surface
-                        .after(crate::ecs::graphics::init_window_visual),
+                        .after(crate::ecs::graphics::window_visual_integration_system),
                     crate::ecs::window_system::init_window_arrangement
                         .after(crate::ecs::graphics::init_window_surface),
                 ),
@@ -195,8 +200,8 @@ impl EcsWorld {
                     .chain(),
             );
 
-            // Renderスケジュールに変更検知システムを登録
-            schedules.add_systems(Render, crate::ecs::graphics::mark_dirty_surfaces);
+            // PreRenderSurfaceスケジュールに変更検知システムを登録
+            schedules.add_systems(PreRenderSurface, crate::ecs::graphics::mark_dirty_surfaces);
 
             // RenderSurfaceスケジュールに描画システムを登録
             schedules.add_systems(RenderSurface, crate::ecs::graphics::render_surface);
@@ -312,7 +317,7 @@ impl EcsWorld {
         let _ = self.world.try_run_schedule(PostLayout);
         let _ = self.world.try_run_schedule(UISetup);
         let _ = self.world.try_run_schedule(Draw);
-        let _ = self.world.try_run_schedule(Render);
+        let _ = self.world.try_run_schedule(PreRenderSurface);
         let _ = self.world.try_run_schedule(RenderSurface);
         let _ = self.world.try_run_schedule(Composition);
         let _ = self.world.try_run_schedule(CommitComposition);
