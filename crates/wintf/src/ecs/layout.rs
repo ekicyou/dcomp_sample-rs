@@ -66,10 +66,10 @@ fn on_arrangement_add(
     mut world: bevy_ecs::world::DeferredWorld,
     hook: bevy_ecs::lifecycle::HookContext,
 ) {
-    world.commands().entity(hook.entity).insert((
-        GlobalArrangement::default(),
-        ArrangementTreeChanged,
-    ));
+    world
+        .commands()
+        .entity(hook.entity)
+        .insert((GlobalArrangement::default(), ArrangementTreeChanged));
 }
 
 /// グローバルレイアウト変換（親からの累積変換）
@@ -152,7 +152,7 @@ mod tests {
             offset: Offset { x: 10.0, y: 20.0 },
             scale: LayoutScale { x: 2.0, y: 3.0 },
         };
-        
+
         let matrix: Matrix3x2 = arr.into();
         assert_eq!(matrix.M11, 2.0);
         assert_eq!(matrix.M22, 3.0);
@@ -163,12 +163,12 @@ mod tests {
     #[test]
     fn test_global_arrangement_mul() {
         let parent = GlobalArrangement(Matrix3x2::translation(10.0, 20.0));
-        
+
         let child = Arrangement {
             offset: Offset { x: 5.0, y: 7.0 },
             scale: LayoutScale { x: 1.0, y: 1.0 },
         };
-        
+
         let result = parent * child;
         assert_eq!(result.0.M31, 15.0); // 10 + 5
         assert_eq!(result.0.M32, 27.0); // 20 + 7

@@ -1,11 +1,11 @@
-mod core;
-mod components;
 mod command_list;
+mod components;
+mod core;
 mod systems;
 
-pub use core::*;
-pub use components::*;
 pub use command_list::*;
+pub use components::*;
+pub use core::*;
 pub use systems::*;
 
 #[cfg(test)]

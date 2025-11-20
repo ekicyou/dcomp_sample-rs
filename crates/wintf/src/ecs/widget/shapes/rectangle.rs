@@ -81,10 +81,7 @@ fn on_rectangle_remove(
 /// RectangleコンポーネントからGraphicsCommandListを生成
 pub fn draw_rectangles(
     mut commands: Commands,
-    query: Query<(Entity, &Rectangle), Or<(
-        Changed<Rectangle>,
-        Without<GraphicsCommandList>,
-    )>>,
+    query: Query<(Entity, &Rectangle), Or<(Changed<Rectangle>, Without<GraphicsCommandList>)>>,
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
     let Some(graphics_core) = graphics_core else {

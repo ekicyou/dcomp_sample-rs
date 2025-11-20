@@ -1,7 +1,7 @@
+use bevy_ecs::component::Mutable;
 use bevy_ecs::entity::*;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::lifetimeless::*;
-use bevy_ecs::component::Mutable;
 use bevy_tasks::*;
 use bevy_utils::*;
 use std::ops::Mul;
@@ -52,10 +52,7 @@ pub fn sync_simple_transforms<L, G, M>(
 /// 変換の伝播は、ダーティビットを持たないエンティティに遭遇した場合、
 /// 階層のサブツリー全体を無視できる。
 pub fn mark_dirty_trees<L, G, M>(
-    changed_transforms: Query<
-        Entity,
-        Or<(Changed<L>, Changed<ChildOf>, Added<G>)>,
-    >,
+    changed_transforms: Query<Entity, Or<(Changed<L>, Changed<ChildOf>, Added<G>)>>,
     mut orphaned: RemovedComponents<ChildOf>,
     mut transforms: Query<(Option<&ChildOf>, &mut M)>,
 ) where
@@ -89,10 +86,7 @@ pub fn mark_dirty_trees<L, G, M>(
 /// [`mark_dirty_trees`](super::mark_dirty_trees)と組み合わせて使用する必要がある。
 pub fn propagate_parent_transforms<L, G, M>(
     mut queue: Local<WorkQueue>,
-    mut roots: Query<
-        (Entity, Ref<L>, &mut G, &Children),
-        (Without<ChildOf>, Changed<M>),
-    >,
+    mut roots: Query<(Entity, Ref<L>, &mut G, &Children), (Without<ChildOf>, Changed<M>)>,
     nodes: NodeQuery<L, G, M>,
 ) where
     L: Component + Copy + Into<G>,
@@ -322,11 +316,7 @@ pub type NodeQuery<'w, 's, L, G, M> = Query<
     's,
     (
         Entity,
-        (
-            Ref<'static, L>,
-            Mut<'static, G>,
-            Ref<'static, M>,
-        ),
+        (Ref<'static, L>, Mut<'static, G>, Ref<'static, M>),
         (Option<Read<Children>>, Read<ChildOf>),
     ),
 >;

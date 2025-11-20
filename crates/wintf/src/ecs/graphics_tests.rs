@@ -8,7 +8,7 @@ mod graphics_core_tests {
     #[test]
     fn test_graphics_core_creation() {
         let _graphics = GraphicsCore::new().expect("GraphicsCore作成失敗");
-        
+
         // GraphicsCoreが正常に作成されたことを確認（すべてのフィールドが初期化されている）
         println!("[TEST PASS] GraphicsCore created successfully with all valid devices");
     }
@@ -16,75 +16,75 @@ mod graphics_core_tests {
     #[test]
     fn test_create_device_context() {
         let graphics = GraphicsCore::new().expect("GraphicsCore作成失敗");
-        
+
         use crate::com::d2d::D2D1DeviceExt;
         let d2d = graphics.d2d_device().expect("D2Dデバイスが無効");
         let _dc = d2d
             .create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)
             .expect("DeviceContext作成失敗");
-        
+
         println!("[TEST PASS] ID2D1DeviceContext created successfully");
     }
 
     #[test]
     fn test_create_visual() {
         let graphics = GraphicsCore::new().expect("GraphicsCore作成失敗");
-        
+
         use crate::com::dcomp::DCompositionDeviceExt;
         let dcomp = graphics.dcomp().expect("DCompositionデバイスが無効");
         let _visual = dcomp.create_visual().expect("Visual作成失敗");
-        
+
         println!("[TEST PASS] IDCompositionVisual3 created successfully");
     }
 
     #[test]
     fn test_create_multiple_device_contexts() {
         let graphics = GraphicsCore::new().expect("GraphicsCore作成失敗");
-        
+
         use crate::com::d2d::D2D1DeviceExt;
         let d2d = graphics.d2d_device().expect("D2Dデバイスが無効");
-        
+
         // 複数のDeviceContextを作成できることを確認
         let _dc1 = d2d
             .create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)
             .expect("DeviceContext1作成失敗");
-        
+
         let _dc2 = d2d
             .create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)
             .expect("DeviceContext2作成失敗");
-        
+
         let _dc3 = d2d
             .create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)
             .expect("DeviceContext3作成失敗");
-        
+
         println!("[TEST PASS] Multiple ID2D1DeviceContext created successfully");
     }
 
     #[test]
     fn test_create_multiple_visuals() {
         let graphics = GraphicsCore::new().expect("GraphicsCore作成失敗");
-        
+
         use crate::com::dcomp::DCompositionDeviceExt;
         let dcomp = graphics.dcomp().expect("DCompositionデバイスが無効");
-        
+
         // 複数のVisualを作成できることを確認
         let _v1 = dcomp.create_visual().expect("Visual1作成失敗");
         let _v2 = dcomp.create_visual().expect("Visual2作成失敗");
         let _v3 = dcomp.create_visual().expect("Visual3作成失敗");
-        
+
         println!("[TEST PASS] Multiple IDCompositionVisual3 created successfully");
     }
 
     #[test]
     fn test_commit() {
         let graphics = GraphicsCore::new().expect("GraphicsCore作成失敗");
-        
+
         use crate::com::dcomp::DCompositionDeviceExt;
         let dcomp = graphics.dcomp().expect("DCompositionデバイスが無効");
-        
+
         // Commit()を呼び出せることを確認
         dcomp.commit().expect("Commit失敗");
-        
+
         println!("[TEST PASS] IDCompositionDevice3::Commit() succeeded");
     }
 }

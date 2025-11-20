@@ -15,10 +15,7 @@ use windows_numerics::Vector2;
 /// Direct2D の CommandList に描画命令を記録する。
 pub fn draw_labels(
     mut commands: Commands,
-    query: Query<
-        (Entity, &Label),
-        Or<(Changed<Label>, Without<GraphicsCommandList>)>,
-    >,
+    query: Query<(Entity, &Label), Or<(Changed<Label>, Without<GraphicsCommandList>)>>,
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
     let Some(graphics_core) = graphics_core else {

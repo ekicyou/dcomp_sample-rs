@@ -13,7 +13,7 @@ fn test_init_graphics_core_creates_resource() {
     // init_graphics_coreシステムがリソースを作成することを確認
 
     let mut world = World::new();
-    
+
     // FrameCountリソースを追加
     world.insert_resource(FrameCount::default());
 
@@ -79,10 +79,10 @@ fn test_init_graphics_core_in_schedule() {
     // スケジュール内でinit_graphics_coreが正しく動作することを確認
 
     let mut world = World::new();
-    
+
     // FrameCountリソースを追加
     world.insert_resource(FrameCount::default());
-    
+
     let mut schedule = Schedule::default();
 
     // init_graphics_coreをスケジュールに追加

@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use bevy_ecs::prelude::*;
-use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::system::SystemState;
 use std::sync::mpsc::channel;
 use std::sync::Mutex;
 use std::thread;
@@ -11,8 +11,8 @@ use windows::Win32::Foundation::{POINT, SIZE};
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use wintf::ecs::widget::shapes::{colors, Rectangle};
 use wintf::ecs::widget::text::Label;
-use wintf::ecs::{Arrangement, Offset, LayoutScale};
 use wintf::ecs::Window;
+use wintf::ecs::{Arrangement, LayoutScale, Offset};
 use wintf::ecs::{GraphicsCore, WindowHandle, WindowPos};
 use wintf::*;
 
@@ -39,46 +39,52 @@ fn main() -> Result<()> {
         println!("[Timer Thread] 0s: Creating hierarchical window with 6 Rectangles + 2 Labels");
         let _ = tx.send(Box::new(|world: &mut World| {
             // Window Entity (ルート)
-            let window_entity = world.spawn((
-                HierarchyWindow,
-                Window {
-                    title: "wintf - Visual Tree Demo (4-Level Hierarchy)".to_string(),
-                    ..Default::default()
-                },
-                WindowPos {
-                    position: Some(POINT { x: 100, y: 100 }),
-                    size: Some(SIZE { cx: 800, cy: 600 }),
-                    ..Default::default()
-                },
-            )).id();
+            let window_entity = world
+                .spawn((
+                    HierarchyWindow,
+                    Window {
+                        title: "wintf - Visual Tree Demo (4-Level Hierarchy)".to_string(),
+                        ..Default::default()
+                    },
+                    WindowPos {
+                        position: Some(POINT { x: 100, y: 100 }),
+                        size: Some(SIZE { cx: 800, cy: 600 }),
+                        ..Default::default()
+                    },
+                ))
+                .id();
 
             // Rectangle1 (青、200x150、offset: 20,20)
-            let rect1 = world.spawn((
-                Rectangle {
-                    width: 200.0,
-                    height: 150.0,
-                    color: colors::BLUE,
-                },
-                Arrangement {
-                    offset: Offset { x: 20.0, y: 20.0 },
-                    scale: LayoutScale::default(),
-                },
-                ChildOf(window_entity),
-            )).id();
+            let rect1 = world
+                .spawn((
+                    Rectangle {
+                        width: 200.0,
+                        height: 150.0,
+                        color: colors::BLUE,
+                    },
+                    Arrangement {
+                        offset: Offset { x: 20.0, y: 20.0 },
+                        scale: LayoutScale::default(),
+                    },
+                    ChildOf(window_entity),
+                ))
+                .id();
 
             // Rectangle1-1 (緑、80x60、offset: 10,10)
-            let rect1_1 = world.spawn((
-                Rectangle {
-                    width: 80.0,
-                    height: 60.0,
-                    color: colors::GREEN,
-                },
-                Arrangement {
-                    offset: Offset { x: 10.0, y: 10.0 },
-                    scale: LayoutScale::default(),
-                },
-                ChildOf(rect1),
-            )).id();
+            let rect1_1 = world
+                .spawn((
+                    Rectangle {
+                        width: 80.0,
+                        height: 60.0,
+                        color: colors::GREEN,
+                    },
+                    Arrangement {
+                        offset: Offset { x: 10.0, y: 10.0 },
+                        scale: LayoutScale::default(),
+                    },
+                    ChildOf(rect1),
+                ))
+                .id();
 
             // Label1 (赤「Hello」、offset: 5,5) - Rectangle1-1の子
             world.spawn((
@@ -96,32 +102,46 @@ fn main() -> Result<()> {
             ));
 
             // Rectangle1-2 (黄、80x60、offset: 10,80)
-            let rect1_2 = world.spawn((
-                Rectangle {
-                    width: 80.0,
-                    height: 60.0,
-                    color: D2D1_COLOR_F { r: 1.0, g: 1.0, b: 0.0, a: 1.0 }, // 黄色
-                },
-                Arrangement {
-                    offset: Offset { x: 10.0, y: 80.0 },
-                    scale: LayoutScale::default(),
-                },
-                ChildOf(rect1),
-            )).id();
+            let rect1_2 = world
+                .spawn((
+                    Rectangle {
+                        width: 80.0,
+                        height: 60.0,
+                        color: D2D1_COLOR_F {
+                            r: 1.0,
+                            g: 1.0,
+                            b: 0.0,
+                            a: 1.0,
+                        }, // 黄色
+                    },
+                    Arrangement {
+                        offset: Offset { x: 10.0, y: 80.0 },
+                        scale: LayoutScale::default(),
+                    },
+                    ChildOf(rect1),
+                ))
+                .id();
 
             // Rectangle1-2-1 (紫、60x40、offset: 10,10)
-            let rect1_2_1 = world.spawn((
-                Rectangle {
-                    width: 60.0,
-                    height: 40.0,
-                    color: D2D1_COLOR_F { r: 0.5, g: 0.0, b: 0.5, a: 1.0 }, // 紫色
-                },
-                Arrangement {
-                    offset: Offset { x: 10.0, y: 10.0 },
-                    scale: LayoutScale::default(),
-                },
-                ChildOf(rect1_2),
-            )).id();
+            let rect1_2_1 = world
+                .spawn((
+                    Rectangle {
+                        width: 60.0,
+                        height: 40.0,
+                        color: D2D1_COLOR_F {
+                            r: 0.5,
+                            g: 0.0,
+                            b: 0.5,
+                            a: 1.0,
+                        }, // 紫色
+                    },
+                    Arrangement {
+                        offset: Offset { x: 10.0, y: 10.0 },
+                        scale: LayoutScale::default(),
+                    },
+                    ChildOf(rect1_2),
+                ))
+                .id();
 
             // Label2 (白「World」、offset: 5,5) - Rectangle1-2-1の子
             world.spawn((
@@ -155,7 +175,31 @@ fn main() -> Result<()> {
             let mut query = world.query_filtered::<Entity, With<HierarchyWindow>>();
             if let Some(entity) = query.iter(world).next() {
                 println!("[Test] Removing Window entity {entity:?})");
-                world.despawn(entity);
+
+                // world.despawn(entity)を直接呼ぶと、保留中のコマンド（コンポーネント追加など）と競合してパニックになる可能性がある。
+                // 代わりにCommandsを使って削除をキューイングし、順序正しく処理させる。
+
+                // 再帰的に削除対象を収集（despawn_recursiveの代用）
+                let mut to_despawn = Vec::new();
+                let mut stack = vec![entity];
+                while let Some(curr) = stack.pop() {
+                    to_despawn.push(curr);
+                    if let Some(children) = world.get::<Children>(curr) {
+                        for child in children.iter() {
+                            stack.push(child);
+                        }
+                    }
+                }
+
+                let mut system_state: SystemState<Commands> = SystemState::new(world);
+                let mut commands = system_state.get_mut(world);
+
+                for e in to_despawn {
+                    commands.entity(e).despawn();
+                }
+
+                // コマンドを適用（保留中のコマンド -> 削除コマンド の順で実行される）
+                system_state.apply(world);
             }
         }));
     });
@@ -200,7 +244,9 @@ fn main() -> Result<()> {
     println!("\nビジュアルツリー階層描画の例:");
     println!("  1. Window Entity (ルート)");
     println!("  2. Rectangle1 (青) → Rectangle1-1 (緑) → Label1 (赤 'Hello')");
-    println!("  3. Rectangle1 (青) → Rectangle1-2 (黄) → Rectangle1-2-1 (紫) → Label2 (白 'World')");
+    println!(
+        "  3. Rectangle1 (青) → Rectangle1-2 (黄) → Rectangle1-2-1 (紫) → Label2 (白 'World')"
+    );
     println!("  4. 各EntityにArrangementコンポーネントで座標を指定");
     println!("  5. GlobalArrangementが自動的に親から子へ伝播");
     println!("  6. render_surfaceが階層的に描画（深さ優先）");

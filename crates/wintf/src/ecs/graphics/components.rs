@@ -126,11 +126,23 @@ impl SurfaceGraphics {
     }
 }
 
+struct SafeInsertSurfaceUpdateRequested {
+    entity: Entity,
+}
+
+impl Command for SafeInsertSurfaceUpdateRequested {
+    fn apply(self, world: &mut World) {
+        if let Ok(mut entity_mut) = world.get_entity_mut(self.entity) {
+            entity_mut.insert(SurfaceUpdateRequested);
+        }
+    }
+}
+
 fn on_surface_graphics_changed(mut world: DeferredWorld, context: HookContext) {
     let mut commands = world.commands();
-    commands
-        .entity(context.entity)
-        .insert(SurfaceUpdateRequested);
+    commands.queue(SafeInsertSurfaceUpdateRequested {
+        entity: context.entity,
+    });
 }
 
 /// 描画更新が必要なサーフェスを示すマーカーコンポーネント
