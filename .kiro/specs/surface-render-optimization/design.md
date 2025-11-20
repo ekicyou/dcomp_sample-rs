@@ -60,17 +60,15 @@ pub struct SurfaceUpdateRequested;
   6. `Commands`を使用して`SurfaceUpdateRequested`をremove。
 
 ### 3.3 `draw_recursive` (Helper)
-再帰的に描画コマンドを発行する。
+再帰的に描画コマンドを発行する。パフォーマンスのため `#[inline]` を付与する。
 
 - **Arguments**: `entity`, `offset`, `command_list_query`, `children_query`, `surface_query`
 - **Logic**:
-  1. **Visual Update**:
-     - 現在のエンティティの `Visual` に対して、位置や変形（Offset等）を適用する（親サーフェスの責務）。
-  2. **Nested Surface Check**:
-     - 現在の `entity` が `SurfaceGraphics` を持っており、かつ **ルート（呼び出し元）でない** 場合、ここでリターン（コンテンツ描画と子要素への再帰をスキップ）。
-  3. **Draw**:
+  1. **Nested Surface Check**:
+     - 現在の `entity` が `SurfaceGraphics` を持っており、かつ **ルート（呼び出し元）でない** 場合、ここでリターン（描画スキップ）。
+  2. **Draw**:
      - `GraphicsCommandList` を持っていれば `DrawImage` 等を実行。
-  4. **Recurse**:
+  3. **Recurse**:
      - `Children` を取得し、各子エンティティに対して `draw_recursive` を呼び出す。
 
 ## 4. Scheduling
