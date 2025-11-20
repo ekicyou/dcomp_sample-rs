@@ -33,6 +33,6 @@
   - ウィンドウを閉じた際にパニックが発生しないことを確認する。
   - _Requirements: R5.3_
 
-- [ ] 6. **(Optional) Hooksアプローチの実装と比較**
+- [ ] 6. **(Optional) Hooksアプローチの実装と比較** (Skipped: System approach is sufficient)
   - Systemsアプローチで安定動作確認後、Hooks (`on_add`) を用いた実装を試行する。
   - 比較結果に基づき、最終的な採用案を決定する。
