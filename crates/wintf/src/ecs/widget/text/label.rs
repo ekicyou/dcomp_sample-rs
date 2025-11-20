@@ -5,6 +5,16 @@ use bevy_ecs::world::DeferredWorld;
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use windows::Win32::Graphics::DirectWrite::IDWriteTextLayout;
 
+/// テキストの方向
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum TextDirection {
+    #[default]
+    HorizontalLeftToRight, // writing-mode: horizontal-tb, direction: ltr
+    HorizontalRightToLeft, // writing-mode: horizontal-tb, direction: rtl
+    VerticalRightToLeft,   // writing-mode: vertical-rl (Japanese)
+    VerticalLeftToRight,   // writing-mode: vertical-lr
+}
+
 /// 色の型エイリアス（shapes/rectangleと共通）
 pub type Color = D2D1_COLOR_F;
 
@@ -15,6 +25,7 @@ pub type Color = D2D1_COLOR_F;
 /// - `font_family`: フォントファミリー名 (例: "メイリオ", "Arial")
 /// - `font_size`: フォントサイズ (pt単位, 範囲: 8.0～72.0)
 /// - `color`: テキスト色 (RGBA, 各成分 0.0～1.0)
+/// - `direction`: テキストの方向
 #[derive(Component)]
 #[component(storage = "SparseSet", on_remove = on_label_remove)]
 pub struct Label {
@@ -22,6 +33,7 @@ pub struct Label {
     pub font_family: String,
     pub font_size: f32,
     pub color: Color,
+    pub direction: TextDirection,
 }
 
 impl Default for Label {
@@ -36,6 +48,7 @@ impl Default for Label {
                 b: 0.0,
                 a: 1.0,
             }, // 黒色
+            direction: Default::default(),
         }
     }
 }

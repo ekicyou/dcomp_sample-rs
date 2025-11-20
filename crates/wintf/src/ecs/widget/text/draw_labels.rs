@@ -2,7 +2,9 @@ use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt};
 use crate::com::dwrite::DWriteFactoryExt;
 use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore};
 use crate::ecs::widget::shapes::rectangle::colors;
+use crate::ecs::widget::text::label::TextDirection;
 use crate::ecs::widget::text::{Label, TextLayoutResource};
+use crate::ecs::TextLayoutMetrics;
 use bevy_ecs::prelude::*;
 use windows::Win32::Graphics::Direct2D::D2D1_DRAW_TEXT_OPTIONS_NONE;
 use windows::Win32::Graphics::DirectWrite::*;
@@ -62,6 +64,28 @@ pub fn draw_labels(
                 continue;
             }
         };
+
+        // 縦書き・横書きの設定
+        unsafe {
+            match label.direction {
+                TextDirection::HorizontalLeftToRight => {
+                    let _ = text_format.SetReadingDirection(DWRITE_READING_DIRECTION_LEFT_TO_RIGHT);
+                    let _ = text_format.SetFlowDirection(DWRITE_FLOW_DIRECTION_TOP_TO_BOTTOM);
+                }
+                TextDirection::HorizontalRightToLeft => {
+                    let _ = text_format.SetReadingDirection(DWRITE_READING_DIRECTION_RIGHT_TO_LEFT);
+                    let _ = text_format.SetFlowDirection(DWRITE_FLOW_DIRECTION_TOP_TO_BOTTOM);
+                }
+                TextDirection::VerticalRightToLeft => {
+                    let _ = text_format.SetReadingDirection(DWRITE_READING_DIRECTION_TOP_TO_BOTTOM);
+                    let _ = text_format.SetFlowDirection(DWRITE_FLOW_DIRECTION_RIGHT_TO_LEFT);
+                }
+                TextDirection::VerticalLeftToRight => {
+                    let _ = text_format.SetReadingDirection(DWRITE_READING_DIRECTION_TOP_TO_BOTTOM);
+                    let _ = text_format.SetFlowDirection(DWRITE_FLOW_DIRECTION_LEFT_TO_RIGHT);
+                }
+            }
+        }
 
         // TextLayout作成
         let text_hstring = windows::core::HSTRING::from(&label.text);
@@ -143,10 +167,27 @@ pub fn draw_labels(
             continue;
         }
 
-        // GraphicsCommandListとTextLayoutResourceをエンティティに挿入
+        // メトリクス取得
+        let mut metrics = DWRITE_TEXT_METRICS::default();
+        unsafe {
+            let _ = text_layout.GetMetrics(&mut metrics);
+        }
+
+        // 縦書きの場合は幅と高さを入れ替える（物理サイズとして扱うため）
+        // DirectWriteのmetrics.width/heightはレイアウト座標系（ReadingDirection/FlowDirection）に基づく。
+        // 縦書き（ReadingDirection=TopToBottom）の場合、widthは物理的な高さ、heightは物理的な幅に対応する。
+        let (width, height) = match label.direction {
+            TextDirection::VerticalRightToLeft | TextDirection::VerticalLeftToRight => {
+                (metrics.height, metrics.width)
+            }
+            _ => (metrics.width, metrics.height),
+        };
+
+        // GraphicsCommandListとTextLayoutResource、TextLayoutMetricsをエンティティに挿入
         commands.entity(entity).insert((
             GraphicsCommandList::new(command_list),
             TextLayoutResource::new(text_layout),
+            TextLayoutMetrics { width, height },
         ));
     }
 }

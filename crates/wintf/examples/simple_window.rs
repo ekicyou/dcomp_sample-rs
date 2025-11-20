@@ -10,6 +10,7 @@ use windows::core::Result;
 use windows::Win32::Foundation::{POINT, SIZE};
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use wintf::ecs::widget::shapes::{colors, Rectangle};
+use wintf::ecs::widget::text::label::TextDirection;
 use wintf::ecs::widget::text::Label;
 use wintf::ecs::Window;
 use wintf::ecs::{Arrangement, LayoutScale, Offset};
@@ -93,6 +94,7 @@ fn main() -> Result<()> {
                     font_family: "MS Gothic".to_string(),
                     font_size: 16.0,
                     color: colors::RED,
+                    ..Default::default()
                 },
                 Arrangement {
                     offset: Offset { x: 5.0, y: 5.0 },
@@ -150,6 +152,7 @@ fn main() -> Result<()> {
                     font_family: "MS Gothic".to_string(),
                     font_size: 16.0,
                     color: colors::WHITE,
+                    ..Default::default()
                 },
                 Arrangement {
                     offset: Offset { x: 5.0, y: 5.0 },
@@ -166,6 +169,66 @@ fn main() -> Result<()> {
             println!("     └─ Rectangle1-2 (yellow, 80x60 @ 10,80)");
             println!("        └─ Rectangle1-2-1 (purple, 60x40 @ 10,10)");
             println!("           └─ Label2 (white 'World' @ 5,5)");
+
+            // --- Vertical Text Verification ---
+            // Container for Vertical Text (Gray, 200x300, offset: 300, 20)
+            let v_container = world
+                .spawn((
+                    Rectangle {
+                        width: 200.0,
+                        height: 300.0,
+                        color: D2D1_COLOR_F {
+                            r: 0.8,
+                            g: 0.8,
+                            b: 0.8,
+                            a: 1.0,
+                        }, // Gray
+                    },
+                    Arrangement {
+                        offset: Offset { x: 300.0, y: 20.0 },
+                        scale: LayoutScale::default(),
+                    },
+                    ChildOf(window_entity),
+                ))
+                .id();
+
+            // Vertical Label (Black, "縦書き\nテスト", offset: 10, 10)
+            world.spawn((
+                Label {
+                    text: "縦書き\nテスト".to_string(),
+                    font_family: "Meiryo".to_string(),
+                    font_size: 24.0,
+                    color: colors::BLACK,
+                    //direction: TextDirection::VerticalRightToLeft,
+                    direction: TextDirection::HorizontalLeftToRight,
+                },
+                Arrangement {
+                    offset: Offset { x: 10.0, y: 10.0 },
+                    scale: LayoutScale::default(),
+                },
+                ChildOf(v_container),
+            ));
+
+            // Horizontal RTL Label (Black, "RTL Test", offset: 100, 10)
+            world.spawn((
+                Label {
+                    text: "RTL Test".to_string(),
+                    font_family: "Arial".to_string(),
+                    font_size: 24.0,
+                    color: colors::BLACK,
+                    direction: TextDirection::HorizontalRightToLeft,
+                    ..Default::default()
+                },
+                Arrangement {
+                    offset: Offset { x: 100.0, y: 10.0 },
+                    scale: LayoutScale::default(),
+                },
+                ChildOf(v_container),
+            ));
+
+            println!("  └─ Vertical Container (gray, 200x300 @ 300,20)");
+            println!("     ├─ Vertical Label (black '縦書き\\nテスト' @ 10,10)");
+            println!("     └─ RTL Label (black 'RTL Test' @ 100,10)");
         }));
 
         // 10秒: Windowを削除（アプリ終了）

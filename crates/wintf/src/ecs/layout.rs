@@ -19,6 +19,13 @@ impl BoxStyle {
 #[derive(Component, Debug, Clone, PartialEq, Default)]
 pub struct BoxComputedLayout(pub Layout);
 
+/// テキストレイアウトの物理サイズ
+#[derive(Component, Debug, Clone, Copy, PartialEq, Default)]
+pub struct TextLayoutMetrics {
+    pub width: f32,  // Physical width (pixels)
+    pub height: f32, // Physical height (pixels)
+}
+
 /// オフセット（親からの相対位置）
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct Offset {
