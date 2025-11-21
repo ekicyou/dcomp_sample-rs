@@ -49,7 +49,7 @@ Arrangement拡張とバウンディングボックスシステム: ContentSize�
 
 5. The `Arrangement::default()`は、`size: Size { width: 0.0, height: 0.0 }`を返さなければならない（shall）。
 
-6. The wintfシステムは、`Arrangement`の`local_bounds()`メソッドを提供しなければならない（shall）。このメソッドは、`D2DRectExt::from_offset_size()`を使用して`offset`と`size`から軸平行バウンディングボックス（`D2D_RECT_F`）を計算する。
+6. The wintfシステムは、`Arrangement`の`local_bounds() -> Rect`メソッドを提供しなければならない（shall）。このメソッドは、`offset`と`size`から軸平行バウンディングボックス（`Rect`）を返す。
 
 7. When テストコードで`Arrangement`が構築される時、開発者は`size`フィールドを明示的に設定しなければならない（shall）。将来的にはtaffyレイアウトエンジンが`Arrangement.size`を設定する。
 
@@ -91,9 +91,7 @@ Arrangement拡張とバウンディングボックスシステム: ContentSize�
    }
    ```
 
-**Note:** 
-- 既存コードで`D2D_RECT_F`を直接使用している箇所（`Rectangle`の描画等）との互換性を保つため、型エイリアスと拡張トレイトのパターンを採用。これは既存の`Color`型（`D2D1_COLOR_F`の型エイリアス）と同じアプローチである。
-- `D2DRectExt::from_offset_size()`は、`ecs/layout`モジュールの`Size`と`Offset`型を参照する。**依存ルール例外**: `com`モジュールから`ecs`モジュールのComponent型（データ構造）の参照のみ許可。関数・システムの呼び出しは禁止。
+**Note:** 既存コードで`D2D_RECT_F`を直接使用している箇所との互換性を保つため、型エイリアスと拡張トレイトのパターンを採用。`D2DRectExt`は、`ecs/layout`モジュールの`Size`と`Offset`型を参照する（データ構造のみ、関数呼び出しなし）。
 
 ---
 
@@ -118,15 +116,13 @@ Arrangement拡張とバウンディングボックスシステム: ContentSize�
    b. `local_bounds`の左上と右下の2点を`transform`で変換
    c. 変換後の2点から新しい軸平行バウンディングボックス（`D2D_RECT_F`）を構築
 
-4. The wintfシステムは、`transform_rect_axis_aligned(rect: &D2D_RECT_F, matrix: &Matrix3x2) -> D2D_RECT_F`関数を提供しなければならない（shall）。この関数は、軸平行変換専用の最適化された矩形変換を実行する（2点変換のみ）。
-
-5. When 回転やスキュー変換が`transform`に含まれる場合、wintfシステムは警告ログを出力しなければならない（shall）。本システムは軸平行変換のみをサポートする。
+4. When 回転やスキュー変換が`transform`に含まれる場合、wintfシステムは警告ログを出力してもよい（may）。本システムは軸平行変換のみをサポートする。
 
 ---
 
 ### Requirement 4: バウンディングボックス計算（trait実装拡張）
 
-**Objective:** システム開発者として、既存の階層伝播システムを活用してバウンディングボックスを自動的に計算したい。これにより、常に最新の描画領域情報が得られる。
+**Objective:** システム開発者として、既存のtrait実装を拡張してバウンディングボックスを自動的に計算したい。これにより、階層伝播システムの変更なしに機能を追加できる。
 
 #### Acceptance Criteria
 
@@ -134,13 +130,13 @@ Arrangement拡張とバウンディングボックスシステム: ContentSize�
 
 2. When `parent * child`が計算される時、以下を実行しなければならない（shall）：
    a. `transform` = 親.transform × 子.Arrangement変換行列
-   b. `bounds` = transform_rect_axis_aligned（子.local_bounds(), 結果のtransform）
+   b. `bounds` = transform_rect_axis_aligned(子.local_bounds(), 結果のtransform)
 
 3. The `From<Arrangement>`実装は、初期`GlobalArrangement`の`bounds`を`Arrangement.local_bounds()`から設定しなければならない（shall）。
 
-4. The `transform_rect_axis_aligned`関数は、4点変換ではなく2点変換（左上と右下のみ）を使用しなければならない（shall）。軸平行変換では2点で十分である。
+4. The wintfシステムは、`transform_rect_axis_aligned(rect: &Rect, matrix: &Matrix3x2) -> Rect`ヘルパー関数を提供しなければならない（shall）。この関数は2点変換（左上と右下）で軸平行矩形を変換する。
 
-**Note**: 既存の`propagate_parent_transforms`システムは変更不要。`Mul` trait実装だけで自動的にbounds伝播が動作する。`ArrangementTreeChanged`マーカーによる変更検知最適化も既に機能している。
+**Note**: 既存の`propagate_parent_transforms`システムは**変更不要**。`Mul` trait実装の拡張だけで、階層全体にbounds伝播が自動的に動作する。
 
 ---
 
