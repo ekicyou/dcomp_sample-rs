@@ -32,11 +32,43 @@
 ### ECS Component Layer
 **Location**: `/crates/wintf/src/ecs/`  
 **Purpose**: ECSアーキテクチャのコンポーネント定義  
-**Contains**:
-- `window.rs` - ウィンドウ関連コンポーネント
-- `graphics.rs` - 描画関連コンポーネント
-- `layout.rs` - レイアウト計算コンポーネント
+**Structure**:
+- `common/` - 共通インフラ（階層伝播システム）
+- `layout/` - レイアウトシステム（taffy統合、配置計算）
+- `transform/` - 実験的変換（非推奨、WinUI3模倣）
+- `widget/` - UIウィジェット（Label、Rectangle等）
+- `window.rs` - ウィンドウ管理
+- `graphics.rs` - グラフィックスリソース
 - `world.rs` - ECS World / schedule管理
+
+#### ECS機能グループ詳細
+
+**1. Common Infrastructure** (`common/`)
+- 責務: ECS階層システムの汎用的な伝播ロジック
+- 代表的な関数: `sync_simple_transforms<L,G,M>()`, `propagate_parent_transforms<L,G,M>()`
+- 特徴: 完全ジェネリック化、`Arrangement`/`Transform`両対応
+
+**2. Window Management** (`window.rs`, `window_system.rs`, `window_proc.rs`)
+- 責務: Win32ウィンドウのライフサイクル管理とECS統合
+- 代表的なコンポーネント: `Window`, `WindowHandle`, `WindowPos`, `WindowStyle`, `ZOrder`
+- 特徴: HWNDとEntityの双方向マッピング、マルチスレッド対応
+
+**3. Graphics Resources** (`graphics.rs`, `graphics/`)
+- 責務: Direct2D/DirectCompositionリソースのライフサイクル管理
+- 代表的なコンポーネント: `GraphicsCore`, `WindowGraphics`, `Visual`, `Surface`, `DeviceContext`
+- 特徴: デバイスロスト対応、遅延初期化、階層的描画
+
+**4. Layout System** (`layout/`)
+- 責務: taffyレイアウトエンジン統合と配置計算
+- サブモジュール: `taffy.rs`, `metrics.rs`, `arrangement.rs`, `rect.rs`, `systems.rs`
+- 代表的なコンポーネント: `BoxStyle`, `Arrangement`, `GlobalArrangement`, `Size`, `Offset`
+- 特徴: 軸平行変換最適化、Common Infrastructure活用、Surface生成最適化
+
+**5. Transform** (`transform/`, **非推奨**)
+- 責務: WinUI3/WPF/XAML `RenderTransform`模倣（回転・スキュー対応）
+- 代表的なコンポーネント: `Transform`, `GlobalTransform`, `Translate`, `Scale`, `Rotate`, `Skew`
+- **非推奨理由**: taffyレイアウトエンジンとの統合不足、軸平行変換最適化が適用できない
+- **推奨代替**: `Arrangement`ベースのLayout System
 
 ### Message Handling
 **Location**: `/crates/wintf/src/`（ルート）  
