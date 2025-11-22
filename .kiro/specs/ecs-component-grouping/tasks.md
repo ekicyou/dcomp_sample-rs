@@ -97,25 +97,25 @@ ECSコンポーネントを5つの機能グループに再編成するリファ�
 ### Phase 3: Transform非推奨化
 
 - [ ] 3. Transform実験的コンポーネントの隔離と非推奨化
-- [ ] 3.1 (P) Transformサブフォルダの作成と移動
+- [x] 3.1 (P) Transformサブフォルダの作成と移動
   - `crates/wintf/src/ecs/transform/`ディレクトリを作成
   - 既存の`transform.rs`を`transform/components.rs`に改名移動
   - コンポーネント定義（`Translate`, `Scale`, `Rotate`, `Skew`, `Transform`, `GlobalTransform`等）をそのまま維持
   - _Requirements: 5_
 
-- [ ] 3.2 (P) Transform非推奨警告モジュールの作成
+- [x] 3.2 (P) Transform非推奨警告モジュールの作成
   - `ecs/transform/mod.rs`を作成
   - モジュールレベルdocコメント（`//!`）で非推奨警告とMigration Guideを記載
   - WinUI3模倣としての位置付けと`Arrangement`ベースレイアウトへの移行推奨を明記
   - `pub mod components;`および`pub use components::*;`で再エクスポート
   - _Requirements: 5_
 
-- [ ] 3.3 ルートモジュールでのTransform再エクスポート維持
+- [x] 3.3 ルートモジュールでのTransform再エクスポート維持
   - `ecs/mod.rs`で`mod transform;`を`pub mod transform;`に変更
   - `pub use transform::*;`を維持（API互換性のため）
   - _Requirements: 5, 9_
 
-- [ ] 3.4 Phase 3検証：Transform非推奨化の動作確認
+- [x] 3.4 Phase 3検証：Transform非推奨化の動作確認
   - `cargo check --all-targets`でコンパイル成功を確認
   - `cargo test`で全テスト成功を確認
   - `cargo doc`で非推奨警告が正しく表示されることを確認
