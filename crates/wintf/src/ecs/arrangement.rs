@@ -1,5 +1,5 @@
 use crate::ecs::layout::{Arrangement, ArrangementTreeChanged, GlobalArrangement};
-use crate::ecs::tree_system::{
+use crate::ecs::common::tree_system::{
     mark_dirty_trees, propagate_parent_transforms, sync_simple_transforms, NodeQuery, WorkQueue,
 };
 use bevy_ecs::hierarchy::{ChildOf, Children};

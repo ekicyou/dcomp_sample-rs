@@ -7,29 +7,29 @@ ECSコンポーネントを5つの機能グループに再編成するリファ�
 
 ### Phase 1: Common Infrastructure分離
 
-- [ ] 1. Common Infrastructureサブフォルダーの作成と汎用階層伝播システムの移動
-- [ ] 1.1 (P) 汎用階層伝播システムの配置準備
+- [x] 1. Common Infrastructureサブフォルダーの作成と汎用階層伝播システムの移動
+- [x] 1.1 (P) 汎用階層伝播システムの配置準備
   - `crates/wintf/src/ecs/common/`ディレクトリを作成
   - 既存の`tree_system.rs`を`ecs/common/tree_system.rs`に移動
   - _Requirements: 6_
 
-- [ ] 1.2 (P) Common Infrastructureモジュール定義の作成
+- [x] 1.2 (P) Common Infrastructureモジュール定義の作成
   - `ecs/common/mod.rs`を作成し、`tree_system`モジュールを宣言
   - `pub mod tree_system;`および`pub use tree_system::*;`で再エクスポート
   - _Requirements: 6_
 
-- [ ] 1.3 既存コードのインポートパス更新
+- [x] 1.3 既存コードのインポートパス更新
   - `arrangement.rs`のインポート文を`use crate::ecs::tree_system::*;`から`use crate::ecs::common::tree_system::*;`に変更
   - 他のモジュールで`tree_system`を使用している箇所があれば同様に更新
   - _Requirements: 6_
 
-- [ ] 1.4 ルートモジュールでのCommon Infrastructure再エクスポート
+- [x] 1.4 ルートモジュールでのCommon Infrastructure再エクスポート
   - `ecs/mod.rs`に`pub mod common;`を追加
   - `pub use common::tree_system::*;`で汎用関数を再エクスポート
   - API互換性を維持（外部利用者のコード変更不要）
   - _Requirements: 1, 6, 9_
 
-- [ ] 1.5 Phase 1検証：Common Infrastructure分離の動作確認
+- [x] 1.5 Phase 1検証：Common Infrastructure分離の動作確認
   - `cargo check --all-targets`でコンパイル成功を確認
   - `cargo test`で全テスト成功を確認
   - Gitコミット作成（"refactor: Common Infrastructureをecs/common/に分離"）
