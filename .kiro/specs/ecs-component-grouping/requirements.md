@@ -141,9 +141,9 @@ wintfライブラリのECSコンポーネントは、現在`crates/wintf/src/ecs
 #### Acceptance Criteria
 1. When コンポーネントがモジュール間で移動される時、wintfシステムは`ecs/mod.rs`の`pub use`による再エクスポートでAPI互換性を維持すること
 2. wintfシステムは、以下のフェーズごとにテストを実行し、成功することを確認すること:
-   - Phase 1完了後（Common Infrastructure分離）: `cargo check`, `cargo test`
-   - Phase 2完了後（Layout System統合）: `cargo check`, `cargo test`（4つのdoctest含む）
-   - Phase 3完了後（Transform非推奨化）: `cargo check`, `cargo test`
+   - Phase 1完了後（Common Infrastructure分離）: `cargo check --all-targets`, `cargo test`
+   - Phase 2完了後（Layout System統合）: `cargo check --all-targets`, `cargo test`（4つのdoctest含む）
+   - Phase 3完了後（Transform非推奨化）: `cargo check --all-targets`, `cargo test`
 3. wintfシステムは、最終的に以下の動作確認テストが成功すること:
    - `cargo test`: 全doctestおよび単体テストが成功
    - `cargo run --example areka`: サンプルアプリケーションが正常に起動・動作
