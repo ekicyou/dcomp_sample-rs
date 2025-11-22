@@ -1,0 +1,39 @@
+{
+    "feature_name": "ecs-component-grouping",
+    "created_at": "2025-11-22T00:00:00Z",
+    "updated_at": "2025-11-22T00:00:00Z",
+    "completed_at": "2025-11-22T00:00:00Z",
+    "language": "ja",
+    "phase": "completed",
+    "approvals": {
+        "requirements": {
+            "generated": true,
+            "approved": true
+        },
+        "design": {
+            "generated": true,
+            "approved": true
+        },
+        "tasks": {
+            "generated": true,
+            "approved": true
+        },
+        "implementation": {
+            "completed": true,
+            "validated": true,
+            "approved": true
+        }
+    },
+    "ready_for_implementation": true,
+    "implementation_summary": {
+        "tasks_completed": "23/23 (100%)",
+        "tests_passed": "93 unit tests + 4 doctests",
+        "commits": [
+            "c30c23e - Phase 1: Common Infrastructure分離",
+            "f4351d2 - Phase 2: Layout System統合",
+            "88c5348 - Phase 3: Transform非推奨化",
+            "439bf08 - Phase 4: ドキュメント更新"
+        ],
+        "validation_status": "GO - All requirements met"
+    }
+}
