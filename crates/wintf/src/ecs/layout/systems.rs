@@ -1,9 +1,10 @@
-use crate::ecs::layout::{Arrangement, ArrangementTreeChanged, GlobalArrangement};
 use crate::ecs::common::tree_system::{
     mark_dirty_trees, propagate_parent_transforms, sync_simple_transforms, NodeQuery, WorkQueue,
 };
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::*;
+
+use super::{Arrangement, ArrangementTreeChanged, GlobalArrangement};
 
 /// 階層に属していないEntity（ルートWindow）のGlobalArrangementを更新
 pub fn sync_simple_arrangements(

@@ -1,8 +1,7 @@
 mod app;
-mod arrangement;
 pub mod common;
 mod graphics;
-mod layout;
+pub mod layout;
 pub mod transform;
 pub mod widget;
 pub mod window;
@@ -11,7 +10,6 @@ mod window_system;
 pub mod world;
 
 pub use app::*;
-pub use arrangement::*;
 pub use bevy_ecs::hierarchy::{ChildOf, Children};
 pub use common::tree_system::*;
 pub use graphics::*;

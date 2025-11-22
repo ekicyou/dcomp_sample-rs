@@ -43,51 +43,51 @@ ECSコンポーネントを5つの機能グループに再編成するリファ�
   - 既存の`layout.rs`の内容を確認し、分割計画を立てる（taffy, metrics, arrangement, rect, systemsの5モジュール）
   - _Requirements: 4_
 
-- [ ] 2.2 (P) taffyレイアウトエンジン連携モジュールの抽出
+- [x] 2.2 (P) taffyレイアウトエンジン連携モジュールの抽出
   - `layout.rs`の行1-20周辺から`BoxStyle`, `BoxComputedLayout`定義を抽出
   - `layout/taffy.rs`を作成し、taffyクレートの`Style`, `Layout`をラップするコンポーネントを配置
   - bevy_ecsの`Component`トレイト実装を維持
   - _Requirements: 4_
 
-- [ ] 2.3 (P) レイアウトメトリクスモジュールの抽出
+- [x] 2.3 (P) レイアウトメトリクスモジュールの抽出
   - `layout.rs`の行30-80周辺から`Size`, `Offset`, `LayoutScale`, `TextLayoutMetrics`定義を抽出
   - `layout/metrics.rs`を作成し、レイアウトメトリクスコンポーネントを配置
   - `Size`構造体の使用例doctestを含める（1個）
   - _Requirements: 4_
 
-- [ ] 2.4 (P) 配置情報コンポーネントモジュールの抽出
+- [x] 2.4 (P) 配置情報コンポーネントモジュールの抽出
   - `layout.rs`の行260-400周辺から`Arrangement`, `GlobalArrangement`, `ArrangementTreeChanged`定義を抽出
   - `layout/arrangement.rs`を作成し、配置情報コンポーネントを配置
   - `GlobalArrangement`構造体の使用例doctestを含める（1個）
   - _Requirements: 4_
 
-- [ ] 2.5 (P) 矩形操作ユーティリティモジュールの抽出
+- [x] 2.5 (P) 矩形操作ユーティリティモジュールの抽出
   - `layout.rs`の行70-230周辺から`Rect`型エイリアス、`D2DRectExt`トレイト、`transform_rect_axis_aligned`関数を抽出
   - `layout/rect.rs`を作成し、矩形操作機能を配置
   - `D2DRectExt`トレイトのdoctest（1個）と`transform_rect_axis_aligned`関数のdoctest（1個）を含める
   - Direct2Dの`D2D_RECT_F`型へのトレイト実装を維持
   - _Requirements: 4_
 
-- [ ] 2.6 配置伝播システム関数の統合
+- [x] 2.6 配置伝播システム関数の統合
   - 既存の`arrangement.rs`（60行）の内容を`layout/systems.rs`に移動
   - `sync_simple_arrangements`, `mark_dirty_arrangement_trees`, `propagate_global_arrangements`システム関数を配置
   - `use crate::ecs::common::tree_system::*;`でCommon Infrastructureの汎用関数をインポート
   - _Requirements: 4, 6_
 
-- [ ] 2.7 Layout Systemモジュール定義の作成
+- [x] 2.7 Layout Systemモジュール定義の作成
   - `ecs/layout/mod.rs`を作成
   - 5つのサブモジュール（taffy, metrics, arrangement, rect, systems）を宣言
   - `pub use`で各サブモジュールの全型・関数を再エクスポート
   - _Requirements: 4_
 
-- [ ] 2.8 ルートモジュールでのLayout System統合
+- [x] 2.8 ルートモジュールでのLayout System統合
   - `ecs/mod.rs`から`mod arrangement;`および`pub use arrangement::*;`を削除
   - `pub mod layout;`を追加
   - `pub use layout::*;`で全Layout Systemコンポーネントを再エクスポート
   - API互換性を維持（`use wintf::ecs::*;`で従来通りアクセス可能）
   - _Requirements: 1, 4, 9_
 
-- [ ] 2.9 Phase 2検証：Layout System統合の動作確認
+- [x] 2.9 Phase 2検証：Layout System統合の動作確認
   - `cargo check --all-targets`でコンパイル成功を確認
   - `cargo test`で全テスト成功を確認（4つのdoctestを含む）
   - doctestの内訳検証：Size（1個）、D2DRectExt（1個）、transform_rect_axis_aligned（1個）、GlobalArrangement（1個）

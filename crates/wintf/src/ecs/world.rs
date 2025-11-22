@@ -193,9 +193,9 @@ impl EcsWorld {
             schedules.add_systems(
                 Draw,
                 (
-                    crate::ecs::arrangement::sync_simple_arrangements,
-                    crate::ecs::arrangement::mark_dirty_arrangement_trees,
-                    crate::ecs::arrangement::propagate_global_arrangements,
+                    crate::ecs::layout::sync_simple_arrangements,
+                    crate::ecs::layout::mark_dirty_arrangement_trees,
+                    crate::ecs::layout::propagate_global_arrangements,
                 )
                     .chain(),
             );
