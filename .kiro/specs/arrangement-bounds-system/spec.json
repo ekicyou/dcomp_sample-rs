@@ -3,7 +3,7 @@
     "created_at": "2025-11-21T00:00:00+09:00",
     "updated_at": "2025-11-22T00:00:00+09:00",
     "language": "ja",
-    "phase": "tasks-approved",
+    "phase": "approved",
     "approvals": {
         "requirements": {
             "generated": true,
@@ -19,7 +19,26 @@
             "generated": true,
             "approved": true,
             "approved_at": "2025-11-22T00:00:00+09:00"
+        },
+        "implementation": {
+            "completed": true,
+            "completed_at": "2025-11-22T00:00:00+09:00",
+            "approved": true,
+            "approved_at": "2025-11-22T00:00:00+09:00"
         }
     },
-    "ready_for_implementation": true
+    "ready_for_implementation": false,
+    "implementation_summary": {
+        "total_tasks": 18,
+        "completed_tasks": 18,
+        "test_results": {
+            "unit_tests": 21,
+            "integration_tests": 5,
+            "all_passed": true
+        },
+        "breaking_changes": {
+            "arrangement_size_field": "All 9 initializations in simple_window.rs updated",
+            "global_arrangement_structure": "Changed from tuple to named struct, all accesses fixed"
+        }
+    }
 }

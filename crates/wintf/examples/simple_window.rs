@@ -13,7 +13,7 @@ use wintf::ecs::widget::shapes::{colors, Rectangle};
 use wintf::ecs::widget::text::label::TextDirection;
 use wintf::ecs::widget::text::Label;
 use wintf::ecs::Window;
-use wintf::ecs::{Arrangement, LayoutScale, Offset};
+use wintf::ecs::{Arrangement, LayoutScale, Offset, Size};
 use wintf::ecs::{GraphicsCore, WindowHandle, WindowPos};
 use wintf::*;
 
@@ -66,6 +66,10 @@ fn main() -> Result<()> {
                     Arrangement {
                         offset: Offset { x: 20.0, y: 20.0 },
                         scale: LayoutScale::default(),
+                        size: Size {
+                            width: 200.0,
+                            height: 150.0,
+                        },
                     },
                     ChildOf(window_entity),
                 ))
@@ -82,6 +86,10 @@ fn main() -> Result<()> {
                     Arrangement {
                         offset: Offset { x: 10.0, y: 10.0 },
                         scale: LayoutScale::default(),
+                        size: Size {
+                            width: 80.0,
+                            height: 60.0,
+                        },
                     },
                     ChildOf(rect1),
                 ))
@@ -99,6 +107,7 @@ fn main() -> Result<()> {
                 Arrangement {
                     offset: Offset { x: 5.0, y: 5.0 },
                     scale: LayoutScale::default(),
+                    size: Size::default(),
                 },
                 ChildOf(rect1_1),
             ));
@@ -119,6 +128,10 @@ fn main() -> Result<()> {
                     Arrangement {
                         offset: Offset { x: 10.0, y: 80.0 },
                         scale: LayoutScale::default(),
+                        size: Size {
+                            width: 80.0,
+                            height: 60.0,
+                        },
                     },
                     ChildOf(rect1),
                 ))
@@ -140,6 +153,10 @@ fn main() -> Result<()> {
                     Arrangement {
                         offset: Offset { x: 10.0, y: 10.0 },
                         scale: LayoutScale::default(),
+                        size: Size {
+                            width: 60.0,
+                            height: 40.0,
+                        },
                     },
                     ChildOf(rect1_2),
                 ))
@@ -157,6 +174,7 @@ fn main() -> Result<()> {
                 Arrangement {
                     offset: Offset { x: 5.0, y: 5.0 },
                     scale: LayoutScale::default(),
+                    size: Size::default(),
                 },
                 ChildOf(rect1_2_1),
             ));
@@ -187,6 +205,10 @@ fn main() -> Result<()> {
                     Arrangement {
                         offset: Offset { x: 300.0, y: 20.0 },
                         scale: LayoutScale::default(),
+                        size: Size {
+                            width: 300.0,
+                            height: 200.0,
+                        },
                     },
                     ChildOf(window_entity),
                 ))
@@ -204,6 +226,7 @@ fn main() -> Result<()> {
                 Arrangement {
                     offset: Offset { x: 10.0, y: 10.0 },
                     scale: LayoutScale::default(),
+                    size: Size::default(),
                 },
                 ChildOf(v_container),
             ));
@@ -221,6 +244,7 @@ fn main() -> Result<()> {
                 Arrangement {
                     offset: Offset { x: 100.0, y: 10.0 },
                     scale: LayoutScale::default(),
+                    size: Size::default(),
                 },
                 ChildOf(v_container),
             ));

@@ -89,7 +89,7 @@ fn draw_recursive(
     // Draw current entity
     if let Ok((global_arr, cmd_list)) = widgets.get(entity) {
         if let Some(arr) = global_arr {
-            dc.set_transform(&arr.0);
+            dc.set_transform(&arr.transform);
         }
         if let Some(list) = cmd_list {
             if let Some(command_list) = list.command_list() {
