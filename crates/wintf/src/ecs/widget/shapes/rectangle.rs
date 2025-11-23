@@ -1,6 +1,6 @@
 use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt};
 use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore};
-use crate::ecs::layout::Arrangement;
+use crate::ecs::layout::{Arrangement, GlobalArrangement};
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::*;
 use windows::Win32::Graphics::Direct2D::Common::{D2D1_COLOR_F, D2D_RECT_F};
@@ -85,7 +85,7 @@ fn on_rectangle_remove(
 pub fn draw_rectangles(
     mut commands: Commands,
     query: Query<
-        (Entity, &Rectangle, &Arrangement),
+        (Entity, &Rectangle, &Arrangement, Option<&GlobalArrangement>),
         (
             Or<(Changed<Rectangle>, Changed<Arrangement>)>,
             Without<GraphicsCommandList>,
@@ -98,16 +98,24 @@ pub fn draw_rectangles(
         return;
     };
 
-    for (entity, rectangle, arrangement) in query.iter() {
+    for (entity, rectangle, arrangement, global_arrangement) in query.iter() {
         eprintln!("[draw_rectangles] Entity={:?}", entity);
         eprintln!(
-            "[draw_rectangles] Rectangle: width={}, height={}, color=({},{},{},{})",
+            "[draw_rectangles] Arrangement: offset=({}, {}), size=({}, {})",
+            arrangement.offset.x,
+            arrangement.offset.y,
             arrangement.size.width,
-            arrangement.size.height,
-            rectangle.color.r,
-            rectangle.color.g,
-            rectangle.color.b,
-            rectangle.color.a
+            arrangement.size.height
+        );
+        if let Some(global) = global_arrangement {
+            eprintln!(
+                "[draw_rectangles] GlobalArrangement: bounds=({}, {}, {}, {})",
+                global.bounds.left, global.bounds.top, global.bounds.right, global.bounds.bottom
+            );
+        }
+        eprintln!(
+            "[draw_rectangles] Rectangle color=({},{},{},{})",
+            rectangle.color.r, rectangle.color.g, rectangle.color.b, rectangle.color.a
         );
 
         // DeviceContextとCommandList生成

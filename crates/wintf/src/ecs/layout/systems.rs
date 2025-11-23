@@ -1,5 +1,5 @@
 use crate::ecs::common::tree_system::{
-    propagate_parent_transforms, sync_simple_transforms, NodeQuery, WorkQueue,
+    mark_dirty_trees, propagate_parent_transforms, sync_simple_transforms, NodeQuery, WorkQueue,
 };
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::*;
@@ -34,10 +34,6 @@ pub fn sync_simple_arrangements(
 }
 
 /// 「ダーティビット」を階層の祖先に向かって伝播
-///
-/// Note: オリジナルのmark_dirty_treesは「既にis_changed状態なら処理済み」としてbreakするが、
-/// Bevyの変更検知は前回tickから持続するため、update_arrangements_systemで手動set_changed()を
-/// 呼ぶケースでは誤動作する。そのため、このラッパーではis_changedチェックを削除している。
 pub fn mark_dirty_arrangement_trees(
     changed: Query<
         Entity,
@@ -47,22 +43,12 @@ pub fn mark_dirty_arrangement_trees(
             Added<GlobalArrangement>,
         )>,
     >,
-    mut orphaned: RemovedComponents<ChildOf>,
-    mut transforms: Query<(Option<&ChildOf>, &mut ArrangementTreeChanged)>,
+    orphaned: RemovedComponents<ChildOf>,
+    transforms: Query<(Option<&ChildOf>, &mut ArrangementTreeChanged)>,
 ) {
-    // 前回tickからis_changed状態が持続している場合でも伝播を継続する
-    // (同一tick内での重複処理は、小規模な階層では問題にならない)
-    for entity in changed.iter().chain(orphaned.read()) {
-        let mut next = entity;
-        while let Ok((child_of, mut tree)) = transforms.get_mut(next) {
-            tree.set_changed();
-            if let Some(parent) = child_of.map(|c| c.0) {
-                next = parent;
-            } else {
-                break;
-            }
-        }
-    }
+    mark_dirty_trees::<Arrangement, GlobalArrangement, ArrangementTreeChanged>(
+        changed, orphaned, transforms,
+    );
 }
 
 /// 親から子へGlobalArrangementを伝播
@@ -74,6 +60,20 @@ pub fn propagate_global_arrangements(
     >,
     nodes: NodeQuery<Arrangement, GlobalArrangement, ArrangementTreeChanged>,
 ) {
+    // デバッグログ: ルートエンティティの情報
+    for (entity, arr, global, _) in roots.iter() {
+        eprintln!(
+            "[propagate_global_arrangements] Root Entity={:?}, Arrangement: offset=({}, {}), scale=({}, {})",
+            entity, arr.offset.x, arr.offset.y, arr.scale.x, arr.scale.y
+        );
+        eprintln!(
+            "[propagate_global_arrangements] Root Entity={:?}, GlobalArrangement: transform=[{},{},{},{}],bounds=({},{},{},{})",
+            entity, 
+            global.transform.M11, global.transform.M12, global.transform.M31, global.transform.M32,
+            global.bounds.left, global.bounds.top, global.bounds.right, global.bounds.bottom
+        );
+    }
+    
     propagate_parent_transforms::<Arrangement, GlobalArrangement, ArrangementTreeChanged>(
         queue, roots, nodes,
     );
@@ -361,16 +361,11 @@ pub fn compute_taffy_layout_system(
 pub fn update_arrangements_system(
     mut commands: Commands,
     mut query: Query<
-        (
-            Entity,
-            &TaffyComputedLayout,
-            Option<&mut Arrangement>,
-            Option<&mut ArrangementTreeChanged>,
-        ),
+        (Entity, &TaffyComputedLayout, Option<&mut Arrangement>),
         (Changed<TaffyComputedLayout>, With<TaffyStyle>),
     >,
 ) {
-    for (entity, computed_layout, arrangement, tree_changed) in query.iter_mut() {
+    for (entity, computed_layout, arrangement) in query.iter_mut() {
         let layout = &computed_layout.0;
 
         let new_arrangement = Arrangement {
@@ -385,22 +380,24 @@ pub fn update_arrangements_system(
             },
         };
 
+        eprintln!(
+            "[update_arrangements] Entity={:?}, TaffyLayout: location=({}, {}), size=({}, {})",
+            entity, layout.location.x, layout.location.y, layout.size.width, layout.size.height
+        );
+        eprintln!(
+            "[update_arrangements] Entity={:?}, Arrangement: offset=({}, {}), scale=({}, {})",
+            entity, new_arrangement.offset.x, new_arrangement.offset.y, new_arrangement.scale.x, new_arrangement.scale.y
+        );
+
         if let Some(mut arr) = arrangement {
             // 値比較で変更検知を抑制
             if *arr != new_arrangement {
                 *arr = new_arrangement;
-                // ArrangementTreeChangedを直接set_changed()
-                if let Some(mut tree) = tree_changed {
-                    tree.set_changed();
-                } else {
-                    // ArrangementTreeChangedがない場合のみCommandsで挿入
-                    commands.entity(entity).insert(ArrangementTreeChanged);
-                }
+                // Arrangementの変更でChanged<Arrangement>が検知される
+                // ArrangementTreeChangedはmark_dirty_arrangement_treesで適切に処理される
             }
         } else {
-            commands
-                .entity(entity)
-                .insert((new_arrangement, ArrangementTreeChanged));
+            commands.entity(entity).insert(new_arrangement);
         }
     }
 }

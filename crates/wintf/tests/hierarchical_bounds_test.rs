@@ -19,13 +19,14 @@ fn test_hierarchical_bounds_calculation() {
     };
     let parent_global: GlobalArrangement = parent_arr.into();
 
-    // 親のbounds検証（ローカル座標系そのまま）
-    // offset: (10, 20), size: (100, 50)
-    // bounds: left=10, top=20, right=110, bottom=70
-    assert_eq!(parent_global.bounds.left, 10.0);
-    assert_eq!(parent_global.bounds.top, 20.0);
-    assert_eq!(parent_global.bounds.right, 110.0);
-    assert_eq!(parent_global.bounds.bottom, 70.0);
+    // 親のbounds検証
+    // local_bounds = (0,0,100,50) ← 原点基準
+    // transform = scale(2,2) + translate(20,40) (scaleされたoffset: 10*2=20, 20*2=40)
+    // bounds = (0,0,100,50) * scale(2,2) + translate(20,40) = (20,40,220,140)
+    assert_eq!(parent_global.bounds.left, 20.0);
+    assert_eq!(parent_global.bounds.top, 40.0);
+    assert_eq!(parent_global.bounds.right, 220.0);
+    assert_eq!(parent_global.bounds.bottom, 140.0);
 
     // 子ウィジェット（レベル1）
     // Position: (5, 10), Scale: (1.0, 1.0), Size: (30, 20)
@@ -65,15 +66,15 @@ fn test_hierarchical_bounds_calculation() {
     let grandchild_global = child_global * grandchild_arr;
 
     // 孫のbounds検証（親と子の累積変換適用後）
-    // child_transform: scale(2,2), translation(15,30)
+    // child_transform: scale(2,2), translation(25,50)
     // grandchild: offset(2,3), scale(1.5,1.5), size(10,8)
-    // grandchild.local_bounds(): (2, 3, 12, 11)
-    // result_transform: scale(3,3), translation(24.5,48)
-    // transformed bounds: (30.5, 57, 60.5, 81)
-    assert_eq!(grandchild_global.bounds.left, 30.5);
-    assert_eq!(grandchild_global.bounds.top, 57.0);
-    assert_eq!(grandchild_global.bounds.right, 60.5);
-    assert_eq!(grandchild_global.bounds.bottom, 81.0);
+    // grandchild.local_bounds(): (0, 0, 10, 8)
+    // result_transform: scale(3,3), translation(40.5,79.5)
+    // transformed bounds: (40.5, 79.5, 70.5, 103.5)
+    assert_eq!(grandchild_global.bounds.left, 40.5);
+    assert_eq!(grandchild_global.bounds.top, 79.5);
+    assert_eq!(grandchild_global.bounds.right, 70.5);
+    assert_eq!(grandchild_global.bounds.bottom, 103.5);
 }
 
 /// From<Arrangement>実装が正しくboundsを設定することを確認
@@ -132,12 +133,12 @@ fn test_global_arrangement_mul_arrangement() {
     assert_eq!(child_global.transform.M32, 25.0);
 
     // bounds: child.local_bounds() transformed by result_transform
-    // child.local_bounds(): left=5, top=10, right=15, bottom=20
-    // transformed: left=5+15=20, top=10+25=35, right=15+15=30, bottom=20+25=45
-    assert_eq!(child_global.bounds.left, 20.0);
-    assert_eq!(child_global.bounds.top, 35.0);
-    assert_eq!(child_global.bounds.right, 30.0);
-    assert_eq!(child_global.bounds.bottom, 45.0);
+    // child.local_bounds(): (0, 0, 10, 10) - 原点基準
+    // transformed: (15, 25, 25, 35)
+    assert_eq!(child_global.bounds.left, 15.0);
+    assert_eq!(child_global.bounds.top, 25.0);
+    assert_eq!(child_global.bounds.right, 25.0);
+    assert_eq!(child_global.bounds.bottom, 35.0);
 }
 
 /// スケール変換のみのテスト
@@ -166,12 +167,13 @@ fn test_scale_only_transformation() {
 
     // 子のローカル: offset(5, 10), size(10, 10)
     // 親のscale(3.0, 2.0), offset(0, 0)
-    // child.local_bounds(): (5, 10, 15, 20)
-    // transformed: (20, 30, 50, 50)
-    assert_eq!(child_global.bounds.left, 20.0);
-    assert_eq!(child_global.bounds.top, 30.0);
-    assert_eq!(child_global.bounds.right, 50.0);
-    assert_eq!(child_global.bounds.bottom, 50.0);
+    // child.local_bounds(): (0, 0, 10, 10) - 原点基準
+    // result_transform: scale(3,2), translation(5*3, 10*2) = (15, 20)
+    // transformed: (5, 10, 35, 30)
+    assert_eq!(child_global.bounds.left, 5.0);
+    assert_eq!(child_global.bounds.top, 10.0);
+    assert_eq!(child_global.bounds.right, 35.0);
+    assert_eq!(child_global.bounds.bottom, 30.0);
 }
 
 /// 複雑なスケール階層のテスト
@@ -199,11 +201,12 @@ fn test_complex_scale_hierarchy() {
     };
     let level1_global = root_global * level1;
 
-    // レベル1のbounds: (40, 40, 190, 190)
-    assert_eq!(level1_global.bounds.left, 40.0);
-    assert_eq!(level1_global.bounds.top, 40.0);
-    assert_eq!(level1_global.bounds.right, 190.0);
-    assert_eq!(level1_global.bounds.bottom, 190.0);
+    // レベル1のbounds: local_bounds(0,0,50,50) transformed by scale(3,3), translation(15,15)
+    // transformed: (15, 15, 165, 165)
+    assert_eq!(level1_global.bounds.left, 15.0);
+    assert_eq!(level1_global.bounds.top, 15.0);
+    assert_eq!(level1_global.bounds.right, 165.0);
+    assert_eq!(level1_global.bounds.bottom, 165.0);
 
     // レベル2: offset(5, 5), scale(1.0, 1.0), size(10, 10)
     let level2 = Arrangement {
@@ -216,9 +219,10 @@ fn test_complex_scale_hierarchy() {
     };
     let level2_global = level1_global * level2;
 
-    // レベル2のbounds: (30, 30, 60, 60)
-    assert_eq!(level2_global.bounds.left, 30.0);
-    assert_eq!(level2_global.bounds.top, 30.0);
-    assert_eq!(level2_global.bounds.right, 60.0);
-    assert_eq!(level2_global.bounds.bottom, 60.0);
+    // レベル2のbounds: local_bounds(0,0,10,10) transformed by scale(3,3), translation(20,20)
+    // transformed: (20, 20, 50, 50)
+    assert_eq!(level2_global.bounds.left, 20.0);
+    assert_eq!(level2_global.bounds.top, 20.0);
+    assert_eq!(level2_global.bounds.right, 50.0);
+    assert_eq!(level2_global.bounds.bottom, 50.0);
 }
