@@ -61,7 +61,7 @@
 **4. Layout System** (`layout/`)
 - 責務: taffyレイアウトエンジン統合と配置計算
 - サブモジュール: `taffy.rs`, `metrics.rs`, `arrangement.rs`, `rect.rs`, `systems.rs`
-- 代表的なコンポーネント: `BoxStyle`, `Arrangement`, `GlobalArrangement`, `Size`, `Offset`
+- 代表的なコンポーネント: `TaffyStyle`, `TaffyComputedLayout`, `Arrangement`, `GlobalArrangement`, `Size`, `Offset`
 - 特徴: 軸平行変換最適化、Common Infrastructure活用、Surface生成最適化
 
 **5. Transform** (`transform/`, **非推奨**)

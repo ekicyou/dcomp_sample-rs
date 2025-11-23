@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use windows_numerics::Matrix3x2;
 
-use super::{transform_rect_axis_aligned, D2DRectExt, LayoutScale, Offset, Rect, Size};
+use super::{transform_rect_axis_aligned, D2DRect, D2DRectExt, LayoutScale, Offset, Size};
 
 /// ローカルレイアウト配置（親からの相対位置とサイズ）
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
@@ -14,8 +14,8 @@ pub struct Arrangement {
 
 impl Arrangement {
     /// ローカル座標系でのバウンディングボックスを返す
-    pub fn local_bounds(&self) -> Rect {
-        Rect::from_offset_size(self.offset, self.size)
+    pub fn local_bounds(&self) -> D2DRect {
+        D2DRect::from_offset_size(self.offset, self.size)
     }
 }
 
@@ -67,7 +67,7 @@ fn on_arrangement_add(
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct GlobalArrangement {
     pub transform: Matrix3x2,
-    pub bounds: Rect,
+    pub bounds: D2DRect,
 }
 
 impl Default for GlobalArrangement {

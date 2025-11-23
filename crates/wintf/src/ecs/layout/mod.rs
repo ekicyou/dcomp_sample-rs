@@ -4,7 +4,7 @@
 //!
 //! ## サブモジュール構成
 //!
-//! - **`taffy`**: taffyエンジン連携 (`BoxStyle`, `BoxComputedLayout`)
+//! - **`taffy`**: taffyエンジン連携 (`TaffyStyle`, `TaffyComputedLayout`)
 //! - **`metrics`**: レイアウトメトリクス (`Size`, `Offset`, `LayoutScale`, `TextLayoutMetrics`)
 //! - **`arrangement`**: 配置情報コンポーネント (`Arrangement`, `GlobalArrangement`, `ArrangementTreeChanged`)
 //! - **`rect`**: 矩形操作ユーティリティ (`Rect`, `D2DRectExt`, `transform_rect_axis_aligned`)
@@ -34,20 +34,21 @@
 //!
 //! ## taffyレイアウトエンジン統合
 //!
-//! `BoxStyle`でflexboxレイアウトを宣言的に記述できます：
+//! `TaffyStyle`でflexboxレイアウトを宣言的に記述できます：
 //!
 //! ```rust,ignore
 //! use wintf::ecs::*;
 //! use taffy::prelude::*;
 //!
 //! commands.spawn((
-//!     BoxStyle(Style {
+//!     TaffyStyle::new(Style {
 //!         size: Size { width: length(200.0), height: length(100.0) },
 //!         padding: Rect { left: length(10.0), right: length(10.0), top: length(5.0), bottom: length(5.0) },
 //!         ..Default::default()
 //!     }),
-//!     BoxComputedLayout::default(), // taffyが自動計算
+//!     TaffyComputedLayout::default(), // taffyが自動計算
 //! ));
+//! ```
 //! ```
 //!
 //! ## 軸平行変換最適化
@@ -68,6 +69,7 @@
 
 // Layout System サブモジュール
 pub mod arrangement;
+pub mod high_level;
 pub mod metrics;
 pub mod rect;
 pub mod systems;
@@ -75,7 +77,8 @@ pub mod taffy;
 
 // 公開API
 pub use arrangement::*;
+pub use high_level::*;
 pub use metrics::*;
-pub use rect::*;
+pub use rect::*; // D2DRect, D2DRectExt, transform_rect_axis_aligned
 pub use systems::*;
 pub use taffy::*;

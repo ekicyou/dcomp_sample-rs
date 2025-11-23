@@ -4,7 +4,7 @@ use windows_numerics::{Matrix3x2, Vector2};
 use super::{Offset, Size};
 
 /// D2D_RECT_Fの型エイリアス
-pub type Rect = D2D_RECT_F;
+pub type D2DRect = D2D_RECT_F;
 
 /// D2D_RECT_Fに対する拡張トレイト
 ///
@@ -17,9 +17,9 @@ pub type Rect = D2D_RECT_F;
 ///
 /// # 使用例
 /// ```
-/// use wintf::ecs::{Rect, D2DRectExt, Offset, Size};
+/// use wintf::ecs::{D2DRect, D2DRectExt, Offset, Size};
 ///
-/// let rect = Rect::from_offset_size(
+/// let rect = D2DRect::from_offset_size(
 ///     Offset { x: 10.0, y: 20.0 },
 ///     Size { width: 100.0, height: 50.0 }
 /// );
@@ -180,16 +180,16 @@ impl D2DRectExt for D2D_RECT_F {
 ///
 /// # 使用例
 /// ```
-/// use wintf::ecs::{transform_rect_axis_aligned, Rect};
+/// use wintf::ecs::{transform_rect_axis_aligned, D2DRect};
 /// use windows_numerics::Matrix3x2;
 ///
-/// let rect = Rect { left: 0.0, top: 0.0, right: 10.0, bottom: 10.0 };
+/// let rect = D2DRect { left: 0.0, top: 0.0, right: 10.0, bottom: 10.0 };
 /// let matrix = Matrix3x2::translation(5.0, 5.0);
 /// let transformed = transform_rect_axis_aligned(&rect, &matrix);
 /// assert_eq!(transformed.left, 5.0);
 /// assert_eq!(transformed.top, 5.0);
 /// ```
-pub fn transform_rect_axis_aligned(rect: &Rect, matrix: &Matrix3x2) -> Rect {
+pub fn transform_rect_axis_aligned(rect: &D2DRect, matrix: &Matrix3x2) -> D2DRect {
     // 左上と右下の2点を変換
     // Matrix3x2での点変換: x' = M11*x + M21*y + M31, y' = M12*x + M22*y + M32
     let top_left_x = matrix.M11 * rect.left + matrix.M21 * rect.top + matrix.M31;

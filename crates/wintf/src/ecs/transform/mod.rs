@@ -15,7 +15,7 @@
 //! **`Arrangement`ベースのレイアウトシステム**を使用してください。
 //!
 //! ## Arrangementの利点
-//! - **taffyレイアウトエンジン統合**: `BoxStyle`で宣言的レイアウトを記述し、自動計算されます。
+//! - **taffyレイアウトエンジン統合**: `TaffyStyle`で宣言的レイアウトを記述し、自動計算されます。
 //! - **軸平行変換最適化**: 平行移動とスケールのみをサポートし、O(2)の高速変換を実現します。
 //! - **階層伝播システム**: `GlobalArrangement`で親からの累積変換が自動的に伝播されます。
 //! - **Surface生成最適化**: バウンディングボックス集約により最小限のSurfaceサイズを計算します。
@@ -53,12 +53,12 @@
 //! use taffy::prelude::*;
 //!
 //! commands.spawn((
-//!     BoxStyle(Style {
+//!     TaffyStyle::new(Style {
 //!         size: Size { width: length(200.0), height: length(100.0) },
 //!         padding: Rect { left: length(10.0), right: length(10.0), top: length(5.0), bottom: length(5.0) },
 //!         ..Default::default()
 //!     }),
-//!     BoxComputedLayout::default(), // taffyが自動計算
+//!     TaffyComputedLayout::default(), // taffyが自動計算
 //! ));
 //! ```
 //!

@@ -7,22 +7,22 @@
 
 ## Task List
 
-- [ ] 1. コンポーネント名称変更とラッパー実装
-- [ ] 1.1 (P) BoxStyleをTaffyStyleに名称変更
+- [x] 1. コンポーネント名称変更とラッパー実装
+- [x] 1.1 (P) BoxStyleをTaffyStyleに名称変更
   - 既存の`BoxStyle`定義を`TaffyStyle`に一括置換
   - `#[repr(transparent)]`属性を保持し、`taffy::Style`をラップ
   - `Default`、`Clone`、`Debug`、`PartialEq`トレイトを実装
   - `pub(crate)`で内部フィールドを保護し、公開APIには直接露出しない
   - _Requirements: 1, 2_
 
-- [ ] 1.2 (P) BoxComputedLayoutをTaffyComputedLayoutに名称変更
+- [x] 1.2 (P) BoxComputedLayoutをTaffyComputedLayoutに名称変更
   - 既存の`BoxComputedLayout`定義を`TaffyComputedLayout`に一括置換
   - `#[repr(transparent)]`属性を保持し、`taffy::Layout`をラップ
   - `Default`、`Clone`、`Debug`、`PartialEq`、`Copy`トレイトを実装
   - レイアウト計算結果（x, y, width, height）を読み取り専用で保持
   - _Requirements: 1, 4_
 
-- [ ] 1.3 既存テストの実行と検証
+- [x] 1.3 既存テストの実行と検証
   - 名称変更後に`cargo test`を実行し、すべてのテストが通ることを確認
   - テスト失敗時はロールバックトリガーとして名称変更を見直す
   - 既存のECSコンポーネント機能が維持されていることを検証
