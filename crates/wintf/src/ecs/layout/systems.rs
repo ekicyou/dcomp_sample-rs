@@ -193,9 +193,7 @@ pub fn sync_taffy_tree_system(
             if let Some(parent_ref) = child_of {
                 let parent_entity = parent_ref.parent();
                 if let Some(parent_node) = taffy_res.get_node(parent_entity) {
-                    // 既存の親から削除（エラーは無視）
-                    let _ = taffy_res.taffy_mut().remove_child(parent_node, node_id);
-                    // 新しい親に追加
+                    // 新しい親に追加（taffyが自動的に既存の親から削除する）
                     let _ = taffy_res.taffy_mut().add_child(parent_node, node_id);
                 }
             }
