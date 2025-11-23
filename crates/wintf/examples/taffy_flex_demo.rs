@@ -8,7 +8,7 @@ use std::time::Duration;
 use windows::core::Result;
 use windows::Win32::Foundation::{POINT, SIZE};
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
-use wintf::ecs::layout::{BoxSize, Dimension, FlexContainer, FlexItem};
+use wintf::ecs::layout::{BoxSize, Dimension, FlexContainer, FlexItem, LayoutRoot};
 use wintf::ecs::widget::shapes::Rectangle;
 use wintf::ecs::Window;
 use wintf::ecs::WindowPos;
@@ -19,6 +19,22 @@ type WorldCommand = Box<dyn FnOnce(&mut World) + Send>;
 
 #[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
 pub struct FlexDemoWindow;
+
+/// Flexコンテナを識別するマーカー
+#[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
+pub struct FlexDemoContainer;
+
+/// 赤い矩形（固定サイズ）を識別するマーカー
+#[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
+pub struct RedBox;
+
+/// 緑の矩形（grow=1）を識別するマーカー
+#[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
+pub struct GreenBox;
+
+/// 青い矩形（grow=2）を識別するマーカー
+#[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
+pub struct BlueBox;
 
 fn main() -> Result<()> {
     human_panic::setup_panic!();
@@ -38,6 +54,11 @@ fn main() -> Result<()> {
             let window_entity = world
                 .spawn((
                     FlexDemoWindow,
+                    LayoutRoot, // Taffyレイアウト計算のルートマーカー
+                    BoxSize {
+                        width: Some(Dimension::Px(800.0)),
+                        height: Some(Dimension::Px(600.0)),
+                    },
                     Window {
                         title: "wintf - Taffy Flexbox Demo".to_string(),
                         ..Default::default()
@@ -53,6 +74,7 @@ fn main() -> Result<()> {
             // Flexコンテナ（横並び）
             let flex_container = world
                 .spawn((
+                    FlexDemoContainer, // マーカー追加
                     FlexContainer {
                         direction: taffy::FlexDirection::Row,
                         justify_content: Some(taffy::JustifyContent::SpaceEvenly),
@@ -68,9 +90,8 @@ fn main() -> Result<()> {
 
             // Flexアイテム1（赤、固定200px幅）
             world.spawn((
+                RedBox, // マーカー追加
                 Rectangle {
-                    width: 200.0,
-                    height: 150.0,
                     color: D2D1_COLOR_F {
                         r: 1.0,
                         g: 0.0,
@@ -91,11 +112,10 @@ fn main() -> Result<()> {
                 ChildOf(flex_container),
             ));
 
-            // Flexアイテム2（緑、growで残りスペースの1/3）
+            // Flexアイテム2（緑、growで伸縮）
             world.spawn((
+                GreenBox, // マーカー追加
                 Rectangle {
-                    width: 100.0,
-                    height: 200.0,
                     color: D2D1_COLOR_F {
                         r: 0.0,
                         g: 1.0,
@@ -116,11 +136,10 @@ fn main() -> Result<()> {
                 ChildOf(flex_container),
             ));
 
-            // Flexアイテム3（青、growで残りスペースの2/3）
+            // Flexアイテム3（青、growで伸縮、より大きなgrow値）
             world.spawn((
+                BlueBox, // マーカー追加
                 Rectangle {
-                    width: 100.0,
-                    height: 100.0,
                     color: D2D1_COLOR_F {
                         r: 0.0,
                         g: 0.0,
@@ -149,8 +168,50 @@ fn main() -> Result<()> {
             println!("     └─ Rectangle (blue, grow=2)");
         }));
 
+        // 5秒後にレイアウトパラメーターを変更
+        thread::sleep(Duration::from_secs(5));
+        println!("[Timer Thread] 5s: Changing layout parameters");
+        let _ = tx.send(Box::new(|world: &mut World| {
+            // FlexContainerを縦並びに変更
+            let mut container_query =
+                world.query_filtered::<&mut FlexContainer, With<FlexDemoContainer>>();
+            if let Some(mut flex_container) = container_query.iter_mut(world).next() {
+                flex_container.direction = taffy::FlexDirection::Column;
+                flex_container.justify_content = Some(taffy::JustifyContent::SpaceAround);
+                println!("[Test] FlexContainer direction changed to Column");
+            }
+
+            // 赤い矩形のサイズを変更
+            let mut red_query = world.query_filtered::<&mut BoxSize, With<RedBox>>();
+            if let Some(mut box_size) = red_query.iter_mut(world).next() {
+                box_size.width = Some(Dimension::Px(300.0)); // 200 → 300
+                box_size.height = Some(Dimension::Px(100.0)); // 150 → 100
+                println!("[Test] RedBox size changed to 300x100");
+            }
+
+            // 緑の矩形のgrowを変更
+            let mut green_query = world.query_filtered::<&mut FlexItem, With<GreenBox>>();
+            if let Some(mut flex_item) = green_query.iter_mut(world).next() {
+                flex_item.grow = 2.0; // 1.0 → 2.0
+                println!("[Test] GreenBox grow changed to 2.0");
+            }
+
+            // 青い矩形のgrowを変更
+            let mut blue_query = world.query_filtered::<&mut FlexItem, With<BlueBox>>();
+            if let Some(mut flex_item) = blue_query.iter_mut(world).next() {
+                flex_item.grow = 1.0; // 2.0 → 1.0
+                println!("[Test] BlueBox grow changed to 1.0");
+            }
+
+            println!("[Test] Layout parameters changed:");
+            println!("  FlexContainer: Row → Column, SpaceEvenly → SpaceAround");
+            println!("  RedBox: 200x150 → 300x100");
+            println!("  GreenBox: grow 1.0 → 2.0");
+            println!("  BlueBox: grow 2.0 → 1.0");
+        }));
+
         // 10秒後にウィンドウを閉じる
-        thread::sleep(Duration::from_secs(10));
+        thread::sleep(Duration::from_secs(5));
         println!("[Timer Thread] 10s: Closing window");
         let _ = tx.send(Box::new(|world: &mut World| {
             let mut query = world.query_filtered::<Entity, With<FlexDemoWindow>>();
@@ -180,7 +241,8 @@ fn main() -> Result<()> {
     println!("  3. 赤い矩形 (固定200px幅)");
     println!("  4. 緑の矩形 (grow=1.0、残りスペースの1/3)");
     println!("  5. 青い矩形 (grow=2.0、残りスペースの2/3)");
-    println!("\n10秒後に自動的にWindowを閉じてアプリ終了します。");
+    println!("\n5秒後にレイアウトパラメーターを変更します。");
+    println!("10秒後に自動的にWindowを閉じてアプリ終了します。");
 
     // メッセージループを開始
     mgr.run()?;

@@ -31,8 +31,6 @@ pub struct TaffyLayoutResource {
     entity_to_node: HashMap<Entity, NodeId>,
     /// NodeId → Entity マッピング（逆引き用）
     node_to_entity: HashMap<NodeId, Entity>,
-    /// 初回レイアウト完了フラグ
-    first_layout_done: bool,
 }
 
 // TaffyTreeは内部的に*const ()を持つが、ECSのリソース管理により
@@ -46,7 +44,6 @@ impl Default for TaffyLayoutResource {
             tree: TaffyTree::new(),
             entity_to_node: HashMap::new(),
             node_to_entity: HashMap::new(),
-            first_layout_done: false,
         }
     }
 }
@@ -87,16 +84,6 @@ impl TaffyLayoutResource {
     /// Taffyツリーへの可変参照を取得
     pub fn taffy_mut(&mut self) -> &mut TaffyTree<()> {
         &mut self.tree
-    }
-
-    /// 初回レイアウト完了フラグを取得
-    pub fn first_layout_done(&self) -> bool {
-        self.first_layout_done
-    }
-
-    /// 初回レイアウト完了フラグを設定
-    pub fn set_first_layout_done(&mut self, done: bool) {
-        self.first_layout_done = done;
     }
 
     /// マッピングの整合性を検証（デバッグ用）

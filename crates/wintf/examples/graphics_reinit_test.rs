@@ -51,8 +51,6 @@ fn main() -> Result<()> {
                     ..Default::default()
                 },
                 Rectangle {
-                    width: 200.0,
-                    height: 150.0,
                     color: colors::RED,
                 },
             ));
@@ -68,8 +66,6 @@ fn main() -> Result<()> {
                     ..Default::default()
                 },
                 Rectangle {
-                    width: 200.0,
-                    height: 150.0,
                     color: colors::BLUE,
                 },
             ));

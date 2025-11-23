@@ -55,12 +55,10 @@ fn main() -> Result<()> {
                 ))
                 .id();
 
-            // Rectangle1 (青、200x150、offset: 20,20)
+            // Rectangle1 (青、2 00x150、offset: 20,20)
             let rect1 = world
                 .spawn((
                     Rectangle {
-                        width: 200.0,
-                        height: 150.0,
                         color: colors::BLUE,
                     },
                     Arrangement {
@@ -79,8 +77,6 @@ fn main() -> Result<()> {
             let rect1_1 = world
                 .spawn((
                     Rectangle {
-                        width: 80.0,
-                        height: 60.0,
                         color: colors::GREEN,
                     },
                     Arrangement {
@@ -116,8 +112,6 @@ fn main() -> Result<()> {
             let rect1_2 = world
                 .spawn((
                     Rectangle {
-                        width: 80.0,
-                        height: 60.0,
                         color: D2D1_COLOR_F {
                             r: 1.0,
                             g: 1.0,
@@ -141,8 +135,6 @@ fn main() -> Result<()> {
             let rect1_2_1 = world
                 .spawn((
                     Rectangle {
-                        width: 60.0,
-                        height: 40.0,
                         color: D2D1_COLOR_F {
                             r: 0.5,
                             g: 0.0,
@@ -193,8 +185,6 @@ fn main() -> Result<()> {
             let v_container = world
                 .spawn((
                     Rectangle {
-                        width: 300.0,
-                        height: 200.0,
                         color: D2D1_COLOR_F {
                             r: 0.8,
                             g: 0.8,

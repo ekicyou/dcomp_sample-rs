@@ -1,5 +1,6 @@
 use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt};
 use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore};
+use crate::ecs::layout::Arrangement;
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::*;
 use windows::Win32::Graphics::Direct2D::Common::{D2D1_COLOR_F, D2D_RECT_F};
@@ -56,13 +57,13 @@ pub mod colors {
 }
 
 /// 四角形ウィジット
+///
+/// サイズは`Arrangement`コンポーネントで管理されます。
+/// レイアウトシステム（`BoxSize` → Taffy → `Arrangement`）との統合により、
+/// 動的なサイズ変更が自動的に反映されます。
 #[derive(Component, Debug, Clone)]
 #[component(on_remove = on_rectangle_remove)]
 pub struct Rectangle {
-    /// 幅（ピクセル単位）
-    pub width: f32,
-    /// 高さ（ピクセル単位）
-    pub height: f32,
     /// 塗りつぶし色
     pub color: Color,
 }
@@ -79,9 +80,17 @@ fn on_rectangle_remove(
     }
 }
 /// RectangleコンポーネントからGraphicsCommandListを生成
+///
+/// Rectangleのサイズは`Arrangement`コンポーネントから取得されます。
 pub fn draw_rectangles(
     mut commands: Commands,
-    query: Query<(Entity, &Rectangle), Or<(Changed<Rectangle>, Without<GraphicsCommandList>)>>,
+    query: Query<
+        (Entity, &Rectangle, &Arrangement),
+        (
+            Or<(Changed<Rectangle>, Changed<Arrangement>)>,
+            Without<GraphicsCommandList>,
+        ),
+    >,
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
     let Some(graphics_core) = graphics_core else {
@@ -89,12 +98,12 @@ pub fn draw_rectangles(
         return;
     };
 
-    for (entity, rectangle) in query.iter() {
+    for (entity, rectangle, arrangement) in query.iter() {
         eprintln!("[draw_rectangles] Entity={:?}", entity);
         eprintln!(
             "[draw_rectangles] Rectangle: width={}, height={}, color=({},{},{},{})",
-            rectangle.width,
-            rectangle.height,
+            arrangement.size.width,
+            arrangement.size.height,
             rectangle.color.r,
             rectangle.color.g,
             rectangle.color.b,
@@ -141,8 +150,8 @@ pub fn draw_rectangles(
             let rect = D2D_RECT_F {
                 left: 0.0,
                 top: 0.0,
-                right: rectangle.width,
-                bottom: rectangle.height,
+                right: arrangement.size.width,
+                bottom: arrangement.size.height,
             };
 
             // ソリッドカラーブラシ作成

@@ -8,6 +8,34 @@ use bevy_ecs::prelude::*;
 // ===== Dimension型: Auto, Length, Percentをサポート =====
 
 /// レイアウト寸法を表す型（Auto, ピクセル、パーセント）
+///
+/// # パーセント値の扱い
+///
+/// パーセント値は**0.0～100.0**の範囲で指定します。
+/// これはCSS、HTML、WPF/XAMLなどの一般的なUI記法に合わせた直感的な表記です。
+///
+/// # 例
+///
+/// ```ignore
+/// use wintf::ecs::layout::Dimension;
+///
+/// // 100%（親要素全体）
+/// let full = Dimension::Percent(100.0);
+///
+/// // 50%（親要素の半分）
+/// let half = Dimension::Percent(50.0);
+///
+/// // 固定200ピクセル
+/// let fixed = Dimension::Px(200.0);
+///
+/// // 自動サイズ
+/// let auto = Dimension::Auto;
+/// ```
+///
+/// # 内部実装の注意
+///
+/// 内部的にTaffyレイアウトエンジンは0.0-1.0の範囲（正規化値）を使用しますが、
+/// wintfのAPIでは0.0-100.0を採用しています。変換は自動的に行われます。
 #[derive(Debug, Clone, Copy, PartialEq, Component)]
 pub enum Dimension {
     /// 自動サイズ
@@ -15,6 +43,8 @@ pub enum Dimension {
     /// ピクセル値
     Px(f32),
     /// パーセント値（0.0～100.0）
+    ///
+    /// 例: `Percent(100.0)` = 100%、`Percent(50.0)` = 50%
     Percent(f32),
 }
 
@@ -70,7 +100,8 @@ impl From<Dimension> for taffy::Dimension {
         match val {
             Dimension::Auto => taffy::Dimension::auto(),
             Dimension::Px(v) => taffy::Dimension::length(v),
-            Dimension::Percent(v) => taffy::Dimension::percent(v),
+            // Taffyはパーセントを0.0-1.0の範囲で扱うため、100で割る
+            Dimension::Percent(v) => taffy::Dimension::percent(v / 100.0),
         }
     }
 }
@@ -89,13 +120,15 @@ impl From<taffy::Dimension> for Dimension {
 // ===== LengthPercentageAuto型: Auto, Length, Percentをサポート =====
 
 /// 長さ/パーセント/自動を表す型（マージンなどで使用）
+///
+/// マージンなどで使用される寸法型。パーセント値は**0.0～100.0**の範囲で指定します。
 #[derive(Debug, Clone, Copy, PartialEq, Component)]
 pub enum LengthPercentageAuto {
     /// 自動値
     Auto,
     /// ピクセル値
     Px(f32),
-    /// パーセント値
+    /// パーセント値（0.0～100.0）
     Percent(f32),
 }
 
@@ -141,14 +174,16 @@ impl From<LengthPercentageAuto> for taffy::LengthPercentageAuto {
     }
 }
 
-// ===== LengthPercentage型: Length, Percentのみ（Autoなし） =====
+// ===== LengthPercentage型: Length, Percentをサポート =====
 
 /// 長さ/パーセントを表す型（パディングなどで使用、Autoなし）
+///
+/// パディングなどで使用される寸法型。パーセント値は**0.0～100.0**の範囲で指定します。
 #[derive(Debug, Clone, Copy, PartialEq, Component)]
 pub enum LengthPercentage {
     /// ピクセル値
     Px(f32),
-    /// パーセント値
+    /// パーセント値（0.0～100.0）
     Percent(f32),
 }
 
