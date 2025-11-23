@@ -116,6 +116,7 @@ impl EcsWorld {
         // リソースの初期化
         world.insert_resource(crate::ecs::app::App::new());
         world.insert_resource(FrameCount::default());
+        world.insert_resource(crate::ecs::layout::taffy::TaffyLayoutResource::default());
 
         // スケジュールの登録
         {
@@ -145,6 +146,7 @@ impl EcsWorld {
         // デフォルトシステムの登録
         {
             let mut schedules = world.resource_mut::<Schedules>();
+            
             schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
             // on_window_handle_addedとon_window_handle_removedはフックで代替
 
@@ -152,6 +154,22 @@ impl EcsWorld {
             schedules.add_systems(
                 Update,
                 crate::ecs::graphics::invalidate_dependent_components,
+            );
+
+            // Layoutスケジュールにtaffyレイアウトシステムを登録
+            schedules.add_systems(
+                Layout,
+                (
+                    crate::ecs::layout::build_taffy_styles_system,
+                    crate::ecs::layout::sync_taffy_tree_system
+                        .after(crate::ecs::layout::build_taffy_styles_system),
+                    crate::ecs::layout::compute_taffy_layout_system
+                        .after(crate::ecs::layout::sync_taffy_tree_system),
+                    crate::ecs::layout::update_arrangements_system
+                        .after(crate::ecs::layout::compute_taffy_layout_system),
+                    crate::ecs::layout::cleanup_removed_entities_system,
+                )
+                    .chain(),
             );
 
             // PostLayoutスケジュールにグラフィックス初期化システムを登録
@@ -179,6 +197,21 @@ impl EcsWorld {
                 ),
             );
 
+            // PostLayoutスケジュールにArrangement伝播システムを登録
+            schedules.add_systems(
+                PostLayout,
+                (
+                    crate::ecs::layout::sync_simple_arrangements,
+                    crate::ecs::layout::mark_dirty_arrangement_trees
+                        .after(crate::ecs::layout::sync_simple_arrangements),
+                    crate::ecs::layout::propagate_global_arrangements
+                        .after(crate::ecs::layout::mark_dirty_arrangement_trees),
+                    crate::ecs::layout::update_window_pos_system
+                        .after(crate::ecs::layout::propagate_global_arrangements),
+                )
+                    .chain(),
+            );
+
             // Drawスケジュールにクリーンアップシステムとウィジェット描画システムを登録
             schedules.add_systems(
                 Draw,
@@ -190,15 +223,6 @@ impl EcsWorld {
                     .chain(),
             );
 
-            schedules.add_systems(
-                Draw,
-                (
-                    crate::ecs::layout::sync_simple_arrangements,
-                    crate::ecs::layout::mark_dirty_arrangement_trees,
-                    crate::ecs::layout::propagate_global_arrangements,
-                )
-                    .chain(),
-            );
 
             // PreRenderSurfaceスケジュールに変更検知システムを登録
             schedules.add_systems(PreRenderSurface, crate::ecs::graphics::mark_dirty_surfaces);

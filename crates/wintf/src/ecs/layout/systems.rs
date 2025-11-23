@@ -4,12 +4,12 @@ use crate::ecs::common::tree_system::{
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::*;
 
-use super::{
-    Arrangement, ArrangementTreeChanged, BoxMargin, BoxPadding, BoxSize, D2DRectExt,
-    FlexContainer, FlexItem, GlobalArrangement,
-};
-use super::taffy::{TaffyLayoutResource, TaffyStyle};
 use super::metrics::{Offset, Size};
+use super::taffy::{TaffyLayoutResource, TaffyStyle};
+use super::{
+    Arrangement, ArrangementTreeChanged, BoxMargin, BoxPadding, BoxSize, D2DRectExt, FlexContainer,
+    FlexItem, GlobalArrangement,
+};
 use crate::ecs::window::{Window, WindowPos};
 use taffy::prelude::*;
 
@@ -287,7 +287,10 @@ pub fn cleanup_removed_entities_system(
 
 /// GlobalArrangementの変更をWindowPosに反映
 pub fn update_window_pos_system(
-    mut query: Query<(&GlobalArrangement, &mut WindowPos), (With<Window>, Changed<GlobalArrangement>)>,
+    mut query: Query<
+        (&GlobalArrangement, &mut WindowPos),
+        (With<Window>, Changed<GlobalArrangement>),
+    >,
 ) {
     use windows::Win32::Foundation::{POINT, SIZE};
 

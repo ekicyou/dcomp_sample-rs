@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::*;
 use taffy::prelude::*;
-use wintf::ecs::layout::taffy::{TaffyComputedLayout, TaffyStyle};
+use wintf::ecs::layout::taffy::{TaffyComputedLayout, TaffyLayoutResource, TaffyStyle};
 use wintf::ecs::layout::{
     BoxMargin, BoxPadding, BoxSize, Dimension, FlexContainer, FlexItem, LengthPercentage,
     LengthPercentageAuto, Rect,
@@ -193,4 +193,145 @@ fn test_flex_item_component() {
     assert_eq!(default_item.shrink, 1.0);
     assert_eq!(default_item.basis, Dimension::Auto);
     assert_eq!(default_item.align_self, None);
+}
+
+// ===== タスク7: ユニットテスト =====
+
+/// テスト7.1: 高レベルコンポーネント→TaffyStyle変換テスト（BoxSize）
+#[test]
+fn test_box_size_to_taffy_style_conversion() {
+    // BoxSize.widthとheightがtaffy::Dimensionに正しく変換されることを検証
+    let box_size = BoxSize {
+        width: Some(wintf::ecs::layout::Dimension::Px(200.0)),
+        height: Some(wintf::ecs::layout::Dimension::Px(100.0)),
+    };
+
+    // Dimension→taffy::Dimensionの変換をテスト
+    let taffy_width: taffy::Dimension = box_size.width.unwrap().into();
+    let taffy_height: taffy::Dimension = box_size.height.unwrap().into();
+
+    // 期待値と比較（taffy 0.9.1ではDimension::lengthを使用）
+    assert_eq!(taffy_width, taffy::Dimension::length(200.0));
+    assert_eq!(taffy_height, taffy::Dimension::length(100.0));
+}
+
+/// テスト7.2: EntityとNodeIdマッピングテスト
+#[test]
+fn test_entity_node_id_mapping() {
+    let mut taffy_res = TaffyLayoutResource::default();
+    let mut world = World::new();
+
+    // エンティティ作成
+    let entity1 = world.spawn_empty().id();
+    let entity2 = world.spawn_empty().id();
+
+    // ノード作成とマッピング登録
+    let node1 = taffy_res.create_node(entity1).unwrap();
+    let node2 = taffy_res.create_node(entity2).unwrap();
+
+    // 順方向マッピング検証
+    assert_eq!(taffy_res.get_node(entity1), Some(node1));
+    assert_eq!(taffy_res.get_node(entity2), Some(node2));
+
+    // 逆方向マッピング検証
+    assert_eq!(taffy_res.get_entity(node1), Some(entity1));
+    assert_eq!(taffy_res.get_entity(node2), Some(entity2));
+
+    // 削除後のマッピング検証
+    taffy_res.remove_node(entity1).unwrap();
+    assert_eq!(taffy_res.get_node(entity1), None);
+    assert_eq!(taffy_res.get_entity(node1), None);
+
+    // entity2は削除されていないことを確認
+    assert_eq!(taffy_res.get_node(entity2), Some(node2));
+}
+
+/// テスト7.3: マッピング整合性検証テスト
+#[cfg(debug_assertions)]
+#[test]
+fn test_mapping_consistency() {
+    let mut taffy_res = TaffyLayoutResource::default();
+    let mut world = World::new();
+
+    let entity = world.spawn_empty().id();
+    let _node = taffy_res.create_node(entity).unwrap();
+
+    // マッピング整合性検証（パニックしないことを確認）
+    taffy_res.verify_mapping_consistency();
+}
+
+/// テスト7.4: 境界値シナリオテスト - 空ツリー
+#[test]
+fn test_empty_tree_scenario() {
+    let taffy_res = TaffyLayoutResource::default();
+
+    // 空のツリーでクラッシュしないことを検証
+    assert_eq!(taffy_res.first_layout_done(), false);
+}
+
+/// テスト7.5: Dimensionのconst constructorテスト
+#[test]
+fn test_dimension_const_constructors() {
+    const DIM_LENGTH: Dimension = Dimension::length(100.0);
+    const DIM_PERCENT: Dimension = Dimension::percent(50.0);
+    const DIM_AUTO: Dimension = Dimension::auto();
+    const DIM_ZERO: Dimension = Dimension::zero();
+
+    assert_eq!(DIM_LENGTH, Dimension::Px(100.0));
+    assert_eq!(DIM_PERCENT, Dimension::Percent(50.0));
+    assert_eq!(DIM_AUTO, Dimension::Auto);
+    assert_eq!(DIM_ZERO, Dimension::Px(0.0));
+}
+
+/// テスト7.6: 複数エンティティの削除テスト
+#[test]
+fn test_multiple_entity_removal() {
+    let mut taffy_res = TaffyLayoutResource::default();
+    let mut world = World::new();
+
+    // 3つのエンティティを作成
+    let entity1 = world.spawn_empty().id();
+    let entity2 = world.spawn_empty().id();
+    let entity3 = world.spawn_empty().id();
+
+    let _node1 = taffy_res.create_node(entity1).unwrap();
+    let node2 = taffy_res.create_node(entity2).unwrap();
+    let _node3 = taffy_res.create_node(entity3).unwrap();
+
+    // entity1とentity3を削除
+    taffy_res.remove_node(entity1).unwrap();
+    taffy_res.remove_node(entity3).unwrap();
+
+    // entity2のみ残っていることを確認
+    assert_eq!(taffy_res.get_node(entity1), None);
+    assert_eq!(taffy_res.get_node(entity2), Some(node2));
+    assert_eq!(taffy_res.get_node(entity3), None);
+}
+
+/// テスト7.7: FlexContainerとFlexItemの統合テスト
+#[test]
+fn test_flex_container_and_item_integration() {
+    let mut world = World::new();
+
+    // FlexContainerを作成
+    let container = FlexContainer {
+        direction: taffy::FlexDirection::Row,
+        align_items: Some(taffy::AlignItems::Center),
+        justify_content: Some(taffy::JustifyContent::SpaceBetween),
+    };
+
+    // FlexItemを作成
+    let item = FlexItem {
+        grow: 1.0,
+        shrink: 0.0,
+        basis: Dimension::Percent(50.0),
+        align_self: None,
+    };
+
+    let container_entity = world.spawn(container).id();
+    let item_entity = world.spawn(item).id();
+
+    // 両方のコンポーネントが正しく挿入されていることを確認
+    assert!(world.entity(container_entity).contains::<FlexContainer>());
+    assert!(world.entity(item_entity).contains::<FlexItem>());
 }
