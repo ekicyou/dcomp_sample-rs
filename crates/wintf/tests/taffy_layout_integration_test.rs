@@ -2,9 +2,10 @@ use bevy_ecs::prelude::*;
 use taffy::prelude::*;
 use wintf::ecs::layout::taffy::{TaffyComputedLayout, TaffyLayoutResource, TaffyStyle};
 use wintf::ecs::layout::{
-    BoxMargin, BoxPadding, BoxSize, Dimension, FlexContainer, FlexItem, LengthPercentage,
-    LengthPercentageAuto, Rect,
+    Arrangement, BoxMargin, BoxPadding, BoxSize, Dimension, FlexContainer, FlexItem,
+    GlobalArrangement, LengthPercentage, LengthPercentageAuto, Rect,
 };
+use wintf::ecs::world::EcsWorld;
 
 /// テスト1.1: BoxStyleがTaffyStyleに名称変更されていることを検証
 #[test]
@@ -395,3 +396,187 @@ fn test_layout_recalculation_on_parameter_change() {
         "TaffyStyleの変更が検知されませんでした。レイアウト再計算が実行されていない可能性があります"
     );
 }
+
+/// テスト7.9: EcsWorldを使った3階層ウィジェットツリーの総合レイアウトテスト
+/// 
+/// このテストは、BoxSize変更から最終的なGlobalArrangementの更新までを検証します。
+/// - 3階層のウィジェットツリー（Window → Container → Child）を構築
+/// - 初回レイアウト計算でGlobalArrangementが正しく設定されることを確認
+/// - Containerのサイズ変更後、すべての階層でGlobalArrangementが再計算されることを確認
+#[test]
+fn test_full_layout_pipeline_with_ecs_world() {
+    use wintf::ecs::world::EcsWorld;
+    use wintf::ecs::{ChildOf, Window};
+
+    // EcsWorldを作成（デフォルトのシステムスケジュールが登録済み）
+    let mut ecs_world = EcsWorld::new();
+
+    // 3階層のウィジェットツリーを構築
+    let (window, container, child) = {
+        let world = ecs_world.world_mut();
+
+        // Window (ルート)
+        let window = world
+            .spawn((
+                Window::default(),
+                BoxSize {
+                    width: Some(Dimension::Px(800.0)),
+                    height: Some(Dimension::Px(600.0)),
+                },
+                FlexContainer {
+                    direction: FlexDirection::Column,
+                    justify_content: Some(JustifyContent::Start),
+                    align_items: Some(AlignItems::Stretch),
+                },
+            ))
+            .id();
+
+        // Container (中間層)
+        let container = world
+            .spawn((
+                BoxSize {
+                    width: Some(Dimension::Px(400.0)),
+                    height: Some(Dimension::Px(300.0)),
+                },
+                FlexContainer {
+                    direction: FlexDirection::Row,
+                    justify_content: Some(JustifyContent::Center),
+                    align_items: Some(AlignItems::Center),
+                },
+                Arrangement::default(), // Arrangementを明示的に追加
+                ChildOf(window), // 親子関係を設定
+            ))
+            .id();
+
+        // Child (末端)
+        let child = world
+            .spawn((
+                BoxSize {
+                    width: Some(Dimension::Px(200.0)),
+                    height: Some(Dimension::Px(150.0)),
+                },
+                Arrangement::default(), // Arrangementを明示的に追加
+                ChildOf(container), // 親子関係を設定
+            ))
+            .id();
+
+        (window, container, child)
+    };
+
+    // 初回レイアウト計算を実行
+    ecs_world.try_tick_world();
+
+    // 検証1: すべてのエンティティにTaffyStyleが生成されている
+    {
+        let world = ecs_world.world();
+        assert!(
+            world.entity(window).contains::<TaffyStyle>(),
+            "WindowにTaffyStyleが生成されていません"
+        );
+        assert!(
+            world.entity(container).contains::<TaffyStyle>(),
+            "ContainerにTaffyStyleが生成されていません"
+        );
+        assert!(
+            world.entity(child).contains::<TaffyStyle>(),
+            "ChildにTaffyStyleが生成されていません"
+        );
+    }
+
+    // 検証2: すべてのエンティティにArrangementが生成されている
+    {
+        let world = ecs_world.world();
+        assert!(
+            world.entity(window).contains::<Arrangement>(),
+            "WindowにArrangementが生成されていません"
+        );
+        assert!(
+            world.entity(container).contains::<Arrangement>(),
+            "ContainerにArrangementが生成されていません"
+        );
+        assert!(
+            world.entity(child).contains::<Arrangement>(),
+            "ChildにArrangementが生成されていません"
+        );
+    }
+
+    // 検証3: すべてのエンティティにGlobalArrangementが生成されている
+    {
+        let world = ecs_world.world();
+        assert!(
+            world.entity(window).contains::<GlobalArrangement>(),
+            "WindowにGlobalArrangementが生成されていません"
+        );
+        assert!(
+            world.entity(container).contains::<GlobalArrangement>(),
+            "ContainerにGlobalArrangementが生成されていません"
+        );
+        assert!(
+            world.entity(child).contains::<GlobalArrangement>(),
+            "ChildにGlobalArrangementが生成されていません"
+        );
+    }
+
+    // 初回のArrangementサイズを保存
+    let (initial_container_arrangement, initial_container_global) = {
+        let world = ecs_world.world();
+        (
+            *world.entity(container).get::<Arrangement>().unwrap(),
+            *world.entity(container).get::<GlobalArrangement>().unwrap(),
+        )
+    };
+
+    // Containerのサイズを変更
+    {
+        let world = ecs_world.world_mut();
+        if let Some(mut size) = world.entity_mut(container).get_mut::<BoxSize>() {
+            size.width = Some(Dimension::Px(600.0)); // 400 → 600
+            size.height = Some(Dimension::Px(450.0)); // 300 → 450
+        }
+    }
+
+    // レイアウト再計算を実行
+    ecs_world.try_tick_world();
+
+    // 検証4: Containerのサイズ変更後、Arrangementが更新されている
+    {
+        let world = ecs_world.world();
+        let updated_container_arrangement = *world.entity(container).get::<Arrangement>().unwrap();
+        assert_ne!(
+            initial_container_arrangement.size,
+            updated_container_arrangement.size,
+            "Containerのサイズ変更後、Arrangementが更新されていません"
+        );
+
+        // 検証5: Containerのサイズ変更後、GlobalArrangementが更新されている
+        let updated_container_global = *world.entity(container).get::<GlobalArrangement>().unwrap();
+        assert_ne!(
+            initial_container_global.bounds,
+            updated_container_global.bounds,
+            "Containerのサイズ変更後、GlobalArrangementのboundsが更新されていません"
+        );
+
+        // 検証6: 子要素（Child）のGlobalArrangementも維持されている
+        // （親のサイズが変わると、子の配置位置も変わる可能性がある）
+        assert!(
+            world.entity(container).contains::<GlobalArrangement>()
+                && world.entity(child).contains::<GlobalArrangement>(),
+            "GlobalArrangementが階層全体で維持されています"
+        );
+
+        // 検証7: レイアウト計算が正しく完了していることを確認
+        // ContainerのArrangementサイズが期待値（600x450）に近いことを確認
+        let container_size = updated_container_arrangement.size;
+        assert!(
+            (container_size.width - 600.0).abs() < 1.0,
+            "Containerの幅が期待値と異なります: expected ~600.0, got {}",
+            container_size.width
+        );
+        assert!(
+            (container_size.height - 450.0).abs() < 1.0,
+            "Containerの高さが期待値と異なります: expected ~450.0, got {}",
+            container_size.height
+        );
+    }
+}
+
