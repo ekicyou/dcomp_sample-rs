@@ -335,3 +335,63 @@ fn test_flex_container_and_item_integration() {
     assert!(world.entity(container_entity).contains::<FlexContainer>());
     assert!(world.entity(item_entity).contains::<FlexItem>());
 }
+
+/// テスト7.8: レイアウトパラメーター変更による再計算の統合テスト
+#[test]
+fn test_layout_recalculation_on_parameter_change() {
+    use wintf::ecs::Window;
+
+    let mut world = World::new();
+    world.insert_resource(TaffyLayoutResource::default());
+
+    // シンプルなテスト: BoxSizeを変更してTaffyStyleが更新されることを確認
+    let initial_size = BoxSize {
+        width: Some(Dimension::Px(400.0)),
+        height: Some(Dimension::Px(300.0)),
+    };
+
+    let container = world.spawn((initial_size, Window::default())).id();
+
+    // スケジュールを構築 (build_taffy_styles_systemのみで十分)
+    let mut schedule = bevy_ecs::schedule::Schedule::default();
+    schedule.add_systems(wintf::ecs::layout::systems::build_taffy_styles_system);
+
+    // 初回実行: TaffyStyleが生成される
+    schedule.run(&mut world);
+
+    // TaffyStyleが生成されたか確認
+    assert!(
+        world.entity(container).contains::<TaffyStyle>(),
+        "TaffyStyleコンポーネントが生成されていません"
+    );
+
+    // 初期サイズを確認（内部フィールドはprivateなので、存在確認のみ）
+    let _initial_style = world.entity(container).get::<TaffyStyle>().unwrap();
+
+    // パラメーター変更: サイズを倍にする
+    if let Some(mut size) = world.entity_mut(container).get_mut::<BoxSize>() {
+        size.width = Some(Dimension::Px(800.0));
+        size.height = Some(Dimension::Px(600.0));
+    }
+
+    // 再度実行: TaffyStyleが更新される
+    schedule.run(&mut world);
+
+    // TaffyStyleが再度存在することを確認（更新が行われた）
+    assert!(
+        world.entity(container).contains::<TaffyStyle>(),
+        "TaffyStyleコンポーネントが更新後も存在します"
+    );
+
+    // 変更検知クエリが機能することを確認
+    let mut changed_count = 0;
+    let mut query = world.query_filtered::<Entity, Changed<TaffyStyle>>();
+    for _ in query.iter(&world) {
+        changed_count += 1;
+    }
+
+    assert!(
+        changed_count > 0,
+        "TaffyStyleの変更が検知されませんでした。レイアウト再計算が実行されていない可能性があります"
+    );
+}

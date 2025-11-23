@@ -146,7 +146,7 @@ impl EcsWorld {
         // デフォルトシステムの登録
         {
             let mut schedules = world.resource_mut::<Schedules>();
-            
+
             schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
             // on_window_handle_addedとon_window_handle_removedはフックで代替
 
@@ -222,7 +222,6 @@ impl EcsWorld {
                 )
                     .chain(),
             );
-
 
             // PreRenderSurfaceスケジュールに変更検知システムを登録
             schedules.add_systems(PreRenderSurface, crate::ecs::graphics::mark_dirty_surfaces);
