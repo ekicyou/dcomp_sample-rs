@@ -82,3 +82,37 @@ pub use metrics::*;
 pub use rect::*; // D2DRect, D2DRectExt, transform_rect_axis_aligned
 pub use systems::*;
 pub use taffy::*;
+
+use bevy_ecs::prelude::*;
+
+/// レイアウト計算のルートを示すマーカーコンポーネント
+///
+/// このコンポーネントが付与されたエンティティは、Taffyレイアウト計算のルートとして扱われます。
+/// 通常、仮想デスクトップ（VirtualDesktop）またはテスト用のルートエンティティに付与されます。
+///
+/// # 設計意図
+///
+/// - `Window`コンポーネントはレイアウトの対象であり、ルートではありません
+/// - 真のルート階層: `VirtualDesktop → Monitor → Window → Widget`
+/// - 現在の実装では仮想デスクトップ未実装のため、暫定的にルートマーカーを使用
+///
+/// # ストレージ戦略
+///
+/// `SparseSet`を使用します。このコンポーネントは通常1つのエンティティにのみ付与されるため、
+/// メモリ効率の良い疎行列ストレージが適しています。
+///
+/// # 使用例
+///
+/// ```rust,ignore
+/// use wintf::ecs::layout::LayoutRoot;
+///
+/// // テスト用のルートエンティティ
+/// commands.spawn((
+///     LayoutRoot,
+///     BoxSize { width: Some(Dimension::Px(800.0)), height: Some(Dimension::Px(600.0)) },
+///     FlexContainer::default(),
+/// ));
+/// ```
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct LayoutRoot;

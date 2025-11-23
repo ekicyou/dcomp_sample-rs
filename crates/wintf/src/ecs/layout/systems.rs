@@ -8,7 +8,7 @@ use super::metrics::{Offset, Size};
 use super::taffy::{TaffyLayoutResource, TaffyStyle};
 use super::{
     Arrangement, ArrangementTreeChanged, BoxMargin, BoxPadding, BoxSize, D2DRectExt, FlexContainer,
-    FlexItem, GlobalArrangement,
+    FlexItem, GlobalArrangement, LayoutRoot,
 };
 use crate::ecs::window::{Window, WindowPos};
 use taffy::prelude::*;
@@ -213,8 +213,8 @@ pub fn sync_taffy_tree_system(
 /// Taffyレイアウト計算を実行
 pub fn compute_taffy_layout_system(
     mut taffy_res: ResMut<TaffyLayoutResource>,
-    // Windowルート（親がないWindow）
-    windows: Query<Entity, (With<Window>, Without<ChildOf>)>,
+    // LayoutRootマーカーを持つエンティティをレイアウトルートとして扱う
+    roots: Query<Entity, With<LayoutRoot>>,
     // 変更検知用
     changed_styles: Query<(), Changed<TaffyStyle>>,
     changed_hierarchy: Query<(), Changed<ChildOf>>,
@@ -225,8 +225,8 @@ pub fn compute_taffy_layout_system(
 
     // 初回またはChanged検知時にレイアウト計算を実行
     if first_layout || has_changes {
-        for window_entity in windows.iter() {
-            if let Some(root_node) = taffy_res.get_node(window_entity) {
+        for root_entity in roots.iter() {
+            if let Some(root_node) = taffy_res.get_node(root_entity) {
                 // TODO: Windowサイズから available_space を構築
                 // 現状は無限サイズで計算
                 let available_space = taffy::Size {

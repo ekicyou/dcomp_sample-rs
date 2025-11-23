@@ -3,9 +3,8 @@ use taffy::prelude::*;
 use wintf::ecs::layout::taffy::{TaffyComputedLayout, TaffyLayoutResource, TaffyStyle};
 use wintf::ecs::layout::{
     Arrangement, BoxMargin, BoxPadding, BoxSize, Dimension, FlexContainer, FlexItem,
-    GlobalArrangement, LengthPercentage, LengthPercentageAuto, Rect,
+    GlobalArrangement, LayoutRoot, LengthPercentage, LengthPercentageAuto, Rect,
 };
-use wintf::ecs::world::EcsWorld;
 
 /// テスト1.1: BoxStyleがTaffyStyleに名称変更されていることを検証
 #[test]
@@ -340,7 +339,6 @@ fn test_flex_container_and_item_integration() {
 /// テスト7.8: レイアウトパラメーター変更による再計算の統合テスト
 #[test]
 fn test_layout_recalculation_on_parameter_change() {
-    use wintf::ecs::Window;
 
     let mut world = World::new();
     world.insert_resource(TaffyLayoutResource::default());
@@ -351,7 +349,7 @@ fn test_layout_recalculation_on_parameter_change() {
         height: Some(Dimension::Px(300.0)),
     };
 
-    let container = world.spawn((initial_size, Window::default())).id();
+    let container = world.spawn((initial_size, LayoutRoot)).id();
 
     // スケジュールを構築 (build_taffy_styles_systemのみで十分)
     let mut schedule = bevy_ecs::schedule::Schedule::default();
@@ -398,27 +396,30 @@ fn test_layout_recalculation_on_parameter_change() {
 }
 
 /// テスト7.9: EcsWorldを使った3階層ウィジェットツリーの総合レイアウトテスト
-/// 
+///
 /// このテストは、BoxSize変更から最終的なGlobalArrangementの更新までを検証します。
-/// - 3階層のウィジェットツリー（Window → Container → Child）を構築
+/// - 3階層のウィジェットツリー（Root → Container → Child）を構築
 /// - 初回レイアウト計算でGlobalArrangementが正しく設定されることを確認
 /// - Containerのサイズ変更後、すべての階層でGlobalArrangementが再計算されることを確認
+///
+/// 注意: このテストはWindowコンポーネントを使用せず、純粋なレイアウト計算のみを検証します。
+/// これにより、実際のウィンドウ作成処理を回避し、テストの安全性と速度を向上させます。
 #[test]
 fn test_full_layout_pipeline_with_ecs_world() {
     use wintf::ecs::world::EcsWorld;
-    use wintf::ecs::{ChildOf, Window};
+    use wintf::ecs::ChildOf;
 
     // EcsWorldを作成（デフォルトのシステムスケジュールが登録済み）
     let mut ecs_world = EcsWorld::new();
 
     // 3階層のウィジェットツリーを構築
-    let (window, container, child) = {
+    let (root, container, child) = {
         let world = ecs_world.world_mut();
 
-        // Window (ルート)
-        let window = world
+        // Root (ルートエンティティ - LayoutRootマーカーを使用)
+        let root = world
             .spawn((
-                Window::default(),
+                LayoutRoot, // レイアウト計算のルートを示すマーカー
                 BoxSize {
                     width: Some(Dimension::Px(800.0)),
                     height: Some(Dimension::Px(600.0)),
@@ -428,6 +429,7 @@ fn test_full_layout_pipeline_with_ecs_world() {
                     justify_content: Some(JustifyContent::Start),
                     align_items: Some(AlignItems::Stretch),
                 },
+                Arrangement::default(), // Arrangementを明示的に追加
             ))
             .id();
 
@@ -444,7 +446,7 @@ fn test_full_layout_pipeline_with_ecs_world() {
                     align_items: Some(AlignItems::Center),
                 },
                 Arrangement::default(), // Arrangementを明示的に追加
-                ChildOf(window), // 親子関係を設定
+                ChildOf(root),          // 親子関係を設定
             ))
             .id();
 
@@ -456,11 +458,11 @@ fn test_full_layout_pipeline_with_ecs_world() {
                     height: Some(Dimension::Px(150.0)),
                 },
                 Arrangement::default(), // Arrangementを明示的に追加
-                ChildOf(container), // 親子関係を設定
+                ChildOf(container),     // 親子関係を設定
             ))
             .id();
 
-        (window, container, child)
+        (root, container, child)
     };
 
     // 初回レイアウト計算を実行
@@ -470,8 +472,8 @@ fn test_full_layout_pipeline_with_ecs_world() {
     {
         let world = ecs_world.world();
         assert!(
-            world.entity(window).contains::<TaffyStyle>(),
-            "WindowにTaffyStyleが生成されていません"
+            world.entity(root).contains::<TaffyStyle>(),
+            "RootにTaffyStyleが生成されていません"
         );
         assert!(
             world.entity(container).contains::<TaffyStyle>(),
@@ -487,8 +489,8 @@ fn test_full_layout_pipeline_with_ecs_world() {
     {
         let world = ecs_world.world();
         assert!(
-            world.entity(window).contains::<Arrangement>(),
-            "WindowにArrangementが生成されていません"
+            world.entity(root).contains::<Arrangement>(),
+            "RootにArrangementが生成されていません"
         );
         assert!(
             world.entity(container).contains::<Arrangement>(),
@@ -504,8 +506,8 @@ fn test_full_layout_pipeline_with_ecs_world() {
     {
         let world = ecs_world.world();
         assert!(
-            world.entity(window).contains::<GlobalArrangement>(),
-            "WindowにGlobalArrangementが生成されていません"
+            world.entity(root).contains::<GlobalArrangement>(),
+            "RootにGlobalArrangementが生成されていません"
         );
         assert!(
             world.entity(container).contains::<GlobalArrangement>(),
@@ -543,16 +545,14 @@ fn test_full_layout_pipeline_with_ecs_world() {
         let world = ecs_world.world();
         let updated_container_arrangement = *world.entity(container).get::<Arrangement>().unwrap();
         assert_ne!(
-            initial_container_arrangement.size,
-            updated_container_arrangement.size,
+            initial_container_arrangement.size, updated_container_arrangement.size,
             "Containerのサイズ変更後、Arrangementが更新されていません"
         );
 
         // 検証5: Containerのサイズ変更後、GlobalArrangementが更新されている
         let updated_container_global = *world.entity(container).get::<GlobalArrangement>().unwrap();
         assert_ne!(
-            initial_container_global.bounds,
-            updated_container_global.bounds,
+            initial_container_global.bounds, updated_container_global.bounds,
             "Containerのサイズ変更後、GlobalArrangementのboundsが更新されていません"
         );
 
@@ -579,4 +579,3 @@ fn test_full_layout_pipeline_with_ecs_world() {
         );
     }
 }
-
