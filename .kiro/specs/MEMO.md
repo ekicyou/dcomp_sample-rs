@@ -10,4 +10,3 @@
 ```
 
 1. VirtualDesktop,Monitorコンポーネントを定義
-2. MonitorエンティティにはDPIコンポーネントを持つ。DPIコンポーネントは

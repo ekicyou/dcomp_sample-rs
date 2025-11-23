@@ -4,7 +4,14 @@ use crate::ecs::common::tree_system::{
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::*;
 
-use super::{Arrangement, ArrangementTreeChanged, GlobalArrangement};
+use super::{
+    Arrangement, ArrangementTreeChanged, BoxMargin, BoxPadding, BoxSize, FlexContainer,
+    FlexItem, GlobalArrangement,
+};
+use super::taffy::{TaffyLayoutResource, TaffyStyle};
+use super::metrics::{Offset, Size};
+use crate::ecs::window::Window;
+use taffy::prelude::*;
 
 /// 階層に属していないEntity（ルートWindow）のGlobalArrangementを更新
 pub fn sync_simple_arrangements(
@@ -56,4 +63,224 @@ pub fn propagate_global_arrangements(
     propagate_parent_transforms::<Arrangement, GlobalArrangement, ArrangementTreeChanged>(
         queue, roots, nodes,
     );
+}
+
+// ===== Taffyレイアウトシステム =====
+
+/// 高レベルレイアウトコンポーネントからTaffyStyleを構築
+pub fn build_taffy_styles_system(
+    mut commands: Commands,
+    // TaffyStyleがないエンティティを検出
+    without_style: Query<
+        Entity,
+        (
+            Or<(
+                With<BoxSize>,
+                With<BoxMargin>,
+                With<BoxPadding>,
+                With<FlexContainer>,
+                With<FlexItem>,
+            )>,
+            Without<TaffyStyle>,
+        ),
+    >,
+    // 変更された高レベルコンポーネントを持つエンティティ
+    mut changed: Query<
+        (
+            Entity,
+            Option<&BoxSize>,
+            Option<&BoxMargin>,
+            Option<&BoxPadding>,
+            Option<&FlexContainer>,
+            Option<&FlexItem>,
+            &mut TaffyStyle,
+        ),
+        Or<(
+            Changed<BoxSize>,
+            Changed<BoxMargin>,
+            Changed<BoxPadding>,
+            Changed<FlexContainer>,
+            Changed<FlexItem>,
+        )>,
+    >,
+) {
+    // TaffyStyleを自動挿入
+    for entity in without_style.iter() {
+        commands.entity(entity).insert(TaffyStyle::default());
+    }
+
+    // 高レベルコンポーネントからTaffyStyleを構築
+    for (_entity, box_size, box_margin, box_padding, flex_container, flex_item, mut taffy_style) in
+        changed.iter_mut()
+    {
+        let mut style = Style::default();
+
+        // BoxSize: width/height
+        if let Some(size) = box_size {
+            if let Some(width) = size.width {
+                style.size.width = width.into();
+            }
+            if let Some(height) = size.height {
+                style.size.height = height.into();
+            }
+        }
+
+        // BoxMargin: margin
+        if let Some(margin) = box_margin {
+            style.margin = margin.0.into();
+        }
+
+        // BoxPadding: padding
+        if let Some(padding) = box_padding {
+            style.padding = padding.0.into();
+        }
+
+        // FlexContainer: display, flex_direction, justify_content, align_items
+        if let Some(container) = flex_container {
+            style.display = Display::Flex;
+            style.flex_direction = container.direction;
+            if let Some(justify) = container.justify_content {
+                style.justify_content = Some(justify);
+            }
+            if let Some(align) = container.align_items {
+                style.align_items = Some(align);
+            }
+        }
+
+        // FlexItem: flex_grow, flex_shrink, flex_basis, align_self
+        if let Some(item) = flex_item {
+            style.flex_grow = item.grow;
+            style.flex_shrink = item.shrink;
+            style.flex_basis = item.basis.into();
+            if let Some(align_self) = item.align_self {
+                style.align_self = Some(align_self);
+            }
+        }
+
+        taffy_style.0 = style;
+    }
+}
+
+/// TaffyツリーをECS階層と同期
+pub fn sync_taffy_tree_system(
+    mut taffy_res: ResMut<TaffyLayoutResource>,
+    // 新規エンティティ（TaffyStyleが追加されたがノードがまだ作成されていない）
+    new_entities: Query<Entity, Added<TaffyStyle>>,
+    // TaffyStyleが変更されたエンティティ
+    changed_styles: Query<(Entity, &TaffyStyle), Changed<TaffyStyle>>,
+    // 階層が変更されたエンティティ
+    changed_hierarchy: Query<(Entity, Option<&ChildOf>), Changed<ChildOf>>,
+    // ChildOfが削除されたエンティティ
+    mut removed_hierarchy: RemovedComponents<ChildOf>,
+) {
+    // 新規エンティティにtaffyノードを作成
+    for entity in new_entities.iter() {
+        if taffy_res.get_node(entity).is_none() {
+            let _ = taffy_res.create_node(entity);
+        }
+    }
+
+    // TaffyStyleの変更をtaffyツリーに反映
+    for (entity, style) in changed_styles.iter() {
+        if let Some(node_id) = taffy_res.get_node(entity) {
+            let _ = taffy_res.taffy_mut().set_style(node_id, style.0.clone());
+        }
+    }
+
+    // 階層変更を処理
+    for (entity, child_of) in changed_hierarchy.iter() {
+        if let Some(node_id) = taffy_res.get_node(entity) {
+            if let Some(parent_ref) = child_of {
+                let parent_entity = parent_ref.parent();
+                if let Some(parent_node) = taffy_res.get_node(parent_entity) {
+                    // 既存の親から削除（エラーは無視）
+                    let _ = taffy_res.taffy_mut().remove_child(parent_node, node_id);
+                    // 新しい親に追加
+                    let _ = taffy_res.taffy_mut().add_child(parent_node, node_id);
+                }
+            }
+        }
+    }
+
+    // ChildOfが削除された場合の処理
+    for entity in removed_hierarchy.read() {
+        if let Some(node_id) = taffy_res.get_node(entity) {
+            // 親から削除（親が不明なのでtaffyツリーから切り離し）
+            // taffyツリーのルートに移動させる
+            let _ = taffy_res.taffy_mut().set_style(node_id, Style::default());
+        }
+    }
+}
+
+/// Taffyレイアウト計算を実行
+pub fn compute_taffy_layout_system(
+    mut taffy_res: ResMut<TaffyLayoutResource>,
+    // Windowルート（親がないWindow）
+    windows: Query<Entity, (With<Window>, Without<ChildOf>)>,
+    // 変更検知用
+    changed_styles: Query<(), Changed<TaffyStyle>>,
+    changed_hierarchy: Query<(), Changed<ChildOf>>,
+) {
+    // 初回レイアウト判定
+    let first_layout = !taffy_res.first_layout_done();
+    let has_changes = !changed_styles.is_empty() || !changed_hierarchy.is_empty();
+
+    // 初回またはChanged検知時にレイアウト計算を実行
+    if first_layout || has_changes {
+        for window_entity in windows.iter() {
+            if let Some(root_node) = taffy_res.get_node(window_entity) {
+                // TODO: Windowサイズから available_space を構築
+                // 現状は無限サイズで計算
+                let available_space = taffy::Size {
+                    width: AvailableSpace::MaxContent,
+                    height: AvailableSpace::MaxContent,
+                };
+
+                let _ = taffy_res
+                    .taffy_mut()
+                    .compute_layout(root_node, available_space);
+            }
+        }
+
+        // 初回レイアウト完了をマーク
+        if first_layout {
+            taffy_res.set_first_layout_done(true);
+        }
+    }
+}
+
+/// TaffyComputedLayoutの結果をArrangementに反映
+pub fn update_arrangements_system(
+    mut commands: Commands,
+    taffy_res: Res<TaffyLayoutResource>,
+    mut query: Query<(Entity, &mut Arrangement), With<TaffyStyle>>,
+) {
+    for (entity, mut arrangement) in query.iter_mut() {
+        if let Some(node_id) = taffy_res.get_node(entity) {
+            if let Ok(layout) = taffy_res.taffy().layout(node_id) {
+                // TaffyComputedLayoutをArrangementに変換
+                arrangement.offset = Offset {
+                    x: layout.location.x,
+                    y: layout.location.y,
+                };
+                arrangement.size = Size {
+                    width: layout.size.width,
+                    height: layout.size.height,
+                };
+
+                // ArrangementTreeChangedマーカーを設定
+                commands.entity(entity).insert(ArrangementTreeChanged);
+            }
+        }
+    }
+}
+
+/// 削除されたエンティティのTaffyノードをクリーンアップ
+pub fn cleanup_removed_entities_system(
+    mut taffy_res: ResMut<TaffyLayoutResource>,
+    mut removed: RemovedComponents<TaffyStyle>,
+) {
+    for entity in removed.read() {
+        let _ = taffy_res.remove_node(entity);
+    }
 }

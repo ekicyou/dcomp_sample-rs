@@ -28,38 +28,38 @@
   - 既存のECSコンポーネント機能が維持されていることを検証
   - _Requirements: 1_
 
-- [ ] 2. 高レベルレイアウトコンポーネントの実装
-- [ ] 2.1 (P) BoxSizeコンポーネントを実装
+- [x] 2. 高レベルレイアウトコンポーネントの実装
+- [x] 2.1 (P) BoxSizeコンポーネントを実装
   - `width`と`height`フィールドを`Option<Dimension>`型で定義
   - `Default`実装で両フィールドを`None`に初期化
   - `Dimension`型（`Px`、`Percent`、`Auto`）をtaffyからre-export
   - _Requirements: 3_
 
-- [ ] 2.2 (P) BoxMarginコンポーネントを実装
+- [x] 2.2 (P) BoxMarginコンポーネントを実装
   - `Rect<LengthPercentageAuto>`型でラップし、4方向（left, right, top, bottom）の余白を保持
   - `Default`実装で`Rect::zero()`を使用
   - `LengthPercentageAuto`型をtaffyからre-export
   - _Requirements: 3_
 
-- [ ] 2.3 (P) BoxPaddingコンポーネントを実装
+- [x] 2.3 (P) BoxPaddingコンポーネントを実装
   - `Rect<LengthPercentage>`型でラップし、4方向の内側余白を保持
   - `Default`実装で`Rect::zero()`を使用
   - `LengthPercentage`型をtaffyからre-export
   - _Requirements: 3_
 
-- [ ] 2.4 (P) FlexContainerコンポーネントを実装
+- [x] 2.4 (P) FlexContainerコンポーネントを実装
   - `direction`（`FlexDirection`）、`justify_content`（`Option<JustifyContent>`）、`align_items`（`Option<AlignItems>`）フィールドを定義
   - `Default`実装で`direction: FlexDirection::Row`、その他は`None`
   - `FlexDirection`、`JustifyContent`、`AlignItems`をtaffyからre-export
   - _Requirements: 3_
 
-- [ ] 2.5 (P) FlexItemコンポーネントを実装
+- [x] 2.5 (P) FlexItemコンポーネントを実装
   - `grow`（`f32`）、`shrink`（`f32`）、`basis`（`Dimension`）、`align_self`（`Option<AlignSelf>`）フィールドを定義
   - `Default`実装で`grow: 0.0`、`shrink: 1.0`、`basis: Dimension::Auto`、`align_self: None`
   - `AlignSelf`をtaffyからre-export
   - _Requirements: 3_
 
-- [ ] 2.6 (P) 公開APIでのre-export設定
+- [x] 2.6 (P) 公開APIでのre-export設定
   - wintfの`lib.rs`で高レベルコンポーネント（BoxSize、BoxMargin、BoxPadding、FlexContainer、FlexItem）を再エクスポート
   - taffy共通型（Dimension、LengthPercentage、LengthPercentageAuto、Rect、FlexDirection等）を再エクスポート
   - ユーザーが`use taffy::`を記述せずに利用できることを確認
