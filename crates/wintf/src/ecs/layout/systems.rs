@@ -5,12 +5,12 @@ use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::*;
 
 use super::{
-    Arrangement, ArrangementTreeChanged, BoxMargin, BoxPadding, BoxSize, FlexContainer,
-    FlexItem, GlobalArrangement,
+    Arrangement, ArrangementTreeChanged, BoxMargin, BoxPadding, BoxSize, D2DRectExt,
+    FlexContainer, FlexItem, GlobalArrangement,
 };
 use super::taffy::{TaffyLayoutResource, TaffyStyle};
 use super::metrics::{Offset, Size};
-use crate::ecs::window::Window;
+use crate::ecs::window::{Window, WindowPos};
 use taffy::prelude::*;
 
 /// 階層に属していないEntity（ルートWindow）のGlobalArrangementを更新
@@ -282,5 +282,25 @@ pub fn cleanup_removed_entities_system(
 ) {
     for entity in removed.read() {
         let _ = taffy_res.remove_node(entity);
+    }
+}
+
+/// GlobalArrangementの変更をWindowPosに反映
+pub fn update_window_pos_system(
+    mut query: Query<(&GlobalArrangement, &mut WindowPos), (With<Window>, Changed<GlobalArrangement>)>,
+) {
+    use windows::Win32::Foundation::{POINT, SIZE};
+
+    for (global_arrangement, mut window_pos) in query.iter_mut() {
+        // GlobalArrangementのboundsからWindowPosに変換
+        let bounds = &global_arrangement.bounds;
+        window_pos.position = Some(POINT {
+            x: bounds.left as i32,
+            y: bounds.top as i32,
+        });
+        window_pos.size = Some(SIZE {
+            cx: bounds.width() as i32,
+            cy: bounds.height() as i32,
+        });
     }
 }

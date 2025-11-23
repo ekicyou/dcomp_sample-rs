@@ -65,15 +65,15 @@
   - ユーザーが`use taffy::`を記述せずに利用できることを確認
   - _Requirements: 3_
 
-- [ ] 3. TaffyLayoutResourceとマッピング管理の実装
-- [ ] 3.1 TaffyLayoutResource構造体を定義
+- [x] 3. TaffyLayoutResourceとマッピング管理の実装
+- [x] 3.1 TaffyLayoutResource構造体を定義
   - `TaffyTree<()>`インスタンスをフィールドとして保持
   - `entity_to_node: HashMap<Entity, NodeId>`で順方向マッピング
   - `node_to_entity: HashMap<NodeId, Entity>`で逆方向マッピング
   - `first_layout_done: bool`フィールド（初期値`false`）を追加
   - _Requirements: 7_
 
-- [ ] 3.2 TaffyLayoutResourceのCRUD操作を実装
+- [x] 3.2 TaffyLayoutResourceのCRUD操作を実装
   - `create_node(&mut self, entity: Entity) -> Result<NodeId, TaffyError>`でノード生成とマッピング登録
   - `remove_node(&mut self, entity: Entity) -> Result<(), TaffyError>`でノード削除と両方向マッピング削除
   - `get_node(&self, entity: Entity) -> Option<NodeId>`でEntity→NodeId検索
@@ -81,27 +81,27 @@
   - `taffy(&self)`と`taffy_mut(&mut self)`でTaffyTreeへの直接アクセスを提供
   - _Requirements: 7_
 
-- [ ] 3.3 TaffyLayoutResourceをECSリソースとして登録
+- [x] 3.3 TaffyLayoutResourceをECSリソースとして登録
   - `ecs/layout/taffy.rs`に実装を配置
   - `World`に`TaffyLayoutResource`をシングルトンリソースとして追加
   - マッピング整合性をDebug assertで検証
   - _Requirements: 7_
 
-- [ ] 4. Layoutスケジュールのシステム実装
-- [ ] 4.1 build_taffy_styles_systemを実装
+- [x] 4. Layoutスケジュールのシステム実装
+- [x] 4.1 build_taffy_styles_systemを実装
   - TaffyStyle自動挿入: `Query<Entity, (Or<(With<BoxSize>, With<BoxMargin>, With<BoxPadding>, With<FlexContainer>, With<FlexItem>)>, Without<TaffyStyle>)>`で高レベルコンポーネントを持つがTaffyStyleがないエンティティを検出し、`TaffyStyle::default()`を挿入
   - 高レベルコンポーネント（BoxSize、BoxMargin、BoxPadding、FlexContainer、FlexItem）から`TaffyStyle`を構築
   - `Changed<T>`クエリで変更されたエンティティのみ処理
   - 各コンポーネントのフィールドを対応する`TaffyStyle`プロパティに変換（例: BoxSize.width → TaffyStyle.size.width）
   - _Requirements: 3, 6_
 
-- [ ] 4.2 sync_taffy_tree_systemを実装
+- [x] 4.2 sync_taffy_tree_systemを実装
   - `Changed<TaffyStyle>`で変更を検知し、`taffy.set_style(node_id, style)`を呼び出し
   - `Changed<ChildOf>`と`RemovedComponents<ChildOf>`で階層変更を検知（`common/tree_system.rs`パターン踏襲）
   - 階層変更時に`taffy.add_child()`と`taffy.remove_child()`でツリー同期
   - _Requirements: 4, 6_
 
-- [ ] 4.3 compute_taffy_layout_systemを実装
+- [x] 4.3 compute_taffy_layout_systemを実装
   - 初回フレーム判定: `first_layout_done == false`の場合、Changed<T>に関わらず全Windowルートで`compute_layout()`実行
   - Window検出: `Query<Entity, (With<Window>, Without<ChildOf>)>`でルートWindowを取得
   - 各WindowのWindowサイズから`available_space`を構築
@@ -110,14 +110,14 @@
   - 以降のフレーム: Changed<T>がある場合のみcompute実行
   - _Requirements: 4, 6, 7_
 
-- [ ] 4.4 update_arrangements_systemを実装
+- [x] 4.4 update_arrangements_systemを実装
   - `Changed<TaffyComputedLayout>`で変更を検知
   - `TaffyComputedLayout`の位置（x, y）を`Arrangement.offset`に変換
   - `TaffyComputedLayout`のサイズ（width, height）を`Arrangement.size`に変換
   - `ArrangementTreeChanged`マーカーを設定
   - _Requirements: 5_
 
-- [ ] 4.5 cleanup_removed_entities_systemを実装
+- [x] 4.5 cleanup_removed_entities_systemを実装
   - `RemovedComponents<TaffyStyle>`でエンティティ削除を検知
   - TaffyLayoutResourceから対応するNodeIdを取得
   - `taffy.remove(node_id)`でtaffyノードを削除
