@@ -50,14 +50,15 @@
 //! ));
 //! ```
 //!
-//! Layout Systemは平行移動とスケールのみをサポートし、軸平行変換に最適化されています。
-//! transform_rect_axis_aligned関数は、4点すべてを変換する代わりに左上と右下の2点のみを変換することで、
-//! O(2)の高速な矩形変換を実現します。
+//! The Layout System supports only translation and scaling, optimized for axis-aligned transformations.
+//! The transform_rect_axis_aligned function transforms only the top-left and bottom-right points
+//! instead of all four points, achieving O(2) fast rectangle transformation.
 //!
-//! 制約: 回転・スキュー変換には対応していません。将来的にDirectComposition Visual層で対応予定です。
+//! Constraint: Rotation and skew transformations are not supported. They will be handled by the
+//! DirectComposition Visual layer in the future.
 //!
-//! systemsモジュールの配置伝播システムは、ecs::common::tree_systemの汎用関数を活用しています：
-//! sync_simple_transforms、mark_dirty_trees、propagate_parent_transforms
+//! The arrangement propagation systems in the systems module leverage generic functions from
+//! ecs::common::tree_system: sync_simple_transforms, mark_dirty_trees, and propagate_parent_transforms.
 
 // Layout System サブモジュール
 pub mod arrangement;
