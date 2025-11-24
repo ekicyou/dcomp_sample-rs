@@ -42,13 +42,17 @@ Taffyレイアウトエンジンによる統一的なレイアウト計算を可
 
 #### Acceptance Criteria
 1. wintf システムは、既存の `LayoutRoot` マーカーコンポーネントをレイアウト階層のルートとして使用しなければならない
-2. wintf システムは、`Monitor` コンポーネントを定義し、HMONITOR ハンドル、画面座標（x, y）、サイズ（width, height）、DPI、プライマリモニタフラグを保持しなければならない
-3. wintf システムは、`WindowMonitorRef` コンポーネントを定義し、Windowが現在配置されているMonitorエンティティへの参照を保持しなければならない
-4. wintf システムは、Windows API（`GetMonitorInfoW`, `GetDpiForMonitor`）経由でモニタ情報を取得する機能を提供しなければならない
-5. When システムが初期化される際、wintf システムは `EnumDisplayMonitors` を使用して全モニタを列挙し、`Monitor` エンティティとして生成しなければならない
-6. When システムが初期化される際、wintf システムは `LayoutRoot` マーカーを持つシングルトンエンティティを作成し、全 `Monitor` および `Window` エンティティの親として設定しなければならない
-7. wintf システムは、`LayoutRoot` の子として `Monitor` および `Window` エンティティを `ChildOf` および `Children` コンポーネントで管理しなければならない
-8. wintf システムは、`App` リソースを拡張し、`DisplayConfigurationChanged` フラグを保持しなければならない
+2. wintf システムは、`Monitor` コンポーネントを定義し、以下のフィールドを保持しなければならない:
+   - `handle: HMONITOR` - モニターハンドル（識別子）
+   - `bounds: RECT` - モニター全体の矩形領域（仮想スクリーン座標系、`i32`フィールド）
+   - `work_area: RECT` - 作業領域（タスクバー除く）
+   - `dpi: u32` - DPI値
+   - `is_primary: bool` - プライマリモニターフラグ
+3. wintf システムは、Windows API（`GetMonitorInfoW`, `GetDpiForMonitor`）経由でモニタ情報を取得し、`Monitor` コンポーネントに統合しなければならない
+4. When システムが初期化される際、wintf システムは `EnumDisplayMonitors` を使用して全モニタを列挙し、`Monitor` エンティティとして生成しなければならない
+5. When システムが初期化される際、wintf システムは `LayoutRoot` マーカーを持つシングルトンエンティティを作成し、全 `Monitor` および `Window` エンティティの親として設定しなければならない
+6. wintf システムは、`LayoutRoot` の子として `Monitor` および `Window` エンティティを `ChildOf` および `Children` コンポーネントで管理しなければならない
+7. wintf システムは、`App` リソースを拡張し、`DisplayConfigurationChanged` フラグを保持しなければならない
 
 ### Requirement 2: エンティティ階層の構築
 **Objective:** 開発者として、LayoutRoot → {Monitor, Window} → Widget の階層構造を構築し、Taffy レイアウト計算のルートとして使用したい。
@@ -56,10 +60,8 @@ Taffyレイアウトエンジンによる統一的なレイアウト計算を可
 #### Acceptance Criteria
 1. wintf システムは、`LayoutRoot` マーカーを持つエンティティをルートノードとし、複数の `Monitor` および `Window` エンティティを子として持つ階層を構築しなければならない
 2. wintf システムは、`Monitor` と `Window` を同じ階層レベル（LayoutRootの直接の子）に配置しなければならない
-3. When ウィンドウが作成される際、wintf システムは `MonitorFromWindow` API を使用してモニタを特定し、`WindowMonitorRef` コンポーネントに対応するMonitorエンティティへの参照を設定しなければならない
-4. When ウィンドウがモニター間を移動した場合、wintf システムは `WindowMonitorRef` コンポーネントのみを更新し、ツリー構造（親子関係）は変更しなければならない
-5. When モニタ構成が変更された場合（モニタの追加/削除/解像度変更）、wintf システムは `Monitor` エンティティの情報を更新しなければならない
-6. wintf システムは、`LayoutRoot` エンティティが削除される際、子孫の `Monitor`, `Window`, `Widget` エンティティも適切にクリーンアップしなければならない
+3. When モニタ構成が変更された場合（モニタの追加/削除/解像度変更）、wintf システムは `Monitor` エンティティの情報を更新しなければならない
+4. wintf システムは、`LayoutRoot` エンティティが削除される際、子孫の `Monitor`, `Window`, `Widget` エンティティも適切にクリーンアップしなければならない
 
 ### Requirement 3: Taffy スタイルコンポーネントの名称変更
 **Objective:** 開発者として、既存のレイアウトコンポーネント名を Taffy との統合を明示する名称に変更し、コードの意図を明確にしたい。
@@ -77,7 +79,7 @@ Taffyレイアウトエンジンによる統一的なレイアウト計算を可
 #### Acceptance Criteria
 1. wintf システムは、`TaffyTree` リソースを定義し、`taffy::Taffy` インスタンスと Entity → NodeId のマッピングを保持しなければならない
 2. When `LayoutRoot`, `Monitor`, `Window`, `Widget` エンティティが生成される際、wintf システムは対応する Taffy ノードを作成し、ツリー構造を構築しなければならない
-3. wintf システムは、`Monitor` の物理サイズ（width, height）と座標（x, y）を `TaffyStyle` の `size` および `inset` プロパティに反映しなければならない
+3. wintf システムは、`Monitor` の `bounds` から物理サイズ（width, height）を計算し `TaffyStyle` の `size` に反映し、仮想スクリーン座標系での位置を `inset` の `left`/`top` に反映し、`position: Position::Absolute` を設定しなければならない
 4. When エンティティ階層が変更された場合、wintf システムは Taffy ツリーの親子関係を同期しなければならない
 5. wintf システムは、`build_taffy_tree_system` を提供し、ECS エンティティから Taffy ツリーを構築する処理を実行しなければならない
 
@@ -96,8 +98,8 @@ Taffyレイアウトエンジンによる統一的なレイアウト計算を可
 
 #### Acceptance Criteria
 1. wintf システムは、`LayoutDirty` マーカーコンポーネントを定義し、レイアウト再計算が必要なエンティティを追跡しなければならない
-2. When `TaffyStyle`, `MonitorInfo`, または階層構造が変更された場合、wintf システムは該当エンティティに `LayoutDirty` マーカーを付与しなければならない
-3. When `MonitorInfo` が変更された場合、wintf システムは `LayoutDirty.subtree_dirty` フラグを true に設定し、サブツリー全体の再計算をマークしなければならない
+2. When `TaffyStyle`, `Monitor`, または階層構造が変更された場合、wintf システムは該当エンティティに `LayoutDirty` マーカーを付与しなければならない
+3. When `Monitor` コンポーネントが変更された場合、wintf システムは `LayoutDirty.subtree_dirty` フラグを true に設定し、サブツリー全体の再計算をマークしなければならない
 4. When `TaffyStyle` のみが変更された場合、wintf システムは該当ノードのみを `taffy.mark_dirty()` でマークし、部分的な再計算を実行しなければならない
 5. wintf システムは、`LayoutDirty` マーカーを持つエンティティのみをクエリし、不要なレイアウト計算を回避しなければならない
 
