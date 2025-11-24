@@ -186,6 +186,10 @@ pub struct WindowPos {
     pub no_send_changing: bool, // SWP_NOSENDCHANGING: WM_WINDOWPOSCHANGINGを送信しない
     pub defer_erase: bool,      // SWP_DEFERERASE: WM_SYNCPAINTを送信しない
     pub async_window_pos: bool, // SWP_ASYNCWINDOWPOS: 非同期で処理
+
+    // エコーバック検知用フィールド
+    pub last_sent_position: Option<(i32, i32)>,
+    pub last_sent_size: Option<(i32, i32)>,
 }
 
 impl Default for WindowPos {
@@ -210,6 +214,8 @@ impl Default for WindowPos {
             no_send_changing: false,
             defer_erase: false,
             async_window_pos: false,
+            last_sent_position: None,
+            last_sent_size: None,
         }
     }
 }
@@ -417,5 +423,12 @@ impl WindowPos {
         };
 
         unsafe { SetWindowPos(hwnd, hwnd_insert_after, x, y, width, height, flags) }
+    }
+
+    /// エコーバック判定メソッド
+    /// SetWindowPosで送信した値とWM_WINDOWPOSCHANGEDで受信した値が一致するかチェック
+    pub fn is_echo(&self, position: POINT, size: SIZE) -> bool {
+        self.last_sent_position == Some((position.x, position.y))
+            && self.last_sent_size == Some((size.cx, size.cy))
     }
 }

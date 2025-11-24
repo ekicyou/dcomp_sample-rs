@@ -189,11 +189,9 @@ impl EcsWorld {
                     // WindowとVisualの紐付け
                     crate::ecs::graphics::window_visual_integration_system
                         .after(crate::ecs::graphics::visual_reinit_system),
-                    // Surface管理 (リサイズ対応)
-                    crate::ecs::graphics::init_window_surface
-                        .after(crate::ecs::graphics::window_visual_integration_system),
+                    // init_window_arrangement: Arrangementコンポーネントの初期化
                     crate::ecs::window_system::init_window_arrangement
-                        .after(crate::ecs::graphics::init_window_surface),
+                        .after(crate::ecs::graphics::window_visual_integration_system),
                 ),
             );
 
@@ -206,8 +204,17 @@ impl EcsWorld {
                         .after(crate::ecs::layout::sync_simple_arrangements),
                     crate::ecs::layout::propagate_global_arrangements
                         .after(crate::ecs::layout::mark_dirty_arrangement_trees),
-                    crate::ecs::layout::update_window_pos_system
+                    // Layout-to-Graphics同期システム (新規追加)
+                    crate::ecs::graphics::sync_visual_from_layout_root
                         .after(crate::ecs::layout::propagate_global_arrangements),
+                    crate::ecs::graphics::resize_surface_from_visual
+                        .after(crate::ecs::graphics::sync_visual_from_layout_root),
+                    crate::ecs::graphics::sync_window_pos
+                        .after(crate::ecs::graphics::resize_surface_from_visual),
+                    crate::ecs::graphics::apply_window_pos_changes
+                        .after(crate::ecs::graphics::sync_window_pos),
+                    crate::ecs::layout::update_window_pos_system
+                        .after(crate::ecs::graphics::apply_window_pos_changes),
                 )
                     .chain(),
             );

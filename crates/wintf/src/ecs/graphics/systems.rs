@@ -387,77 +387,130 @@ pub fn init_window_visual(
     // Deprecated: Visual creation is now handled by visual_resource_management_system
 }
 
-/// Surface初期化・再初期化
-pub fn init_window_surface(
-    graphics: Res<GraphicsCore>,
+// ========== Layout-to-Graphics Synchronization Systems ==========
+
+/// GlobalArrangementからVisualへのサイズ同期
+/// LayoutRootマーカーを持つエンティティのみ処理
+pub fn sync_visual_from_layout_root(
     mut query: Query<
-        (
-            Entity,
-            &WindowGraphics,
-            &VisualGraphics,
-            Option<&mut SurfaceGraphics>,
-            Option<&crate::ecs::graphics::Visual>,
-        ),
-        Or<(Without<SurfaceGraphics>, With<GraphicsNeedsInit>)>,
+        (&GlobalArrangement, &mut super::Visual),
+        (With<crate::ecs::layout::LayoutRoot>, Changed<GlobalArrangement>)
+    >,
+) {
+    for (global_arr, mut visual) in query.iter_mut() {
+        let width = (global_arr.bounds.right - global_arr.bounds.left) as f32;
+        let height = (global_arr.bounds.bottom - global_arr.bounds.top) as f32;
+        visual.size.X = width;
+        visual.size.Y = height;
+    }
+}
+
+/// Visual.size変更時にDirectComposition Surfaceを再作成
+pub fn resize_surface_from_visual(
+    graphics: Option<Res<GraphicsCore>>,
+    mut query: Query<
+        (Entity, &VisualGraphics, &super::Visual, Option<&mut SurfaceGraphics>),
+        Changed<super::Visual>
     >,
     mut commands: Commands,
-    frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
+    let Some(graphics) = graphics else {
+        return;
+    };
+
     if !graphics.is_valid() {
         return;
     }
 
-    for (entity, window_graphics, visual_graphics, surface, visual_component) in query.iter_mut() {
-        if !window_graphics.is_valid() || !visual_graphics.is_valid() {
+    for (entity, visual_graphics, visual, surface) in query.iter_mut() {
+        if !visual_graphics.is_valid() {
             continue;
         }
 
-        // Visualコンポーネントからクライアント領域サイズを取得
-        let (width, height) = visual_component
-            .map(|v| (v.size.X as u32, v.size.Y as u32))
-            .unwrap_or((800, 600));
+        let width = visual.size.X as u32;
+        let height = visual.size.Y as u32;
 
         match surface {
-            None => {
-                eprintln!(
-                    "[Frame {}] [init_window_surface] Surface新規作成 (Entity: {:?}, Size: {}x{})",
-                    frame_count.0, entity, width, height
-                );
-                match create_surface_for_window(&graphics, visual_graphics, width, height) {
-                    Ok(s) => {
-                        eprintln!(
-                            "[Frame {}] [init_window_surface] Surface作成完了 (Entity: {:?})",
-                            frame_count.0, entity
-                        );
-                        commands.entity(entity).insert(s);
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "[Frame {}] [init_window_surface] エラー: Entity {:?}, HRESULT {:?}",
-                            frame_count.0, entity, e
-                        );
+            Some(mut surf) => {
+                // サイズ不一致の場合のみ再作成
+                if surf.size != (width, height) {
+                    match create_surface_for_window(&graphics, visual_graphics, width, height) {
+                        Ok(new_surface) => {
+                            commands.entity(entity).insert(new_surface);
+                        }
+                        Err(e) => {
+                            eprintln!("[resize_surface_from_visual] エラー: {:?}", e);
+                            surf.invalidate();
+                        }
                     }
                 }
             }
-            Some(s) => {
-                if !s.is_valid() || s.size != (width, height) {
-                    eprintln!("[Frame {}] [init_window_surface] Surface再初期化/リサイズ (Entity: {:?}, Size: {}x{} -> {}x{})", 
-                        frame_count.0, entity, s.size.0, s.size.1, width, height);
-                    match create_surface_for_window(&graphics, visual_graphics, width, height) {
-                        Ok(new_s) => {
-                            // Use commands to trigger on_replace hook
-                            commands.entity(entity).insert(new_s);
-                            eprintln!("[Frame {}] [init_window_surface] Surface再初期化完了 (Entity: {:?})", frame_count.0, entity);
-                        }
-                        Err(e) => {
-                            eprintln!("[Frame {}] [init_window_surface] 再初期化エラー: Entity {:?}, HRESULT {:?}", frame_count.0, entity, e);
-                        }
+            None => {
+                // Surfaceがまだ作成されていない場合は作成
+                match create_surface_for_window(&graphics, visual_graphics, width, height) {
+                    Ok(new_surface) => {
+                        commands.entity(entity).insert(new_surface);
+                    }
+                    Err(e) => {
+                        eprintln!("[resize_surface_from_visual] エラー (新規作成): {:?}", e);
                     }
                 }
             }
         }
     }
 }
+
+/// GlobalArrangementとVisualからWindowPosの位置・サイズを更新
+pub fn sync_window_pos(
+    mut query: Query<
+        (&GlobalArrangement, &super::Visual, &mut crate::ecs::window::WindowPos),
+        (With<crate::ecs::window::Window>, Or<(Changed<GlobalArrangement>, Changed<super::Visual>)>)
+    >,
+) {
+    use windows::Win32::Foundation::{POINT, SIZE};
+
+    for (global_arr, visual, mut window_pos) in query.iter_mut() {
+        window_pos.position = Some(POINT {
+            x: global_arr.bounds.left as i32,
+            y: global_arr.bounds.top as i32,
+        });
+        window_pos.size = Some(SIZE {
+            cx: visual.size.X as i32,
+            cy: visual.size.Y as i32,
+        });
+    }
+}
+
+/// WindowPos変更時にSetWindowPos Win32 APIを呼び出し、エコーバック値を記録
+pub fn apply_window_pos_changes(
+    mut query: Query<
+        (&crate::ecs::window::WindowHandle, &mut crate::ecs::window::WindowPos), 
+        (Changed<crate::ecs::window::WindowPos>, With<crate::ecs::window::Window>)
+    >,
+) {
+    for (window_handle, mut window_pos) in query.iter_mut() {
+        // エコーバックチェック
+        let position = window_pos.position.unwrap_or_default();
+        let size = window_pos.size.unwrap_or_default();
+
+        if window_pos.is_echo(position, size) {
+            continue; // エコーバックなのでスキップ
+        }
+
+        // SetWindowPos呼び出し（既存のset_window_posメソッドを活用）
+        let result = window_pos.set_window_pos(window_handle.hwnd);
+
+        if result.is_ok() {
+            // 成功時のみlast_sent値を記録
+            let bypass = window_pos.bypass_change_detection();
+            bypass.last_sent_position = Some((position.x, position.y));
+            bypass.last_sent_size = Some((size.cx, size.cy));
+        } else {
+            eprintln!("[apply_window_pos_changes] SetWindowPos失敗: {:?}", result.err());
+        }
+    }
+}
+
 
 /// GraphicsNeedsInitマーカー削除・初期化完了判定
 pub fn cleanup_graphics_needs_init(

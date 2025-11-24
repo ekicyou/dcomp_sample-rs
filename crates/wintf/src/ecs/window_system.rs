@@ -2,9 +2,7 @@ use crate::ecs::*;
 use crate::process_singleton::*;
 use bevy_ecs::prelude::*;
 use windows::core::*;
-use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
-use windows_numerics::Vector2;
 
 /// Window EntityにArrangementコンポーネントを自動追加するシステム
 pub fn init_window_arrangement(
@@ -75,28 +73,15 @@ pub fn create_windows(
 
         match result {
             Ok(hwnd) => {
-                // 実際のクライアント領域のサイズを取得
-                let mut rect = RECT::default();
-                unsafe {
-                    let _ = GetClientRect(hwnd, &mut rect);
-                }
-                let width = (rect.right - rect.left) as f32;
-                let height = (rect.bottom - rect.top) as f32;
-
                 // WindowHandleコンポーネントを追加
+                // Visual.sizeは sync_visual_from_layout_root で設定される
                 commands.entity(entity).insert((
                     WindowHandle {
                         hwnd,
                         instance: singleton.instance(),
                     },
                     crate::ecs::graphics::HasGraphicsResources,
-                    crate::ecs::graphics::Visual {
-                        size: Vector2 {
-                            X: width,
-                            Y: height,
-                        },
-                        ..Default::default()
-                    },
+                    crate::ecs::graphics::Visual::default(),
                 ));
 
                 // ウィンドウを表示

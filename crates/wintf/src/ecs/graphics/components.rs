@@ -154,7 +154,7 @@ fn on_surface_graphics_changed(mut world: DeferredWorld, context: HookContext) {
 pub struct SurfaceUpdateRequested;
 
 /// 論理的なVisualコンポーネント
-#[derive(Component, Debug, Clone)]
+#[derive(Component, Debug, Clone, PartialEq)]
 pub struct Visual {
     pub is_visible: bool,
     pub opacity: f32,
