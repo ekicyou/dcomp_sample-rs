@@ -49,10 +49,12 @@ Taffyレイアウトエンジンによる統一的なレイアウト計算を可
    - `dpi: u32` - DPI値
    - `is_primary: bool` - プライマリモニターフラグ
 3. wintf システムは、Windows API（`GetMonitorInfoW`, `GetDpiForMonitor`）経由でモニタ情報を取得し、`Monitor` コンポーネントに統合しなければならない
-4. When システムが初期化される際、wintf システムは `EnumDisplayMonitors` を使用して全モニタを列挙し、`Monitor` エンティティとして生成しなければならない
-5. When システムが初期化される際、wintf システムは `LayoutRoot` マーカーを持つシングルトンエンティティを作成し、全 `Monitor` および `Window` エンティティの親として設定しなければならない
-6. wintf システムは、`LayoutRoot` の子として `Monitor` および `Window` エンティティを `ChildOf` および `Children` コンポーネントで管理しなければならない
-7. wintf システムは、`App` リソースを拡張し、`DisplayConfigurationChanged` フラグを保持しなければならない
+4. When アプリケーションが起動し、最初のECSフレーム更新が実行される前に、wintf システムは `LayoutRoot` マーカーを持つシングルトンエンティティを作成しなければならない
+5. When `LayoutRoot` エンティティが作成された際、wintf システムは `EnumDisplayMonitors` を使用して全モニタを列挙し、`Monitor` エンティティとして生成し、`LayoutRoot` の子として追加しなければならない
+6. wintf システムは、`LayoutRoot` エンティティの一意性を保証し、既に存在する場合は新規作成をスキップしなければならない
+7. wintf システムは、`LayoutRoot` エンティティをアプリケーションのライフサイクル全体で維持し、アプリケーション終了時にのみ破棄しなければならない
+8. wintf システムは、`LayoutRoot` の子として `Monitor` および `Window` エンティティを `ChildOf` および `Children` コンポーネントで管理しなければならない
+9. wintf システムは、`App` リソースを拡張し、`DisplayConfigurationChanged` フラグを保持しなければならない
 
 ### Requirement 2: エンティティ階層の構築
 **Objective:** 開発者として、LayoutRoot → {Monitor, Window} → Widget の階層構造を構築し、Taffy レイアウト計算のルートとして使用したい。
@@ -60,8 +62,10 @@ Taffyレイアウトエンジンによる統一的なレイアウト計算を可
 #### Acceptance Criteria
 1. wintf システムは、`LayoutRoot` マーカーを持つエンティティをルートノードとし、複数の `Monitor` および `Window` エンティティを子として持つ階層を構築しなければならない
 2. wintf システムは、`Monitor` と `Window` を同じ階層レベル（LayoutRootの直接の子）に配置しなければならない
-3. When モニタ構成が変更された場合（モニタの追加/削除/解像度変更）、wintf システムは `Monitor` エンティティの情報を更新しなければならない
-4. wintf システムは、`LayoutRoot` エンティティが削除される際、子孫の `Monitor`, `Window`, `Widget` エンティティも適切にクリーンアップしなければならない
+3. wintf システムは、`Widget` エンティティを `Window` エンティティの子としてのみ配置し、`Monitor` エンティティの直接の子として `Widget` を配置してはならない
+4. wintf システムは、既存の `Window` → `Widget` 階層構造を維持し、`Widget` に対する `TaffyStyle` の扱いを変更してはならない
+5. When モニタ構成が変更された場合（モニタの追加/削除/解像度変更）、wintf システムは `Monitor` エンティティの情報を更新しなければならない
+6. wintf システムは、`LayoutRoot` エンティティが削除される際、子孫の `Monitor`, `Window`, `Widget` エンティティも適切にクリーンアップしなければならない
 
 ### Requirement 3: Taffy スタイルコンポーネントの名称変更
 **Objective:** 開発者として、既存のレイアウトコンポーネント名を Taffy との統合を明示する名称に変更し、コードの意図を明確にしたい。
