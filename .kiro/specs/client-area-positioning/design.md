@@ -79,6 +79,8 @@ graph TD
 | Win32 API | `SetWindowPos` | Windows 2000+ | ウィンドウ位置・サイズ設定 |
 | Rust Crate | `windows` | 0.62.2 | Win32 APIバインディング |
 | Rust Crate | `bevy_ecs` | 0.17.2 | Entity Component System framework |
+| wintf Component | `BoxPosition` | - | Relative/Absolute配置モード |
+| wintf Component | `BoxInset` | - | 絶対配置のinset座標（left/top/right/bottom） |
 
 ## System Flows
 
@@ -131,7 +133,7 @@ sequenceDiagram
 | REQ-2: スタイル情報取得 | `WindowPos::to_window_coords` | `GetWindowLongPtrW`で`GWL_STYLE`/`GWL_EXSTYLE`を取得、`GetDpiForWindow`でDPI値を取得 |
 | REQ-3: エラーハンドリング | `apply_window_pos_changes` | 変換失敗時に元の座標でフォールバック、エラーログ出力 |
 | REQ-4: CW_USEDEFAULT対応 | `apply_window_pos_changes` | 既存の`CW_USEDEFAULT`チェックを変換前に実行、該当する場合は変換をスキップ |
-| REQ-5: テストアプリ動作確認 | `taffy_flex_demo` | `BoxSize`コンポーネントでレイアウト入力を設定し、レイアウトシステムの計算結果が`GlobalArrangement`→`update_window_pos_system`→`WindowPos`→`apply_window_pos_changes`の経路で座標変換されることを確認 |
+| REQ-5: テストアプリ動作確認 | `taffy_flex_demo` | `BoxSize`コンポーネントでレイアウト入力を設定し、レイアウトシステムの計算結果が`GlobalArrangement`→`update_window_pos_system`→`WindowPos`→`apply_window_pos_changes`の経路で座標変換されることを確認。明示的なウィンドウ位置指定には`BoxPosition::Absolute` + `BoxInset`を使用可能 |
 
 ## Components & Interfaces
 
@@ -232,7 +234,8 @@ pub fn apply_window_pos_changes(
 - **クライアント領域座標**: ユーザーが設定する座標・サイズ。タイトルバーやボーダーを含まない、コンテンツ描画領域の座標。
 - **ウィンドウ全体座標**: Win32 APIが要求する座標・サイズ。タイトルバーやボーダーを含むウィンドウ全体の矩形。
 - **座標変換**: クライアント領域座標からウィンドウ全体座標への変換。ウィンドウスタイルとDPIに依存する。
-- **レイアウトシステムフロー**: `BoxSize`（レイアウト入力）→ `TaffyComputedLayout`（taffy計算結果）→ `Arrangement`（ローカル配置）→ `GlobalArrangement`（グローバル累積変換）→ `WindowPos`（ウィンドウ位置・サイズ）→ 座標変換 → `SetWindowPos`（Win32 API呼び出し）
+- **レイアウトシステムフロー**: `BoxSize`/`BoxPosition`/`BoxInset`（レイアウト入力）→ `TaffyStyle`（taffy設定）→ `TaffyComputedLayout`（taffy計算結果）→ `Arrangement`（ローカル配置）→ `GlobalArrangement`（グローバル累積変換）→ `WindowPos`（ウィンドウ位置・サイズ）→ 座標変換 → `SetWindowPos`（Win32 API呼び出し）
+- **絶対配置**: `BoxPosition::Absolute` + `BoxInset`により、ウィンドウの絶対スクリーン座標を指定可能（Monitorエンティティで実証済み）
 
 ### Logical Model
 
@@ -257,7 +260,9 @@ impl WindowPos {
 }
 
 // レイアウトシステムの座標フロー
-// BoxSize (layout input) 
+// BoxSize, BoxPosition, BoxInset (layout input) 
+//   ↓ build_taffy_styles_system
+// TaffyStyle
 //   ↓ update_taffy_layout
 // TaffyComputedLayout 
 //   ↓ sync_simple_arrangements
@@ -268,15 +273,21 @@ impl WindowPos {
 // WindowPos (client area coords)
 //   ↓ to_window_coords (NEW)
 // Window coords (for SetWindowPos)
+
+// 絶対配置の例（Monitorエンティティで使用）:
+// BoxPosition::Absolute + BoxInset { left: Px(100), top: Px(100), ... }
+//   → TaffyStyle.position = Position::Absolute
+//   → TaffyStyle.inset = Rect { left: 100px, top: 100px, ... }
 ```
 
 **データフロー**:
-1. `BoxSize`等 ← レイアウト入力（ユーザー設定）
-2. レイアウトシステム → `GlobalArrangement`（階層的な累積変換）
-3. `update_window_pos_system` → `WindowPos::position`/`size`（クライアント領域基準）
-4. `to_window_coords` → `AdjustWindowRectExForDpi` → 変換後の座標・サイズ（ウィンドウ全体基準）
-5. 変換後の値 → `last_sent_position`/`last_sent_size`（エコーバック検知用）
-6. 変換後の値 → `SetWindowPos`（Win32 API呼び出し）
+1. `BoxSize`/`BoxPosition`/`BoxInset`等 ← レイアウト入力（ユーザー設定）
+2. `build_taffy_styles_system` → `TaffyStyle`（taffy設定への変換）
+3. レイアウトシステム → `GlobalArrangement`（階層的な累積変換）
+4. `update_window_pos_system` → `WindowPos::position`/`size`（クライアント領域基準）
+5. `to_window_coords` → `AdjustWindowRectExForDpi` → 変換後の座標・サイズ（ウィンドウ全体基準）
+6. 変換後の値 → `last_sent_position`/`last_sent_size`（エコーバック検知用）
+7. 変換後の値 → `SetWindowPos`（Win32 API呼び出し）
 
 ### Physical Model
 
@@ -385,6 +396,7 @@ Failed to transform window coordinates: AdjustWindowRectExForDpi returned FALSE 
 - 条件: `BoxSize { width: Some(Dimension::Px(800.0)), height: Some(Dimension::Px(600.0)) }`でレイアウトルートを設定し、レイアウトシステムによる座標計算を経て`GlobalArrangement`→`WindowPos`への変換が行われる
 - 期待結果: レイアウトシステムが計算した`GlobalArrangement`から`update_window_pos_system`で`WindowPos`が更新され、`apply_window_pos_changes`で座標変換が実行される。ウィンドウがタイトルバーを含めて画面内に正しく表示され、クライアント領域が意図した位置・サイズで配置される
 - 補足: `taffy_flex_demo`では初期化時に`WindowPos`を直接設定しているが、これは一時的な初期値であり、実際の座標はレイアウトシステム（`BoxSize`→`TaffyComputedLayout`→`Arrangement`→`GlobalArrangement`→`WindowPos`）を経由して反映される
+- 拡張テスト: `BoxPosition::Absolute` + `BoxInset { left: Px(100), top: Px(100), ... }`を追加することで、明示的なウィンドウ位置指定が可能（Monitorエンティティで実証済みパターン）
 
 **テストケース7: マルチモニター環境での動作**
 - テスト対象: 複数モニターでウィンドウを移動

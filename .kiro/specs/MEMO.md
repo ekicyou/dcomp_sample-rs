@@ -3,7 +3,7 @@
 ## 初期化
 ```sh
 /kiro-spec-init "
-BoxSize,BoxMargin,BoxPaddingなど、build_taffy_styles_systemに関わるクエリが巨大になってきて性能不安がある。本質的にレイアウト入力の論理コンポーネントは分離している意義があまりない。そのためコンポーネントを1つにまとめてBoxStyleにしてしまうほうがよいのではないか？各フィールドをOption<BoxSize>などにして、従来コンポーネントだったBoxSizeなどはコンポーネントでなくする。実装
+BoxSize,BoxMargin,BoxPaddingなど、build_taffy_styles_systemに関わるクエリが巨大になってきて性能不安がある。本質的にレイアウト入力の論理コンポーネントは分離している意義があまりない。そのためコンポーネントを1つにまとめてBoxStyleにしてしまうほうがよいのではないか？各フィールドをOption<BoxSize>などにして、従来コンポーネントだったBoxSizeなどはコンポーネントでなくする。実装可否判断を含め検討せよ。
 "
 ```
 
