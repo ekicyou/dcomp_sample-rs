@@ -394,7 +394,10 @@ pub fn init_window_visual(
 pub fn sync_visual_from_layout_root(
     mut query: Query<
         (&GlobalArrangement, &mut super::Visual),
-        (With<crate::ecs::layout::LayoutRoot>, Changed<GlobalArrangement>)
+        (
+            With<crate::ecs::layout::LayoutRoot>,
+            Changed<GlobalArrangement>,
+        ),
     >,
 ) {
     for (global_arr, mut visual) in query.iter_mut() {
@@ -409,8 +412,13 @@ pub fn sync_visual_from_layout_root(
 pub fn resize_surface_from_visual(
     graphics: Option<Res<GraphicsCore>>,
     mut query: Query<
-        (Entity, &VisualGraphics, &super::Visual, Option<&mut SurfaceGraphics>),
-        Changed<super::Visual>
+        (
+            Entity,
+            &VisualGraphics,
+            &super::Visual,
+            Option<&mut SurfaceGraphics>,
+        ),
+        Changed<super::Visual>,
     >,
     mut commands: Commands,
 ) {
@@ -464,12 +472,16 @@ pub fn resize_surface_from_visual(
 /// LayoutRootマーカーを持つWindowのみ処理
 pub fn sync_window_pos(
     mut query: Query<
-        (&GlobalArrangement, &super::Visual, &mut crate::ecs::window::WindowPos),
+        (
+            &GlobalArrangement,
+            &super::Visual,
+            &mut crate::ecs::window::WindowPos,
+        ),
         (
             With<crate::ecs::window::Window>,
             With<crate::ecs::layout::LayoutRoot>,
-            Or<(Changed<GlobalArrangement>, Changed<super::Visual>)>
-        )
+            Or<(Changed<GlobalArrangement>, Changed<super::Visual>)>,
+        ),
     >,
 ) {
     use windows::Win32::Foundation::{POINT, SIZE};
@@ -479,7 +491,7 @@ pub fn sync_window_pos(
         // (0,0,0,0)のような初期値は無視
         let width = global_arr.bounds.right - global_arr.bounds.left;
         let height = global_arr.bounds.bottom - global_arr.bounds.top;
-        
+
         if width <= 0.0 || height <= 0.0 {
             continue; // 無効なboundsはスキップ
         }
@@ -507,8 +519,15 @@ pub fn sync_window_pos(
 /// WindowPos変更時にSetWindowPos Win32 APIを呼び出し、エコーバック値を記録
 pub fn apply_window_pos_changes(
     mut query: Query<
-        (Entity, &crate::ecs::window::WindowHandle, &mut crate::ecs::window::WindowPos), 
-        (Changed<crate::ecs::window::WindowPos>, With<crate::ecs::window::Window>)
+        (
+            Entity,
+            &crate::ecs::window::WindowHandle,
+            &mut crate::ecs::window::WindowPos,
+        ),
+        (
+            Changed<crate::ecs::window::WindowPos>,
+            With<crate::ecs::window::Window>,
+        ),
     >,
 ) {
     for (_entity, window_handle, mut window_pos) in query.iter_mut() {
@@ -521,8 +540,9 @@ pub fn apply_window_pos_changes(
         }
 
         // CW_USEDEFAULTが設定されている場合はスキップ（ウィンドウ作成時の初期値）
-        if position.x == windows::Win32::UI::WindowsAndMessaging::CW_USEDEFAULT 
-            || size.cx == windows::Win32::UI::WindowsAndMessaging::CW_USEDEFAULT {
+        if position.x == windows::Win32::UI::WindowsAndMessaging::CW_USEDEFAULT
+            || size.cx == windows::Win32::UI::WindowsAndMessaging::CW_USEDEFAULT
+        {
             continue;
         }
 
@@ -537,7 +557,6 @@ pub fn apply_window_pos_changes(
         }
     }
 }
-
 
 /// GraphicsNeedsInitマーカー削除・初期化完了判定
 pub fn cleanup_graphics_needs_init(
