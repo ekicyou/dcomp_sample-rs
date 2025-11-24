@@ -119,16 +119,15 @@ pub fn visual_reinit_system(
 /// WindowGraphicsを持つエンティティにVisualGraphicsが追加された場合、
 /// そのVisualをウィンドウのルートVisualとして設定する。
 pub fn window_visual_integration_system(
-    query: Query<(&WindowGraphics, &VisualGraphics), Changed<VisualGraphics>>,
+    query: Query<
+        (Entity, &WindowGraphics, &VisualGraphics), 
+        Or<(Changed<WindowGraphics>, Changed<VisualGraphics>)>
+    >,
 ) {
-    for (window_graphics, visual_graphics) in query.iter() {
+    for (entity, window_graphics, visual_graphics) in query.iter() {
         if let Some(target) = window_graphics.get_target() {
             if let Some(visual) = visual_graphics.visual() {
                 unsafe {
-                    // SetRoot takes IDCompositionVisual.
-                    // visual is IDCompositionVisual3.
-                    // We can cast or pass it if it implements Param.
-                    // Using raw SetRoot for now.
                     let _ = target.SetRoot(visual);
                 }
             }
