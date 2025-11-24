@@ -83,9 +83,10 @@ Taffyレイアウトエンジンによる統一的なレイアウト計算を可
 #### Acceptance Criteria
 1. wintf システムは、`TaffyTree` リソースを定義し、`taffy::Taffy` インスタンスと Entity → NodeId のマッピングを保持しなければならない
 2. When `LayoutRoot`, `Monitor`, `Window`, `Widget` エンティティが生成される際、wintf システムは対応する Taffy ノードを作成し、ツリー構造を構築しなければならない
-3. wintf システムは、`Monitor` の `bounds` から物理サイズ（width, height）を計算し `TaffyStyle` の `size` に反映し、仮想スクリーン座標系での位置を `inset` の `left`/`top` に反映し、`position: Position::Absolute` を設定しなければならない
-4. When エンティティ階層が変更された場合、wintf システムは Taffy ツリーの親子関係を同期しなければならない
-5. wintf システムは、`build_taffy_tree_system` を提供し、ECS エンティティから Taffy ツリーを構築する処理を実行しなければならない
+3. wintf システムは、`BoxPosition`（Absolute/Relative）、`BoxInset`（left/top/right/bottom座標）、`BoxSize`（width/height）コンポーネントを定義し、`Monitor` エンティティに対して `BoxPosition::Absolute` と `BoxInset`（bounds由来）と `BoxSize`（bounds由来）を設定しなければならない
+4. wintf システムは、`build_taffy_styles_system` を拡張し、`BoxPosition`/`BoxInset`/`BoxSize` から `TaffyStyle` の `position`/`inset`/`size` を生成しなければならない
+5. When エンティティ階層が変更された場合、wintf システムは Taffy ツリーの親子関係を同期しなければならない
+6. wintf システムは、`build_taffy_tree_system` を提供し、ECS エンティティから Taffy ツリーを構築する処理を実行しなければならない
 
 ### Requirement 5: レイアウト計算の実行
 **Objective:** 開発者として、LayoutRoot をルートとして Taffy レイアウト計算を実行し、計算結果を各エンティティに反映したい。
@@ -97,17 +98,7 @@ Taffyレイアウトエンジンによる統一的なレイアウト計算を可
 4. When `TaffyComputedLayout` が更新された際、wintf システムは既存の `Arrangement` 更新システムを呼び出し、最終的なウィンドウ配置を計算しなければならない
 5. wintf システムは、レイアウト計算を `LayoutRoot` → `Monitor` → `Window` → `Widget` の順序で実行し、親から子への依存関係を保証しなければならない
 
-### Requirement 6: 増分更新とパフォーマンス最適化
-**Objective:** 開発者として、レイアウト計算を増分的に行い、毎回全ツリーを再計算することなく効率的に更新したい。
-
-#### Acceptance Criteria
-1. wintf システムは、`LayoutDirty` マーカーコンポーネントを定義し、レイアウト再計算が必要なエンティティを追跡しなければならない
-2. When `TaffyStyle`, `Monitor`, または階層構造が変更された場合、wintf システムは該当エンティティに `LayoutDirty` マーカーを付与しなければならない
-3. When `Monitor` コンポーネントが変更された場合、wintf システムは `LayoutDirty.subtree_dirty` フラグを true に設定し、サブツリー全体の再計算をマークしなければならない
-4. When `TaffyStyle` のみが変更された場合、wintf システムは該当ノードのみを `taffy.mark_dirty()` でマークし、部分的な再計算を実行しなければならない
-5. wintf システムは、`LayoutDirty` マーカーを持つエンティティのみをクエリし、不要なレイアウト計算を回避しなければならない
-
-### Requirement 7: モニタ情報の動的更新
+### Requirement 6: モニタ情報の動的更新
 **Objective:** 開発者として、モニタ構成の変更（解像度変更、モニタ追加/削除）を検知し、自動的にモニタ情報とレイアウトを更新したい。
 
 #### Acceptance Criteria
@@ -116,11 +107,9 @@ Taffyレイアウトエンジンによる統一的なレイアウト計算を可
 3. When `DisplayConfigurationChanged` フラグが true の場合、wintf システムは `EnumDisplayMonitors` を使用して全モニタ情報を再取得しなければならない
 4. When 新しいモニタが検出された場合、wintf システムは新しい `Monitor` エンティティを生成し、`LayoutRoot` の子として追加しなければならない
 5. When モニタが削除された場合、wintf システムは該当する `Monitor` エンティティを削除しなければならない
-6. When モニタが削除された場合、wintf システムは削除されたモニタを参照していた全 `Window` エンティティの `WindowMonitorRef` をプライマリモニタに更新しなければならない
-7. When モニタ情報が更新された場合、wintf システムは `LayoutDirty` マーカーを付与し、レイアウトの再計算をトリガーしなければならない
-8. wintf システムは、`DisplayConfigurationChanged` フラグを処理後に false にリセットしなければならない
+6. wintf システムは、`DisplayConfigurationChanged` フラグを処理後に false にリセットしなければならない
 
-### Requirement 8: システムスケジュールの統合
+### Requirement 7: システムスケジュールの統合
 **Objective:** 開発者として、新しいレイアウトシステムが既存のECSスケジュールに適切に統合され、正しい順序で実行されるようにしたい。
 
 #### Acceptance Criteria
@@ -130,7 +119,7 @@ Taffyレイアウトエンジンによる統一的なレイアウト計算を可
 4. wintf システムは、既存の `Arrangement` 更新システムを `distribute_computed_layouts_system` の後に実行しなければならない
 5. When システムスケジュールが構築された際、wintf システムは循環依存が存在しないことを保証しなければならない
 
-### Requirement 9: 既存システムとの互換性維持
+### Requirement 8: 既存システムとの互換性維持
 **Objective:** 開発者として、既存のウィンドウ管理とレイアウトシステムを破壊せず、段階的に新機能を追加したい。
 
 #### Acceptance Criteria
@@ -140,12 +129,11 @@ Taffyレイアウトエンジンによる統一的なレイアウト計算を可
 4. wintf システムは、`GlobalArrangement` から `WindowPos` への変換処理を維持し、Win32 API との統合を保持しなければならない
 5. wintf システムは、既存の `Surface` 最適化機能（サイズ変更時の再生成判定）を継続してサポートしなければならない
 
-### Requirement 10: テストとバリデーション
+### Requirement 9: テストとバリデーション
 **Objective:** 開発者として、新しい階層システムの動作を検証し、レイアウト計算が正しく実行されることを確認したい。
 
 #### Acceptance Criteria
 1. wintf システムは、`LayoutRoot` → `Monitor` → `Window` 階層が正しく構築されることを検証するテストを提供しなければならない
 2. wintf システムは、`Monitor` の物理サイズと座標が `TaffyStyle` に正しく反映されることを検証するテストを提供しなければならない
 3. wintf システムは、Taffy レイアウト計算の結果が `TaffyComputedLayout` に正しく格納されることを検証するテストを提供しなければならない
-4. wintf システムは、`LayoutDirty` による増分更新が正しく動作し、不要な計算が回避されることを検証するテストを提供しなければならない
-5. wintf システムは、モニタ構成変更時に階層とレイアウトが正しく更新されることを検証するテストを提供しなければならない
+4. wintf システムは、モニタ構成変更時に階層とレイアウトが正しく更新されることを検証するテストを提供しなければならない
