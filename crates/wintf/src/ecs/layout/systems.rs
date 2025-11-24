@@ -274,13 +274,10 @@ pub fn sync_taffy_tree_system(
 
     // ChildOfが削除された場合の処理
     for entity in removed_hierarchy.read() {
-        // TODO: 親から子を削除する処理
-        // 現在この処理を有効にすると taffy_flex_layout_pure_test が壊れる
-        // 原因を特定してから有効化する
-        if let Some(_node_id) = taffy_res.get_node(entity) {
-            // if let Some(parent_node) = taffy_res.taffy().parent(node_id) {
-            //     let _ = taffy_res.taffy_mut().remove_child(parent_node, node_id);
-            // }
+        if let Some(node_id) = taffy_res.get_node(entity) {
+            if let Some(parent_node) = taffy_res.taffy().parent(node_id) {
+                let _ = taffy_res.taffy_mut().remove_child(parent_node, node_id);
+            }
         }
     }
 }
