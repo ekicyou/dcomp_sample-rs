@@ -27,6 +27,12 @@ impl TaffyStyle {
 #[repr(transparent)]
 pub struct TaffyComputedLayout(pub(crate) Layout);
 
+impl From<Layout> for TaffyComputedLayout {
+    fn from(layout: Layout) -> Self {
+        Self(layout)
+    }
+}
+
 /// Taffyレイアウトエンジンとエンティティマッピングを管理するリソース
 #[derive(Resource)]
 pub struct TaffyLayoutResource {
