@@ -245,20 +245,10 @@ pub fn sync_taffy_tree_system(
     // ChildOfが削除されたエンティティ
     mut removed_hierarchy: RemovedComponents<ChildOf>,
 ) {
-    // 新規エンティティにtaffyノードを作成し、親子関係も設定
-    for (entity, child_of) in new_entities.iter() {
+    // 新規エンティティにtaffyノードを作成
+    for (entity, _) in new_entities.iter() {
         if taffy_res.get_node(entity).is_none() {
             let _ = taffy_res.create_node(entity);
-
-            // 親子関係も同時に設定
-            if let Some(parent_ref) = child_of {
-                if let Some(node_id) = taffy_res.get_node(entity) {
-                    let parent_entity = parent_ref.parent();
-                    if let Some(parent_node) = taffy_res.get_node(parent_entity) {
-                        let _ = taffy_res.taffy_mut().add_child(parent_node, node_id);
-                    }
-                }
-            }
         }
     }
 
@@ -269,7 +259,7 @@ pub fn sync_taffy_tree_system(
         }
     }
 
-    // 階層変更を処理
+    // 階層変更を処理（新規エンティティの親子関係もここで設定）
     for (entity, child_of) in changed_hierarchy.iter() {
         if let Some(node_id) = taffy_res.get_node(entity) {
             if let Some(parent_ref) = child_of {
@@ -284,10 +274,13 @@ pub fn sync_taffy_tree_system(
 
     // ChildOfが削除された場合の処理
     for entity in removed_hierarchy.read() {
-        if let Some(node_id) = taffy_res.get_node(entity) {
-            // 親から削除（親が不明なのでtaffyツリーから切り離し）
-            // taffyツリーのルートに移動させる
-            let _ = taffy_res.taffy_mut().set_style(node_id, Style::default());
+        // TODO: 親から子を削除する処理
+        // 現在この処理を有効にすると taffy_flex_layout_pure_test が壊れる
+        // 原因を特定してから有効化する
+        if let Some(_node_id) = taffy_res.get_node(entity) {
+            // if let Some(parent_node) = taffy_res.taffy().parent(node_id) {
+            //     let _ = taffy_res.taffy_mut().remove_child(parent_node, node_id);
+            // }
         }
     }
 }

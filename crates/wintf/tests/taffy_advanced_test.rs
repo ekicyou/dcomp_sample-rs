@@ -1,13 +1,13 @@
 /// Task 7.2-7.7: 追加ユニットテスト
 /// TaffyComputedLayout変換、マッピング管理、階層同期、増分計算、クリーンアップ、境界値シナリオ
 use bevy_ecs::prelude::*;
-use wintf::ecs::ChildOf;
-use wintf::ecs::layout::taffy::{TaffyComputedLayout, TaffyLayoutResource, TaffyStyle};
 use wintf::ecs::layout::systems::{
     build_taffy_styles_system, cleanup_removed_entities_system, compute_taffy_layout_system,
     sync_taffy_tree_system, update_arrangements_system,
 };
+use wintf::ecs::layout::taffy::{TaffyComputedLayout, TaffyLayoutResource, TaffyStyle};
 use wintf::ecs::layout::{Arrangement, BoxSize, Dimension, LayoutRoot};
+use wintf::ecs::ChildOf;
 
 // ===== Task 7.2: TaffyComputedLayout→Arrangement変換テスト =====
 
@@ -106,7 +106,9 @@ fn test_create_node_and_mapping() {
     let entity = world.spawn_empty().id();
 
     // ノード作成
-    let node_id = taffy_res.create_node(entity).expect("Failed to create node");
+    let node_id = taffy_res
+        .create_node(entity)
+        .expect("Failed to create node");
 
     // 順方向マッピング検証
     assert_eq!(taffy_res.get_node(entity), Some(node_id));
@@ -124,7 +126,9 @@ fn test_remove_node_and_mapping_cleanup() {
     let node_id = taffy_res.create_node(entity).unwrap();
 
     // ノード削除
-    taffy_res.remove_node(entity).expect("Failed to remove node");
+    taffy_res
+        .remove_node(entity)
+        .expect("Failed to remove node");
 
     // 両方向マッピングが削除されていることを確認
     assert_eq!(taffy_res.get_node(entity), None);
@@ -206,7 +210,7 @@ fn test_hierarchy_addition_syncs_taffy_tree() {
 }
 
 #[test]
-#[ignore = "TODO: sync_taffy_tree_system needs RemovedComponents<ChildOf> support"]
+#[ignore = "TODO: RemovedComponents<ChildOf> processing breaks taffy_flex_layout_pure_test"]
 fn test_hierarchy_removal_syncs_taffy_tree() {
     let mut world = World::new();
     world.init_resource::<TaffyLayoutResource>();
@@ -216,11 +220,7 @@ fn test_hierarchy_removal_syncs_taffy_tree() {
         .spawn((TaffyStyle::default(), BoxSize::default()))
         .id();
     let child = world
-        .spawn((
-            TaffyStyle::default(),
-            BoxSize::default(),
-            ChildOf(parent),
-        ))
+        .spawn((TaffyStyle::default(), BoxSize::default(), ChildOf(parent)))
         .id();
 
     // システム実行
@@ -242,7 +242,6 @@ fn test_hierarchy_removal_syncs_taffy_tree() {
 }
 
 #[test]
-#[ignore = "TODO: Incorrect expectations - need to align with sync_taffy_tree_system behavior"]
 fn test_deep_hierarchy_sync() {
     let mut world = World::new();
     world.init_resource::<TaffyLayoutResource>();
@@ -252,25 +251,13 @@ fn test_deep_hierarchy_sync() {
         .spawn((TaffyStyle::default(), BoxSize::default()))
         .id();
     let a = world
-        .spawn((
-            TaffyStyle::default(),
-            BoxSize::default(),
-            ChildOf(root),
-        ))
+        .spawn((TaffyStyle::default(), BoxSize::default(), ChildOf(root)))
         .id();
     let b = world
-        .spawn((
-            TaffyStyle::default(),
-            BoxSize::default(),
-            ChildOf(a),
-        ))
+        .spawn((TaffyStyle::default(), BoxSize::default(), ChildOf(a)))
         .id();
     let c = world
-        .spawn((
-            TaffyStyle::default(),
-            BoxSize::default(),
-            ChildOf(b),
-        ))
+        .spawn((TaffyStyle::default(), BoxSize::default(), ChildOf(b)))
         .id();
 
     // システム実行
@@ -332,7 +319,7 @@ fn test_no_change_no_compute() {
         sync_taffy_tree_system,
         compute_taffy_layout_system,
     ));
-    
+
     // 初回実行でノードが作成される
     schedule.run(&mut world);
 
@@ -347,7 +334,6 @@ fn test_no_change_no_compute() {
 }
 
 #[test]
-#[ignore = "TODO: Requires full system pipeline (build_taffy_styles_system) to detect BoxSize changes"]
 fn test_high_level_component_change_triggers_compute() {
     let mut world = World::new();
     world.init_resource::<TaffyLayoutResource>();
@@ -366,12 +352,15 @@ fn test_high_level_component_change_triggers_compute() {
         .id();
 
     let mut schedule = Schedule::default();
-    schedule.add_systems((
-        build_taffy_styles_system,
-        sync_taffy_tree_system,
-        compute_taffy_layout_system,
-        update_arrangements_system,
-    ));
+    schedule.add_systems(
+        (
+            build_taffy_styles_system,
+            sync_taffy_tree_system,
+            compute_taffy_layout_system,
+            update_arrangements_system,
+        )
+            .chain(),
+    );
     schedule.run(&mut world);
 
     // 初回のArrangementを記録
@@ -414,7 +403,11 @@ fn test_hierarchy_change_triggers_compute() {
         .id();
 
     let child = world
-        .spawn((TaffyStyle::default(), TaffyComputedLayout::default(), BoxSize::default()))
+        .spawn((
+            TaffyStyle::default(),
+            TaffyComputedLayout::default(),
+            BoxSize::default(),
+        ))
         .id();
 
     let mut schedule = Schedule::default();
@@ -548,7 +541,6 @@ fn test_empty_tree() {
 }
 
 #[test]
-#[ignore = "TODO: Requires full system pipeline to trigger layout computation"]
 fn test_single_node_tree() {
     let mut world = World::new();
     world.init_resource::<TaffyLayoutResource>();
@@ -567,17 +559,20 @@ fn test_single_node_tree() {
         .id();
 
     let mut schedule = Schedule::default();
-    schedule.add_systems((
-        build_taffy_styles_system,
-        sync_taffy_tree_system,
-        compute_taffy_layout_system,
-        update_arrangements_system,
-    ));
+    schedule.add_systems(
+        (
+            build_taffy_styles_system,
+            sync_taffy_tree_system,
+            compute_taffy_layout_system,
+            update_arrangements_system,
+        )
+            .chain(),
+    );
     schedule.run(&mut world);
 
     // TaffyComputedLayoutが設定されていることを確認
     assert!(world.entity(entity).contains::<TaffyComputedLayout>());
-    
+
     // Arrangementも設定されていることを確認
     assert!(world.entity(entity).contains::<Arrangement>());
 
