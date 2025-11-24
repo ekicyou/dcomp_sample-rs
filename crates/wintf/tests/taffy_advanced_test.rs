@@ -210,7 +210,6 @@ fn test_hierarchy_addition_syncs_taffy_tree() {
 }
 
 #[test]
-#[ignore = "TODO: RemovedComponents<ChildOf> processing breaks taffy_flex_layout_pure_test"]
 fn test_hierarchy_removal_syncs_taffy_tree() {
     let mut world = World::new();
     world.init_resource::<TaffyLayoutResource>();
