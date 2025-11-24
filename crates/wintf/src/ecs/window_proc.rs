@@ -112,6 +112,17 @@ pub extern "system" fn ecs_wndproc(
                 }
                 DefWindowProcW(hwnd, message, wparam, lparam)
             }
+            WM_DISPLAYCHANGE => {
+                // ディスプレイ構成が変更された
+                if let Some(world) = try_get_ecs_world() {
+                    if let Ok(mut world_borrow) = world.try_borrow_mut() {
+                        if let Some(mut app) = world_borrow.world_mut().get_resource_mut::<crate::ecs::App>() {
+                            app.mark_display_change();
+                        }
+                    }
+                }
+                DefWindowProcW(hwnd, message, wparam, lparam)
+            }
             _ => DefWindowProcW(hwnd, message, wparam, lparam),
         }
     }

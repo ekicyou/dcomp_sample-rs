@@ -330,6 +330,31 @@ impl Default for BoxPadding {
     }
 }
 
+/// ボックス配置タイプコンポーネント
+#[derive(Debug, Clone, Copy, PartialEq, Component)]
+pub enum BoxPosition {
+    /// 相対配置（通常のフロー内配置）
+    Relative,
+    /// 絶対配置（親要素基準の座標指定）
+    Absolute,
+}
+
+impl Default for BoxPosition {
+    fn default() -> Self {
+        Self::Relative
+    }
+}
+
+/// 絶対配置のインセット座標コンポーネント
+#[derive(Debug, Clone, Copy, PartialEq, Component)]
+pub struct BoxInset(pub Rect<LengthPercentageAuto>);
+
+impl Default for BoxInset {
+    fn default() -> Self {
+        Self(Rect::auto())
+    }
+}
+
 /// Flexコンテナコンポーネント
 #[derive(Debug, Clone, Copy, PartialEq, Component)]
 pub struct FlexContainer {

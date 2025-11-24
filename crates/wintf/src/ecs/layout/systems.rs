@@ -7,8 +7,8 @@ use bevy_ecs::prelude::*;
 use super::metrics::{LayoutScale, Offset, Size};
 use super::taffy::{TaffyComputedLayout, TaffyLayoutResource, TaffyStyle};
 use super::{
-    Arrangement, ArrangementTreeChanged, BoxMargin, BoxPadding, BoxSize, D2DRectExt, Dimension,
-    FlexContainer, FlexItem, GlobalArrangement, LayoutRoot,
+    Arrangement, ArrangementTreeChanged, BoxInset, BoxMargin, BoxPadding, BoxPosition, BoxSize,
+    D2DRectExt, Dimension, FlexContainer, FlexItem, GlobalArrangement, LayoutRoot,
 };
 use crate::ecs::window::{Window, WindowPos};
 use taffy::prelude::*;
@@ -91,6 +91,8 @@ pub fn build_taffy_styles_system(
             Option<&BoxSize>,
             Option<&BoxMargin>,
             Option<&BoxPadding>,
+            Option<&BoxPosition>,
+            Option<&BoxInset>,
             Option<&FlexContainer>,
             Option<&FlexItem>,
         ),
@@ -100,6 +102,8 @@ pub fn build_taffy_styles_system(
                 With<BoxSize>,
                 With<BoxMargin>,
                 With<BoxPadding>,
+                With<BoxPosition>,
+                With<BoxInset>,
                 With<FlexContainer>,
                 With<FlexItem>,
             )>,
@@ -113,6 +117,8 @@ pub fn build_taffy_styles_system(
             Option<&BoxSize>,
             Option<&BoxMargin>,
             Option<&BoxPadding>,
+            Option<&BoxPosition>,
+            Option<&BoxInset>,
             Option<&FlexContainer>,
             Option<&FlexItem>,
             &mut TaffyStyle,
@@ -121,13 +127,15 @@ pub fn build_taffy_styles_system(
             Changed<BoxSize>,
             Changed<BoxMargin>,
             Changed<BoxPadding>,
+            Changed<BoxPosition>,
+            Changed<BoxInset>,
             Changed<FlexContainer>,
             Changed<FlexItem>,
         )>,
     >,
 ) {
     // TaffyStyleを自動挿入（既存のコンポーネントから初期化）
-    for (entity, box_size, box_margin, box_padding, flex_container, flex_item) in
+    for (entity, box_size, box_margin, box_padding, box_position, box_inset, flex_container, flex_item) in
         without_style.iter()
     {
         let mut style = Style::default();
@@ -150,6 +158,19 @@ pub fn build_taffy_styles_system(
         // BoxPadding: padding
         if let Some(padding) = box_padding {
             style.padding = padding.0.into();
+        }
+
+        // BoxPosition: position
+        if let Some(position) = box_position {
+            style.position = match position {
+                BoxPosition::Relative => Position::Relative,
+                BoxPosition::Absolute => Position::Absolute,
+            };
+        }
+
+        // BoxInset: inset
+        if let Some(inset) = box_inset {
+            style.inset = inset.0.into();
         }
 
         // FlexContainer: display, flex_direction, justify_content, align_items
@@ -182,7 +203,7 @@ pub fn build_taffy_styles_system(
     }
 
     // 高レベルコンポーネントからTaffyStyleを構築
-    for (_entity, box_size, box_margin, box_padding, flex_container, flex_item, mut taffy_style) in
+    for (_entity, box_size, box_margin, box_padding, box_position, box_inset, flex_container, flex_item, mut taffy_style) in
         changed.iter_mut()
     {
         let mut style = Style::default();
@@ -205,6 +226,19 @@ pub fn build_taffy_styles_system(
         // BoxPadding: padding
         if let Some(padding) = box_padding {
             style.padding = padding.0.into();
+        }
+
+        // BoxPosition: position
+        if let Some(position) = box_position {
+            style.position = match position {
+                BoxPosition::Relative => Position::Relative,
+                BoxPosition::Absolute => Position::Absolute,
+            };
+        }
+
+        // BoxInset: inset
+        if let Some(inset) = box_inset {
+            style.inset = inset.0.into();
         }
 
         // FlexContainer: display, flex_direction, justify_content, align_items
@@ -423,4 +457,217 @@ pub fn update_window_pos_system(
             cy: bounds.height() as i32,
         });
     }
+}
+
+// ===== Monitor階層管理システム =====
+
+/// LayoutRoot Singletonを初期化し、Monitorエンティティを生成
+pub fn initialize_layout_root_system(
+    mut commands: Commands,
+    existing_root: Query<Entity, With<LayoutRoot>>,
+    mut taffy_res: ResMut<TaffyLayoutResource>,
+) {
+    // 既にLayoutRootが存在する場合はスキップ
+    if !existing_root.is_empty() {
+        return;
+    }
+
+    eprintln!("[initialize_layout_root_system] Creating LayoutRoot singleton");
+
+    // LayoutRootエンティティを作成
+    let layout_root = commands
+        .spawn((
+            LayoutRoot,
+            BoxSize::default(),
+            Arrangement::default(),
+            GlobalArrangement::default(),
+        ))
+        .id();
+
+    // LayoutRoot用のTaffyノード作成
+    if let Err(e) = taffy_res.create_node(layout_root) {
+        eprintln!("[initialize_layout_root_system] Failed to create Taffy node for LayoutRoot: {:?}", e);
+        return;
+    }
+
+    // 全モニターを列挙
+    let monitors = crate::ecs::monitor::enumerate_monitors();
+    eprintln!(
+        "[initialize_layout_root_system] Enumerated {} monitors",
+        monitors.len()
+    );
+
+    // 各Monitorエンティティを生成
+    for monitor in monitors {
+        let (width, height) = monitor.physical_size();
+        let (left, top) = monitor.top_left();
+
+        eprintln!(
+            "[initialize_layout_root_system] Creating Monitor entity: bounds=({},{},{},{}), dpi={}, primary={}",
+            monitor.bounds.left, monitor.bounds.top, monitor.bounds.right, monitor.bounds.bottom,
+            monitor.dpi, monitor.is_primary
+        );
+
+        let monitor_entity = commands
+            .spawn((
+                monitor,
+                ChildOf(layout_root),
+                BoxPosition::Absolute,
+                BoxSize {
+                    width: Some(Dimension::Px(width)),
+                    height: Some(Dimension::Px(height)),
+                },
+                BoxInset(super::Rect {
+                    left: super::LengthPercentageAuto::Px(left),
+                    top: super::LengthPercentageAuto::Px(top),
+                    right: super::LengthPercentageAuto::Auto,
+                    bottom: super::LengthPercentageAuto::Auto,
+                }),
+                Arrangement::default(),
+                GlobalArrangement::default(),
+            ))
+            .id();
+
+        // Monitor用のTaffyノード作成
+        if let Err(e) = taffy_res.create_node(monitor_entity) {
+            eprintln!(
+                "[initialize_layout_root_system] Failed to create Taffy node for Monitor: {:?}",
+                e
+            );
+        }
+    }
+}
+
+/// Monitorの情報が変更された際に、レイアウトコンポーネントを更新
+pub fn update_monitor_layout_system(
+    mut query: Query<(&crate::ecs::Monitor, &mut BoxSize, &mut BoxInset), Changed<crate::ecs::Monitor>>,
+) {
+    for (monitor, mut box_size, mut box_inset) in query.iter_mut() {
+        let (width, height) = monitor.physical_size();
+        let (left, top) = monitor.top_left();
+
+        eprintln!(
+            "[update_monitor_layout_system] Updating Monitor layout: size=({}, {}), position=({}, {})",
+            width, height, left, top
+        );
+
+        *box_size = BoxSize {
+            width: Some(Dimension::Px(width)),
+            height: Some(Dimension::Px(height)),
+        };
+
+        *box_inset = BoxInset(super::Rect {
+            left: super::LengthPercentageAuto::Px(left),
+            top: super::LengthPercentageAuto::Px(top),
+            right: super::LengthPercentageAuto::Auto,
+            bottom: super::LengthPercentageAuto::Auto,
+        });
+    }
+}
+
+/// ディスプレイ構成変更を検知し、Monitorエンティティを更新
+pub fn detect_display_change_system(
+    mut commands: Commands,
+    mut app: ResMut<crate::ecs::App>,
+    layout_root: Query<Entity, With<LayoutRoot>>,
+    mut existing_monitors: Query<(Entity, &mut crate::ecs::Monitor), With<crate::ecs::Monitor>>,
+    mut taffy_res: ResMut<TaffyLayoutResource>,
+) {
+    // ディスプレイ構成変更フラグをチェック
+    if !app.display_configuration_changed() {
+        return;
+    }
+
+    eprintln!("[detect_display_change_system] Display configuration changed, updating monitors");
+
+    // LayoutRootを取得
+    let Ok(root_entity) = layout_root.single() else {
+        eprintln!("[detect_display_change_system] LayoutRoot not found, skipping");
+        app.reset_display_change();
+        return;
+    };
+
+    // 新しいモニターリストを取得
+    let new_monitors = crate::ecs::monitor::enumerate_monitors();
+    eprintln!(
+        "[detect_display_change_system] Found {} monitors",
+        new_monitors.len()
+    );
+
+    // 既存のMonitorエンティティをマップに変換（handle → entity）
+    let mut existing_map: std::collections::HashMap<isize, (Entity, crate::ecs::Monitor)> =
+        existing_monitors
+            .iter()
+            .map(|(e, m)| (m.handle, (e, m.clone())))
+            .collect();
+
+    // 新規・更新Monitorの処理
+    for new_monitor in new_monitors {
+        if let Some((entity, existing_monitor)) = existing_map.remove(&new_monitor.handle) {
+            // 既存Monitorの更新
+            if existing_monitor != new_monitor {
+                eprintln!(
+                    "[detect_display_change_system] Updating Monitor entity {:?}",
+                    entity
+                );
+                if let Ok((_, mut monitor)) = existing_monitors.get_mut(entity) {
+                    *monitor = new_monitor;
+                }
+            }
+        } else {
+            // 新規Monitorの追加
+            eprintln!(
+                "[detect_display_change_system] Adding new Monitor: handle={}",
+                new_monitor.handle
+            );
+
+            let (width, height) = new_monitor.physical_size();
+            let (left, top) = new_monitor.top_left();
+
+            let monitor_entity = commands
+                .spawn((
+                    new_monitor,
+                    ChildOf(root_entity),
+                    BoxPosition::Absolute,
+                    BoxSize {
+                        width: Some(Dimension::Px(width)),
+                        height: Some(Dimension::Px(height)),
+                    },
+                    BoxInset(super::Rect {
+                        left: super::LengthPercentageAuto::Px(left),
+                        top: super::LengthPercentageAuto::Px(top),
+                        right: super::LengthPercentageAuto::Auto,
+                        bottom: super::LengthPercentageAuto::Auto,
+                    }),
+                    Arrangement::default(),
+                    GlobalArrangement::default(),
+                ))
+                .id();
+
+            if let Err(e) = taffy_res.create_node(monitor_entity) {
+                eprintln!(
+                    "[detect_display_change_system] Failed to create Taffy node for new Monitor: {:?}",
+                    e
+                );
+            }
+        }
+    }
+
+    // 削除されたMonitorの処理
+    for (entity, monitor) in existing_map.values() {
+        eprintln!(
+            "[detect_display_change_system] Removing Monitor entity {:?} (handle={})",
+            entity, monitor.handle
+        );
+        if let Err(e) = taffy_res.remove_node(*entity) {
+            eprintln!(
+                "[detect_display_change_system] Failed to remove Taffy node: {:?}",
+                e
+            );
+        }
+        commands.entity(*entity).despawn();
+    }
+
+    // フラグをリセット
+    app.reset_display_change();
 }

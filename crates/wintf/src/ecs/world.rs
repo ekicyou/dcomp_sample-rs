@@ -156,10 +156,23 @@ impl EcsWorld {
             // WindowPos変更をSetWindowPosに反映（メインスレッド固定が必要）
             schedules.add_systems(UISetup, crate::ecs::graphics::apply_window_pos_changes);
 
-            // Updateスケジュールに依存コンポーネント無効化システムを登録
+            // Updateスケジュールにディスプレイ構成変更検知とモニター階層管理を登録
             schedules.add_systems(
                 Update,
-                crate::ecs::graphics::invalidate_dependent_components,
+                (
+                    // LayoutRoot初期化（初回のみ実行）
+                    crate::ecs::layout::initialize_layout_root_system,
+                    // ディスプレイ構成変更検知（initialize_layout_root_systemの後）
+                    crate::ecs::layout::detect_display_change_system
+                        .after(crate::ecs::layout::initialize_layout_root_system),
+                    // Monitorレイアウト更新（detect_display_change_systemの後）
+                    crate::ecs::layout::update_monitor_layout_system
+                        .after(crate::ecs::layout::detect_display_change_system),
+                    // 依存コンポーネント無効化
+                    crate::ecs::graphics::invalidate_dependent_components
+                        .after(crate::ecs::layout::update_monitor_layout_system),
+                )
+                    .chain(),
             );
 
             // Layoutスケジュールにtaffyレイアウトシステムを登録

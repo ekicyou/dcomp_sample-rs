@@ -11,6 +11,7 @@ use windows::Win32::{
 pub struct App {
     window_count: usize,
     message_window: Option<isize>,
+    display_configuration_changed: bool,
 }
 
 impl Default for App {
@@ -18,6 +19,7 @@ impl Default for App {
         Self {
             window_count: 0,
             message_window: None,
+            display_configuration_changed: false,
         }
     }
 }
@@ -31,6 +33,22 @@ impl App {
     /// メッセージウィンドウのHWNDを設定
     pub fn set_message_window(&mut self, hwnd: HWND) {
         self.message_window = Some(hwnd.0 as isize);
+    }
+
+    /// ディスプレイ構成が変更されたことをマーク
+    pub fn mark_display_change(&mut self) {
+        self.display_configuration_changed = true;
+        eprintln!("[App] Display configuration changed");
+    }
+
+    /// ディスプレイ構成変更フラグをリセット
+    pub fn reset_display_change(&mut self) {
+        self.display_configuration_changed = false;
+    }
+
+    /// ディスプレイ構成が変更されたかどうかを取得
+    pub fn display_configuration_changed(&self) -> bool {
+        self.display_configuration_changed
     }
 
     /// ウィンドウが作成されたときに呼ばれる

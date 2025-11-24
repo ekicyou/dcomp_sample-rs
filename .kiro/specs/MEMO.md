@@ -3,8 +3,7 @@
 ## 初期化
 ```sh
 /kiro-spec-init "
-apply_window_pos_changesがSetWindowPosを呼び出すとき、引数の
-WindowPos::position,sizeについて、「そのウィンドウのクライアント領域」がその位置になるように、SetWindowPosのパラメーターを調整する。
+BoxSize,BoxMargin,BoxPaddingなど、build_taffy_styles_systemに関わるクエリが巨大になってきて性能不安がある。本質的にレイアウト入力の論理コンポーネントは分離している意義があまりない。そのためコンポーネントを1つにまとめてBoxStyleにしてしまうほうがよいのではないか？各フィールドをOption<BoxSize>などにして、従来コンポーネントだったBoxSizeなどはコンポーネントでなくする。実装
 "
 ```
 
