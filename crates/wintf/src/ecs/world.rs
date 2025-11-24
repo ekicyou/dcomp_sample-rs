@@ -149,6 +149,12 @@ impl EcsWorld {
 
             schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
             // on_window_handle_addedとon_window_handle_removedはフックで代替
+            
+            // WindowPos変更をSetWindowPosに反映（メインスレッド固定が必要）
+            schedules.add_systems(UISetup, crate::ecs::graphics::apply_window_pos_changes);
+            
+            // WindowPos変更をSetWindowPosに反映（メインスレッド固定が必要）
+            schedules.add_systems(UISetup, crate::ecs::graphics::apply_window_pos_changes);
 
             // Updateスケジュールに依存コンポーネント無効化システムを登録
             schedules.add_systems(
@@ -211,10 +217,9 @@ impl EcsWorld {
                         .after(crate::ecs::graphics::sync_visual_from_layout_root),
                     crate::ecs::graphics::sync_window_pos
                         .after(crate::ecs::graphics::resize_surface_from_visual),
-                    crate::ecs::graphics::apply_window_pos_changes
-                        .after(crate::ecs::graphics::sync_window_pos),
+                    // apply_window_pos_changesはUISetupに移動（メインスレッド固定のため）
                     crate::ecs::layout::update_window_pos_system
-                        .after(crate::ecs::graphics::apply_window_pos_changes),
+                        .after(crate::ecs::graphics::sync_window_pos),
                 )
                     .chain(),
             );
