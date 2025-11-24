@@ -31,7 +31,6 @@ unsafe impl Sync for Window {}
 pub struct WindowHandle {
     pub hwnd: HWND,
     pub instance: HINSTANCE,
-    pub initial_dpi: f32,
 }
 
 unsafe impl Send for WindowHandle {}
@@ -45,8 +44,8 @@ fn on_window_handle_add(
     let entity = hook.entity;
     if let Some(handle) = world.get::<WindowHandle>(entity) {
         println!(
-            "[Hook] WindowHandle added to entity {:?}, hwnd {:?}, dpi {}",
-            entity, handle.hwnd, handle.initial_dpi
+            "[Hook] WindowHandle added to entity {:?}, hwnd {:?}",
+            entity, handle.hwnd
         );
 
         // アプリに通知

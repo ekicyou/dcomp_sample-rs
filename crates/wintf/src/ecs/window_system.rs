@@ -2,9 +2,7 @@ use crate::ecs::*;
 use crate::process_singleton::*;
 use bevy_ecs::prelude::*;
 use windows::core::*;
-use windows::Win32::Foundation::RECT;
-use windows::Win32::Graphics::Gdi::*;
-use windows::Win32::UI::HiDpi::*;
+use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows_numerics::Vector2;
 
@@ -77,19 +75,6 @@ pub fn create_windows(
 
         match result {
             Ok(hwnd) => {
-                // 初期DPIを取得
-                let monitor = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) };
-                let mut x_dpi = 0u32;
-                let mut y_dpi = 0u32;
-                let dpi_result =
-                    unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut x_dpi, &mut y_dpi) };
-
-                let initial_dpi = if dpi_result.is_ok() {
-                    x_dpi as f32
-                } else {
-                    96.0 // デフォルト
-                };
-
                 // 実際のクライアント領域のサイズを取得
                 let mut rect = RECT::default();
                 unsafe {
@@ -103,7 +88,6 @@ pub fn create_windows(
                     WindowHandle {
                         hwnd,
                         instance: singleton.instance(),
-                        initial_dpi,
                     },
                     crate::ecs::graphics::HasGraphicsResources,
                     crate::ecs::graphics::Visual {
