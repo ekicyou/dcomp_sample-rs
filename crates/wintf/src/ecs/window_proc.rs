@@ -82,26 +82,28 @@ pub extern "system" fn ecs_wndproc(
                 // ウィンドウの位置・サイズが変更された
                 if let Some(entity) = get_entity_from_hwnd(hwnd) {
                     if let Some(world) = try_get_ecs_world() {
-                        let windowpos = lparam.0 as *const WINDOWPOS;
-                        if !windowpos.is_null() {
-                            let wp = &*windowpos;
-                            
-                            // WindowPosコンポーネントを更新
-                            let mut world = world.borrow_mut();
-                            if let Ok(mut entity_ref) = world.world_mut().get_entity_mut(entity) {
-                                if let Some(mut window_pos) = entity_ref.get_mut::<crate::ecs::window::WindowPos>() {
-                                    let new_position = POINT { x: wp.x, y: wp.y };
-                                    let new_size = SIZE { cx: wp.cx, cy: wp.cy };
-                                    
-                                    // エコーバックチェック
-                                    if !window_pos.is_echo(new_position, new_size) {
-                                        // エコーバックでない場合のみ更新（ユーザー操作による変更）
-                                        let bypass = window_pos.bypass_change_detection();
-                                        bypass.position = Some(new_position);
-                                        bypass.size = Some(new_size);
-                                        // last_sentはクリア（次回のSetWindowPos検知のため）
-                                        bypass.last_sent_position = None;
-                                        bypass.last_sent_size = None;
+                        // RefCellが既に借用されている場合はスキップ（ウィンドウ作成中など）
+                        if let Ok(mut world_borrow) = world.try_borrow_mut() {
+                            let windowpos = lparam.0 as *const WINDOWPOS;
+                            if !windowpos.is_null() {
+                                let wp = &*windowpos;
+                                
+                                // WindowPosコンポーネントを更新
+                                if let Ok(mut entity_ref) = world_borrow.world_mut().get_entity_mut(entity) {
+                                    if let Some(mut window_pos) = entity_ref.get_mut::<crate::ecs::window::WindowPos>() {
+                                        let new_position = POINT { x: wp.x, y: wp.y };
+                                        let new_size = SIZE { cx: wp.cx, cy: wp.cy };
+                                        
+                                        // エコーバックチェック
+                                        if !window_pos.is_echo(new_position, new_size) {
+                                            // エコーバックでない場合のみ更新（ユーザー操作による変更）
+                                            let bypass = window_pos.bypass_change_detection();
+                                            bypass.position = Some(new_position);
+                                            bypass.size = Some(new_size);
+                                            // last_sentはクリア（次回のSetWindowPos検知のため）
+                                            bypass.last_sent_position = None;
+                                            bypass.last_sent_size = None;
+                                        }
                                     }
                                 }
                             }
