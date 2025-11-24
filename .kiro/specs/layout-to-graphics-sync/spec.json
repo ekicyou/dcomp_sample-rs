@@ -1,7 +1,7 @@
 {
     "feature_name": "layout-to-graphics-sync",
     "language": "ja",
-    "phase": "requirements-approved",
+    "phase": "design-approved",
     "created_at": "2025-11-24",
     "updated_at": "2025-11-24",
     "approvals": {
@@ -10,8 +10,8 @@
             "approved": true
         },
         "design": {
-            "generated": false,
-            "approved": false
+            "generated": true,
+            "approved": true
         },
         "tasks": {
             "generated": false,
