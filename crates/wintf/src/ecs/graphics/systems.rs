@@ -461,40 +461,69 @@ pub fn resize_surface_from_visual(
 }
 
 /// GlobalArrangementとVisualからWindowPosの位置・サイズを更新
+/// LayoutRootマーカーを持つWindowのみ処理
 pub fn sync_window_pos(
     mut query: Query<
         (&GlobalArrangement, &super::Visual, &mut crate::ecs::window::WindowPos),
-        (With<crate::ecs::window::Window>, Or<(Changed<GlobalArrangement>, Changed<super::Visual>)>)
+        (
+            With<crate::ecs::window::Window>,
+            With<crate::ecs::layout::LayoutRoot>,
+            Or<(Changed<GlobalArrangement>, Changed<super::Visual>)>
+        )
     >,
 ) {
     use windows::Win32::Foundation::{POINT, SIZE};
 
     for (global_arr, visual, mut window_pos) in query.iter_mut() {
-        window_pos.position = Some(POINT {
+        // GlobalArrangementが有効な値を持つ場合のみ更新
+        // (0,0,0,0)のような初期値は無視
+        let width = global_arr.bounds.right - global_arr.bounds.left;
+        let height = global_arr.bounds.bottom - global_arr.bounds.top;
+        
+        if width <= 0.0 || height <= 0.0 {
+            continue; // 無効なboundsはスキップ
+        }
+
+        let new_position = POINT {
             x: global_arr.bounds.left as i32,
             y: global_arr.bounds.top as i32,
-        });
-        window_pos.size = Some(SIZE {
+        };
+        let new_size = SIZE {
             cx: visual.size.X as i32,
             cy: visual.size.Y as i32,
-        });
+        };
+
+        // 実際に変更があった場合のみ更新
+        let position_changed = window_pos.position != Some(new_position);
+        let size_changed = window_pos.size != Some(new_size);
+
+        if position_changed || size_changed {
+            window_pos.position = Some(new_position);
+            window_pos.size = Some(new_size);
+        }
     }
 }
 
 /// WindowPos変更時にSetWindowPos Win32 APIを呼び出し、エコーバック値を記録
 pub fn apply_window_pos_changes(
     mut query: Query<
-        (&crate::ecs::window::WindowHandle, &mut crate::ecs::window::WindowPos), 
+        (Entity, &crate::ecs::window::WindowHandle, &mut crate::ecs::window::WindowPos), 
         (Changed<crate::ecs::window::WindowPos>, With<crate::ecs::window::Window>)
     >,
 ) {
-    for (window_handle, mut window_pos) in query.iter_mut() {
+    for (_entity, window_handle, mut window_pos) in query.iter_mut() {
         // エコーバックチェック
         let position = window_pos.position.unwrap_or_default();
         let size = window_pos.size.unwrap_or_default();
 
         if window_pos.is_echo(position, size) {
             continue; // エコーバックなのでスキップ
+        }
+
+        // CW_USEDEFAULTが設定されている場合はスキップ（ウィンドウ作成時の初期値）
+        if position.x == windows::Win32::UI::WindowsAndMessaging::CW_USEDEFAULT 
+            || size.cx == windows::Win32::UI::WindowsAndMessaging::CW_USEDEFAULT {
+            continue;
         }
 
         // SetWindowPos呼び出し（既存のset_window_posメソッドを活用）
@@ -505,8 +534,6 @@ pub fn apply_window_pos_changes(
             let bypass = window_pos.bypass_change_detection();
             bypass.last_sent_position = Some((position.x, position.y));
             bypass.last_sent_size = Some((size.cx, size.cy));
-        } else {
-            eprintln!("[apply_window_pos_changes] SetWindowPos失敗: {:?}", result.err());
         }
     }
 }

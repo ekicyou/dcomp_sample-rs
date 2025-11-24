@@ -75,13 +75,13 @@ pub fn create_windows(
             Ok(hwnd) => {
                 // WindowHandleコンポーネントを追加
                 // Visual.sizeは sync_visual_from_layout_root で設定される
+                // Visualコンポーネントが既に存在する場合は上書きしない
                 commands.entity(entity).insert((
                     WindowHandle {
                         hwnd,
                         instance: singleton.instance(),
                     },
                     crate::ecs::graphics::HasGraphicsResources,
-                    crate::ecs::graphics::Visual::default(),
                 ));
 
                 // ウィンドウを表示

@@ -68,6 +68,7 @@ fn main() -> Result<()> {
                         size: Some(SIZE { cx: 800, cy: 600 }),
                         ..Default::default()
                     },
+                    wintf::ecs::Visual::default(), // Visual追加
                 ))
                 .id();
 
