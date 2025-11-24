@@ -209,10 +209,10 @@ fn verify_initial_layout(
         container_global.bounds.right,
         container_global.bounds.bottom
     );
-    // 実測値に基づく検証
-    assert_eq!(container_arr.offset.x, 400.0);
+    // Percent(100%)x100%はマージン・パディングなしで親(800x600)と同じサイズになる
+    assert_eq!(container_arr.offset.x, 0.0);
     assert_eq!(container_arr.offset.y, 0.0);
-    assert_eq!(container_arr.size.width, 400.0);
+    assert_eq!(container_arr.size.width, 800.0);
     assert_eq!(container_arr.size.height, 600.0);
 
     // Item1: 固定200px幅、Row + SpaceEvenlyで配置
