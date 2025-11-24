@@ -148,6 +148,14 @@ sequenceDiagram
 
 **Location**: `crates/wintf/src/ecs/window.rs`
 
+**設計決定**: `WindowPos`のimplメソッドとして実装（スタンドアロン関数ではなく）
+
+**採用理由**:
+- 座標変換は`WindowPos`と1:1の関係であり、分離する動機が弱い
+- 呼び出し側がシンプル: `window_pos.to_window_coords(hwnd)`
+- E2Eテスト（実ウィンドウ使用）で検証する設計方針と一致
+- 将来の拡張時にリファクタリング可能
+
 **Interface**:
 ```rust
 impl WindowPos {
@@ -163,6 +171,7 @@ impl WindowPos {
     /// # Notes
     /// - `AdjustWindowRectExForDpi`を使用して、ウィンドウスタイルとDPIに基づく変換を行う
     /// - `GetWindowLongPtrW`でスタイル情報、`GetDpiForWindow`でDPI値を取得する
+    /// - Windows 11専用実装（DPIフォールバック不要）
     pub fn to_window_coords(&self, hwnd: HWND) -> Result<(i32, i32, i32, i32), String> {
         // Implementation details (see below)
     }
@@ -348,10 +357,12 @@ Err(format!(
 ))
 ```
 
-**ログ出力例**:
+**ログ出力例**（`eprintln!`マクロ使用）:
 ```
 Failed to transform window coordinates: AdjustWindowRectExForDpi returned FALSE for HWND 0x12345678. Using original values.
 ```
+
+**注記**: wintfライブラリでは統一ログ機構は未導入のため、`eprintln!`を使用する。
 
 ### ユーザー体験への影響
 - 座標変換失敗時でも、ウィンドウは元の座標（クライアント領域基準）で配置されるため、完全な機能停止は発生しない
@@ -371,6 +382,12 @@ Failed to transform window coordinates: AdjustWindowRectExForDpi returned FALSE 
 - テスト対象: `WindowPos::to_window_coords`メソッド
 - 条件: 無効なHWND（`HWND(0)`）を渡す
 - 期待結果: `Err`が返され、エラーメッセージが適切に設定される
+
+**テストケース2.5: WS_POPUPスタイルでの座標変換【必須】**
+- テスト対象: `WindowPos::to_window_coords`メソッド
+- 条件: ウィンドウスタイル=`WS_POPUP`（タイトルバー・ボーダーなし）、クライアント領域=(100, 100, 800, 600)
+- 期待結果: ウィンドウ全体座標がクライアント領域と一致（装飾なしのため変換差分がゼロ）
+- 補足: スタイル・拡張スタイルの組み合わせによる領域差異を検証
 
 **テストケース3: `CW_USEDEFAULT`のスキップ**
 - テスト対象: `apply_window_pos_changes`システム
@@ -443,9 +460,9 @@ Failed to transform window coordinates: AdjustWindowRectExForDpi returned FALSE 
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| `GetDpiForWindow`がウィンドウ作成直後に不正な値を返す | Low | Medium | 単体テストで検証、fallback to `GetDpiForSystem()`を検討 |
+| `GetDpiForWindow`がウィンドウ作成直後に不正な値を返す | Low | Medium | 単体テストで検証（Windows 11専用のためフォールバック不要） |
 | マルチモニター環境でのDPI変化時の座標ずれ | Medium | Low | 既知の制約として文書化、将来的に`WM_DPICHANGED`対応を実装 |
-| タイトルバーなしウィンドウ（WS_POPUP）での変換の挙動 | Low | Low | `taffy_flex_demo`に加えてWS_POPUPスタイルのテストケースを追加 |
+| タイトルバーなしウィンドウ（WS_POPUP）での変換の挙動 | Low | Low | **必須**: WS_POPUPスタイルのテストケースを追加（スタイル・拡張スタイルによる領域差異を検証） |
 | エコーバック判定が誤作動する | Low | High | 統合テストでエコーバックメカニズムを検証、`last_sent_*`記録値を確認 |
 
 ## References
