@@ -416,11 +416,7 @@ pub fn cleanup_removed_entities_system(
 pub fn update_window_pos_system(
     mut query: Query<
         (&GlobalArrangement, &mut WindowPos),
-        (
-            With<Window>,
-            Without<LayoutRoot>,
-            Changed<GlobalArrangement>,
-        ),
+        (With<Window>, Changed<GlobalArrangement>),
     >,
 ) {
     use windows::Win32::Foundation::{POINT, SIZE};

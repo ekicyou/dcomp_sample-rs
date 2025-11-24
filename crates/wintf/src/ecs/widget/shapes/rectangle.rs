@@ -1,6 +1,6 @@
 use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt};
 use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore};
-use crate::ecs::layout::{Arrangement, GlobalArrangement};
+use crate::ecs::layout::Arrangement;
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::*;
 use windows::Win32::Graphics::Direct2D::Common::{D2D1_COLOR_F, D2D_RECT_F};
@@ -85,11 +85,13 @@ fn on_rectangle_remove(
 pub fn draw_rectangles(
     mut commands: Commands,
     query: Query<
-        (Entity, &Rectangle, &Arrangement, Option<&GlobalArrangement>),
         (
-            Or<(Changed<Rectangle>, Changed<Arrangement>)>,
-            Without<GraphicsCommandList>,
+            Entity,
+            &Rectangle,
+            &Arrangement,
+            Option<&GraphicsCommandList>,
         ),
+        Or<(Changed<Rectangle>, Changed<Arrangement>)>,
     >,
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
@@ -98,24 +100,10 @@ pub fn draw_rectangles(
         return;
     };
 
-    for (entity, rectangle, arrangement, global_arrangement) in query.iter() {
-        eprintln!("[draw_rectangles] Entity={:?}", entity);
+    for (entity, rectangle, arrangement, cmd_list_opt) in query.iter() {
         eprintln!(
-            "[draw_rectangles] Arrangement: offset=({}, {}), size=({}, {})",
-            arrangement.offset.x,
-            arrangement.offset.y,
-            arrangement.size.width,
-            arrangement.size.height
-        );
-        if let Some(global) = global_arrangement {
-            eprintln!(
-                "[draw_rectangles] GlobalArrangement: bounds=({}, {}, {}, {})",
-                global.bounds.left, global.bounds.top, global.bounds.right, global.bounds.bottom
-            );
-        }
-        eprintln!(
-            "[draw_rectangles] Rectangle color=({},{},{},{})",
-            rectangle.color.r, rectangle.color.g, rectangle.color.b, rectangle.color.a
+            "[draw_rectangles] Entity={:?}, size=({}, {})",
+            entity, arrangement.size.width, arrangement.size.height
         );
 
         // DeviceContextとCommandList生成
@@ -195,13 +183,29 @@ pub fn draw_rectangles(
             continue;
         }
 
-        // GraphicsCommandListコンポーネントを挿入
-        commands
-            .entity(entity)
-            .insert(GraphicsCommandList::new(command_list));
-        eprintln!(
-            "[draw_rectangles] CommandList created for Entity={:?}",
-            entity
-        );
+        // GraphicsCommandListコンポーネントを挿入または更新
+        let new_cmd_list = GraphicsCommandList::new(command_list);
+        match cmd_list_opt {
+            Some(existing) if *existing != new_cmd_list => {
+                commands.entity(entity).insert(new_cmd_list);
+                eprintln!(
+                    "[draw_rectangles] CommandList updated for Entity={:?}",
+                    entity
+                );
+            }
+            None => {
+                commands.entity(entity).insert(new_cmd_list);
+                eprintln!(
+                    "[draw_rectangles] CommandList created for Entity={:?}",
+                    entity
+                );
+            }
+            _ => {
+                eprintln!(
+                    "[draw_rectangles] CommandList unchanged for Entity={:?}",
+                    entity
+                );
+            }
+        }
     }
 }

@@ -8,7 +8,24 @@
 ## Introduction
 本機能は、wintfフレームワークにおいて、仮想デスクトップとモニタの階層構造をECSエンティティとして管理し、Taffyレイアウトエンジンによる統一的なレイアウト計算を実現します。
 
-これまでのWindowエンティティを頂点としたレイアウトツリーから、VirtualDesktop → Monitor → Window → Widget の4層階層に拡張することで、マルチモニタ環境での柔軟なウィンドウ配置とレイアウト計算を可能にします。
+これまでのWindowエンティティを頂点としたレイアウトツリーから、VirtualDesktop → {Monitor, Window} → Widget の階層に拡張することで、マルチモニタ環境での柔軟なウィンドウ配置とレイアウト計算を可能にします。
+
+### 設計決定: MonitorとWindowは同階層
+
+**採用設計**: `VirtualDesktop → {Monitor, Window} → Widget`
+
+**設計根拠**:
+1. **ツリー張替えの回避**: Windowがモニター間を移動しても親子関係の変更が不要。ツリー張替えに伴うGPUリソースの意図しない初期化を防ぐ
+2. **概念的等価性**: Monitorは全画面Windowと仮想的に等価であり、レイアウト計算上は対等な存在
+3. **メタ情報としての機能**: Monitorはwindowの親ではなく、レイアウト参照用の情報として機能
+4. **実装の単純化**: Window移動時の親子関係管理が不要になり、処理が大幅に簡素化される
+
+**Window-Monitor関連付け**:
+- WindowとMonitorの対応は親子関係ではなく、**参照コンポーネント**で管理
+- `WindowMonitorRef` コンポーネントで現在のモニターを追跡
+- Window移動時は参照コンポーネントのみを更新（ツリー構造は不変）
+
+---
 
 ### 設計方針
 - **レイアウト階層**: Windows API の内部実装（Window Station/Desktop Object）に縛られず、wintfフレームワーク独自の実用的な階層を構築
@@ -24,20 +41,22 @@
 #### Acceptance Criteria
 1. wintf システムは、`VirtualDesktop` コンポーネントを定義し、仮想デスクトップの名前と状態（アクティブ/非アクティブ）を保持しなければならない
 2. wintf システムは、`Monitor` コンポーネントを定義し、HMONITOR ハンドル、画面座標（x, y）、サイズ（width, height）、DPI、プライマリモニタフラグを保持しなければならない
-3. wintf システムは、`MonitorInfo` 構造体から Windows API（`GetMonitorInfoW`, `GetDpiForMonitor`）経由でモニタ情報を取得する機能を提供しなければならない
-4. When システムが初期化される際、wintf システムは `EnumDisplayMonitors` を使用して全モニタを列挙し、`Monitor` エンティティとして生成しなければならない
-5. wintf システムは、`VirtualDesktop`, `Monitor`, `Window` エンティティ間の親子関係を `ChildOf` および `Children` コンポーネントで管理しなければならない
-6. wintf システムは、`App` リソースを拡張し、`DisplayConfigurationChanged` フラグを保持しなければならない
+3. wintf システムは、`WindowMonitorRef` コンポーネントを定義し、Windowが現在配置されているMonitorエンティティへの参照を保持しなければならない
+4. wintf システムは、`MonitorInfo` 構造体から Windows API（`GetMonitorInfoW`, `GetDpiForMonitor`）経由でモニタ情報を取得する機能を提供しなければならない
+5. When システムが初期化される際、wintf システムは `EnumDisplayMonitors` を使用して全モニタを列挙し、`Monitor` エンティティとして生成しなければならない
+6. wintf システムは、`VirtualDesktop` の子として `Monitor` および `Window` エンティティを `ChildOf` および `Children` コンポーネントで管理しなければならない
+7. wintf システムは、`App` リソースを拡張し、`DisplayConfigurationChanged` フラグを保持しなければならない
 
 ### Requirement 2: エンティティ階層の構築
-**Objective:** 開発者として、VirtualDesktop → Monitor → Window → Widget の階層構造を構築し、Taffy レイアウト計算のルートとして使用したい。
+**Objective:** 開発者として、VirtualDesktop → {Monitor, Window} → Widget の階層構造を構築し、Taffy レイアウト計算のルートとして使用したい。
 
 #### Acceptance Criteria
-1. wintf システムは、`VirtualDesktop` エンティティをルートノードとし、複数の `Monitor` エンティティを子として持つ階層を構築しなければならない
-2. wintf システムは、各 `Monitor` エンティティの子として、複数の `Window` エンティティを配置しなければならない
-3. When ウィンドウが作成される際、wintf システムは `MonitorFromWindow` API を使用して、ウィンドウが配置されるモニタを特定し、適切な親子関係を設定しなければならない
-4. When モニタ構成が変更された場合（モニタの追加/削除/解像度変更）、wintf システムは `Monitor` エンティティの情報を更新し、必要に応じて階層を再構築しなければならない
-5. wintf システムは、`VirtualDesktop` エンティティが削除される際、子孫の `Monitor`, `Window`, `Widget` エンティティも適切にクリーンアップしなければならない
+1. wintf システムは、`VirtualDesktop` エンティティをルートノードとし、複数の `Monitor` および `Window` エンティティを子として持つ階層を構築しなければならない
+2. wintf システムは、`Monitor` と `Window` を同じ階層レベル（VirtualDesktopの直接の子）に配置しなければならない
+3. When ウィンドウが作成される際、wintf システムは `MonitorFromWindow` API を使用してモニタを特定し、`WindowMonitorRef` コンポーネントに対応するMonitorエンティティへの参照を設定しなければならない
+4. When ウィンドウがモニター間を移動した場合、wintf システムは `WindowMonitorRef` コンポーネントのみを更新し、ツリー構造（親子関係）は変更しなければならない
+5. When モニタ構成が変更された場合（モニタの追加/削除/解像度変更）、wintf システムは `Monitor` エンティティの情報を更新しなければならない
+6. wintf システムは、`VirtualDesktop` エンティティが削除される際、子孫の `Monitor`, `Window`, `Widget` エンティティも適切にクリーンアップしなければならない
 
 ### Requirement 3: Taffy スタイルコンポーネントの名称変更
 **Objective:** 開発者として、既存のレイアウトコンポーネント名を Taffy との統合を明示する名称に変更し、コードの意図を明確にしたい。
@@ -80,16 +99,17 @@
 5. wintf システムは、`LayoutDirty` マーカーを持つエンティティのみをクエリし、不要なレイアウト計算を回避しなければならない
 
 ### Requirement 7: モニタ情報の動的更新
-**Objective:** 開発者として、モニタ構成の変更（解像度変更、モニタ追加/削除）を検知し、自動的に階層とレイアウトを更新したい。
+**Objective:** 開発者として、モニタ構成の変更（解像度変更、モニタ追加/削除）を検知し、自動的にモニタ情報とレイアウトを更新したい。
 
 #### Acceptance Criteria
 1. When Windows メッセージ `WM_DISPLAYCHANGE` を受信した場合、wintf システムはメッセージハンドラで `DisplayConfigurationChanged` フラグを `App` リソースに設定しなければならない
 2. wintf システムは、`detect_display_change_system` を提供し、`App` リソースの `DisplayConfigurationChanged` フラグを監視しなければならない
 3. When `DisplayConfigurationChanged` フラグが true の場合、wintf システムは `EnumDisplayMonitors` を使用して全モニタ情報を再取得しなければならない
 4. When 新しいモニタが検出された場合、wintf システムは新しい `Monitor` エンティティを生成し、`VirtualDesktop` の子として追加しなければならない
-5. When モニタが削除された場合、wintf システムは該当する `Monitor` エンティティを削除し、その子 `Window` エンティティをプライマリモニタの子に再配置しなければならない
-6. When モニタ情報が更新された場合、wintf システムは `LayoutDirty` マーカーを付与し、レイアウトの再計算をトリガーしなければならない
-7. wintf システムは、`DisplayConfigurationChanged` フラグを処理後に false にリセットしなければならない
+5. When モニタが削除された場合、wintf システムは該当する `Monitor` エンティティを削除しなければならない
+6. When モニタが削除された場合、wintf システムは削除されたモニタを参照していた全 `Window` エンティティの `WindowMonitorRef` をプライマリモニタに更新しなければならない
+7. When モニタ情報が更新された場合、wintf システムは `LayoutDirty` マーカーを付与し、レイアウトの再計算をトリガーしなければならない
+8. wintf システムは、`DisplayConfigurationChanged` フラグを処理後に false にリセットしなければならない
 
 ### Requirement 8: システムスケジュールの統合
 **Objective:** 開発者として、新しいレイアウトシステムが既存のECSスケジュールに適切に統合され、正しい順序で実行されるようにしたい。

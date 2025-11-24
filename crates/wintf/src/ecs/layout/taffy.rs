@@ -15,6 +15,11 @@ impl TaffyStyle {
     pub fn new(style: Style) -> Self {
         Self(style)
     }
+
+    /// テスト用: 内部Styleへの参照を取得
+    pub fn style(&self) -> &Style {
+        &self.0
+    }
 }
 
 /// レイアウト計算結果

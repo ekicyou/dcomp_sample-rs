@@ -37,6 +37,11 @@ fn create_visual_resources(
             let width = if width == 0 { 1 } else { width };
             let height = if height == 0 { 1 } else { height };
 
+            eprintln!(
+                "[visual_creation_system] Creating Surface for Entity={:?}, size={}x{} (from Visual.size=({}, {}))",
+                entity, width, height, visual.size.X, visual.size.Y
+            );
+
             let surface_res = dcomp.create_surface(
                 width,
                 height,
@@ -53,9 +58,13 @@ fn create_visual_resources(
                     commands
                         .entity(entity)
                         .insert(SurfaceGraphics::new(surface, (width, height)));
+                    eprintln!(
+                        "[visual_creation_system] Surface created successfully for Entity={:?}",
+                        entity
+                    );
                 }
                 Err(e) => {
-                    eprintln!("Failed to create surface: {:?}", e);
+                    eprintln!("Failed to create surface for Entity={:?}: {:?}", entity, e);
                 }
             }
         }

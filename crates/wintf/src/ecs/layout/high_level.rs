@@ -367,3 +367,6 @@ impl Default for FlexItem {
         }
     }
 }
+
+// taffy の Flex 関連型を re-export（テストと外部利用のため）
+pub use taffy::{AlignContent, AlignItems, AlignSelf, FlexDirection, JustifyContent};

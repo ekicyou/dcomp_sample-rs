@@ -89,6 +89,12 @@ fn draw_recursive(
     // Draw current entity
     if let Ok((global_arr, cmd_list)) = widgets.get(entity) {
         if let Some(arr) = global_arr {
+            eprintln!(
+                "[draw_recursive] Entity={:?}, setting transform: [{},{},{},{}], bounds=({},{},{},{})",
+                entity,
+                arr.transform.M11, arr.transform.M12, arr.transform.M31, arr.transform.M32,
+                arr.bounds.left, arr.bounds.top, arr.bounds.right, arr.bounds.bottom
+            );
             dc.set_transform(&arr.transform);
         }
         if let Some(list) = cmd_list {
@@ -390,7 +396,7 @@ pub fn init_window_surface(
             &WindowGraphics,
             &VisualGraphics,
             Option<&mut SurfaceGraphics>,
-            Option<&crate::ecs::window::WindowPos>,
+            Option<&crate::ecs::graphics::Visual>,
         ),
         Or<(Without<SurfaceGraphics>, With<GraphicsNeedsInit>)>,
     >,
@@ -401,13 +407,14 @@ pub fn init_window_surface(
         return;
     }
 
-    for (entity, window_graphics, visual, surface, window_pos) in query.iter_mut() {
-        if !window_graphics.is_valid() || !visual.is_valid() {
+    for (entity, window_graphics, visual_graphics, surface, visual_component) in query.iter_mut() {
+        if !window_graphics.is_valid() || !visual_graphics.is_valid() {
             continue;
         }
 
-        let (width, height) = window_pos
-            .and_then(|pos| pos.size.map(|s| (s.cx as u32, s.cy as u32)))
+        // Visualコンポーネントからクライアント領域サイズを取得
+        let (width, height) = visual_component
+            .map(|v| (v.size.X as u32, v.size.Y as u32))
             .unwrap_or((800, 600));
 
         match surface {
@@ -416,7 +423,7 @@ pub fn init_window_surface(
                     "[Frame {}] [init_window_surface] Surface新規作成 (Entity: {:?}, Size: {}x{})",
                     frame_count.0, entity, width, height
                 );
-                match create_surface_for_window(&graphics, visual, width, height) {
+                match create_surface_for_window(&graphics, visual_graphics, width, height) {
                     Ok(s) => {
                         eprintln!(
                             "[Frame {}] [init_window_surface] Surface作成完了 (Entity: {:?})",
@@ -436,7 +443,7 @@ pub fn init_window_surface(
                 if !s.is_valid() || s.size != (width, height) {
                     eprintln!("[Frame {}] [init_window_surface] Surface再初期化/リサイズ (Entity: {:?}, Size: {}x{} -> {}x{})", 
                         frame_count.0, entity, s.size.0, s.size.1, width, height);
-                    match create_surface_for_window(&graphics, visual, width, height) {
+                    match create_surface_for_window(&graphics, visual_graphics, width, height) {
                         Ok(new_s) => {
                             // Use commands to trigger on_replace hook
                             commands.entity(entity).insert(new_s);

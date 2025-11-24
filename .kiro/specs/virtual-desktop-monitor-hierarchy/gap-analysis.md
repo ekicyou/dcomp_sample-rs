@@ -4,6 +4,34 @@
 
 本機能は、VirtualDesktop → Monitor → Window → Widget の4層階層構造を導入し、Taffyレイアウトエンジンによる統一的なレイアウト計算を実現します。既存のコードベースは強固なレイアウト基盤（Taffy統合、Arrangement伝播システム、Common Infrastructure）を持っており、**拡張アプローチ**が最適です。
 
+### ⚠️ 重要な設計検討事項
+
+#### 検討事項A: Monitorの階層位置
+**問題提起**: MonitorはVirtualDesktopの子として階層に含めるべきか、それともWindowと同じ階層に配置すべきか？
+
+**現在の想定**: `VirtualDesktop → Monitor → Window → Widget` (4層階層)
+
+**代替案**: `VirtualDesktop → {Monitor, Window} → Widget` (MonitorとWindowが同階層)
+
+**代替案の利点**:
+- Monitorは全画面Windowと概念的に等価
+- MonitorとWindowを対等に扱うことで、レイアウト計算がシンプルになる可能性
+- Window移動時の親子関係変更が不要（Monitorは参照情報のみ）
+
+**現在の想定の利点**:
+- `MonitorFromWindow` APIの結果を直接親子関係にマッピング可能
+- 物理的なモニター配置とWindow配置の対応が明確
+- モニター削除時のWindow再配置ロジックが自然
+
+**影響範囲**:
+- Section 2.1 技術要件マッピング (Requirement 2, 4)
+- Section 3 実装アプローチ選択 (Option C Phase 1-3)
+- Section 4.3 モニター構成変更時の再配置戦略
+
+**この検討事項は設計フェーズで詳細化が必要**
+
+---
+
 ### 主要な発見
 - ✅ **既存の強固な基盤**: `TaffyLayoutResource`, `Arrangement/GlobalArrangement`, `tree_system.rs`の汎用伝播システムが実装済み
 - ✅ **モニタAPI統合**: `MonitorFromWindow`, `GetDpiForMonitor`が既に使用されている

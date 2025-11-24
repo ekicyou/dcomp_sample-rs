@@ -142,40 +142,9 @@ impl std::ops::Mul<Arrangement> for GlobalArrangement {
         let child_matrix: Matrix3x2 = rhs.into();
         let result_transform = self.transform * child_matrix;
 
-        eprintln!(
-            "[GlobalArrangement::mul] parent.transform=({},{},{},{})",
-            self.transform.M11, self.transform.M12, self.transform.M31, self.transform.M32
-        );
-
         // bounds計算
         let child_bounds = rhs.local_bounds();
-
-        eprintln!(
-            "[GlobalArrangement::mul] child offset=({},{}), size=({},{})",
-            rhs.offset.x, rhs.offset.y, rhs.size.width, rhs.size.height
-        );
-        eprintln!(
-            "[GlobalArrangement::mul] child_bounds=({},{},{},{})",
-            child_bounds.left, child_bounds.top, child_bounds.right, child_bounds.bottom
-        );
-        eprintln!(
-            "[GlobalArrangement::mul] child_matrix=({},{},{},{}), result_transform=({},{},{},{})",
-            child_matrix.M11,
-            child_matrix.M12,
-            child_matrix.M31,
-            child_matrix.M32,
-            result_transform.M11,
-            result_transform.M12,
-            result_transform.M31,
-            result_transform.M32
-        );
-
         let result_bounds = transform_rect_axis_aligned(&child_bounds, &result_transform);
-
-        eprintln!(
-            "[GlobalArrangement::mul] result_bounds=({},{},{},{})",
-            result_bounds.left, result_bounds.top, result_bounds.right, result_bounds.bottom
-        );
 
         GlobalArrangement {
             transform: result_transform,
