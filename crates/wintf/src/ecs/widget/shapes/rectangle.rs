@@ -65,18 +65,15 @@ pub mod colors {
 /// レイアウトシステム（`BoxSize` → Taffy → `Arrangement`）との統合により、
 /// 動的なサイズ変更が自動的に反映されます。
 #[derive(Component, Debug, Clone)]
-// TODO: Task 5.1-5.2 - on_add フックは既存の描画フロー（draw_recursive方式）と競合するため一時無効化
-// Phase 4（自己描画方式への移行）完了後に有効化する
-// #[component(on_add = on_rectangle_add, on_remove = on_rectangle_remove)]
-#[component(on_remove = on_rectangle_remove)]
+// NOTE: on_add フックは既存の描画フロー（draw_recursive方式）と競合する
+// Phase 4（自己描画方式への移行）完了後に正常表示される
+#[component(on_add = on_rectangle_add, on_remove = on_rectangle_remove)]
 pub struct Rectangle {
     /// 塗りつぶし色
     pub color: Color,
 }
 
 /// Rectangle追加時のフック: Visualコンポーネントを自動挿入 (R4)
-/// TODO: Phase 4完了後に有効化
-#[allow(dead_code)]
 fn on_rectangle_add(mut world: DeferredWorld, hook: HookContext) {
     // 既にVisualを持っている場合はスキップ
     if world.get::<Visual>(hook.entity).is_some() {

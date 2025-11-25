@@ -29,10 +29,9 @@ pub type Color = D2D1_COLOR_F;
 /// - `color`: テキスト色 (RGBA, 各成分 0.0～1.0)
 /// - `direction`: テキストの方向
 #[derive(Component)]
-// TODO: Task 5.1-5.2 - on_add フックは既存の描画フロー（draw_recursive方式）と競合するため一時無効化
-// Phase 4（自己描画方式への移行）完了後に有効化する
-// #[component(storage = "SparseSet", on_add = on_label_add, on_remove = on_label_remove)]
-#[component(storage = "SparseSet", on_remove = on_label_remove)]
+// NOTE: on_add フックは既存の描画フロー（draw_recursive方式）と競合する
+// Phase 4（自己描画方式への移行）完了後に正常表示される
+#[component(storage = "SparseSet", on_add = on_label_add, on_remove = on_label_remove)]
 pub struct Label {
     pub text: String,
     pub font_family: String,
@@ -42,8 +41,6 @@ pub struct Label {
 }
 
 /// Label追加時のフック: Visualコンポーネントを自動挿入 (R4)
-/// TODO: Phase 4完了後に有効化
-#[allow(dead_code)]
 fn on_label_add(mut world: DeferredWorld, hook: HookContext) {
     // 既にVisualを持っている場合はスキップ
     if world.get::<Visual>(hook.entity).is_some() {
