@@ -131,6 +131,12 @@ pub trait DCompositionVisualExt {
     where
         P0: Param<IDCompositionVisual>,
         P1: Param<IDCompositionVisual>;
+    /// RemoveVisual - 指定されたVisualを親から削除 (R1)
+    fn remove_visual<P0>(&self, visual: P0) -> Result<()>
+    where
+        P0: Param<IDCompositionVisual>;
+    /// RemoveAllVisuals - 全ての子Visualを削除 (R1)
+    fn remove_all_visuals(&self) -> Result<()>;
     /// SetContent
     fn set_content<P0>(&self, content: P0) -> Result<()>
     where
@@ -164,6 +170,19 @@ impl DCompositionVisualExt for IDCompositionVisual3 {
         P1: Param<IDCompositionVisual>,
     {
         unsafe { self.AddVisual(visual, insertabove, referencevisual) }
+    }
+
+    #[inline(always)]
+    fn remove_visual<P0>(&self, visual: P0) -> Result<()>
+    where
+        P0: Param<IDCompositionVisual>,
+    {
+        unsafe { self.RemoveVisual(visual) }
+    }
+
+    #[inline(always)]
+    fn remove_all_visuals(&self) -> Result<()> {
+        unsafe { self.RemoveAllVisuals() }
     }
 
     #[inline(always)]

@@ -1,13 +1,13 @@
 {
     "feature_name": "future-requirements-survey",
     "created_at": "2025-11-21T00:00:00Z",
-    "updated_at": "2025-11-21T00:00:00Z",
+    "updated_at": "2025-11-25T00:00:00Z",
     "language": "ja",
     "phase": "survey-completed",
     "approvals": {
         "requirements": {
-            "generated": false,
-            "approved": false
+            "generated": true,
+            "approved": true
         },
         "design": {
             "generated": false,
@@ -19,5 +19,16 @@
         }
     },
     "ready_for_implementation": false,
-    "note": "This is a survey document to track future requirements identified from completed specifications"
+    "note": "This is a survey document to track future requirements identified from completed specifications. Re-surveyed on 2025-11-25.",
+    "survey_summary": {
+        "archived_specs": 26,
+        "active_specs": 6,
+        "completed_since_last_survey": [
+            "taffy-layout-integration",
+            "box-style-consolidation",
+            "arrangement-bounds-system",
+            "client-area-positioning"
+        ],
+        "high_priority_next": "visual-tree-synchronization"
+    }
 }

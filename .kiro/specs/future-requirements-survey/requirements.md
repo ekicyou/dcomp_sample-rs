@@ -1,8 +1,9 @@
 # 将来要件調査報告書
 
 **Feature ID**: `future-requirements-survey`  
-**調査日**: 2025-11-21  
-**Status**: Survey Completed
+**初回調査日**: 2025-11-21  
+**最終更新日**: 2025-11-25  
+**Status**: Survey Completed (Re-surveyed)
 
 ---
 
@@ -10,12 +11,20 @@
 
 完了した仕様（アーカイブ済み）および進行中の仕様から、「スコープ外」と判断された要件を洗い出し、未着手の機能要素を特定した。本ドキュメントは実装仕様ではなく、将来の仕様策定のための調査記録である。
 
+### 2025-11-25 更新内容
+- taffyレイアウトエンジン統合が完了（`taffy-layout-integration` アーカイブ済み）
+- BoxStyle統合が完了（`box-style-consolidation` アーカイブ済み）
+- ArrangementBounds実装が完了（`arrangement-bounds-system` アーカイブ済み）
+- クライアント領域配置が完了（`client-area-positioning` アーカイブ済み）
+- アーカイブ済み仕様が26件に増加
+
 ---
 
 ## 1. Visual階層の同期・DirectComposition階層的合成
 
 ### 出典
 - `visual-tree-implementation` (アーカイブ済)
+- `visual-tree-synchronization` (アクティブ、初期化済み・要件定義待ち)
 
 ### 内容
 DirectCompositionのVisual階層を活用した高度な描画最適化と部分更新機能。
@@ -40,7 +49,9 @@ DirectCompositionのVisual階層を活用した高度な描画最適化と部分
 ### 現状
 - ✅ ECS階層（ChildOf/Children）は実装済
 - ✅ Window EntityのみVisual+Surfaceを持つ単一Surface描画は実装済
-- ❌ DirectComposition Visual階層構築は未実装
+- ✅ `AddVisual` APIラッパーは`com/dcomp.rs`に存在
+- ❌ `RemoveVisual` APIラッパーは未実装
+- ❌ DirectComposition Visual階層構築（自動同期）は未実装
 - ❌ 子Widget個別Visual+Surfaceは未実装
 
 ### 優先度
@@ -48,45 +59,36 @@ DirectCompositionのVisual階層を活用した高度な描画最適化と部分
 
 ---
 
-## 2. taffyレイアウトエンジン統合
+## 2. ~~taffyレイアウトエンジン統合~~ ✅ 完了
 
 ### 出典
-- `visual-tree-implementation` (アーカイブ済)
+- `taffy-layout-integration` (アーカイブ済、**完了**)
+- `box-style-consolidation` (アーカイブ済、**完了**)
 
 ### 内容
 自動レイアウトシステムの統合により、手動座標指定からの脱却。
 
-#### 詳細要件
-1. **BoxComputedLayout → Arrangement変換**
-   - taffyの計算結果をArrangementコンポーネントに変換
-   - DPI対応とスケーリング
-   
-2. **Flexbox レイアウトサポート**
-   - justify-content, align-items等の標準プロパティ
-   - flex-direction, flex-wrap
-   
-3. **Grid レイアウトサポート**
-   - grid-template-columns/rows
-   - grid-gap, grid-auto-flow
-   
-4. **レイアウト再計算の最適化**
-   - 変更検知による部分再計算
-   - レイアウトキャッシング
+### 現状 (2025-11-25)
+- ✅ **TaffyStyle/TaffyComputedLayoutコンポーネント**: 実装済み
+- ✅ **BoxStyleコンポーネント**: 統合済み（BoxSize, BoxMargin, BoxPadding等を一つに集約）
+- ✅ **Flexboxレイアウト**: `taffy_flex_demo.rs`で動作確認済み
+- ✅ **ECS階層→taffyツリー同期**: `sync_taffy_tree_system`実装済み
+- ✅ **増分レイアウト計算**: taffyのキャッシュ機構を活用
+- ✅ **TaffyComputedLayout→Arrangement変換**: `propagate_arrangements_system`実装済み
 
-### 現状
-- ✅ Arrangementコンポーネントは実装済（手動設定のみ）
-- ❌ taffyエンジン統合は未実装
-- ❌ 自動レイアウト計算は未実装
+### 残課題（将来拡張）
+- ❌ **Gridレイアウト**: 基本サポートはあるが、詳細な検証は未実施
+- ❌ **Gap, Position, MinSize, MaxSize等の追加プロパティ**: 将来拡張として設計済み
 
 ### 優先度
-**中**: 実用的なUIアプリケーション構築に必要
+**低**: 基本実装完了、追加機能は必要に応じて
 
 ---
 
 ## 3. Surface生成の最適化
 
 ### 出典
-- `surface-allocation-optimization` (アクティブ、要件定義待ち)
+- `surface-allocation-optimization` (アクティブ、初期化済み・要件定義待ち)
 
 ### 内容
 Surface生成の動的判定により、不要なメモリ消費を削減。
@@ -115,73 +117,37 @@ Surface生成の動的判定により、不要なメモリ消費を削減。
 
 ---
 
-## 4. Visual階層の同期（ECS → DirectComposition）
+## 4. ~~Visual階層の同期（ECS → DirectComposition）~~ → 項目1に統合
 
-### 出典
-- `visual-tree-synchronization` (アクティブ、要件定義待ち)
-
-### 内容
-ECS階層変更を検知してDirectCompositionのVisualツリーを自動同期。
-
-#### 詳細要件
-1. **ChildOf変更の検知**
-   - `Changed<ChildOf>` による親変更検知
-   - 新規追加、親変更、削除の3パターン対応
-   
-2. **AddVisual / RemoveVisual の自動呼び出し**
-   - 親Visual取得とAddVisual実行
-   - 旧親からのRemoveVisual実行
-   
-3. **Visualツリーの整合性保証**
-   - ECSとDirectCompositionの状態一致
-   - エラーハンドリングと回復処理
-
-### 現状
-- ✅ ECS階層管理（ChildOf/Children）は実装済
-- ❌ DirectComposition Visualツリー構築は未実装
-- ❌ 階層変更の自動同期は未実装
-
-### 優先度
-**高**: 項目1の実装と密接に関連
+項目1「Visual階層の同期・DirectComposition階層的合成」に統合。
+`visual-tree-synchronization`仕様で対応予定。
 
 ---
 
-## 5. Render Dirty Tracking の高度化
+## 5. ~~Render Dirty Tracking の高度化~~ ✅ 基本実装完了
 
 ### 出典
 - `render-dirty-tracking` (アクティブ、requirements.md空)
-- `surface-render-optimization` (アーカイブ済、実装完了)
+- `surface-render-optimization` (アーカイブ済、**実装完了**)
 
 ### 内容
 変更検知による描画判定の基本実装は完了。さらなる最適化の可能性。
 
-#### 詳細要件（検討事項）
-1. **細粒度の変更検知**
-   - コンポーネント単位での変更追跡
-   - 影響範囲の最小化
-   
-2. **描画スキップの統計情報**
-   - スキップ率の可視化
-   - パフォーマンスメトリクス収集
-   
-3. **手動Dirty制御API**
-   - アプリケーション開発者による明示的な再描画要求
-
-### 現状
-- ✅ 基本的な変更検知と描画スキップは実装済
-- ❓ さらなる最適化の必要性は要検討
+### 現状 (2025-11-25)
+- ✅ 基本的な変更検知と描画スキップは実装済（`surface-render-optimization`）
+- ❓ 細粒度の変更検知、統計情報、手動Dirty制御APIは将来検討
 
 ### 優先度
-**低**: 基本機能は実装済、最適化は必要に応じて
+**低**: 基本機能は実装済、追加最適化は必要に応じて
 
 ---
 
 ## 6. Shape関連機能（AI粛々ルート）
 
 ### 出典
-- `shape-brush-system` (SPEC.mdのみ)
-- `shape-path-geometry` (SPEC.mdのみ)
-- `shape-stroke-widgets` (SPEC.mdのみ)
+- `shape-brush-system` (SPEC.mdのみ、要件定義待ち)
+- `shape-path-geometry` (SPEC.mdのみ、要件定義待ち)
+- `shape-stroke-widgets` (SPEC.mdのみ、要件定義待ち)
 
 ### 内容
 Shape描画システムの充実化。DUAL_ROUTE_STRATEGYのルートBとして計画済。
@@ -354,32 +320,36 @@ Shape描画システムの充実化。DUAL_ROUTE_STRATEGYのルートBとして�
 
 ---
 
-## 優先度マトリクス
+## 優先度マトリクス (2025-11-25 更新)
 
 ### 高優先度（重要かつ基盤的）
 1. **Visual階層の同期・DirectComposition階層的合成** (項目1)
-2. **Visual階層の同期（ECS → DirectComposition）** (項目4)
+   - `visual-tree-synchronization` (初期化済み)
 
 ### 中優先度（実用性向上）
-3. **taffyレイアウトエンジン統合** (項目2)
-4. **Surface生成の最適化** (項目3)
-5. **Shape関連機能** (項目6) - AI粛々ルートで並行実施
-6. **Transform階層伝播の廃止** (項目8) - リファクタリング
-7. **透過ウィンドウ・ヒットテスト** (項目7)
+2. **Surface生成の最適化** (項目3)
+   - `surface-allocation-optimization` (初期化済み)
+3. **Shape関連機能** (項目6) - AI粛々ルートで並行実施
+   - `shape-brush-system`, `shape-path-geometry`, `shape-stroke-widgets` (SPEC.mdのみ)
+4. **Transform階層伝播の廃止** (項目8) - リファクタリング
+5. **透過ウィンドウ・ヒットテスト** (項目7)
 
 ### 低優先度（最適化・拡張）
-8. **Render Dirty Tracking の高度化** (項目5)
-9. **Container Widget** (項目9)
-10. **その他の将来拡張** (項目10)
+6. ~~**taffyレイアウトエンジン統合**~~ ✅ 完了
+7. ~~**Render Dirty Tracking の高度化**~~ ✅ 基本実装完了
+8. **Container Widget** (項目9)
+9. **その他の将来拡張** (項目10)
 
 ---
 
-## 実装ルート提案
+## 実装ルート提案 (2025-11-25 更新)
 
-### ルートA: モチベーションGO!（継続中）
+### ルートA: モチベーションGO!
 - ✅ Phase 4: 横書きテキスト（完了）
 - ✅ Phase 7: 縦書きテキスト（完了）
-- 🔜 **次**: Visual階層統合 (項目1, 4)
+- ✅ taffyレイアウトエンジン統合（完了）
+- ✅ BoxStyle統合・ArrangementBounds（完了）
+- 🔜 **次**: Visual階層統合 (項目1)
 
 ### ルートB: AI粛々ルート（並行実施）
 - 🔄 Shape関連機能 (項目6)
@@ -395,40 +365,64 @@ Shape描画システムの充実化。DUAL_ROUTE_STRATEGYのルートBとして�
 
 ## 次のアクション
 
-各項目について仕様を作成する場合のコマンド:
-
+### 既に初期化済みの仕様（要件定義待ち）
 ```bash
-# 高優先度
-/kiro-spec-init "Visual階層の統合: DirectCompositionのVisual親子関係（AddVisual/RemoveVisual）構築と、子WidgetへのVisual+Surface個別作成による階層的合成最適化"
+# Visual階層同期（高優先度）
+/kiro-spec-requirements visual-tree-synchronization
 
-/kiro-spec-init "ECS階層変更の自動同期: ChildOf変更を検知してDirectCompositionのVisualツリー（AddVisual/RemoveVisual）を自動的に同期させる仕組み"
+# Surface生成最適化（中優先度）
+/kiro-spec-requirements surface-allocation-optimization
 
-# 中優先度
-/kiro-spec-init "taffyレイアウトエンジン統合: FlexboxとGridによる自動レイアウト計算とBoxComputedLayout→Arrangement変換"
+# Shape関連（SPEC.mdのみ、正式初期化が必要）
+# → 既存のSPEC.mdを参照して /kiro-spec-init を実行
+```
 
-/kiro-spec-init "Surface生成の最適化: GraphicsCommandListの有無や要求サイズを集約し、SurfaceGraphicsの生成要否やサイズを動的に決定する仕組み"
-
+### 新規仕様が必要な項目
+```bash
+# Transform階層伝播の廃止
 /kiro-spec-init "Transform階層伝播の廃止: GlobalTransformとTransformTreeChangedを削除し、Transformを視覚効果のみに限定するリファクタリング"
 
+# 透過ウィンドウとヒットテスト
 /kiro-spec-init "透過ウィンドウとヒットテスト: WS_EX_LAYEREDまたはDWM拡張による透過ウィンドウ実装と、WM_NCHITTESTによるヒットテスト処理"
-
-# Shape関連（既に初期化済、要件定義待ち）
-# - shape-brush-system
-# - shape-path-geometry  
-# - shape-stroke-widgets
 ```
 
 ---
 
-## まとめ
+## まとめ (2025-11-25 更新)
 
-- **完了済仕様**: 9件（アーカイブ済）
-- **進行中仕様**: 6件（3件は要件定義待ち、3件はSPEC.mdのみ）
-- **未着手の重要要件**: 10カテゴリ、40+個の詳細要件
-- **最優先事項**: Visual階層統合（DirectComposition本来の性能活用）
+### アーカイブ済み仕様: 26件
+主な完了項目:
+- Phase 1-2: ウィンドウ表示、グラフィックスコア
+- Phase 4: 横書きテキスト
+- Phase 7: 縦書きテキスト
+- taffyレイアウトエンジン統合
+- BoxStyle統合
+- ArrangementBounds実装
+- クライアント領域配置
 
-この調査により、今後の開発ロードマップが明確化された。
+### アクティブ仕様: 6件
+| 仕様ID | フェーズ | 説明 |
+|--------|----------|------|
+| `visual-tree-synchronization` | initialized | Visual階層同期 |
+| `surface-allocation-optimization` | initialized | Surface生成最適化 |
+| `render-dirty-tracking` | requirements-generated | Dirty Tracking高度化 |
+| `shape-brush-system` | SPEC.mdのみ | Brush拡張 |
+| `shape-path-geometry` | SPEC.mdのみ | PathGeometry |
+| `shape-stroke-widgets` | SPEC.mdのみ | Stroke/Shape |
+
+### 未着手の重要要件: 8カテゴリ
+- Visual階層統合（高優先度）
+- Surface生成最適化（中優先度）
+- Shape関連機能×3（中優先度）
+- Transform階層廃止（中優先度）
+- 透過ウィンドウ/ヒットテスト（中優先度）
+- Container Widget（低優先度）
+- その他長期拡張（低優先度）
+
+### 最優先事項
+**Visual階層統合**（`visual-tree-synchronization`）: DirectComposition本来の性能活用とアニメーション/スクロール最適化の基盤
 
 ---
 
-_Survey completed on 2025-11-21_
+**初回調査**: 2025-11-21  
+**最終更新**: 2025-11-25

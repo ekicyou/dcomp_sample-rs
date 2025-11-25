@@ -5,6 +5,8 @@ use windows::Win32::Graphics::Direct2D::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows_numerics::Vector2;
 
+use crate::com::dcomp::DCompositionVisualExt;
+
 /// グラフィックスリソースを使用するエンティティを宣言（静的マーカー）
 #[derive(Component, Default)]
 pub struct HasGraphicsResources;
@@ -66,24 +68,61 @@ impl WindowGraphics {
     }
 }
 
-/// ウィンドウのルートビジュアルノード
-#[derive(Component, Debug)]
+/// ウィンドウのルートビジュアルノード (R9: parent_visualキャッシュ方式)
+#[derive(Component)]
+#[component(on_remove = on_visual_graphics_remove)]
 pub struct VisualGraphics {
     inner: Option<IDCompositionVisual3>,
+    /// 親Visual参照（RemoveVisual用にキャッシュ）
+    /// 階層同期時にAddVisualと同時に設定される
+    parent_visual: Option<IDCompositionVisual3>,
+}
+
+// on_remove フック: 親Visualから自分を削除
+fn on_visual_graphics_remove(world: DeferredWorld, hook: HookContext) {
+    // 親Visualから自分を削除
+    // エラーは無視（親が先に削除されている場合など）
+    if let Some(vg) = world.get::<VisualGraphics>(hook.entity) {
+        if let (Some(parent), Some(visual)) = (&vg.parent_visual, &vg.inner) {
+            let _ = parent.remove_visual(visual); // エラー無視
+        }
+    }
 }
 
 unsafe impl Send for VisualGraphics {}
 unsafe impl Sync for VisualGraphics {}
 
+impl std::fmt::Debug for VisualGraphics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VisualGraphics")
+            .field("inner", &self.inner.is_some())
+            .field("parent_visual", &self.parent_visual.is_some())
+            .finish()
+    }
+}
+
 impl VisualGraphics {
     pub fn new(visual: IDCompositionVisual3) -> Self {
         Self {
             inner: Some(visual),
+            parent_visual: None,
+        }
+    }
+
+    /// 親Visualを指定してVisualGraphicsを作成
+    pub fn new_with_parent(
+        visual: IDCompositionVisual3,
+        parent_visual: Option<IDCompositionVisual3>,
+    ) -> Self {
+        Self {
+            inner: Some(visual),
+            parent_visual,
         }
     }
 
     pub fn invalidate(&mut self) {
         self.inner = None;
+        self.parent_visual = None;
     }
 
     pub fn is_valid(&self) -> bool {
@@ -93,6 +132,16 @@ impl VisualGraphics {
     /// IDCompositionVisual3への参照を取得する
     pub fn visual(&self) -> Option<&IDCompositionVisual3> {
         self.inner.as_ref()
+    }
+
+    /// 親Visualへの参照を取得する
+    pub fn parent_visual(&self) -> Option<&IDCompositionVisual3> {
+        self.parent_visual.as_ref()
+    }
+
+    /// 親Visualを設定/更新する
+    pub fn set_parent_visual(&mut self, parent: Option<IDCompositionVisual3>) {
+        self.parent_visual = parent;
     }
 }
 

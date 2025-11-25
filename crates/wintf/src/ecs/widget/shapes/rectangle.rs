@@ -1,8 +1,11 @@
 use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt};
 use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore};
 use crate::ecs::layout::Arrangement;
+use crate::ecs::Visual;
 use bevy_ecs::component::Component;
+use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::prelude::*;
+use bevy_ecs::world::DeferredWorld;
 use windows::Win32::Graphics::Direct2D::Common::{D2D1_COLOR_F, D2D_RECT_F};
 
 /// 色の型エイリアス（D2D1_COLOR_Fをそのまま使用）
@@ -62,17 +65,31 @@ pub mod colors {
 /// レイアウトシステム（`BoxSize` → Taffy → `Arrangement`）との統合により、
 /// 動的なサイズ変更が自動的に反映されます。
 #[derive(Component, Debug, Clone)]
+// TODO: Task 5.1-5.2 - on_add フックは既存の描画フロー（draw_recursive方式）と競合するため一時無効化
+// Phase 4（自己描画方式への移行）完了後に有効化する
+// #[component(on_add = on_rectangle_add, on_remove = on_rectangle_remove)]
 #[component(on_remove = on_rectangle_remove)]
 pub struct Rectangle {
     /// 塗りつぶし色
     pub color: Color,
 }
 
+/// Rectangle追加時のフック: Visualコンポーネントを自動挿入 (R4)
+/// TODO: Phase 4完了後に有効化
+#[allow(dead_code)]
+fn on_rectangle_add(mut world: DeferredWorld, hook: HookContext) {
+    // 既にVisualを持っている場合はスキップ
+    if world.get::<Visual>(hook.entity).is_some() {
+        return;
+    }
+    world
+        .commands()
+        .entity(hook.entity)
+        .insert(Visual::default());
+}
+
 /// Rectangleコンポーネントが削除される時に呼ばれるフック
-fn on_rectangle_remove(
-    mut world: bevy_ecs::world::DeferredWorld,
-    hook: bevy_ecs::lifecycle::HookContext,
-) {
+fn on_rectangle_remove(mut world: DeferredWorld, hook: HookContext) {
     let entity = hook.entity;
     // GraphicsCommandListを取得して中身をクリア(Changed検出のため)
     if let Some(mut cmd_list) = world.get_mut::<GraphicsCommandList>(entity) {

@@ -680,3 +680,63 @@ pub fn mark_dirty_surfaces(
         }
     }
 }
+
+/// ChildOf変更を検出してVisual階層を同期するシステム (R3, R6, R7)
+///
+/// ECSのChildOf/Children階層とDirectCompositionのVisual階層を同期する。
+/// - ChildOf追加時: 子VisualGraphicsを親VisualGraphicsに追加し、parent_visualをキャッシュ
+/// - ChildOf変更時: 旧親から削除→新親に追加
+///
+/// 注意: エラーは無視する（親が先に削除されている場合など）
+pub fn visual_hierarchy_sync_system(
+    mut vg_queries: ParamSet<(
+        Query<(Entity, &ChildOf, &mut VisualGraphics), Changed<ChildOf>>,
+        Query<&VisualGraphics>,
+    )>,
+) {
+    use crate::com::dcomp::DCompositionVisualExt;
+
+    // 1. まず変更があったエンティティと親情報を収集
+    let mut updates: Vec<(Entity, Entity)> = Vec::new(); // (child_entity, parent_entity)
+    {
+        let child_query = vg_queries.p0();
+        for (entity, child_of, _child_vg) in child_query.iter() {
+            updates.push((entity, child_of.parent()));
+        }
+    }
+
+    // 2. 各子エンティティに対して処理
+    for (child_entity, parent_entity) in updates {
+        // 親のVisualを取得
+        let parent_visual = {
+            let parent_query = vg_queries.p1();
+            parent_query
+                .get(parent_entity)
+                .ok()
+                .and_then(|pv| pv.visual().cloned())
+        };
+
+        // 子のVisualGraphicsを更新
+        let mut child_query = vg_queries.p0();
+        if let Ok((_, _, mut child_vg)) = child_query.get_mut(child_entity) {
+            // 子のvisualを取得
+            let child_visual = match child_vg.visual() {
+                Some(v) => v.clone(),
+                None => continue,
+            };
+
+            // 旧親からの削除（parent_visualキャッシュを使用）
+            if let Some(ref old_parent) = child_vg.parent_visual() {
+                let _ = old_parent.remove_visual(&child_visual); // エラー無視
+            }
+
+            // 新しい親に追加
+            if let Some(ref parent_visual) = parent_visual {
+                // 親の末尾に追加（insertabove=false, referencevisual=None）
+                let _ = parent_visual.add_visual(&child_visual, false, None); // エラー無視
+                                                                              // parent_visualキャッシュを更新
+                child_vg.set_parent_visual(Some(parent_visual.clone()));
+            }
+        }
+    }
+}

@@ -6,6 +6,33 @@ use bevy_ecs::prelude::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
 
+/// デフォルトのVisualコンポーネントをEntityに挿入する (R3)
+///
+/// ウィジェットの on_add フックから呼び出すことを想定したヘルパー関数。
+/// Entity が存在しない場合は何もしない。
+///
+/// # Arguments
+/// * `world` - ECS World への可変参照
+/// * `entity` - Visual を挿入する対象の Entity
+pub fn insert_visual(world: &mut World, entity: Entity) {
+    insert_visual_with(world, entity, Visual::default());
+}
+
+/// カスタム Visual コンポーネントを Entity に挿入する (R3)
+///
+/// ウィジェットの on_add フックから呼び出すことを想定したヘルパー関数。
+/// Entity が存在しない場合は何もしない。
+///
+/// # Arguments
+/// * `world` - ECS World への可変参照
+/// * `entity` - Visual を挿入する対象の Entity
+/// * `visual` - 挿入する Visual コンポーネント
+pub fn insert_visual_with(world: &mut World, entity: Entity, visual: Visual) {
+    if let Ok(mut entity_mut) = world.get_entity_mut(entity) {
+        entity_mut.insert(visual);
+    }
+}
+
 fn create_visual_resources(
     commands: &mut Commands,
     entity: Entity,
