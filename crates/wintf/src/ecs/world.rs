@@ -252,13 +252,15 @@ impl EcsWorld {
             // RenderSurfaceスケジュールに描画システムを登録
             schedules.add_systems(RenderSurface, crate::ecs::graphics::render_surface);
 
-            // Compositionスケジュールに階層同期システムを登録
-            // TODO: visual_hierarchy_sync_systemは現在、既存の描画フローと競合するため無効化
-            // 将来的に自己描画方式に移行した際に有効化する
-            // schedules.add_systems(
-            //     Composition,
-            //     crate::ecs::graphics::visual_hierarchy_sync_system,
-            // );
+            // Compositionスケジュールに階層同期・Offset同期システムを登録
+            // Phase 4: 自己描画方式への移行により有効化
+            schedules.add_systems(
+                Composition,
+                (
+                    crate::ecs::graphics::visual_hierarchy_sync_system,
+                    crate::ecs::graphics::visual_offset_sync_system,
+                ),
+            );
 
             // CommitCompositionスケジュールにコミットシステムを登録
             schedules.add_systems(CommitComposition, crate::ecs::graphics::commit_composition);

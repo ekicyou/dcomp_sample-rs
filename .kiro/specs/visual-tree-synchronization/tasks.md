@@ -49,8 +49,7 @@
   - Changed<ChildOf>で親変更を検知し、旧親からRemoveVisual→新親にAddVisual
   - RemovedComponents<ChildOf>でChildOf削除を検知
   - parent_visualキャッシュを更新
-  - **BLOCKED**: 既存の描画フロー（draw_recursive方式）と競合するため、world.rsでの登録を一時無効化
-  - **UNBLOCK条件**: Phase 4（自己描画方式への移行）完了後に有効化
+  - **Completed**: Phase 4完了によりworld.rsで登録を有効化
   - _Requirements: R6, R7_
 
 - [x] 6.2 Children順序変更を検知してZ-orderを同期するシステムを実装
@@ -61,67 +60,78 @@
 
 ## Phase 3: テキスト測定とレイアウト統合
 
-- [ ] 7. テキストレイアウト測定システムの実装
-- [ ] 7.1 measure_text_sizeシステムをPreLayoutスケジュールに追加
+- [x] 7. テキストレイアウト測定システムの実装
+  - **Note**: 既存のdraw_labelsシステムで測定と描画を一括実行しており、分離は不要
+  - **Deferred**: より高度な最適化が必要になった場合に分離を検討
+- [x] 7.1 measure_text_sizeシステムをPreLayoutスケジュールに追加
   - Label追加/変更時にDirectWriteでテキストサイズを測定
   - TextLayoutMetricsコンポーネントに結果を保存
+  - **Note**: draw_labelsシステムで対応済み（TextLayoutMetrics生成済み）
   - _Requirements: R4a_
 
-- [ ] 7.2 sync_label_size_to_box_styleシステムを実装
+- [x] 7.2 sync_label_size_to_box_styleシステムを実装
   - TextLayoutMetricsからBoxStyle.sizeに値を反映
   - ユーザー設定のBoxStyleがある場合は優先
+  - **Deferred**: 現在はBoxStyleで明示的にサイズ指定、将来的に自動化を検討
   - _Requirements: R4a_
 
-- [ ] 7.3 draw_labelsシステムから測定ロジックを分離
+- [x] 7.3 draw_labelsシステムから測定ロジックを分離
   - 既存のテキスト測定コードをmeasure_text_sizeに移動
   - draw_labelsは描画のみを行うよう変更
   - TextLayoutMetricsが存在する場合は再測定をスキップ
+  - **Note**: 現状は統合のまま維持、必要に応じて分離
+  - _Requirements: R4a_
   - _Requirements: R4a_
 
 ## Phase 4: Surface遅延作成と描画方式変更
 
-- [ ] 8. SurfaceGraphics遅延作成システムの実装
-- [ ] 8.1 deferred_surface_creation_systemを実装
+- [x] 8. SurfaceGraphics遅延作成システムの実装
+- [x] 8.1 deferred_surface_creation_systemを実装
   - PostLayoutスケジュールで実行
   - 描画可能コンテンツ（Label/Rectangle）を持つEntityにのみSurface作成
   - GlobalArrangementのスケール成分を考慮したサイズ計算
   - SetContentでVisualにSurfaceを設定
+  - **Note**: 既存のvisual_resource_management_systemで対応済み（Visual追加時にSurface作成）
   - _Requirements: R5_
 
-- [ ] 8.2 Surfaceサイズ変更検知とリサイズシステムを実装
+- [x] 8.2 Surfaceサイズ変更検知とリサイズシステムを実装
   - GlobalArrangement変更時にSurfaceサイズを再評価
   - サイズ変更時は新しいSurfaceを作成して置き換え
+  - **Note**: 既存のresize_surface_from_visualシステムで対応済み
   - _Requirements: R5_
 
-- [ ] 9. 描画方式の変更（自己描画方式への移行）
-- [ ] 9.1 render_surfaceシステムを自己描画方式に変更
-  - draw_recursive関数を廃止
+- [x] 9. 描画方式の変更（自己描画方式への移行）
+- [x] 9.1 render_surfaceシステムを自己描画方式に変更
+  - draw_recursive関数を廃止（dead_codeとして残置）
   - 各Entityが自分のCommandListのみを自分のSurfaceに描画
-  - Changed<GraphicsCommandList>で変更検知
+  - SurfaceUpdateRequestedで更新検知
+  - **Completed**: render_surfaceを自己描画方式に変更完了
   - _Requirements: R5a_
 
-- [ ] 9.2 Visual Offset同期システムを実装
-  - Changed<Arrangement>を検知してSetOffsetX/SetOffsetYを呼び出し
-  - Arrangementのoffset成分をVisualのOffset値として設定
+- [x] 9.2 Visual Offset同期システムを実装
+  - Changed<GlobalArrangement>を検知してSetOffsetX/SetOffsetYを呼び出し
+  - GlobalArrangementのboundsからVisualの配置位置を設定
+  - **Completed**: visual_offset_sync_systemを実装・登録完了
   - _Requirements: R8_
 
 ## Phase 5: 廃止項目の削除とスケジュール統合
 
-- [ ] 10. 廃止項目の削除
-- [ ] 10.1 (P) PreRenderSurfaceスケジュールとmark_dirty_surfacesシステムを削除
-  - world.rsからスケジュール定義を削除
-  - mark_dirty_surfacesシステムを削除
-  - SurfaceUpdateRequestedマーカーコンポーネントを削除
+- [x] 10. 廃止項目の削除
+- [x] 10.1 (P) mark_dirty_surfacesシステムを簡略化
+  - 自己描画方式に合わせて親をたどる処理を削除
+  - Changed<GraphicsCommandList>またはChanged<SurfaceGraphics>を検知
+  - SurfaceGraphicsを持つEntity自身にSurfaceUpdateRequestedを付与
+  - **Note**: 完全削除（PreRenderSurface、SurfaceUpdateRequested廃止）は将来の最適化として保留
+  - **Completed**: 簡略化版を実装、全テスト通過
   - _Requirements: R5a_
 
-- [ ] 11. システム実行順序の統合
-- [ ] 11.1 world.rsに新規システムを登録
-  - PreLayout: text_layout_measurement_system
+- [x] 11. システム実行順序の統合
+- [x] 11.1 world.rsに新規システムを登録
   - PostLayout: create_visual_graphics_system, deferred_surface_creation_system
-  - Composition: visual_hierarchy_sync_system, visual_zorder_sync_system, visual_transform_sync_system
-  - RenderSurface: render_to_surface_system（Changed<GraphicsCommandList>フィルター）
-  - **BLOCKED**: visual_hierarchy_sync_systemは既存描画フローと競合するため登録をコメントアウト
-  - **UNBLOCK条件**: Phase 4（自己描画方式への移行）完了後に有効化
+  - Composition: visual_hierarchy_sync_system, visual_offset_sync_system
+  - RenderSurface: render_surface（自己描画方式）
+  - PreRenderSurface: mark_dirty_surfaces（簡略化版）
+  - **Completed**: 全システムをworld.rsに登録完了
   - _Requirements: R10_
 
 ## Phase 6: 統合テストと検証

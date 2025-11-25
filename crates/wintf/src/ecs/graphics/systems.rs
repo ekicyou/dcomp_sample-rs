@@ -70,6 +70,10 @@ fn create_surface_for_window(
     Ok(SurfaceGraphics::new(surface, (width, height)))
 }
 
+/// 旧描画方式: 親Surfaceが子を再帰的に描画
+/// Phase 4で廃止。自己描画方式（render_surface）に置き換え。
+/// ロールバック用に残している。
+#[allow(dead_code)]
 fn draw_recursive(
     entity: Entity,
     dc: &windows::Win32::Graphics::Direct2D::ID2D1DeviceContext,
@@ -120,21 +124,32 @@ fn draw_recursive(
     }
 }
 
-// ========== 描画システム ==========/// Surfaceへの描画（GraphicsCommandListの有無を統合処理）
+// ========== 描画システム ==========
+
+/// Surfaceへの自己描画（Phase 4: 自己描画方式）
+///
+/// 各Entityが自分のSurfaceに自分のGraphicsCommandListのみを描画する。
+/// draw_recursive方式を廃止し、DirectCompositionのVisual階層で合成を行う。
+///
+/// - SurfaceUpdateRequestedマーカーを持つEntityが対象
+/// - 自分のGraphicsCommandListのみを描画（子は描画しない）
+/// - 子の描画は各子が自分のSurfaceで行う
 pub fn render_surface(
     mut commands: Commands,
-    surfaces: Query<(Entity, &SurfaceGraphics), With<SurfaceUpdateRequested>>,
-    widgets: Query<(Option<&GlobalArrangement>, Option<&GraphicsCommandList>)>,
-    hierarchy: Query<&Children>,
-    surface_query: Query<&SurfaceGraphics>,
+    surfaces: Query<
+        (Entity, &SurfaceGraphics, Option<&GraphicsCommandList>),
+        With<SurfaceUpdateRequested>,
+    >,
     _graphics_core: Option<Res<GraphicsCore>>,
     frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
+    use windows::Win32::Graphics::Direct2D::Common::D2D1_COMPOSITE_MODE_SOURCE_OVER;
+    use windows::Win32::Graphics::Direct2D::D2D1_INTERPOLATION_MODE_LINEAR;
 
-    for (entity, surface) in surfaces.iter() {
+    for (entity, surface, cmd_list_opt) in surfaces.iter() {
         eprintln!(
-            "[Frame {}] [render_surface] === Processing Surface Entity={:?} ===",
+            "[Frame {}] [render_surface] === Self-rendering Entity={:?} ===",
             frame_count.0, entity
         );
 
@@ -152,25 +167,26 @@ pub fn render_surface(
             None => continue,
         };
 
-        let (dc, _offset) =
-            match surface_ref.begin_draw(None) {
-                Ok(result) => {
-                    eprintln!(
-                        "[render_surface] BeginDraw succeeded for Entity={:?}, offset=({}, {})",
-                        entity, result.1.x, result.1.y
-                    );
-                    result
-                }
-                Err(err) => {
-                    eprintln!(
-                    "[render_surface] BeginDraw failed for Entity={:?}: {:?}, HRESULT: 0x{:08X}",
-                    entity, err, err.code().0
+        let (dc, _offset) = match surface_ref.begin_draw(None) {
+            Ok(result) => {
+                eprintln!(
+                    "[render_surface] BeginDraw succeeded for Entity={:?}, offset=({}, {})",
+                    entity, result.1.x, result.1.y
                 );
-                    continue;
-                }
-            };
+                result
+            }
+            Err(err) => {
+                eprintln!(
+                    "[render_surface] BeginDraw failed for Entity={:?}: {:?}, HRESULT: 0x{:08X}",
+                    entity,
+                    err,
+                    err.code().0
+                );
+                continue;
+            }
+        };
 
-        // 透明色クリア（常に実行）
+        // 透明色クリア
         dc.clear(Some(&D2D1_COLOR_F {
             r: 0.0,
             g: 0.0,
@@ -178,8 +194,25 @@ pub fn render_surface(
             a: 0.0,
         }));
 
-        // Recursive draw
-        draw_recursive(entity, &dc, &widgets, &hierarchy, &surface_query, true);
+        // 自己描画: 自分のGraphicsCommandListのみを描画
+        // 子の描画は行わない（各子が自分のSurfaceで行う）
+        if let Some(cmd_list) = cmd_list_opt {
+            if let Some(command_list) = cmd_list.command_list() {
+                eprintln!(
+                    "[render_surface] Drawing own CommandList for Entity={:?}",
+                    entity
+                );
+                unsafe {
+                    dc.DrawImage(
+                        command_list,
+                        None,
+                        None,
+                        D2D1_INTERPOLATION_MODE_LINEAR,
+                        D2D1_COMPOSITE_MODE_SOURCE_OVER,
+                    );
+                }
+            }
+        }
 
         // EndDraw
         if let Err(e) = surface_ref.end_draw() {
@@ -649,35 +682,25 @@ pub fn invalidate_dependent_components(
     }
 }
 
-/// 変更検知システム：描画内容や配置に変更があった場合、親サーフェスに更新要求マーカーを付与する
+/// 変更検知システム：描画内容に変更があった場合、そのEntityに更新要求マーカーを付与する
+///
+/// Phase 4以降の自己描画方式では、各EntityがSurfaceを持ち、自分自身のみを描画するため、
+/// 親をたどる必要はない。変更があったEntity自身にマーカーを付与する。
+///
+/// **Note**: 将来的にはSurfaceUpdateRequestedを廃止し、Changed<GraphicsCommandList>を
+/// render_surfaceのフィルターとして直接使用する予定。
 pub fn mark_dirty_surfaces(
     mut commands: Commands,
     changed_query: Query<
         Entity,
         (
-            Or<(
-                Changed<GraphicsCommandList>,
-                Changed<GlobalArrangement>,
-                Changed<Children>,
-            )>,
+            Or<(Changed<GraphicsCommandList>, Changed<SurfaceGraphics>)>,
+            With<SurfaceGraphics>,
         ),
     >,
-    parent_query: Query<&ChildOf>,
-    surface_query: Query<&SurfaceGraphics>,
 ) {
     for entity in changed_query.iter() {
-        let mut current = entity;
-        loop {
-            if surface_query.contains(current) {
-                commands.entity(current).insert(SurfaceUpdateRequested);
-                break;
-            }
-            if let Ok(parent) = parent_query.get(current) {
-                current = parent.parent();
-            } else {
-                break;
-            }
-        }
+        commands.entity(entity).insert(SurfaceUpdateRequested);
     }
 }
 
@@ -738,5 +761,51 @@ pub fn visual_hierarchy_sync_system(
                 child_vg.set_parent_visual(Some(parent_visual.clone()));
             }
         }
+    }
+}
+
+/// Visual Offset同期システム (R8)
+///
+/// Arrangement変更を検知してVisualのSetOffsetX/SetOffsetYを呼び出す。
+/// GlobalArrangementのboundsからVisualの配置位置を計算し、親Visual座標系での位置を設定する。
+///
+/// Compositionスケジュールで実行。
+pub fn visual_offset_sync_system(
+    changed_arrangements: Query<
+        (Entity, &GlobalArrangement, &VisualGraphics),
+        Changed<GlobalArrangement>,
+    >,
+) {
+    use crate::com::dcomp::DCompositionVisualExt;
+
+    for (entity, arrangement, vg) in changed_arrangements.iter() {
+        let Some(visual) = vg.visual() else {
+            continue;
+        };
+
+        // GlobalArrangementのboundsから位置を取得
+        // left, topが親座標系での位置
+        let offset_x = arrangement.bounds.left;
+        let offset_y = arrangement.bounds.top;
+
+        // VisualのOffset設定
+        if let Err(e) = visual.set_offset_x(offset_x) {
+            eprintln!(
+                "[visual_offset_sync] SetOffsetX failed for Entity={:?}: {:?}",
+                entity, e
+            );
+        }
+        if let Err(e) = visual.set_offset_y(offset_y) {
+            eprintln!(
+                "[visual_offset_sync] SetOffsetY failed for Entity={:?}: {:?}",
+                entity, e
+            );
+        }
+
+        #[cfg(debug_assertions)]
+        eprintln!(
+            "[visual_offset_sync] Entity={:?}, offset=({}, {})",
+            entity, offset_x, offset_y
+        );
     }
 }
