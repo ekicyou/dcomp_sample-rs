@@ -2,6 +2,7 @@ use crate::ecs::*;
 use crate::process_singleton::*;
 use bevy_ecs::prelude::*;
 use windows::core::*;
+use windows::Win32::UI::HiDpi::GetDpiForSystem;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 /// Window EntityにArrangementコンポーネントを自動追加するシステム
@@ -38,18 +39,15 @@ pub fn create_windows(
         // WindowPosが指定されていなければデフォルトを使用
         let pos_comp = opt_pos.copied().unwrap_or_default();
 
-        // 位置とサイズを取得
-        let (x, y) = if let Some(pos) = pos_comp.position {
-            (pos.x, pos.y)
-        } else {
-            (CW_USEDEFAULT, CW_USEDEFAULT)
-        };
+        // システムDPIを取得（ウィンドウ作成前なのでGetDpiForSystemを使用）
+        let system_dpi = unsafe { GetDpiForSystem() };
 
-        let (width, height) = if let Some(size) = pos_comp.size {
-            (size.cx, size.cy)
-        } else {
-            (CW_USEDEFAULT, CW_USEDEFAULT)
-        };
+        // クライアント領域座標をウィンドウ全体座標に変換
+        let (x, y, width, height) = pos_comp.to_window_coords_for_creation(
+            style_comp.style,
+            style_comp.ex_style,
+            system_dpi,
+        );
 
         // EntityのIDをlpCreateParamsとして渡す
         let entity_bits = entity.to_bits() as *mut std::ffi::c_void;

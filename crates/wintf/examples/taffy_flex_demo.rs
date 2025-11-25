@@ -6,9 +6,11 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 use windows::core::Result;
-use windows::Win32::Foundation::{POINT, SIZE};
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
-use wintf::ecs::layout::{BoxMargin, BoxSize, Dimension, FlexContainer, FlexItem, LayoutRoot};
+use wintf::ecs::layout::{
+    BoxInset, BoxMargin, BoxPosition, BoxSize, Dimension, FlexContainer, FlexItem,
+    LengthPercentageAuto,
+};
 use wintf::ecs::widget::shapes::Rectangle;
 use wintf::ecs::Window;
 use wintf::ecs::WindowPos;
@@ -51,10 +53,19 @@ fn main() -> Result<()> {
         println!("[Timer Thread] 0s: Creating Flexbox demo window");
         let _ = tx.send(Box::new(|world: &mut World| {
             // Window Entity (ルート)
+            // BoxPosition::Absolute + BoxInset でクライアント領域の位置を指定
+            // Note: LayoutRootマーカーは不要 - Window追加時に自動的にLayoutRootの子になる
             let window_entity = world
                 .spawn((
                     FlexDemoWindow,
-                    LayoutRoot, // Taffyレイアウト計算のルートマーカー
+                    // LayoutRoot削除: on_window_addフックでChildOf(layout_root)が自動設定される
+                    BoxPosition::Absolute,
+                    BoxInset(wintf::ecs::layout::Rect {
+                        left: LengthPercentageAuto::Px(100.0),
+                        top: LengthPercentageAuto::Px(100.0),
+                        right: LengthPercentageAuto::Auto,
+                        bottom: LengthPercentageAuto::Auto,
+                    }),
                     BoxSize {
                         width: Some(Dimension::Px(800.0)),
                         height: Some(Dimension::Px(600.0)),
@@ -63,11 +74,7 @@ fn main() -> Result<()> {
                         title: "wintf - Taffy Flexbox Demo".to_string(),
                         ..Default::default()
                     },
-                    WindowPos {
-                        position: Some(POINT { x: 100, y: 100 }),
-                        size: Some(SIZE { cx: 800, cy: 600 }),
-                        ..Default::default()
-                    },
+                    WindowPos::default(),          // レイアウトシステムが更新
                     wintf::ecs::Visual::default(), // Visual追加
                 ))
                 .id();

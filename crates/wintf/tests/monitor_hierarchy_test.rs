@@ -2,8 +2,8 @@
 //!
 //! 仮想デスクトップ・モニター階層システムの動作を検証する。
 
-use bevy_ecs::prelude::*;
 use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::prelude::*;
 use wintf::ecs::*;
 
 // ===== Task 11.1: LayoutRoot Singleton生成とMonitor列挙テスト =====
@@ -13,20 +13,22 @@ fn test_layout_root_singleton_creation() {
     let mut world = World::new();
     world.insert_resource(TaffyLayoutResource::default());
 
-    // initialize_layout_root_systemを実行
-    let mut schedule = Schedule::default();
-    schedule.add_systems(initialize_layout_root_system);
-    schedule.run(&mut world);
+    // initialize_layout_rootを実行
+    initialize_layout_root(&mut world);
 
     // LayoutRootが1つだけ生成されることを検証
     let layout_roots: Vec<Entity> = world
         .query_filtered::<Entity, With<LayoutRoot>>()
         .iter(&world)
         .collect();
-    assert_eq!(layout_roots.len(), 1, "LayoutRoot should be created exactly once");
+    assert_eq!(
+        layout_roots.len(),
+        1,
+        "LayoutRoot should be created exactly once"
+    );
 
-    // 2回目の実行でもLayoutRootが1つだけであることを検証
-    schedule.run(&mut world);
+    // 2回目の実行でもLayoutRootが1つだけであることを検証（既に存在する場合はスキップ）
+    initialize_layout_root(&mut world);
     let layout_roots: Vec<Entity> = world
         .query_filtered::<Entity, With<LayoutRoot>>()
         .iter(&world)
@@ -43,20 +45,24 @@ fn test_monitor_enumeration() {
     let mut world = World::new();
     world.insert_resource(TaffyLayoutResource::default());
 
-    // initialize_layout_root_systemを実行
-    let mut schedule = Schedule::default();
-    schedule.add_systems(initialize_layout_root_system);
-    schedule.run(&mut world);
+    // initialize_layout_rootを実行
+    initialize_layout_root(&mut world);
 
     // Monitorエンティティが生成されることを検証
     let monitor_count = world.query::<&Monitor>().iter(&world).count();
 
     // システムに少なくとも1つのモニターが存在することを検証
-    assert!(monitor_count >= 1, "At least one monitor should be enumerated");
+    assert!(
+        monitor_count >= 1,
+        "At least one monitor should be enumerated"
+    );
 
     // LayoutRootエンティティを取得
     let mut layout_root_query = world.query_filtered::<Entity, With<LayoutRoot>>();
-    let layout_root_entity = layout_root_query.iter(&world).next().expect("LayoutRoot should exist");
+    let layout_root_entity = layout_root_query
+        .iter(&world)
+        .next()
+        .expect("LayoutRoot should exist");
 
     // 各MonitorエンティティがLayoutRootの子であることを検証
     for (entity, monitor) in world.query::<(Entity, &Monitor)>().iter(&world) {
@@ -89,14 +95,15 @@ fn test_monitor_hierarchy_construction() {
     let mut world = World::new();
     world.insert_resource(TaffyLayoutResource::default());
 
-    // initialize_layout_root_systemを実行
-    let mut schedule = Schedule::default();
-    schedule.add_systems(initialize_layout_root_system);
-    schedule.run(&mut world);
+    // initialize_layout_rootを実行
+    initialize_layout_root(&mut world);
 
     // LayoutRootを取得
     let mut layout_root_query = world.query_filtered::<Entity, With<LayoutRoot>>();
-    let layout_root = layout_root_query.iter(&world).next().expect("LayoutRoot should exist");
+    let layout_root = layout_root_query
+        .iter(&world)
+        .next()
+        .expect("LayoutRoot should exist");
 
     // Monitorエンティティを取得
     let monitors: Vec<Entity> = world
@@ -144,10 +151,8 @@ fn test_monitor_to_taffy_style_conversion() {
     let mut world = World::new();
     world.insert_resource(TaffyLayoutResource::default());
 
-    // initialize_layout_root_systemを実行
-    let mut schedule = Schedule::default();
-    schedule.add_systems(initialize_layout_root_system);
-    schedule.run(&mut world);
+    // initialize_layout_rootを実行
+    initialize_layout_root(&mut world);
 
     // build_taffy_styles_systemを実行してTaffyStyleを生成
     let mut schedule2 = Schedule::default();
@@ -178,9 +183,7 @@ fn test_taffy_tree_sync_and_layout_computation() {
     world.insert_resource(TaffyLayoutResource::default());
 
     // LayoutRootとMonitorを初期化
-    let mut schedule = Schedule::default();
-    schedule.add_systems(initialize_layout_root_system);
-    schedule.run(&mut world);
+    initialize_layout_root(&mut world);
 
     // TaffyStyleを構築
     let mut schedule2 = Schedule::default();
@@ -279,9 +282,7 @@ fn test_monitor_update_on_change() {
     world.insert_resource(App::new());
 
     // LayoutRootとMonitorを初期化
-    let mut schedule = Schedule::default();
-    schedule.add_systems(initialize_layout_root_system);
-    schedule.run(&mut world);
+    initialize_layout_root(&mut world);
 
     // 初期のMonitor数を取得
     let initial_count = world.query::<&Monitor>().iter(&world).count();
@@ -363,9 +364,7 @@ fn test_existing_tests_still_pass() {
 
     // LayoutRootを作成（新システム）
     world.insert_resource(App::new());
-    let mut schedule = Schedule::default();
-    schedule.add_systems(initialize_layout_root_system);
-    schedule.run(&mut world);
+    initialize_layout_root(&mut world);
 
     // 既存のWindow/Widgetエンティティを作成
     let window = world

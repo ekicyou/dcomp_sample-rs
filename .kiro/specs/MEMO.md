@@ -7,8 +7,11 @@ BoxSize,BoxMargin,BoxPaddingなど、build_taffy_styles_systemに関わるクエ
 "
 ```
 
-## 要件不安への回答
+## インタラクティブ確認
+上記2点の指摘について、ご意見や代替案があればお聞かせください：
 
+1. flex_grow/flex_shrinkはOption<f32>のまま進めるか、taffyデフォルト値を持つf32に変更するか？
+   ＞ flex_grow/flex_shrinkとは？内容を聞いてから確認したい。
 
-
-
+2. LayoutRootのみのエンティティではBoxStyleを必須にするか、空スタイル適用で許容するか？
+　　＞ LayoutRootは現在Desktopエンティティで、レイアウト要素として絶対座標での矩形を持つべき。現在も持ってないか？

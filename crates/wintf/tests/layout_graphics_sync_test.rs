@@ -13,9 +13,10 @@ fn test_sync_visual_from_layout_root() {
     // WorldとScheduleを準備
     let mut world = World::new();
     
-    // LayoutRootとGlobalArrangement、Visualを持つエンティティを作成
+    // WindowとGlobalArrangement、Visualを持つエンティティを作成
+    // Note: sync_visual_from_layout_rootは現在Windowコンポーネントでフィルタ
     let entity = world.spawn((
-        layout::LayoutRoot,
+        Window::default(),
         layout::GlobalArrangement {
             transform: windows_numerics::Matrix3x2::identity(),
             bounds: layout::D2DRect {

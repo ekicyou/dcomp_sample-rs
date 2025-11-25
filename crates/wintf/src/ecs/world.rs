@@ -118,6 +118,9 @@ impl EcsWorld {
         world.insert_resource(FrameCount::default());
         world.insert_resource(crate::ecs::layout::taffy::TaffyLayoutResource::default());
 
+        // LayoutRootとMonitor階層を初期化（Window spawnより前に必要）
+        crate::ecs::layout::initialize_layout_root(&mut world);
+
         // スケジュールの登録
         {
             world.init_resource::<Schedules>();
@@ -147,12 +150,10 @@ impl EcsWorld {
         {
             let mut schedules = world.resource_mut::<Schedules>();
 
+            // UISetupスケジュール：ウィンドウ作成とWindowPos反映
             schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
             // on_window_handle_addedとon_window_handle_removedはフックで代替
-            
-            // WindowPos変更をSetWindowPosに反映（メインスレッド固定が必要）
-            schedules.add_systems(UISetup, crate::ecs::graphics::apply_window_pos_changes);
-            
+
             // WindowPos変更をSetWindowPosに反映（メインスレッド固定が必要）
             schedules.add_systems(UISetup, crate::ecs::graphics::apply_window_pos_changes);
 
@@ -160,11 +161,8 @@ impl EcsWorld {
             schedules.add_systems(
                 Update,
                 (
-                    // LayoutRoot初期化（初回のみ実行）
-                    crate::ecs::layout::initialize_layout_root_system,
-                    // ディスプレイ構成変更検知（initialize_layout_root_systemの後）
-                    crate::ecs::layout::detect_display_change_system
-                        .after(crate::ecs::layout::initialize_layout_root_system),
+                    // ディスプレイ構成変更検知
+                    crate::ecs::layout::detect_display_change_system,
                     // Monitorレイアウト更新（detect_display_change_systemの後）
                     crate::ecs::layout::update_monitor_layout_system
                         .after(crate::ecs::layout::detect_display_change_system),

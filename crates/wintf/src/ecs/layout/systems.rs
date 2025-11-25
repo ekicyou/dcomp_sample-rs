@@ -448,6 +448,10 @@ pub fn update_window_pos_system(
     for (global_arrangement, mut window_pos) in query.iter_mut() {
         // GlobalArrangementのboundsからWindowPosに変換
         let bounds = &global_arrangement.bounds;
+        
+        // boundsの位置とサイズをWindowPosに反映
+        // Windowは LayoutRoot の子であり、Taffy が BoxInset を考慮した
+        // location を計算済み
         window_pos.position = Some(POINT {
             x: bounds.left as i32,
             y: bounds.top as i32,
@@ -461,21 +465,19 @@ pub fn update_window_pos_system(
 
 // ===== Monitor階層管理システム =====
 
-/// LayoutRoot Singletonを初期化し、Monitorエンティティを生成
-pub fn initialize_layout_root_system(
-    mut commands: Commands,
-    existing_root: Query<Entity, With<LayoutRoot>>,
-    mut taffy_res: ResMut<TaffyLayoutResource>,
-) {
+/// LayoutRootとMonitor階層をワールド初期化時に作成する
+/// world.rsのEcsWorld::new()から直接呼び出される
+pub fn initialize_layout_root(world: &mut World) {
     // 既にLayoutRootが存在する場合はスキップ
-    if !existing_root.is_empty() {
+    let existing = world.query_filtered::<Entity, With<LayoutRoot>>().iter(world).next();
+    if existing.is_some() {
         return;
     }
 
-    eprintln!("[initialize_layout_root_system] Creating LayoutRoot singleton");
+    eprintln!("[initialize_layout_root] Creating LayoutRoot singleton");
 
     // LayoutRootエンティティを作成
-    let layout_root = commands
+    let layout_root = world
         .spawn((
             LayoutRoot,
             BoxSize::default(),
@@ -485,15 +487,18 @@ pub fn initialize_layout_root_system(
         .id();
 
     // LayoutRoot用のTaffyノード作成
-    if let Err(e) = taffy_res.create_node(layout_root) {
-        eprintln!("[initialize_layout_root_system] Failed to create Taffy node for LayoutRoot: {:?}", e);
-        return;
+    {
+        let mut taffy_res = world.resource_mut::<TaffyLayoutResource>();
+        if let Err(e) = taffy_res.create_node(layout_root) {
+            eprintln!("[initialize_layout_root] Failed to create Taffy node for LayoutRoot: {:?}", e);
+            return;
+        }
     }
 
     // 全モニターを列挙
     let monitors = crate::ecs::monitor::enumerate_monitors();
     eprintln!(
-        "[initialize_layout_root_system] Enumerated {} monitors",
+        "[initialize_layout_root] Enumerated {} monitors",
         monitors.len()
     );
 
@@ -503,12 +508,12 @@ pub fn initialize_layout_root_system(
         let (left, top) = monitor.top_left();
 
         eprintln!(
-            "[initialize_layout_root_system] Creating Monitor entity: bounds=({},{},{},{}), dpi={}, primary={}",
+            "[initialize_layout_root] Creating Monitor entity: bounds=({},{},{},{}), dpi={}, primary={}",
             monitor.bounds.left, monitor.bounds.top, monitor.bounds.right, monitor.bounds.bottom,
             monitor.dpi, monitor.is_primary
         );
 
-        let monitor_entity = commands
+        let monitor_entity = world
             .spawn((
                 monitor,
                 ChildOf(layout_root),
@@ -529,9 +534,10 @@ pub fn initialize_layout_root_system(
             .id();
 
         // Monitor用のTaffyノード作成
+        let mut taffy_res = world.resource_mut::<TaffyLayoutResource>();
         if let Err(e) = taffy_res.create_node(monitor_entity) {
             eprintln!(
-                "[initialize_layout_root_system] Failed to create Taffy node for Monitor: {:?}",
+                "[initialize_layout_root] Failed to create Taffy node for Monitor: {:?}",
                 e
             );
         }

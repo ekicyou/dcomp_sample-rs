@@ -390,14 +390,11 @@ pub fn init_window_visual(
 // ========== Layout-to-Graphics Synchronization Systems ==========
 
 /// GlobalArrangementからVisualへのサイズ同期
-/// LayoutRootマーカーを持つエンティティのみ処理
+/// Windowコンポーネントを持つエンティティのみ処理
 pub fn sync_visual_from_layout_root(
     mut query: Query<
         (&GlobalArrangement, &mut super::Visual),
-        (
-            With<crate::ecs::layout::LayoutRoot>,
-            Changed<GlobalArrangement>,
-        ),
+        (With<crate::ecs::window::Window>, Changed<GlobalArrangement>),
     >,
 ) {
     for (global_arr, mut visual) in query.iter_mut() {
@@ -469,7 +466,7 @@ pub fn resize_surface_from_visual(
 }
 
 /// GlobalArrangementとVisualからWindowPosの位置・サイズを更新
-/// LayoutRootマーカーを持つWindowのみ処理
+/// Windowコンポーネントを持つエンティティのみ処理
 pub fn sync_window_pos(
     mut query: Query<
         (
@@ -479,7 +476,6 @@ pub fn sync_window_pos(
         ),
         (
             With<crate::ecs::window::Window>,
-            With<crate::ecs::layout::LayoutRoot>,
             Or<(Changed<GlobalArrangement>, Changed<super::Visual>)>,
         ),
     >,
@@ -517,6 +513,7 @@ pub fn sync_window_pos(
 }
 
 /// WindowPos変更時にSetWindowPos Win32 APIを呼び出し、エコーバック値を記録
+/// クライアント領域座標をウィンドウ全体座標に変換してからSetWindowPosを呼び出す
 pub fn apply_window_pos_changes(
     mut query: Query<
         (
@@ -540,20 +537,47 @@ pub fn apply_window_pos_changes(
         }
 
         // CW_USEDEFAULTが設定されている場合はスキップ（ウィンドウ作成時の初期値）
+        // 座標変換をスキップし、ウィンドウ作成時の初期配置を優先
         if position.x == windows::Win32::UI::WindowsAndMessaging::CW_USEDEFAULT
             || size.cx == windows::Win32::UI::WindowsAndMessaging::CW_USEDEFAULT
         {
             continue;
         }
 
-        // SetWindowPos呼び出し（既存のset_window_posメソッドを活用）
-        let result = window_pos.set_window_pos(window_handle.hwnd);
+        // クライアント領域座標をウィンドウ全体座標に変換
+        let (x, y, width, height) = match window_pos.to_window_coords(window_handle.hwnd) {
+            Ok(coords) => coords,
+            Err(e) => {
+                // 変換失敗時はフォールバック：元の座標でSetWindowPosを呼び出す
+                eprintln!(
+                    "Failed to transform window coordinates: {}. Using original values.",
+                    e
+                );
+                (position.x, position.y, size.cx, size.cy)
+            }
+        };
+
+        // SetWindowPos呼び出し（変換後の座標を使用）
+        let flags = window_pos.build_flags_for_system();
+        let hwnd_insert_after = window_pos.get_hwnd_insert_after();
+
+        let result = unsafe {
+            windows::Win32::UI::WindowsAndMessaging::SetWindowPos(
+                window_handle.hwnd,
+                hwnd_insert_after,
+                x,
+                y,
+                width,
+                height,
+                flags,
+            )
+        };
 
         if result.is_ok() {
-            // 成功時のみlast_sent値を記録
+            // 成功時のみlast_sent値を記録（変換後の値を記録）
             let bypass = window_pos.bypass_change_detection();
-            bypass.last_sent_position = Some((position.x, position.y));
-            bypass.last_sent_size = Some((size.cx, size.cy));
+            bypass.last_sent_position = Some((x, y));
+            bypass.last_sent_size = Some((width, height));
         }
     }
 }

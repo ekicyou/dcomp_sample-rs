@@ -1,13 +1,19 @@
+use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::prelude::*;
+use bevy_ecs::world::DeferredWorld;
 use windows::Win32::Foundation::*;
+use windows::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow};
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows_numerics::*;
 
 use crate::api::*;
+use crate::ecs::layout::LayoutRoot;
 
 /// Windowコンポーネント - ウィンドウ作成に必要な基本パラメータを保持
 /// スタイルや位置・サイズは WindowStyle, WindowPos コンポーネントで指定
 #[derive(Component, Debug, Clone)]
+#[component(on_add = on_window_add)]
 pub struct Window {
     pub title: String,
     pub parent: Option<HWND>,
@@ -396,6 +402,25 @@ impl WindowPos {
         flags
     }
 
+    /// システム用フラグビルダー（公開用）
+    /// apply_window_pos_changesシステムから利用
+    pub fn build_flags_for_system(&self) -> SET_WINDOW_POS_FLAGS {
+        self.build_flags()
+    }
+
+    /// ZOrderに基づくhwnd_insert_afterを取得（公開用）
+    /// apply_window_pos_changesシステムから利用
+    pub fn get_hwnd_insert_after(&self) -> Option<HWND> {
+        match self.zorder {
+            ZOrder::NoChange => None,
+            ZOrder::TopMost => Some(HWND_TOPMOST),
+            ZOrder::NoTopMost => Some(HWND_NOTOPMOST),
+            ZOrder::Top => Some(HWND_TOP),
+            ZOrder::Bottom => Some(HWND_BOTTOM),
+            ZOrder::InsertAfter(hwnd) => Some(hwnd),
+        }
+    }
+
     /// SetWindowPos を呼び出す
     pub fn set_window_pos(&self, hwnd: HWND) -> windows::core::Result<()> {
         let (x, y) = if let Some(pos) = self.position {
@@ -411,16 +436,7 @@ impl WindowPos {
         };
 
         let flags = self.build_flags();
-
-        // ZOrder から hwnd_insert_after を決定
-        let hwnd_insert_after = match self.zorder {
-            ZOrder::NoChange => None,
-            ZOrder::TopMost => Some(HWND_TOPMOST),
-            ZOrder::NoTopMost => Some(HWND_NOTOPMOST),
-            ZOrder::Top => Some(HWND_TOP),
-            ZOrder::Bottom => Some(HWND_BOTTOM),
-            ZOrder::InsertAfter(hwnd) => Some(hwnd),
-        };
+        let hwnd_insert_after = self.get_hwnd_insert_after();
 
         unsafe { SetWindowPos(hwnd, hwnd_insert_after, x, y, width, height, flags) }
     }
@@ -431,4 +447,176 @@ impl WindowPos {
         self.last_sent_position == Some((position.x, position.y))
             && self.last_sent_size == Some((size.cx, size.cy))
     }
+
+    /// クライアント領域の座標・サイズをウィンドウ全体の座標・サイズに変換する。
+    ///
+    /// # Arguments
+    /// * `hwnd` - 変換対象のウィンドウハンドル
+    ///
+    /// # Returns
+    /// * `Ok((x, y, width, height))` - 変換後のウィンドウ全体座標（左上x, 左上y, 幅, 高さ）
+    /// * `Err(String)` - Win32 API呼び出し失敗時のエラーメッセージ
+    ///
+    /// # Notes
+    /// - `AdjustWindowRectExForDpi`を使用して、ウィンドウスタイルとDPIに基づく変換を行う
+    /// - `GetWindowLongPtrW`でスタイル情報、`GetDpiForWindow`でDPI値を取得する
+    /// - Windows 11専用実装（DPIフォールバック不要）
+    pub fn to_window_coords(&self, hwnd: HWND) -> Result<(i32, i32, i32, i32), String> {
+        // position/sizeがNoneの場合はデフォルト値(0, 0)を使用
+        let position = self.position.unwrap_or(POINT { x: 0, y: 0 });
+        let size = self.size.unwrap_or(SIZE { cx: 0, cy: 0 });
+
+        // ウィンドウスタイルを取得
+        let style = match get_window_long_ptr(hwnd, GWL_STYLE) {
+            Ok(v) => WINDOW_STYLE(v as u32),
+            Err(e) => {
+                return Err(format!(
+                    "GetWindowLongPtrW(GWL_STYLE) failed for HWND {:?}: {:?}",
+                    hwnd, e
+                ));
+            }
+        };
+
+        // 拡張スタイルを取得
+        let ex_style = match get_window_long_ptr(hwnd, GWL_EXSTYLE) {
+            Ok(v) => WINDOW_EX_STYLE(v as u32),
+            Err(e) => {
+                return Err(format!(
+                    "GetWindowLongPtrW(GWL_EXSTYLE) failed for HWND {:?}: {:?}",
+                    hwnd, e
+                ));
+            }
+        };
+
+        // DPI値を取得
+        let dpi = unsafe { GetDpiForWindow(hwnd) };
+        if dpi == 0 {
+            return Err(format!("GetDpiForWindow returned 0 for HWND {:?}", hwnd));
+        }
+
+        // クライアント領域からRECT構造体を構築
+        let mut rect = RECT {
+            left: position.x,
+            top: position.y,
+            right: position.x + size.cx,
+            bottom: position.y + size.cy,
+        };
+
+        // AdjustWindowRectExForDpiでウィンドウ全体の矩形を計算
+        let result = unsafe { AdjustWindowRectExForDpi(&mut rect, style, false, ex_style, dpi) };
+
+        if result.is_err() {
+            return Err(format!(
+                "AdjustWindowRectExForDpi failed for HWND {:?}: {:?}",
+                hwnd, result
+            ));
+        }
+
+        // 変換後の座標・サイズを抽出
+        let window_x = rect.left;
+        let window_y = rect.top;
+        let window_width = rect.right - rect.left;
+        let window_height = rect.bottom - rect.top;
+
+        Ok((window_x, window_y, window_width, window_height))
+    }
+
+    /// ウィンドウ作成時に使用する座標変換（HWNDなしでスタイル情報から変換）
+    ///
+    /// # Arguments
+    /// * `style` - ウィンドウスタイル
+    /// * `ex_style` - 拡張ウィンドウスタイル
+    /// * `dpi` - DPI値（0の場合はデフォルト96を使用）
+    ///
+    /// # Returns
+    /// * `(x, y, width, height)` - 変換後のウィンドウ全体座標
+    ///
+    /// # Notes
+    /// - CW_USEDEFAULTが含まれる場合は変換せずそのまま返す
+    pub fn to_window_coords_for_creation(
+        &self,
+        style: WINDOW_STYLE,
+        ex_style: WINDOW_EX_STYLE,
+        dpi: u32,
+    ) -> (i32, i32, i32, i32) {
+        let position = self.position.unwrap_or(POINT {
+            x: CW_USEDEFAULT,
+            y: CW_USEDEFAULT,
+        });
+        let size = self.size.unwrap_or(SIZE {
+            cx: CW_USEDEFAULT,
+            cy: CW_USEDEFAULT,
+        });
+
+        // CW_USEDEFAULTが含まれる場合は変換をスキップ
+        if position.x == CW_USEDEFAULT || size.cx == CW_USEDEFAULT {
+            return (position.x, position.y, size.cx, size.cy);
+        }
+
+        // DPIが0の場合はデフォルト値を使用
+        let dpi = if dpi == 0 { 96 } else { dpi };
+
+        // クライアント領域からRECT構造体を構築
+        let mut rect = RECT {
+            left: position.x,
+            top: position.y,
+            right: position.x + size.cx,
+            bottom: position.y + size.cy,
+        };
+
+        // AdjustWindowRectExForDpiでウィンドウ全体の矩形を計算
+        let result = unsafe { AdjustWindowRectExForDpi(&mut rect, style, false, ex_style, dpi) };
+
+        if result.is_err() {
+            // 変換失敗時は元の座標を返す
+            eprintln!(
+                "AdjustWindowRectExForDpi failed during window creation: {:?}. Using original values.",
+                result
+            );
+            return (position.x, position.y, size.cx, size.cy);
+        }
+
+        (
+            rect.left,
+            rect.top,
+            rect.right - rect.left,
+            rect.bottom - rect.top,
+        )
+    }
+}
+
+/// Window追加時にLayoutRootの子として設定するためのコマンド
+struct SetWindowParentToLayoutRoot {
+    entity: Entity,
+}
+
+impl Command for SetWindowParentToLayoutRoot {
+    fn apply(self, world: &mut World) {
+        // LayoutRootを検索
+        let mut query = world.query_filtered::<Entity, With<LayoutRoot>>();
+        let layout_root = query.iter(world).next();
+
+        if let Some(root) = layout_root {
+            // Windowエンティティがまだ親を持っていない場合のみChildOfを設定
+            if let Ok(mut entity_mut) = world.get_entity_mut(self.entity) {
+                if !entity_mut.contains::<ChildOf>() {
+                    eprintln!(
+                        "[on_window_add] Setting ChildOf({:?}) for Window entity {:?}",
+                        root, self.entity
+                    );
+                    entity_mut.insert(ChildOf(root));
+                }
+            }
+        }
+        // LayoutRootが見つからない場合は何もしない
+        // 後のフレームで ensure_window_parent_system が処理する
+    }
+}
+
+/// Windowコンポーネントが追加されたときに呼ばれるフック
+/// WindowをLayoutRootの子として自動的に設定する
+fn on_window_add(mut world: DeferredWorld, context: HookContext) {
+    world.commands().queue(SetWindowParentToLayoutRoot {
+        entity: context.entity,
+    });
 }
