@@ -444,6 +444,7 @@ pub fn sync_surface_from_arrangement(
         Changed<crate::ecs::layout::Arrangement>,
     >,
     mut commands: Commands,
+    frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     let Some(graphics) = graphics else {
         return;
@@ -453,8 +454,14 @@ pub fn sync_surface_from_arrangement(
         return;
     }
 
+    let mut processed_count = 0;
+
     for (entity, visual_graphics, arrangement, surface) in query.iter_mut() {
         if !visual_graphics.is_valid() {
+            eprintln!(
+                "[Frame {}] [sync_surface_from_arrangement] Entity={:?} has invalid VisualGraphics, skipping",
+                frame_count.0, entity
+            );
             continue;
         }
 
@@ -463,15 +470,33 @@ pub fn sync_surface_from_arrangement(
 
         // サイズが0の場合はスキップ（まだレイアウトされていない）
         if width == 0 || height == 0 {
+            eprintln!(
+                "[Frame {}] [sync_surface_from_arrangement] Entity={:?} has zero size ({}x{}), skipping",
+                frame_count.0, entity, width, height
+            );
             continue;
         }
+
+        processed_count += 1;
+        eprintln!(
+            "[Frame {}] [sync_surface_from_arrangement] Processing Entity={:?}, size={}x{}, has_surface={}",
+            frame_count.0, entity, width, height, surface.is_some()
+        );
 
         match surface {
             Some(mut surf) => {
                 // サイズ不一致の場合のみ再作成
                 if surf.size != (width, height) {
+                    eprintln!(
+                        "[Frame {}] [sync_surface_from_arrangement] Entity={:?} resizing from {:?} to {}x{}",
+                        frame_count.0, entity, surf.size, width, height
+                    );
                     match create_surface_for_window(&graphics, visual_graphics, width, height) {
                         Ok(new_surface) => {
+                            eprintln!(
+                                "[Frame {}] [sync_surface_from_arrangement] Entity={:?} Surface resized successfully",
+                                frame_count.0, entity
+                            );
                             commands.entity(entity).insert(new_surface);
                         }
                         Err(e) => {
@@ -483,8 +508,16 @@ pub fn sync_surface_from_arrangement(
             }
             None => {
                 // Surfaceがまだ作成されていない場合は作成
+                eprintln!(
+                    "[Frame {}] [sync_surface_from_arrangement] Entity={:?} creating new Surface {}x{}",
+                    frame_count.0, entity, width, height
+                );
                 match create_surface_for_window(&graphics, visual_graphics, width, height) {
                     Ok(new_surface) => {
+                        eprintln!(
+                            "[Frame {}] [sync_surface_from_arrangement] Entity={:?} Surface created successfully",
+                            frame_count.0, entity
+                        );
                         commands.entity(entity).insert(new_surface);
                     }
                     Err(e) => {
