@@ -486,6 +486,7 @@ pub fn initialize_layout_root(world: &mut World) {
 
 ### Validation Checkpoints
 
-- 全テストがパス
-- `taffy_flex_demo`が正常動作
+- `cargo build --all-targets` が成功すること（ライブラリ、examples、testsすべて）
+- `cargo test` がすべてパスすること
+- `cargo run --example taffy_flex_demo` が正常動作すること
 - コンパイル警告なし
