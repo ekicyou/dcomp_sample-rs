@@ -58,6 +58,10 @@ pub struct PostLayout;
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UISetup;
 
+/// グラフィックスセットアップスケジュール
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct GraphicsSetup;
+
 /// 描画コマンド生成スケジュール
 ///
 /// ID2D1CommandListを使用した描画コマンドリストを作成する。
@@ -139,6 +143,7 @@ impl EcsWorld {
                 schedules.insert(sc);
             }
 
+            schedules.insert(Schedule::new(GraphicsSetup));
             schedules.insert(Schedule::new(Draw));
             schedules.insert(Schedule::new(PreRenderSurface));
             schedules.insert(Schedule::new(RenderSurface));
@@ -173,6 +178,23 @@ impl EcsWorld {
                     .chain(),
             );
 
+            // PreLayoutスケジュール: GraphicsCore初期化とVisual作成
+            // Phase 6: VisualはPreLayoutで早期作成、SurfaceはDrawで遅延作成
+            schedules.add_systems(
+                PreLayout,
+                (
+                    crate::ecs::graphics::init_graphics_core,
+                    // Visualリソース作成（Surfaceは作成しない）
+                    crate::ecs::graphics::visual_resource_management_system
+                        .after(crate::ecs::graphics::init_graphics_core),
+                    crate::ecs::graphics::visual_reinit_system
+                        .after(crate::ecs::graphics::visual_resource_management_system),
+                    // Visual階層同期（parent_visual==Noneで未同期を検出）
+                    crate::ecs::graphics::visual_hierarchy_sync_system
+                        .after(crate::ecs::graphics::visual_reinit_system),
+                ),
+            );
+
             // Layoutスケジュールにtaffyレイアウトシステムを登録
             schedules.add_systems(
                 Layout,
@@ -189,59 +211,55 @@ impl EcsWorld {
                     .chain(),
             );
 
-            // PostLayoutスケジュールにグラフィックス初期化システムを登録
+            // PostLayoutスケジュール: 論理計算系（Arrangement伝播まで）
             schedules.add_systems(
                 PostLayout,
                 (
-                    crate::ecs::graphics::init_graphics_core,
-                    crate::ecs::graphics::cleanup_command_list_on_reinit
-                        .after(crate::ecs::graphics::init_graphics_core),
-                    crate::ecs::graphics::init_window_graphics
-                        .after(crate::ecs::graphics::cleanup_command_list_on_reinit),
-                    // Visualリソース管理システム (新規作成・再作成)
-                    crate::ecs::graphics::visual_resource_management_system
-                        .after(crate::ecs::graphics::init_window_graphics),
-                    crate::ecs::graphics::visual_reinit_system
-                        .after(crate::ecs::graphics::visual_resource_management_system),
-                    // WindowとVisualの紐付け
-                    crate::ecs::graphics::window_visual_integration_system
-                        .after(crate::ecs::graphics::visual_reinit_system),
                     // init_window_arrangement: Arrangementコンポーネントの初期化
-                    crate::ecs::window_system::init_window_arrangement
-                        .after(crate::ecs::graphics::window_visual_integration_system),
-                ),
-            );
-
-            // PostLayoutスケジュールにArrangement伝播システムを登録
-            schedules.add_systems(
-                PostLayout,
-                (
-                    crate::ecs::layout::sync_simple_arrangements,
+                    crate::ecs::window_system::init_window_arrangement,
+                    crate::ecs::layout::sync_simple_arrangements
+                        .after(crate::ecs::window_system::init_window_arrangement),
                     crate::ecs::layout::mark_dirty_arrangement_trees
                         .after(crate::ecs::layout::sync_simple_arrangements),
                     crate::ecs::layout::propagate_global_arrangements
                         .after(crate::ecs::layout::mark_dirty_arrangement_trees),
-                    // Layout-to-Graphics同期システム (新規追加)
-                    crate::ecs::graphics::sync_visual_from_layout_root
-                        .after(crate::ecs::layout::propagate_global_arrangements),
-                    crate::ecs::graphics::resize_surface_from_visual
-                        .after(crate::ecs::graphics::sync_visual_from_layout_root),
                     crate::ecs::graphics::sync_window_pos
-                        .after(crate::ecs::graphics::resize_surface_from_visual),
-                    // apply_window_pos_changesはUISetupに移動（メインスレッド固定のため）
+                        .after(crate::ecs::layout::propagate_global_arrangements),
                     crate::ecs::layout::update_window_pos_system
                         .after(crate::ecs::graphics::sync_window_pos),
                 )
                     .chain(),
             );
 
+            // GraphicsSetupスケジュール: グラフィックスリソース系
+            // UISetupの後に実行され、WindowHandleが利用可能
+            schedules.add_systems(
+                GraphicsSetup,
+                (
+                    crate::ecs::graphics::cleanup_command_list_on_reinit,
+                    crate::ecs::graphics::init_window_graphics
+                        .after(crate::ecs::graphics::cleanup_command_list_on_reinit),
+                    crate::ecs::graphics::window_visual_integration_system
+                        .after(crate::ecs::graphics::init_window_graphics),
+                    // sync_visual_from_layout_root は廃止
+                    // sync_surface_from_arrangement: Arrangementから直接Surfaceサイズを取得
+                    crate::ecs::graphics::sync_surface_from_arrangement
+                        .after(crate::ecs::graphics::window_visual_integration_system),
+                )
+                    .chain(),
+            );
+
             // Drawスケジュールにクリーンアップシステムとウィジェット描画システムを登録
+            // Phase 6: 遅延Surface作成を追加（CommandList作成後に自動実行）
             schedules.add_systems(
                 Draw,
                 (
                     crate::ecs::graphics::cleanup_graphics_needs_init,
                     crate::ecs::widget::shapes::rectangle::draw_rectangles,
                     crate::ecs::widget::text::draw_labels,
+                    // 遅延Surface作成（CommandList存在時）
+                    crate::ecs::graphics::deferred_surface_creation_system
+                        .after(crate::ecs::widget::text::draw_labels),
                 )
                     .chain(),
             );
@@ -252,15 +270,9 @@ impl EcsWorld {
             // RenderSurfaceスケジュールに描画システムを登録
             schedules.add_systems(RenderSurface, crate::ecs::graphics::render_surface);
 
-            // Compositionスケジュールに階層同期・Offset同期システムを登録
-            // Phase 4: 自己描画方式への移行により有効化
-            schedules.add_systems(
-                Composition,
-                (
-                    crate::ecs::graphics::visual_hierarchy_sync_system,
-                    crate::ecs::graphics::visual_offset_sync_system,
-                ),
-            );
+            // Compositionスケジュールに Offset同期システムを登録
+            // visual_offset_syncはArrangementに依存するのでレイアウト後に実行
+            schedules.add_systems(Composition, crate::ecs::graphics::visual_offset_sync_system);
 
             // CommitCompositionスケジュールにコミットシステムを登録
             schedules.add_systems(CommitComposition, crate::ecs::graphics::commit_composition);
@@ -372,6 +384,7 @@ impl EcsWorld {
         let _ = self.world.try_run_schedule(Layout);
         let _ = self.world.try_run_schedule(PostLayout);
         let _ = self.world.try_run_schedule(UISetup);
+        let _ = self.world.try_run_schedule(GraphicsSetup);
         let _ = self.world.try_run_schedule(Draw);
         let _ = self.world.try_run_schedule(PreRenderSurface);
         let _ = self.world.try_run_schedule(RenderSurface);

@@ -5,6 +5,7 @@
 
 use bevy_ecs::prelude::*;
 use windows::core::Result;
+use wintf::ecs::world::FrameCount;
 use wintf::ecs::{
     visual_resource_management_system, GraphicsCore, SurfaceGraphics, Visual, VisualGraphics,
 };
@@ -14,12 +15,19 @@ fn setup_graphics() -> Result<GraphicsCore> {
     GraphicsCore::new()
 }
 
-/// Visual追加時に VisualGraphics が自動的に作成されることを確認
-#[test]
-fn test_visual_triggers_visual_graphics_creation() -> Result<()> {
+/// テスト用のワールドをセットアップするヘルパー関数
+fn setup_world_with_graphics() -> Result<World> {
     let graphics = setup_graphics()?;
     let mut world = World::new();
     world.insert_resource(graphics);
+    world.insert_resource(FrameCount(1));
+    Ok(world)
+}
+
+/// Visual追加時に VisualGraphics が自動的に作成されることを確認
+#[test]
+fn test_visual_triggers_visual_graphics_creation() -> Result<()> {
+    let mut world = setup_world_with_graphics()?;
 
     // Visual を持つ Entity を作成
     let entity = world.spawn(Visual::default()).id();
@@ -44,9 +52,7 @@ fn test_visual_triggers_visual_graphics_creation() -> Result<()> {
 /// 注意: 現在の実装ではSurfaceも作成されるが、設計では遅延作成が求められている
 #[test]
 fn test_visual_does_not_trigger_immediate_surface_creation() -> Result<()> {
-    let graphics = setup_graphics()?;
-    let mut world = World::new();
-    world.insert_resource(graphics);
+    let mut world = setup_world_with_graphics()?;
 
     // Visual を持つ Entity を作成
     let entity = world.spawn(Visual::default()).id();
@@ -67,9 +73,7 @@ fn test_visual_does_not_trigger_immediate_surface_creation() -> Result<()> {
 /// VisualGraphics が既に存在する場合は再作成されないことを確認
 #[test]
 fn test_visual_graphics_not_recreated_if_exists() -> Result<()> {
-    let graphics = setup_graphics()?;
-    let mut world = World::new();
-    world.insert_resource(graphics);
+    let mut world = setup_world_with_graphics()?;
 
     let entity = world.spawn(Visual::default()).id();
 
@@ -99,9 +103,7 @@ fn test_visual_graphics_not_recreated_if_exists() -> Result<()> {
 /// 複数の Entity に対して VisualGraphics が作成されることを確認
 #[test]
 fn test_multiple_entities_get_visual_graphics() -> Result<()> {
-    let graphics = setup_graphics()?;
-    let mut world = World::new();
-    world.insert_resource(graphics);
+    let mut world = setup_world_with_graphics()?;
 
     let entity1 = world.spawn(Visual::default()).id();
     let entity2 = world.spawn(Visual::default()).id();
@@ -136,6 +138,7 @@ fn test_no_visual_graphics_with_invalid_graphics_core() -> Result<()> {
 
     let mut world = World::new();
     world.insert_resource(graphics);
+    world.insert_resource(FrameCount(1));
 
     let entity = world.spawn(Visual::default()).id();
 

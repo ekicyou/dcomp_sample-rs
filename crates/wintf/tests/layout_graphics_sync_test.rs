@@ -7,73 +7,50 @@ use bevy_ecs::system::IntoSystem;
 use windows::Win32::Foundation::{POINT, SIZE};
 use wintf::ecs::*;
 
-#[test]
-fn test_sync_visual_from_layout_root() {
-    // WorldとScheduleを準備
-    let mut world = World::new();
-
-    // WindowとGlobalArrangement、Visualを持つエンティティを作成
-    // Note: sync_visual_from_layout_rootは現在Windowコンポーネントでフィルタ
-    let entity = world
-        .spawn((
-            Window::default(),
-            layout::GlobalArrangement {
-                transform: windows_numerics::Matrix3x2::identity(),
-                bounds: layout::D2DRect {
-                    left: 0.0,
-                    top: 0.0,
-                    right: 800.0,
-                    bottom: 600.0,
-                },
-            },
-            Visual::default(),
-        ))
-        .id();
-
-    // sync_visual_from_layout_rootシステムを実行
-    let mut system = IntoSystem::into_system(wintf::ecs::sync_visual_from_layout_root);
-    system.initialize(&mut world);
-    let _ = system.run((), &mut world);
-    system.apply_deferred(&mut world);
-
-    // Visualのサイズが更新されていることを確認
-    let visual = world.entity(entity).get::<Visual>().unwrap();
-    assert_eq!(visual.size.X, 800.0);
-    assert_eq!(visual.size.Y, 600.0);
-}
+// sync_visual_from_layout_rootは廃止され、Arrangementから直接Surfaceサイズを取得するようになりました。
+// Visual.sizeは削除され、Arrangement.sizeがSingle Source of Truthです。
 
 #[test]
 fn test_sync_window_pos() {
+    use bevy_ecs::schedule::Schedule;
+
     // WorldとScheduleを準備
     let mut world = World::new();
+    let mut schedule = Schedule::default();
+    schedule.add_systems(wintf::ecs::sync_window_pos);
 
-    // Window、LayoutRoot、GlobalArrangement、Visual、WindowPosを持つエンティティを作成
+    // Window、Arrangement、Visual、WindowPosを持つエンティティを作成
+    // Note: Arrangementのon_addフックがGlobalArrangement::default()を自動挿入するので、
+    //       スポーン後にGlobalArrangementを明示的に設定する必要がある
     let entity = world
         .spawn((
             Window::default(),
-            layout::LayoutRoot,
-            layout::GlobalArrangement {
-                transform: windows_numerics::Matrix3x2::identity(),
-                bounds: layout::D2DRect {
-                    left: 100.0,
-                    top: 50.0,
-                    right: 900.0,
-                    bottom: 650.0,
+            layout::Arrangement {
+                offset: layout::Offset { x: 100.0, y: 50.0 },
+                scale: layout::LayoutScale::default(),
+                size: layout::Size {
+                    width: 800.0,
+                    height: 600.0,
                 },
             },
-            Visual {
-                size: windows_numerics::Vector2 { X: 800.0, Y: 600.0 },
-                ..Default::default()
-            },
+            Visual::default(),
             WindowPos::default(),
         ))
         .id();
 
-    // sync_window_posシステムを実行
-    let mut system = IntoSystem::into_system(wintf::ecs::sync_window_pos);
-    system.initialize(&mut world);
-    let _ = system.run((), &mut world);
-    system.apply_deferred(&mut world);
+    // on_addフックがデフォルト値を挿入した後、正しい値で上書き
+    world.entity_mut(entity).insert(layout::GlobalArrangement {
+        transform: windows_numerics::Matrix3x2::identity(),
+        bounds: layout::D2DRect {
+            left: 100.0,
+            top: 50.0,
+            right: 900.0,
+            bottom: 650.0,
+        },
+    });
+
+    // スケジュールを実行（GlobalArrangementがChangedとして検出される）
+    schedule.run(&mut world);
 
     // WindowPosが更新されていることを確認
     let window_pos = world.entity(entity).get::<WindowPos>().unwrap();
@@ -138,38 +115,45 @@ fn test_skip_invalid_bounds() {
 
 #[test]
 fn test_echo_back_flow() {
-    use bevy_ecs::system::IntoSystem;
+    use bevy_ecs::schedule::Schedule;
 
     // WorldとScheduleを準備
     let mut world = World::new();
+    let mut schedule = Schedule::default();
+    schedule.add_systems(wintf::ecs::sync_window_pos);
 
-    // Window、LayoutRoot、GlobalArrangement、Visual、WindowPos、WindowHandleを持つエンティティを作成
+    // Window、Arrangement、Visual、WindowPosを持つエンティティを作成
+    // Note: Arrangementのon_addフックがGlobalArrangement::default()を自動挿入するので、
+    //       スポーン後にGlobalArrangementを明示的に設定する必要がある
     let entity = world
         .spawn((
             Window::default(),
-            layout::LayoutRoot,
-            layout::GlobalArrangement {
-                transform: windows_numerics::Matrix3x2::identity(),
-                bounds: layout::D2DRect {
-                    left: 100.0,
-                    top: 50.0,
-                    right: 900.0,
-                    bottom: 650.0,
+            layout::Arrangement {
+                offset: layout::Offset { x: 100.0, y: 50.0 },
+                scale: layout::LayoutScale::default(),
+                size: layout::Size {
+                    width: 800.0,
+                    height: 600.0,
                 },
             },
-            Visual {
-                size: windows_numerics::Vector2 { X: 800.0, Y: 600.0 },
-                ..Default::default()
-            },
+            Visual::default(),
             WindowPos::default(),
         ))
         .id();
 
-    // sync_window_posシステムを実行してWindowPosを更新
-    let mut sync_system = IntoSystem::into_system(wintf::ecs::sync_window_pos);
-    sync_system.initialize(&mut world);
-    let _ = sync_system.run((), &mut world);
-    sync_system.apply_deferred(&mut world);
+    // on_addフックがデフォルト値を挿入した後、正しい値で上書き
+    world.entity_mut(entity).insert(layout::GlobalArrangement {
+        transform: windows_numerics::Matrix3x2::identity(),
+        bounds: layout::D2DRect {
+            left: 100.0,
+            top: 50.0,
+            right: 900.0,
+            bottom: 650.0,
+        },
+    });
+
+    // スケジュールを実行してWindowPosを更新
+    schedule.run(&mut world);
 
     // WindowPosが更新されたことを確認
     let window_pos = world.entity(entity).get::<WindowPos>().unwrap();
@@ -246,20 +230,17 @@ fn test_reverse_flow_simulation() {
 fn test_visual_partial_eq_optimization() {
     // PartialEqが正しく実装されているかを確認
     let visual1 = Visual {
-        size: windows_numerics::Vector2 { X: 800.0, Y: 600.0 },
+        opacity: 0.5,
         ..Default::default()
     };
 
     let visual2 = Visual {
-        size: windows_numerics::Vector2 { X: 800.0, Y: 600.0 },
+        opacity: 0.5,
         ..Default::default()
     };
 
     let visual3 = Visual {
-        size: windows_numerics::Vector2 {
-            X: 1024.0,
-            Y: 768.0,
-        },
+        opacity: 0.8,
         ..Default::default()
     };
 

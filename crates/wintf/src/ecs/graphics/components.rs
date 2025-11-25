@@ -203,12 +203,12 @@ fn on_surface_graphics_changed(mut world: DeferredWorld, context: HookContext) {
 pub struct SurfaceUpdateRequested;
 
 /// 論理的なVisualコンポーネント
+/// サイズ情報はArrangementから取得する（Single Source of Truth）
 #[derive(Component, Debug, Clone, PartialEq)]
 pub struct Visual {
     pub is_visible: bool,
     pub opacity: f32,
     pub transform_origin: Vector2,
-    pub size: Vector2,
 }
 
 impl Default for Visual {
@@ -217,7 +217,6 @@ impl Default for Visual {
             is_visible: true,
             opacity: 1.0,
             transform_origin: Vector2::default(),
-            size: Vector2 { X: 100.0, Y: 100.0 },
         }
     }
 }

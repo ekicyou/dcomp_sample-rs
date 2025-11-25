@@ -164,6 +164,12 @@ pub fn draw_rectangles(
                 bottom: arrangement.size.height,
             };
 
+            eprintln!(
+                "[draw_rectangles] Entity={:?}, rect=({},{},{},{}), color=({:.2},{:.2},{:.2},{:.2})",
+                entity, rect.left, rect.top, rect.right, rect.bottom,
+                rectangle.color.r, rectangle.color.g, rectangle.color.b, rectangle.color.a
+            );
+
             // ソリッドカラーブラシ作成
             let brush = match dc.create_solid_color_brush(&rectangle.color, None) {
                 Ok(b) => b,

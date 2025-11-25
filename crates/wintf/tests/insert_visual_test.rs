@@ -38,7 +38,6 @@ fn test_insert_visual_with_adds_custom_visual() {
         is_visible: false,
         opacity: 0.5,
         transform_origin: Vector2 { X: 100.0, Y: 100.0 },
-        size: Vector2 { X: 200.0, Y: 150.0 },
     };
 
     // insert_visual_with を呼び出し
@@ -49,8 +48,8 @@ fn test_insert_visual_with_adds_custom_visual() {
 
     assert_eq!(visual.is_visible, false);
     assert_eq!(visual.opacity, 0.5);
-    assert_eq!(visual.size.X, 200.0);
-    assert_eq!(visual.size.Y, 150.0);
+    assert_eq!(visual.transform_origin.X, 100.0);
+    assert_eq!(visual.transform_origin.Y, 100.0);
 }
 
 /// insert_visual: 既に Visual を持つ Entity に対しては上書きされることを確認

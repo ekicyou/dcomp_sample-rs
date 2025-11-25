@@ -1,8 +1,9 @@
 use bevy_ecs::prelude::*;
 use windows_numerics::Vector2;
 use wintf::ecs::visual_resource_management_system;
+use wintf::ecs::world::FrameCount;
 use wintf::ecs::Visual;
-use wintf::ecs::{GraphicsCore, SurfaceGraphics, VisualGraphics};
+use wintf::ecs::{GraphicsCore, VisualGraphics};
 
 #[test]
 fn test_visual_component_definition() {
@@ -26,7 +27,6 @@ fn test_visual_component_properties() {
         is_visible: false,
         opacity: 0.5,
         transform_origin: Vector2::new(10.0, 20.0),
-        size: Vector2::new(100.0, 100.0),
     };
 
     assert_eq!(visual.is_visible, false);
@@ -35,6 +35,10 @@ fn test_visual_component_properties() {
     assert_eq!(visual.transform_origin.Y, 20.0);
 }
 
+/// Phase 6: Visualリソース作成テスト
+///
+/// visual_resource_management_systemはVisualGraphicsのみを作成し、
+/// SurfaceGraphicsは作成しない（deferred_surface_creation_systemで遅延作成）。
 #[test]
 fn test_visual_resource_creation() {
     let mut world = World::new();
@@ -46,6 +50,9 @@ fn test_visual_resource_creation() {
     let graphics = GraphicsCore::new().expect("Failed to create GraphicsCore");
     world.insert_resource(graphics);
 
+    // Setup FrameCount resource (required by visual_resource_management_system)
+    world.insert_resource(FrameCount(1));
+
     // Setup Schedule
     let mut schedule = Schedule::default();
     schedule.add_systems(visual_resource_management_system);
@@ -56,7 +63,11 @@ fn test_visual_resource_creation() {
     // Run schedule
     schedule.run(&mut world);
 
-    // Check if VisualGraphics and SurfaceGraphics are added
-    assert!(world.get::<VisualGraphics>(entity).is_some());
-    assert!(world.get::<SurfaceGraphics>(entity).is_some());
+    // Phase 6: VisualGraphicsのみが作成される（Surfaceは遅延作成）
+    assert!(
+        world.get::<VisualGraphics>(entity).is_some(),
+        "VisualGraphics should be created by visual_resource_management_system"
+    );
+    // SurfaceGraphicsはdeferred_surface_creation_systemで作成されるため、
+    // ここでは存在しない
 }

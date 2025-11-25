@@ -1,10 +1,9 @@
 use crate::com::dcomp::DCompositionDeviceExt;
 use crate::ecs::graphics::{
-    GraphicsCore, GraphicsNeedsInit, SurfaceGraphics, Visual, VisualGraphics, WindowGraphics,
+    GraphicsCore, GraphicsNeedsInit, Visual, VisualGraphics, WindowGraphics,
 };
 use bevy_ecs::prelude::*;
 use windows::Win32::Graphics::DirectComposition::*;
-use windows::Win32::Graphics::Dxgi::Common::*;
 
 /// デフォルトのVisualコンポーネントをEntityに挿入する (R3)
 ///
@@ -33,13 +32,16 @@ pub fn insert_visual_with(world: &mut World, entity: Entity, visual: Visual) {
     }
 }
 
-fn create_visual_resources(
+/// Visualリソースのみを作成する（Surfaceは作成しない）
+///
+/// Phase 6リファクタリング: Visual作成をPreLayoutに移動し、
+/// Surface作成はDrawスケジュールでCommandList存在時に遅延実行する。
+fn create_visual_only(
     commands: &mut Commands,
     entity: Entity,
-    visual: &Visual,
+    _visual: &Visual,
     dcomp: &IDCompositionDevice3,
 ) {
-    // 1. Create Visual
     let visual_res = dcomp.create_visual();
     match visual_res {
         Ok(v3) => {
@@ -55,45 +57,10 @@ fn create_visual_resources(
                 .entity(entity)
                 .insert(VisualGraphics::new(v3.clone()));
 
-            // 2. Create Surface (Requirement R2: Always create surface)
-            // Use size from Visual component
-            let width = visual.size.X as u32;
-            let height = visual.size.Y as u32;
-
-            // Ensure non-zero size
-            let width = if width == 0 { 1 } else { width };
-            let height = if height == 0 { 1 } else { height };
-
             eprintln!(
-                "[visual_creation_system] Creating Surface for Entity={:?}, size={}x{} (from Visual.size=({}, {}))",
-                entity, width, height, visual.size.X, visual.size.Y
+                "[visual_creation_system] Visual created for Entity={:?} (Surface deferred)",
+                entity
             );
-
-            let surface_res = dcomp.create_surface(
-                width,
-                height,
-                DXGI_FORMAT_B8G8R8A8_UNORM,
-                DXGI_ALPHA_MODE_PREMULTIPLIED,
-            );
-
-            match surface_res {
-                Ok(surface) => {
-                    // Set content
-                    unsafe {
-                        let _ = v3.SetContent(&surface);
-                    }
-                    commands
-                        .entity(entity)
-                        .insert(SurfaceGraphics::new(surface, (width, height)));
-                    eprintln!(
-                        "[visual_creation_system] Surface created successfully for Entity={:?}",
-                        entity
-                    );
-                }
-                Err(e) => {
-                    eprintln!("Failed to create surface for Entity={:?}: {:?}", entity, e);
-                }
-            }
         }
         Err(e) => {
             eprintln!("Failed to create visual: {:?}", e);
@@ -102,10 +69,14 @@ fn create_visual_resources(
 }
 
 /// Visualコンポーネントに基づいてGPUリソースを管理するシステム
+///
+/// Phase 6: Visualのみを作成し、Surfaceは作成しない。
+/// SurfaceはDrawスケジュールでCommandList存在時に遅延作成される。
 pub fn visual_resource_management_system(
     mut commands: Commands,
     graphics: Res<GraphicsCore>,
     query: Query<(Entity, &Visual), Added<Visual>>,
+    frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     if !graphics.is_valid() {
         return;
@@ -117,11 +88,21 @@ pub fn visual_resource_management_system(
     };
 
     for (entity, visual) in query.iter() {
-        create_visual_resources(&mut commands, entity, visual, dcomp);
+        eprintln!(
+            "[Frame {}] [visual_resource_management] VisualGraphics作成開始 (Entity: {:?})",
+            frame_count.0, entity
+        );
+        create_visual_only(&mut commands, entity, visual, dcomp);
+        eprintln!(
+            "[Frame {}] [visual_resource_management] VisualGraphics作成完了 (Entity: {:?})",
+            frame_count.0, entity
+        );
     }
 }
 
 /// Visualリソースの再初期化システム
+///
+/// Phase 6: Visualのみを作成し、Surfaceは作成しない。
 pub fn visual_reinit_system(
     mut commands: Commands,
     graphics: Res<GraphicsCore>,
@@ -137,7 +118,7 @@ pub fn visual_reinit_system(
     };
 
     for (entity, visual) in query.iter() {
-        create_visual_resources(&mut commands, entity, visual, dcomp);
+        create_visual_only(&mut commands, entity, visual, dcomp);
     }
 }
 
@@ -150,10 +131,15 @@ pub fn window_visual_integration_system(
         (Entity, &WindowGraphics, &VisualGraphics),
         Or<(Changed<WindowGraphics>, Changed<VisualGraphics>)>,
     >,
+    frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
-    for (_entity, window_graphics, visual_graphics) in query.iter() {
+    for (entity, window_graphics, visual_graphics) in query.iter() {
         if let Some(target) = window_graphics.get_target() {
             if let Some(visual) = visual_graphics.visual() {
+                eprintln!(
+                    "[Frame {}] [window_visual_integration] SetRoot実行 (Entity: {:?})",
+                    frame_count.0, entity
+                );
                 unsafe {
                     let _ = target.SetRoot(visual);
                 }

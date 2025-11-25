@@ -256,16 +256,24 @@ pub fn commit_composition(
         }
     };
 
-    if let Err(e) = dcomp.commit() {
-        eprintln!(
-            "[Frame {}] [commit_composition] Commit失敗: HRESULT {:?}",
-            frame_count.0, e
-        );
-        eprintln!(
-            "[Frame {}] [commit_composition] Commit失敗 HRESULT: 0x{:08X}",
-            frame_count.0,
-            e.code().0
-        );
+    match dcomp.commit() {
+        Ok(()) => {
+            // 成功時は最初の数フレームだけログ出力
+            if frame_count.0 <= 5 {
+                eprintln!("[Frame {}] [commit_composition] Commit成功", frame_count.0);
+            }
+        }
+        Err(e) => {
+            eprintln!(
+                "[Frame {}] [commit_composition] Commit失敗: HRESULT {:?}",
+                frame_count.0, e
+            );
+            eprintln!(
+                "[Frame {}] [commit_composition] Commit失敗 HRESULT: 0x{:08X}",
+                frame_count.0,
+                e.code().0
+            );
+        }
     }
 }
 
@@ -422,33 +430,18 @@ pub fn init_window_visual(
 
 // ========== Layout-to-Graphics Synchronization Systems ==========
 
-/// GlobalArrangementからVisualへのサイズ同期
-/// Windowコンポーネントを持つエンティティのみ処理
-pub fn sync_visual_from_layout_root(
-    mut query: Query<
-        (&GlobalArrangement, &mut super::Visual),
-        (With<crate::ecs::window::Window>, Changed<GlobalArrangement>),
-    >,
-) {
-    for (global_arr, mut visual) in query.iter_mut() {
-        let width = (global_arr.bounds.right - global_arr.bounds.left) as f32;
-        let height = (global_arr.bounds.bottom - global_arr.bounds.top) as f32;
-        visual.size.X = width;
-        visual.size.Y = height;
-    }
-}
-
-/// Visual.size変更時にDirectComposition Surfaceを再作成
-pub fn resize_surface_from_visual(
+/// Arrangement変更時にDirectComposition Surfaceを作成/リサイズ
+/// ArrangementをSingle Source of Truthとして直接参照
+pub fn sync_surface_from_arrangement(
     graphics: Option<Res<GraphicsCore>>,
     mut query: Query<
         (
             Entity,
             &VisualGraphics,
-            &super::Visual,
+            &crate::ecs::layout::Arrangement,
             Option<&mut SurfaceGraphics>,
         ),
-        Changed<super::Visual>,
+        Changed<crate::ecs::layout::Arrangement>,
     >,
     mut commands: Commands,
 ) {
@@ -460,13 +453,18 @@ pub fn resize_surface_from_visual(
         return;
     }
 
-    for (entity, visual_graphics, visual, surface) in query.iter_mut() {
+    for (entity, visual_graphics, arrangement, surface) in query.iter_mut() {
         if !visual_graphics.is_valid() {
             continue;
         }
 
-        let width = visual.size.X as u32;
-        let height = visual.size.Y as u32;
+        let width = arrangement.size.width as u32;
+        let height = arrangement.size.height as u32;
+
+        // サイズが0の場合はスキップ（まだレイアウトされていない）
+        if width == 0 || height == 0 {
+            continue;
+        }
 
         match surface {
             Some(mut surf) => {
@@ -477,7 +475,7 @@ pub fn resize_surface_from_visual(
                             commands.entity(entity).insert(new_surface);
                         }
                         Err(e) => {
-                            eprintln!("[resize_surface_from_visual] エラー: {:?}", e);
+                            eprintln!("[sync_surface_from_arrangement] エラー: {:?}", e);
                             surf.invalidate();
                         }
                     }
@@ -490,7 +488,7 @@ pub fn resize_surface_from_visual(
                         commands.entity(entity).insert(new_surface);
                     }
                     Err(e) => {
-                        eprintln!("[resize_surface_from_visual] エラー (新規作成): {:?}", e);
+                        eprintln!("[sync_surface_from_arrangement] エラー (新規作成): {:?}", e);
                     }
                 }
             }
@@ -498,24 +496,27 @@ pub fn resize_surface_from_visual(
     }
 }
 
-/// GlobalArrangementとVisualからWindowPosの位置・サイズを更新
+/// GlobalArrangementとArrangementからWindowPosの位置・サイズを更新
 /// Windowコンポーネントを持つエンティティのみ処理
 pub fn sync_window_pos(
     mut query: Query<
         (
             &GlobalArrangement,
-            &super::Visual,
+            &crate::ecs::layout::Arrangement,
             &mut crate::ecs::window::WindowPos,
         ),
         (
             With<crate::ecs::window::Window>,
-            Or<(Changed<GlobalArrangement>, Changed<super::Visual>)>,
+            Or<(
+                Changed<GlobalArrangement>,
+                Changed<crate::ecs::layout::Arrangement>,
+            )>,
         ),
     >,
 ) {
     use windows::Win32::Foundation::{POINT, SIZE};
 
-    for (global_arr, visual, mut window_pos) in query.iter_mut() {
+    for (global_arr, arrangement, mut window_pos) in query.iter_mut() {
         // GlobalArrangementが有効な値を持つ場合のみ更新
         // (0,0,0,0)のような初期値は無視
         let width = global_arr.bounds.right - global_arr.bounds.left;
@@ -530,8 +531,8 @@ pub fn sync_window_pos(
             y: global_arr.bounds.top as i32,
         };
         let new_size = SIZE {
-            cx: visual.size.X as i32,
-            cy: visual.size.Y as i32,
+            cx: arrangement.size.width as i32,
+            cy: arrangement.size.height as i32,
         };
 
         // 実際に変更があった場合のみ更新
@@ -704,28 +705,42 @@ pub fn mark_dirty_surfaces(
     }
 }
 
-/// ChildOf変更を検出してVisual階層を同期するシステム (R3, R6, R7)
+/// ChildOf変更またはVisualGraphics追加を検出してVisual階層を同期するシステム (R3, R6, R7)
 ///
 /// ECSのChildOf/Children階層とDirectCompositionのVisual階層を同期する。
-/// - ChildOf追加時: 子VisualGraphicsを親VisualGraphicsに追加し、parent_visualをキャッシュ
-/// - ChildOf変更時: 旧親から削除→新親に追加
+/// Phase 6改善: parent_visual.is_none()で未同期を検出し、毎フレーム処理可能に。
+/// - ChildOf追加/変更時: 子VisualGraphicsを親VisualGraphicsに追加
+/// - VisualGraphics追加時: 既存のChildOf関係を元に親Visualに追加
+/// - parent_visualがNone: 階層未構築なので同期実行
+/// - 親がVisualGraphicsを持たない場合（LayoutRootなど）: Visual階層のルートとして処理済みマーク
 ///
 /// 注意: エラーは無視する（親が先に削除されている場合など）
 pub fn visual_hierarchy_sync_system(
     mut vg_queries: ParamSet<(
-        Query<(Entity, &ChildOf, &mut VisualGraphics), Changed<ChildOf>>,
+        // ChildOf + VisualGraphics を持つ全Entity
+        Query<(Entity, &ChildOf, &mut VisualGraphics)>,
         Query<&VisualGraphics>,
     )>,
 ) {
     use crate::com::dcomp::DCompositionVisualExt;
 
-    // 1. まず変更があったエンティティと親情報を収集
+    // 1. まず未同期（parent_visual==None）のエンティティと親情報を収集
     let mut updates: Vec<(Entity, Entity)> = Vec::new(); // (child_entity, parent_entity)
     {
         let child_query = vg_queries.p0();
-        for (entity, child_of, _child_vg) in child_query.iter() {
-            updates.push((entity, child_of.parent()));
+        for (entity, child_of, child_vg) in child_query.iter() {
+            // parent_visualがNoneなら未同期
+            if child_vg.parent_visual().is_none() {
+                updates.push((entity, child_of.parent()));
+            }
         }
+    }
+
+    if !updates.is_empty() {
+        eprintln!(
+            "[visual_hierarchy_sync] Processing {} entities",
+            updates.len()
+        );
     }
 
     // 2. 各子エンティティに対して処理
@@ -748,17 +763,33 @@ pub fn visual_hierarchy_sync_system(
                 None => continue,
             };
 
-            // 旧親からの削除（parent_visualキャッシュを使用）
-            if let Some(ref old_parent) = child_vg.parent_visual() {
-                let _ = old_parent.remove_visual(&child_visual); // エラー無視
-            }
-
             // 新しい親に追加
             if let Some(ref parent_visual) = parent_visual {
-                // 親の末尾に追加（insertabove=false, referencevisual=None）
-                let _ = parent_visual.add_visual(&child_visual, false, None); // エラー無視
-                                                                              // parent_visualキャッシュを更新
+                // 親がVisualGraphicsを持つ場合: 親Visualに追加
+                if let Err(e) = parent_visual.add_visual(&child_visual, false, None) {
+                    eprintln!(
+                        "[visual_hierarchy_sync] AddVisual failed: child={:?}, parent={:?}, error={:?}",
+                        child_entity, parent_entity, e
+                    );
+                } else {
+                    eprintln!(
+                        "[visual_hierarchy_sync] AddVisual success: child={:?} -> parent={:?}",
+                        child_entity, parent_entity
+                    );
+                }
+                // parent_visualキャッシュを更新
                 child_vg.set_parent_visual(Some(parent_visual.clone()));
+            } else {
+                // 親がVisualGraphicsを持たない場合（LayoutRootなど）:
+                // この子はVisual階層のルート。自分自身のVisualをセンチネル値として設定し、
+                // 処理済みとしてマークする。window_visual_integration_systemがWindowのVisualを
+                // CompositionTargetのルートとして設定するので、ここでは追加処理不要。
+                eprintln!(
+                    "[visual_hierarchy_sync] Parent {:?} has no VisualGraphics, child={:?} is Visual hierarchy root",
+                    parent_entity, child_entity
+                );
+                // 自分自身のVisualを設定して「処理済み」とマーク
+                child_vg.set_parent_visual(Some(child_visual.clone()));
             }
         }
     }
@@ -767,13 +798,14 @@ pub fn visual_hierarchy_sync_system(
 /// Visual Offset同期システム (R8)
 ///
 /// Arrangement変更を検知してVisualのSetOffsetX/SetOffsetYを呼び出す。
-/// GlobalArrangementのboundsからVisualの配置位置を計算し、親Visual座標系での位置を設定する。
+/// Arrangementのoffset（親Entity相対のローカル座標）をそのまま使用する。
+/// DirectCompositionのVisual Offsetも親Visual相対なので、1:1で対応する。
 ///
 /// Compositionスケジュールで実行。
 pub fn visual_offset_sync_system(
     changed_arrangements: Query<
-        (Entity, &GlobalArrangement, &VisualGraphics),
-        Changed<GlobalArrangement>,
+        (Entity, &crate::ecs::layout::Arrangement, &VisualGraphics),
+        Changed<crate::ecs::layout::Arrangement>,
     >,
 ) {
     use crate::com::dcomp::DCompositionVisualExt;
@@ -783,10 +815,10 @@ pub fn visual_offset_sync_system(
             continue;
         };
 
-        // GlobalArrangementのboundsから位置を取得
-        // left, topが親座標系での位置
-        let offset_x = arrangement.bounds.left;
-        let offset_y = arrangement.bounds.top;
+        // Arrangementのoffsetはローカル座標（親Entity相対）
+        // DirectCompositionのVisual Offsetも親Visual相対なので、そのまま使用
+        let offset_x = arrangement.offset.x;
+        let offset_y = arrangement.offset.y;
 
         // VisualのOffset設定
         if let Err(e) = visual.set_offset_x(offset_x) {
@@ -807,5 +839,91 @@ pub fn visual_offset_sync_system(
             "[visual_offset_sync] Entity={:?}, offset=({}, {})",
             entity, offset_x, offset_y
         );
+    }
+}
+
+/// 遅延Surface作成システム (Phase 6)
+///
+/// CommandListが存在するEntityに対してSurfaceを遅延作成する。
+/// - 対象: VisualGraphics + CommandList を持ち、SurfaceGraphicsを持たないEntity
+/// - タイミング: Drawスケジュール（draw_rectangles/draw_labels の後）
+/// - サイズ: Arrangementから取得（レイアウト済み）
+///
+/// これにより、Visual作成（PreLayout）とSurface作成（Draw）を分離し、
+/// タイミング問題を解決する。
+pub fn deferred_surface_creation_system(
+    mut commands: Commands,
+    graphics: Res<GraphicsCore>,
+    query: Query<
+        (
+            Entity,
+            &VisualGraphics,
+            &GraphicsCommandList,
+            Option<&crate::ecs::layout::Arrangement>,
+        ),
+        Without<SurfaceGraphics>,
+    >,
+) {
+    use crate::com::dcomp::DCompositionDeviceExt;
+
+    if !graphics.is_valid() {
+        return;
+    }
+
+    let dcomp = match graphics.dcomp() {
+        Some(d) => d,
+        None => return,
+    };
+
+    for (entity, visual_graphics, _cmd_list, arrangement_opt) in query.iter() {
+        // サイズをArrangementから取得（なければデフォルト1x1）
+        let (width, height) = if let Some(arr) = arrangement_opt {
+            let w = arr.size.width.max(1.0) as u32;
+            let h = arr.size.height.max(1.0) as u32;
+            (w.max(1), h.max(1))
+        } else {
+            (1, 1)
+        };
+
+        eprintln!(
+            "[deferred_surface_creation] Creating Surface for Entity={:?}, size={}x{}",
+            entity, width, height
+        );
+
+        // Surface作成
+        let surface_res = dcomp.create_surface(
+            width,
+            height,
+            DXGI_FORMAT_B8G8R8A8_UNORM,
+            DXGI_ALPHA_MODE_PREMULTIPLIED,
+        );
+
+        match surface_res {
+            Ok(surface) => {
+                // VisualにSurfaceを設定
+                if let Some(visual) = visual_graphics.visual() {
+                    unsafe {
+                        let _ = visual.SetContent(&surface);
+                    }
+                }
+                commands
+                    .entity(entity)
+                    .insert(SurfaceGraphics::new(surface, (width, height)));
+                // SurfaceUpdateRequestedも挿入して描画をトリガー
+                commands
+                    .entity(entity)
+                    .insert(super::components::SurfaceUpdateRequested);
+                eprintln!(
+                    "[deferred_surface_creation] Surface created successfully for Entity={:?}",
+                    entity
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "[deferred_surface_creation] Failed to create surface for Entity={:?}: {:?}",
+                    entity, e
+                );
+            }
+        }
     }
 }
