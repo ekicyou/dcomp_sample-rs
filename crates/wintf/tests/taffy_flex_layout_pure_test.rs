@@ -1,4 +1,3 @@
-use ::taffy::prelude::{AlignItems, FlexDirection, JustifyContent};
 /// Taffy Flexレイアウトの純粋なテスト（WindowやRectangle要素を排除）
 ///
 /// このテストは以下を検証します:
@@ -23,9 +22,12 @@ fn test_taffy_flex_layout_pure() {
         let root = world
             .spawn((
                 LayoutRoot,
-                BoxSize {
-                    width: Some(Dimension::Px(800.0)),
-                    height: Some(Dimension::Px(600.0)),
+                BoxStyle {
+                    size: Some(BoxSize {
+                        width: Some(Dimension::Px(800.0)),
+                        height: Some(Dimension::Px(600.0)),
+                    }),
+                    ..Default::default()
                 },
                 Arrangement::default(),
             ))
@@ -34,14 +36,15 @@ fn test_taffy_flex_layout_pure() {
         // FlexContainer (横並び、100%x100%)
         let flex_container = world
             .spawn((
-                FlexContainer {
-                    direction: FlexDirection::Row,
+                BoxStyle {
+                    size: Some(BoxSize {
+                        width: Some(Dimension::Percent(100.0)),
+                        height: Some(Dimension::Percent(100.0)),
+                    }),
+                    flex_direction: Some(FlexDirection::Row),
                     justify_content: Some(JustifyContent::SpaceEvenly),
                     align_items: Some(AlignItems::Center),
-                },
-                BoxSize {
-                    width: Some(Dimension::Percent(100.0)),
-                    height: Some(Dimension::Percent(100.0)),
+                    ..Default::default()
                 },
                 Arrangement::default(),
                 ChildOf(root),
@@ -50,15 +53,15 @@ fn test_taffy_flex_layout_pure() {
         // Flexアイテム1（赤相当、固定200px幅）
         let item1 = world
             .spawn((
-                BoxSize {
-                    width: Some(Dimension::Px(200.0)),
-                    height: Some(Dimension::Px(150.0)),
-                },
-                FlexItem {
-                    grow: 0.0,
-                    shrink: 0.0,
-                    basis: Dimension::Px(200.0),
-                    align_self: None,
+                BoxStyle {
+                    size: Some(BoxSize {
+                        width: Some(Dimension::Px(200.0)),
+                        height: Some(Dimension::Px(150.0)),
+                    }),
+                    flex_grow: Some(0.0),
+                    flex_shrink: Some(0.0),
+                    flex_basis: Some(Dimension::Px(200.0)),
+                    ..Default::default()
                 },
                 Arrangement::default(),
                 ChildOf(flex_container),
@@ -68,15 +71,15 @@ fn test_taffy_flex_layout_pure() {
         // Flexアイテム2（緑相当、grow=1）
         let item2 = world
             .spawn((
-                BoxSize {
-                    width: Some(Dimension::Px(100.0)),
-                    height: Some(Dimension::Px(200.0)),
-                },
-                FlexItem {
-                    grow: 1.0,
-                    shrink: 1.0,
-                    basis: Dimension::Auto,
-                    align_self: None,
+                BoxStyle {
+                    size: Some(BoxSize {
+                        width: Some(Dimension::Px(100.0)),
+                        height: Some(Dimension::Px(200.0)),
+                    }),
+                    flex_grow: Some(1.0),
+                    flex_shrink: Some(1.0),
+                    flex_basis: Some(Dimension::Auto),
+                    ..Default::default()
                 },
                 Arrangement::default(),
                 ChildOf(flex_container),
@@ -86,15 +89,15 @@ fn test_taffy_flex_layout_pure() {
         // Flexアイテム3（青相当、grow=2）
         let item3 = world
             .spawn((
-                BoxSize {
-                    width: Some(Dimension::Px(100.0)),
-                    height: Some(Dimension::Px(100.0)),
-                },
-                FlexItem {
-                    grow: 2.0,
-                    shrink: 1.0,
-                    basis: Dimension::Auto,
-                    align_self: None,
+                BoxStyle {
+                    size: Some(BoxSize {
+                        width: Some(Dimension::Px(100.0)),
+                        height: Some(Dimension::Px(100.0)),
+                    }),
+                    flex_grow: Some(2.0),
+                    flex_shrink: Some(1.0),
+                    flex_basis: Some(Dimension::Auto),
+                    ..Default::default()
                 },
                 Arrangement::default(),
                 ChildOf(flex_container),
@@ -119,28 +122,30 @@ fn test_taffy_flex_layout_pure() {
         let world = ecs_world.world_mut();
 
         // FlexContainerを縦並びに変更
-        if let Some(mut container) = world.get_mut::<FlexContainer>(flex_container) {
-            container.direction = FlexDirection::Column;
-            container.justify_content = Some(JustifyContent::SpaceAround);
+        if let Some(mut style) = world.get_mut::<BoxStyle>(flex_container) {
+            style.flex_direction = Some(FlexDirection::Column);
+            style.justify_content = Some(JustifyContent::SpaceAround);
             println!("FlexContainer: Row → Column");
         }
 
         // アイテム1のサイズを変更
-        if let Some(mut size) = world.get_mut::<BoxSize>(item1) {
-            size.width = Some(Dimension::Px(300.0));
-            size.height = Some(Dimension::Px(100.0));
+        if let Some(mut style) = world.get_mut::<BoxStyle>(item1) {
+            if let Some(ref mut size) = style.size {
+                size.width = Some(Dimension::Px(300.0));
+                size.height = Some(Dimension::Px(100.0));
+            }
             println!("Item1: 200x150 → 300x100");
         }
 
         // アイテム2のgrowを変更
-        if let Some(mut flex_item) = world.get_mut::<FlexItem>(item2) {
-            flex_item.grow = 2.0;
+        if let Some(mut style) = world.get_mut::<BoxStyle>(item2) {
+            style.flex_grow = Some(2.0);
             println!("Item2: grow 1.0 → 2.0");
         }
 
         // アイテム3のgrowを変更
-        if let Some(mut flex_item) = world.get_mut::<FlexItem>(item3) {
-            flex_item.grow = 1.0;
+        if let Some(mut style) = world.get_mut::<BoxStyle>(item3) {
+            style.flex_grow = Some(1.0);
             println!("Item3: grow 2.0 → 1.0");
         }
     }

@@ -7,8 +7,7 @@ use bevy_ecs::prelude::*;
 use super::metrics::{LayoutScale, Offset, Size};
 use super::taffy::{TaffyComputedLayout, TaffyLayoutResource, TaffyStyle};
 use super::{
-    Arrangement, ArrangementTreeChanged, BoxInset, BoxMargin, BoxPadding, BoxPosition, BoxSize,
-    D2DRectExt, Dimension, FlexContainer, FlexItem, GlobalArrangement, LayoutRoot,
+    Arrangement, ArrangementTreeChanged, D2DRectExt, Dimension, GlobalArrangement, LayoutRoot,
 };
 use crate::ecs::window::{Window, WindowPos};
 use taffy::prelude::*;
@@ -81,189 +80,48 @@ pub fn propagate_global_arrangements(
 
 // ===== Taffyレイアウトシステム =====
 
-/// 高レベルレイアウトコンポーネントからTaffyStyleを構築
+use super::BoxStyle;
+
+/// BoxStyleからTaffyStyleを構築するシステム（統合後）
+///
+/// # 変更点（BoxStyle統合）
+/// - 旧: 8コンポーネント（BoxSize, BoxMargin, BoxPadding, BoxPosition, BoxInset, FlexContainer, FlexItem, LayoutRoot）
+/// - 新: BoxStyle + LayoutRoot の2コンポーネントのみ
+///
+/// # 動作
+/// 1. BoxStyleまたはLayoutRootを持ち、TaffyStyleがないエンティティにTaffyStyleを自動挿入
+/// 2. BoxStyleが変更されたエンティティのTaffyStyleを更新
+/// 3. LayoutRootのみでBoxStyleがないエンティティにはBoxStyle::default()相当のスタイルを適用
 pub fn build_taffy_styles_system(
     mut commands: Commands,
-    // TaffyStyleがないエンティティを検出（LayoutRootまたはレイアウト関連コンポーネントを持つ）
+    // LayoutRootまたはBoxStyleがあるがTaffyStyleがないエンティティ
+    // LayoutRootのみの場合はBoxStyle::default()相当のスタイルを適用
     without_style: Query<
+        (Entity, Option<&BoxStyle>),
         (
-            Entity,
-            Option<&BoxSize>,
-            Option<&BoxMargin>,
-            Option<&BoxPadding>,
-            Option<&BoxPosition>,
-            Option<&BoxInset>,
-            Option<&FlexContainer>,
-            Option<&FlexItem>,
-        ),
-        (
-            Or<(
-                With<LayoutRoot>,
-                With<BoxSize>,
-                With<BoxMargin>,
-                With<BoxPadding>,
-                With<BoxPosition>,
-                With<BoxInset>,
-                With<FlexContainer>,
-                With<FlexItem>,
-            )>,
+            Or<(With<LayoutRoot>, With<BoxStyle>)>,
             Without<TaffyStyle>,
         ),
     >,
-    // 変更された高レベルコンポーネントを持つエンティティ
-    mut changed: Query<
-        (
-            Entity,
-            Option<&BoxSize>,
-            Option<&BoxMargin>,
-            Option<&BoxPadding>,
-            Option<&BoxPosition>,
-            Option<&BoxInset>,
-            Option<&FlexContainer>,
-            Option<&FlexItem>,
-            &mut TaffyStyle,
-        ),
-        Or<(
-            Changed<BoxSize>,
-            Changed<BoxMargin>,
-            Changed<BoxPadding>,
-            Changed<BoxPosition>,
-            Changed<BoxInset>,
-            Changed<FlexContainer>,
-            Changed<FlexItem>,
-        )>,
-    >,
+    // BoxStyleが変更されたエンティティ
+    mut changed: Query<(&BoxStyle, &mut TaffyStyle), Changed<BoxStyle>>,
 ) {
-    // TaffyStyleを自動挿入（既存のコンポーネントから初期化）
-    for (entity, box_size, box_margin, box_padding, box_position, box_inset, flex_container, flex_item) in
-        without_style.iter()
-    {
-        let mut style = Style::default();
-
-        // BoxSize: width/height
-        if let Some(size) = box_size {
-            if let Some(width) = size.width {
-                style.size.width = width.into();
-            }
-            if let Some(height) = size.height {
-                style.size.height = height.into();
-            }
-        }
-
-        // BoxMargin: margin
-        if let Some(margin) = box_margin {
-            style.margin = margin.0.into();
-        }
-
-        // BoxPadding: padding
-        if let Some(padding) = box_padding {
-            style.padding = padding.0.into();
-        }
-
-        // BoxPosition: position
-        if let Some(position) = box_position {
-            style.position = match position {
-                BoxPosition::Relative => Position::Relative,
-                BoxPosition::Absolute => Position::Absolute,
-            };
-        }
-
-        // BoxInset: inset
-        if let Some(inset) = box_inset {
-            style.inset = inset.0.into();
-        }
-
-        // FlexContainer: display, flex_direction, justify_content, align_items
-        if let Some(container) = flex_container {
-            style.display = Display::Flex;
-            style.flex_direction = container.direction;
-            if let Some(justify) = container.justify_content {
-                style.justify_content = Some(justify);
-            }
-            if let Some(align) = container.align_items {
-                style.align_items = Some(align);
-            }
-        }
-
-        // FlexItem: flex_grow, flex_shrink, flex_basis, align_self
-        if let Some(item) = flex_item {
-            style.flex_grow = item.grow;
-            style.flex_shrink = item.shrink;
-            style.flex_basis = item.basis.into();
-            if let Some(align_self) = item.align_self {
-                style.align_self = Some(align_self);
-            }
-        }
-
+    // TaffyStyle自動挿入
+    for (entity, box_style) in without_style.iter() {
+        // BoxStyleがない場合（LayoutRootのみ）はデフォルトスタイル
+        let taffy_style: taffy::Style = box_style
+            .map(|s| s.into())
+            .unwrap_or_default();
         commands.entity(entity).insert((
-            TaffyStyle(style),
+            TaffyStyle(taffy_style),
             TaffyComputedLayout::default(),
             ArrangementTreeChanged,
         ));
     }
 
-    // 高レベルコンポーネントからTaffyStyleを構築
-    for (_entity, box_size, box_margin, box_padding, box_position, box_inset, flex_container, flex_item, mut taffy_style) in
-        changed.iter_mut()
-    {
-        let mut style = Style::default();
-
-        // BoxSize: width/height
-        if let Some(size) = box_size {
-            if let Some(width) = size.width {
-                style.size.width = width.into();
-            }
-            if let Some(height) = size.height {
-                style.size.height = height.into();
-            }
-        }
-
-        // BoxMargin: margin
-        if let Some(margin) = box_margin {
-            style.margin = margin.0.into();
-        }
-
-        // BoxPadding: padding
-        if let Some(padding) = box_padding {
-            style.padding = padding.0.into();
-        }
-
-        // BoxPosition: position
-        if let Some(position) = box_position {
-            style.position = match position {
-                BoxPosition::Relative => Position::Relative,
-                BoxPosition::Absolute => Position::Absolute,
-            };
-        }
-
-        // BoxInset: inset
-        if let Some(inset) = box_inset {
-            style.inset = inset.0.into();
-        }
-
-        // FlexContainer: display, flex_direction, justify_content, align_items
-        if let Some(container) = flex_container {
-            style.display = Display::Flex;
-            style.flex_direction = container.direction;
-            if let Some(justify) = container.justify_content {
-                style.justify_content = Some(justify);
-            }
-            if let Some(align) = container.align_items {
-                style.align_items = Some(align);
-            }
-        }
-
-        // FlexItem: flex_grow, flex_shrink, flex_basis, align_self
-        if let Some(item) = flex_item {
-            style.flex_grow = item.grow;
-            style.flex_shrink = item.shrink;
-            style.flex_basis = item.basis.into();
-            if let Some(align_self) = item.align_self {
-                style.align_self = Some(align_self);
-            }
-        }
-
-        taffy_style.0 = style;
+    // 変更反映
+    for (box_style, mut taffy_style) in changed.iter_mut() {
+        taffy_style.0 = box_style.into();
     }
 }
 
@@ -320,7 +178,7 @@ pub fn sync_taffy_tree_system(
 pub fn compute_taffy_layout_system(
     mut taffy_res: ResMut<TaffyLayoutResource>,
     // LayoutRootマーカーを持つエンティティをレイアウトルートとして扱う
-    roots: Query<(Entity, Option<&BoxSize>), With<LayoutRoot>>,
+    roots: Query<(Entity, Option<&BoxStyle>), With<LayoutRoot>>,
     // 変更検知用
     changed_styles: Query<(), Changed<TaffyStyle>>,
     changed_hierarchy: Query<(), Changed<ChildOf>>,
@@ -331,25 +189,32 @@ pub fn compute_taffy_layout_system(
 
     // Changed検知時にレイアウト計算を実行
     if has_changes {
-        for (root_entity, box_size) in roots.iter() {
+        for (root_entity, box_style) in roots.iter() {
             if let Some(root_node) = taffy_res.get_node(root_entity) {
-                // LayoutRootのBoxSizeからavailable_spaceを構築
-                let available_space = if let Some(size) = box_size {
-                    taffy::Size {
-                        width: size.width.as_ref().map_or(
-                            AvailableSpace::MaxContent,
-                            |d| match d {
-                                Dimension::Px(px) => AvailableSpace::Definite(*px),
-                                _ => AvailableSpace::MaxContent,
-                            },
-                        ),
-                        height: size.height.as_ref().map_or(
-                            AvailableSpace::MaxContent,
-                            |d| match d {
-                                Dimension::Px(px) => AvailableSpace::Definite(*px),
-                                _ => AvailableSpace::MaxContent,
-                            },
-                        ),
+                // LayoutRootのBoxStyleからavailable_spaceを構築
+                let available_space = if let Some(style) = box_style {
+                    if let Some(size) = &style.size {
+                        taffy::Size {
+                            width: size.width.as_ref().map_or(
+                                AvailableSpace::MaxContent,
+                                |d| match d {
+                                    Dimension::Px(px) => AvailableSpace::Definite(*px),
+                                    _ => AvailableSpace::MaxContent,
+                                },
+                            ),
+                            height: size.height.as_ref().map_or(
+                                AvailableSpace::MaxContent,
+                                |d| match d {
+                                    Dimension::Px(px) => AvailableSpace::Definite(*px),
+                                    _ => AvailableSpace::MaxContent,
+                                },
+                            ),
+                        }
+                    } else {
+                        taffy::Size {
+                            width: AvailableSpace::MaxContent,
+                            height: AvailableSpace::MaxContent,
+                        }
                     }
                 } else {
                     taffy::Size {
@@ -465,6 +330,26 @@ pub fn update_window_pos_system(
 
 // ===== Monitor階層管理システム =====
 
+use super::{BoxInset, BoxPosition, BoxSize, LengthPercentageAuto};
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+    SM_YVIRTUALSCREEN,
+};
+
+/// 仮想デスクトップの矩形を取得
+///
+/// # 戻り値
+/// (x, y, width, height) - 仮想デスクトップの左上座標とサイズ
+pub fn get_virtual_desktop_bounds() -> (i32, i32, i32, i32) {
+    unsafe {
+        let x = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        let y = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        let width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        let height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+        (x, y, width, height)
+    }
+}
+
 /// LayoutRootとMonitor階層をワールド初期化時に作成する
 /// world.rsのEcsWorld::new()から直接呼び出される
 pub fn initialize_layout_root(world: &mut World) {
@@ -476,11 +361,31 @@ pub fn initialize_layout_root(world: &mut World) {
 
     eprintln!("[initialize_layout_root] Creating LayoutRoot singleton");
 
-    // LayoutRootエンティティを作成
+    // 仮想デスクトップの矩形を取得
+    let (vx, vy, vw, vh) = get_virtual_desktop_bounds();
+    eprintln!(
+        "[initialize_layout_root] Virtual desktop bounds: x={}, y={}, width={}, height={}",
+        vx, vy, vw, vh
+    );
+
+    // LayoutRootエンティティを作成（仮想デスクトップ矩形を設定）
     let layout_root = world
         .spawn((
             LayoutRoot,
-            BoxSize::default(),
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(vw as f32)),
+                    height: Some(Dimension::Px(vh as f32)),
+                }),
+                position: Some(BoxPosition::Absolute),
+                inset: Some(BoxInset(super::Rect {
+                    left: LengthPercentageAuto::Px(vx as f32),
+                    top: LengthPercentageAuto::Px(vy as f32),
+                    right: LengthPercentageAuto::Auto,
+                    bottom: LengthPercentageAuto::Auto,
+                })),
+                ..Default::default()
+            },
             Arrangement::default(),
             GlobalArrangement::default(),
         ))
@@ -517,17 +422,20 @@ pub fn initialize_layout_root(world: &mut World) {
             .spawn((
                 monitor,
                 ChildOf(layout_root),
-                BoxPosition::Absolute,
-                BoxSize {
-                    width: Some(Dimension::Px(width)),
-                    height: Some(Dimension::Px(height)),
+                BoxStyle {
+                    size: Some(BoxSize {
+                        width: Some(Dimension::Px(width)),
+                        height: Some(Dimension::Px(height)),
+                    }),
+                    position: Some(BoxPosition::Absolute),
+                    inset: Some(BoxInset(super::Rect {
+                        left: LengthPercentageAuto::Px(left),
+                        top: LengthPercentageAuto::Px(top),
+                        right: LengthPercentageAuto::Auto,
+                        bottom: LengthPercentageAuto::Auto,
+                    })),
+                    ..Default::default()
                 },
-                BoxInset(super::Rect {
-                    left: super::LengthPercentageAuto::Px(left),
-                    top: super::LengthPercentageAuto::Px(top),
-                    right: super::LengthPercentageAuto::Auto,
-                    bottom: super::LengthPercentageAuto::Auto,
-                }),
                 Arrangement::default(),
                 GlobalArrangement::default(),
             ))
@@ -546,9 +454,9 @@ pub fn initialize_layout_root(world: &mut World) {
 
 /// Monitorの情報が変更された際に、レイアウトコンポーネントを更新
 pub fn update_monitor_layout_system(
-    mut query: Query<(&crate::ecs::Monitor, &mut BoxSize, &mut BoxInset), Changed<crate::ecs::Monitor>>,
+    mut query: Query<(&crate::ecs::Monitor, &mut BoxStyle), Changed<crate::ecs::Monitor>>,
 ) {
-    for (monitor, mut box_size, mut box_inset) in query.iter_mut() {
+    for (monitor, mut box_style) in query.iter_mut() {
         let (width, height) = monitor.physical_size();
         let (left, top) = monitor.top_left();
 
@@ -557,17 +465,16 @@ pub fn update_monitor_layout_system(
             width, height, left, top
         );
 
-        *box_size = BoxSize {
+        box_style.size = Some(BoxSize {
             width: Some(Dimension::Px(width)),
             height: Some(Dimension::Px(height)),
-        };
-
-        *box_inset = BoxInset(super::Rect {
-            left: super::LengthPercentageAuto::Px(left),
-            top: super::LengthPercentageAuto::Px(top),
-            right: super::LengthPercentageAuto::Auto,
-            bottom: super::LengthPercentageAuto::Auto,
         });
+        box_style.inset = Some(BoxInset(super::Rect {
+            left: LengthPercentageAuto::Px(left),
+            top: LengthPercentageAuto::Px(top),
+            right: LengthPercentageAuto::Auto,
+            bottom: LengthPercentageAuto::Auto,
+        }));
     }
 }
 
@@ -634,17 +541,20 @@ pub fn detect_display_change_system(
                 .spawn((
                     new_monitor,
                     ChildOf(root_entity),
-                    BoxPosition::Absolute,
-                    BoxSize {
-                        width: Some(Dimension::Px(width)),
-                        height: Some(Dimension::Px(height)),
+                    BoxStyle {
+                        size: Some(BoxSize {
+                            width: Some(Dimension::Px(width)),
+                            height: Some(Dimension::Px(height)),
+                        }),
+                        position: Some(BoxPosition::Absolute),
+                        inset: Some(BoxInset(super::Rect {
+                            left: LengthPercentageAuto::Px(left),
+                            top: LengthPercentageAuto::Px(top),
+                            right: LengthPercentageAuto::Auto,
+                            bottom: LengthPercentageAuto::Auto,
+                        })),
+                        ..Default::default()
                     },
-                    BoxInset(super::Rect {
-                        left: super::LengthPercentageAuto::Px(left),
-                        top: super::LengthPercentageAuto::Px(top),
-                        right: super::LengthPercentageAuto::Auto,
-                        bottom: super::LengthPercentageAuto::Auto,
-                    }),
                     Arrangement::default(),
                     GlobalArrangement::default(),
                 ))

@@ -1,9 +1,9 @@
 {
     "feature_name": "box-style-consolidation",
     "created_at": "2025-11-25T00:00:00+09:00",
-    "updated_at": "2025-11-25T12:30:00+09:00",
+    "updated_at": "2025-11-26T12:00:00+09:00",
     "language": "ja",
-    "phase": "tasks-approved",
+    "phase": "completed",
     "approvals": {
         "requirements": {
             "generated": true,

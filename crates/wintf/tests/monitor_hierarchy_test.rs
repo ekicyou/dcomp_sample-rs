@@ -121,17 +121,21 @@ fn test_monitor_hierarchy_construction() {
 
     // Monitorに必要なレイアウトコンポーネントが存在することを検証
     for monitor_entity in monitors.iter() {
+        // BoxStyleコンポーネントが存在し、position, size, insetが設定されていることを検証
+        let box_style = world
+            .get::<BoxStyle>(*monitor_entity)
+            .expect("Monitor should have BoxStyle component");
         assert!(
-            world.get::<BoxPosition>(*monitor_entity).is_some(),
-            "Monitor should have BoxPosition component"
+            box_style.position.is_some(),
+            "Monitor BoxStyle should have position"
         );
         assert!(
-            world.get::<BoxSize>(*monitor_entity).is_some(),
-            "Monitor should have BoxSize component"
+            box_style.size.is_some(),
+            "Monitor BoxStyle should have size"
         );
         assert!(
-            world.get::<BoxInset>(*monitor_entity).is_some(),
-            "Monitor should have BoxInset component"
+            box_style.inset.is_some(),
+            "Monitor BoxStyle should have inset"
         );
         assert!(
             world.get::<Arrangement>(*monitor_entity).is_some(),
@@ -161,14 +165,14 @@ fn test_monitor_to_taffy_style_conversion() {
 
     // 各MonitorのTaffyStyleを検証
     let mut has_monitors = false;
-    for (_monitor, _box_position, _box_size, _box_inset, taffy_style) in world
-        .query::<(&Monitor, &BoxPosition, &BoxSize, &BoxInset, &TaffyStyle)>()
+    for (_monitor, box_style, _taffy_style) in world
+        .query::<(&Monitor, &BoxStyle, &TaffyStyle)>()
         .iter(&world)
     {
         has_monitors = true;
 
         // BoxPosition::Absoluteが設定されていることを検証
-        // (TaffyのPositionは内部型のため直接検証できない)
+        assert_eq!(box_style.position, Some(BoxPosition::Absolute));
         println!("Monitor has TaffyStyle");
     }
 
@@ -323,9 +327,12 @@ fn test_backward_compatibility_without_layout_root() {
     // LayoutRootなしでWidgetエンティティを作成
     let widget = world
         .spawn((
-            BoxSize {
-                width: Some(Dimension::Px(100.0)),
-                height: Some(Dimension::Px(50.0)),
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(100.0)),
+                    height: Some(Dimension::Px(50.0)),
+                }),
+                ..Default::default()
             },
             Arrangement::default(),
             GlobalArrangement::default(),
@@ -369,11 +376,13 @@ fn test_existing_tests_still_pass() {
     // 既存のWindow/Widgetエンティティを作成
     let window = world
         .spawn((
-            BoxSize {
-                width: Some(Dimension::Px(800.0)),
-                height: Some(Dimension::Px(600.0)),
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(800.0)),
+                    height: Some(Dimension::Px(600.0)),
+                }),
+                ..Default::default()
             },
-            FlexContainer::default(),
             Arrangement::default(),
             GlobalArrangement::default(),
         ))
@@ -381,9 +390,12 @@ fn test_existing_tests_still_pass() {
 
     let widget = world
         .spawn((
-            BoxSize {
-                width: Some(Dimension::Px(200.0)),
-                height: Some(Dimension::Px(100.0)),
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(200.0)),
+                    height: Some(Dimension::Px(100.0)),
+                }),
+                ..Default::default()
             },
             ChildOf(window),
             Arrangement::default(),

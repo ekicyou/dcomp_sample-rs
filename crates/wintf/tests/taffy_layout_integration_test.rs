@@ -2,7 +2,7 @@ use bevy_ecs::prelude::*;
 use taffy::prelude::*;
 use wintf::ecs::layout::taffy::{TaffyComputedLayout, TaffyLayoutResource, TaffyStyle};
 use wintf::ecs::layout::{
-    Arrangement, BoxMargin, BoxPadding, BoxSize, Dimension, FlexContainer, FlexItem,
+    Arrangement, BoxMargin, BoxPadding, BoxSize, BoxStyle, Dimension, FlexContainer, FlexItem,
     GlobalArrangement, LayoutRoot, LengthPercentage, LengthPercentageAuto, Rect,
 };
 
@@ -94,20 +94,34 @@ fn test_taffy_computed_layout_trait_implementations() {
 
 // ===== タスク2: 高レベルレイアウトコンポーネント =====
 
-/// テスト2.1: BoxSizeコンポーネントの実装を検証
+/// テスト2.1: BoxSize値オブジェクトの実装を検証（BoxStyle経由でComponentとして登録）
 #[test]
 fn test_box_size_component() {
     let mut world = World::new();
 
-    // BoxSizeがComponentとして登録可能
+    // BoxStyleを使ってBoxSizeを含むエンティティを作成
     let entity = world
-        .spawn(BoxSize {
-            width: Some(Dimension::Px(200.0)),
-            height: Some(Dimension::Px(100.0)),
+        .spawn(BoxStyle {
+            size: Some(BoxSize {
+                width: Some(Dimension::Px(200.0)),
+                height: Some(Dimension::Px(100.0)),
+            }),
+            ..Default::default()
         })
         .id();
 
-    assert!(world.entity(entity).contains::<BoxSize>());
+    assert!(world.entity(entity).contains::<BoxStyle>());
+
+    // BoxStyleからBoxSizeを取得して検証
+    let style = world.get::<BoxStyle>(entity).unwrap();
+    assert_eq!(
+        style.size.as_ref().unwrap().width,
+        Some(Dimension::Px(200.0))
+    );
+    assert_eq!(
+        style.size.as_ref().unwrap().height,
+        Some(Dimension::Px(100.0))
+    );
 
     // Defaultは両方None
     let default_size = BoxSize::default();
@@ -115,7 +129,7 @@ fn test_box_size_component() {
     assert_eq!(default_size.height, None);
 }
 
-/// テスト2.2: BoxMarginコンポーネントの実装を検証
+/// テスト2.2: BoxMargin値オブジェクトの実装を検証（BoxStyle経由でComponentとして登録）
 #[test]
 fn test_box_margin_component() {
     let mut world = World::new();
@@ -127,15 +141,21 @@ fn test_box_margin_component() {
         bottom: LengthPercentageAuto::Px(5.0),
     });
 
-    let entity = world.spawn(margin.clone()).id();
-    assert!(world.entity(entity).contains::<BoxMargin>());
+    // BoxStyleを使ってBoxMarginを含むエンティティを作成
+    let entity = world
+        .spawn(BoxStyle {
+            margin: Some(margin),
+            ..Default::default()
+        })
+        .id();
+    assert!(world.entity(entity).contains::<BoxStyle>());
 
-    // Defaultはzero
+    // Defaultはauto（taffy標準に従う）
     let default_margin = BoxMargin::default();
-    assert_eq!(default_margin.0.left, LengthPercentageAuto::Px(0.0));
+    assert_eq!(default_margin.0.left, LengthPercentageAuto::Auto);
 }
 
-/// テスト2.3: BoxPaddingコンポーネントの実装を検証
+/// テスト2.3: BoxPadding値オブジェクトの実装を検証（BoxStyle経由でComponentとして登録）
 #[test]
 fn test_box_padding_component() {
     let mut world = World::new();
@@ -147,47 +167,70 @@ fn test_box_padding_component() {
         bottom: LengthPercentage::Px(5.0),
     });
 
-    let entity = world.spawn(padding.clone()).id();
-    assert!(world.entity(entity).contains::<BoxPadding>());
+    // BoxStyleを使ってBoxPaddingを含むエンティティを作成
+    let entity = world
+        .spawn(BoxStyle {
+            padding: Some(padding),
+            ..Default::default()
+        })
+        .id();
+    assert!(world.entity(entity).contains::<BoxStyle>());
 }
 
-/// テスト2.4: FlexContainerコンポーネントの実装を検証
+/// テスト2.4: FlexContainer値オブジェクトの実装を検証（BoxStyle経由でComponentとして登録）
 #[test]
 fn test_flex_container_component() {
     let mut world = World::new();
 
-    let container = FlexContainer {
-        direction: FlexDirection::Column,
-        justify_content: Some(JustifyContent::Center),
-        align_items: Some(AlignItems::Center),
-    };
+    // BoxStyleを使ってFlexContainer相当のプロパティを設定
+    let entity = world
+        .spawn(BoxStyle {
+            flex_direction: Some(FlexDirection::Column),
+            justify_content: Some(JustifyContent::Center),
+            align_items: Some(AlignItems::Center),
+            ..Default::default()
+        })
+        .id();
+    assert!(world.entity(entity).contains::<BoxStyle>());
 
-    let entity = world.spawn(container.clone()).id();
-    assert!(world.entity(entity).contains::<FlexContainer>());
+    // BoxStyleからプロパティを取得して検証
+    let style = world.get::<BoxStyle>(entity).unwrap();
+    assert_eq!(style.flex_direction, Some(FlexDirection::Column));
+    assert_eq!(style.justify_content, Some(JustifyContent::Center));
+    assert_eq!(style.align_items, Some(AlignItems::Center));
 
-    // Defaultチェック
+    // FlexContainer値オブジェクトのDefaultチェック
     let default_container = FlexContainer::default();
     assert_eq!(default_container.direction, FlexDirection::Row);
     assert_eq!(default_container.justify_content, None);
     assert_eq!(default_container.align_items, None);
 }
 
-/// テスト2.5: FlexItemコンポーネントの実装を検証
+/// テスト2.5: FlexItem値オブジェクトの実装を検証（BoxStyle経由でComponentとして登録）
 #[test]
 fn test_flex_item_component() {
     let mut world = World::new();
 
-    let item = FlexItem {
-        grow: 1.0,
-        shrink: 0.5,
-        basis: Dimension::Px(100.0),
-        align_self: Some(AlignSelf::End),
-    };
+    // BoxStyleを使ってFlexItem相当のプロパティを設定
+    let entity = world
+        .spawn(BoxStyle {
+            flex_grow: Some(1.0),
+            flex_shrink: Some(0.5),
+            flex_basis: Some(Dimension::Px(100.0)),
+            align_self: Some(AlignSelf::End),
+            ..Default::default()
+        })
+        .id();
+    assert!(world.entity(entity).contains::<BoxStyle>());
 
-    let entity = world.spawn(item.clone()).id();
-    assert!(world.entity(entity).contains::<FlexItem>());
+    // BoxStyleからプロパティを取得して検証
+    let style = world.get::<BoxStyle>(entity).unwrap();
+    assert_eq!(style.flex_grow, Some(1.0));
+    assert_eq!(style.flex_shrink, Some(0.5));
+    assert_eq!(style.flex_basis, Some(Dimension::Px(100.0)));
+    assert_eq!(style.align_self, Some(AlignSelf::End));
 
-    // Defaultチェック
+    // FlexItem値オブジェクトのDefaultチェック
     let default_item = FlexItem::default();
     assert_eq!(default_item.grow, 0.0);
     assert_eq!(default_item.shrink, 1.0);
@@ -309,32 +352,34 @@ fn test_multiple_entity_removal() {
     assert_eq!(taffy_res.get_node(entity3), None);
 }
 
-/// テスト7.7: FlexContainerとFlexItemの統合テスト
+/// テスト7.7: FlexContainerとFlexItemの統合テスト（BoxStyle経由）
 #[test]
 fn test_flex_container_and_item_integration() {
     let mut world = World::new();
 
-    // FlexContainerを作成
-    let container = FlexContainer {
-        direction: taffy::FlexDirection::Row,
-        align_items: Some(taffy::AlignItems::Center),
-        justify_content: Some(taffy::JustifyContent::SpaceBetween),
-    };
+    // BoxStyleを使ってFlexContainer相当のプロパティを設定
+    let container_entity = world
+        .spawn(BoxStyle {
+            flex_direction: Some(taffy::FlexDirection::Row),
+            align_items: Some(taffy::AlignItems::Center),
+            justify_content: Some(taffy::JustifyContent::SpaceBetween),
+            ..Default::default()
+        })
+        .id();
 
-    // FlexItemを作成
-    let item = FlexItem {
-        grow: 1.0,
-        shrink: 0.0,
-        basis: Dimension::Percent(50.0),
-        align_self: None,
-    };
+    // BoxStyleを使ってFlexItem相当のプロパティを設定
+    let item_entity = world
+        .spawn(BoxStyle {
+            flex_grow: Some(1.0),
+            flex_shrink: Some(0.0),
+            flex_basis: Some(Dimension::Percent(50.0)),
+            ..Default::default()
+        })
+        .id();
 
-    let container_entity = world.spawn(container).id();
-    let item_entity = world.spawn(item).id();
-
-    // 両方のコンポーネントが正しく挿入されていることを確認
-    assert!(world.entity(container_entity).contains::<FlexContainer>());
-    assert!(world.entity(item_entity).contains::<FlexItem>());
+    // 両方のエンティティがBoxStyleコンポーネントを持っていることを確認
+    assert!(world.entity(container_entity).contains::<BoxStyle>());
+    assert!(world.entity(item_entity).contains::<BoxStyle>());
 }
 
 /// テスト7.8: レイアウトパラメーター変更による再計算の統合テスト
@@ -343,13 +388,16 @@ fn test_layout_recalculation_on_parameter_change() {
     let mut world = World::new();
     world.insert_resource(TaffyLayoutResource::default());
 
-    // シンプルなテスト: BoxSizeを変更してTaffyStyleが更新されることを確認
-    let initial_size = BoxSize {
-        width: Some(Dimension::Px(400.0)),
-        height: Some(Dimension::Px(300.0)),
+    // BoxStyleを使ってサイズを設定
+    let initial_style = BoxStyle {
+        size: Some(BoxSize {
+            width: Some(Dimension::Px(400.0)),
+            height: Some(Dimension::Px(300.0)),
+        }),
+        ..Default::default()
     };
 
-    let container = world.spawn((initial_size, LayoutRoot)).id();
+    let container = world.spawn((initial_style, LayoutRoot)).id();
 
     // スケジュールを構築 (build_taffy_styles_systemのみで十分)
     let mut schedule = bevy_ecs::schedule::Schedule::default();
@@ -367,10 +415,12 @@ fn test_layout_recalculation_on_parameter_change() {
     // 初期サイズを確認（内部フィールドはprivateなので、存在確認のみ）
     let _initial_style = world.entity(container).get::<TaffyStyle>().unwrap();
 
-    // パラメーター変更: サイズを倍にする
-    if let Some(mut size) = world.entity_mut(container).get_mut::<BoxSize>() {
-        size.width = Some(Dimension::Px(800.0));
-        size.height = Some(Dimension::Px(600.0));
+    // パラメーター変更: BoxStyle経由でサイズを倍にする
+    if let Some(mut style) = world.entity_mut(container).get_mut::<BoxStyle>() {
+        if let Some(ref mut size) = style.size {
+            size.width = Some(Dimension::Px(800.0));
+            size.height = Some(Dimension::Px(600.0));
+        }
     }
 
     // 再度実行: TaffyStyleが更新される
@@ -420,14 +470,15 @@ fn test_full_layout_pipeline_with_ecs_world() {
         let root = world
             .spawn((
                 LayoutRoot, // レイアウト計算のルートを示すマーカー
-                BoxSize {
-                    width: Some(Dimension::Px(800.0)),
-                    height: Some(Dimension::Px(600.0)),
-                },
-                FlexContainer {
-                    direction: FlexDirection::Column,
+                BoxStyle {
+                    size: Some(BoxSize {
+                        width: Some(Dimension::Px(800.0)),
+                        height: Some(Dimension::Px(600.0)),
+                    }),
+                    flex_direction: Some(FlexDirection::Column),
                     justify_content: Some(JustifyContent::Start),
                     align_items: Some(AlignItems::Stretch),
+                    ..Default::default()
                 },
                 Arrangement::default(), // Arrangementを明示的に追加
             ))
@@ -436,14 +487,15 @@ fn test_full_layout_pipeline_with_ecs_world() {
         // Container (中間層)
         let container = world
             .spawn((
-                BoxSize {
-                    width: Some(Dimension::Px(400.0)),
-                    height: Some(Dimension::Px(300.0)),
-                },
-                FlexContainer {
-                    direction: FlexDirection::Row,
+                BoxStyle {
+                    size: Some(BoxSize {
+                        width: Some(Dimension::Px(400.0)),
+                        height: Some(Dimension::Px(300.0)),
+                    }),
+                    flex_direction: Some(FlexDirection::Row),
                     justify_content: Some(JustifyContent::Center),
                     align_items: Some(AlignItems::Center),
+                    ..Default::default()
                 },
                 Arrangement::default(), // Arrangementを明示的に追加
                 ChildOf(root),          // 親子関係を設定
@@ -453,9 +505,12 @@ fn test_full_layout_pipeline_with_ecs_world() {
         // Child (末端)
         let child = world
             .spawn((
-                BoxSize {
-                    width: Some(Dimension::Px(200.0)),
-                    height: Some(Dimension::Px(150.0)),
+                BoxStyle {
+                    size: Some(BoxSize {
+                        width: Some(Dimension::Px(200.0)),
+                        height: Some(Dimension::Px(150.0)),
+                    }),
+                    ..Default::default()
                 },
                 Arrangement::default(), // Arrangementを明示的に追加
                 ChildOf(container),     // 親子関係を設定
@@ -531,9 +586,11 @@ fn test_full_layout_pipeline_with_ecs_world() {
     // Containerのサイズを変更
     {
         let world = ecs_world.world_mut();
-        if let Some(mut size) = world.entity_mut(container).get_mut::<BoxSize>() {
-            size.width = Some(Dimension::Px(600.0)); // 400 → 600
-            size.height = Some(Dimension::Px(450.0)); // 300 → 450
+        if let Some(mut style) = world.entity_mut(container).get_mut::<BoxStyle>() {
+            if let Some(ref mut size) = style.size {
+                size.width = Some(Dimension::Px(600.0)); // 400 → 600
+                size.height = Some(Dimension::Px(450.0)); // 300 → 450
+            }
         }
     }
 

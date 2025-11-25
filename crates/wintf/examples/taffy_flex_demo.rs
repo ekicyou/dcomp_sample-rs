@@ -8,8 +8,7 @@ use std::time::Duration;
 use windows::core::Result;
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use wintf::ecs::layout::{
-    BoxInset, BoxMargin, BoxPosition, BoxSize, Dimension, FlexContainer, FlexItem,
-    LengthPercentageAuto,
+    BoxInset, BoxMargin, BoxPosition, BoxSize, BoxStyle, Dimension, LengthPercentageAuto,
 };
 use wintf::ecs::widget::shapes::Rectangle;
 use wintf::ecs::Window;
@@ -59,16 +58,19 @@ fn main() -> Result<()> {
                 .spawn((
                     FlexDemoWindow,
                     // LayoutRoot削除: on_window_addフックでChildOf(layout_root)が自動設定される
-                    BoxPosition::Absolute,
-                    BoxInset(wintf::ecs::layout::Rect {
-                        left: LengthPercentageAuto::Px(100.0),
-                        top: LengthPercentageAuto::Px(100.0),
-                        right: LengthPercentageAuto::Auto,
-                        bottom: LengthPercentageAuto::Auto,
-                    }),
-                    BoxSize {
-                        width: Some(Dimension::Px(800.0)),
-                        height: Some(Dimension::Px(600.0)),
+                    BoxStyle {
+                        position: Some(BoxPosition::Absolute),
+                        inset: Some(BoxInset(wintf::ecs::layout::Rect {
+                            left: LengthPercentageAuto::Px(100.0),
+                            top: LengthPercentageAuto::Px(100.0),
+                            right: LengthPercentageAuto::Auto,
+                            bottom: LengthPercentageAuto::Auto,
+                        })),
+                        size: Some(BoxSize {
+                            width: Some(Dimension::Px(800.0)),
+                            height: Some(Dimension::Px(600.0)),
+                        }),
+                        ..Default::default()
                     },
                     Window {
                         title: "wintf - Taffy Flexbox Demo".to_string(),
@@ -91,21 +93,22 @@ fn main() -> Result<()> {
                             a: 1.0,
                         }, // 灰色（背景）
                     },
-                    FlexContainer {
-                        direction: taffy::FlexDirection::Row,
+                    BoxStyle {
+                        flex_direction: Some(taffy::FlexDirection::Row),
                         justify_content: Some(taffy::JustifyContent::SpaceEvenly),
                         align_items: Some(taffy::AlignItems::Center),
+                        size: Some(BoxSize {
+                            width: None,  // Autoで親サイズから計算
+                            height: None, // Autoで親サイズから計算
+                        }),
+                        margin: Some(BoxMargin(wintf::ecs::layout::Rect {
+                            left: wintf::ecs::layout::LengthPercentageAuto::Px(10.0),
+                            right: wintf::ecs::layout::LengthPercentageAuto::Px(10.0),
+                            top: wintf::ecs::layout::LengthPercentageAuto::Px(10.0),
+                            bottom: wintf::ecs::layout::LengthPercentageAuto::Px(10.0),
+                        })),
+                        ..Default::default()
                     },
-                    BoxSize {
-                        width: None,  // Autoで親サイズから計算
-                        height: None, // Autoで親サイズから計算
-                    },
-                    BoxMargin(wintf::ecs::layout::Rect {
-                        left: wintf::ecs::layout::LengthPercentageAuto::Px(10.0),
-                        right: wintf::ecs::layout::LengthPercentageAuto::Px(10.0),
-                        top: wintf::ecs::layout::LengthPercentageAuto::Px(10.0),
-                        bottom: wintf::ecs::layout::LengthPercentageAuto::Px(10.0),
-                    }),
                     ChildOf(window_entity),
                 ))
                 .id(); // Flexアイテム1（赤、固定200px幅）
@@ -119,15 +122,15 @@ fn main() -> Result<()> {
                         a: 1.0,
                     }, // 赤
                 },
-                BoxSize {
-                    width: Some(Dimension::Px(200.0)),
-                    height: Some(Dimension::Px(100.0)), // 150 → 100に修正
-                },
-                FlexItem {
-                    grow: 0.0,
-                    shrink: 0.0,
-                    basis: Dimension::Px(200.0),
-                    align_self: None,
+                BoxStyle {
+                    size: Some(BoxSize {
+                        width: Some(Dimension::Px(200.0)),
+                        height: Some(Dimension::Px(100.0)), // 150 → 100に修正
+                    }),
+                    flex_grow: Some(0.0),
+                    flex_shrink: Some(0.0),
+                    flex_basis: Some(Dimension::Px(200.0)),
+                    ..Default::default()
                 },
                 ChildOf(flex_container),
             ));
@@ -143,15 +146,15 @@ fn main() -> Result<()> {
                         a: 1.0,
                     }, // 緑
                 },
-                BoxSize {
-                    width: Some(Dimension::Px(100.0)),
-                    height: Some(Dimension::Px(100.0)), // 200 → 100に修正
-                },
-                FlexItem {
-                    grow: 1.0,
-                    shrink: 1.0,
-                    basis: Dimension::Auto,
-                    align_self: None,
+                BoxStyle {
+                    size: Some(BoxSize {
+                        width: Some(Dimension::Px(100.0)),
+                        height: Some(Dimension::Px(100.0)), // 200 → 100に修正
+                    }),
+                    flex_grow: Some(1.0),
+                    flex_shrink: Some(1.0),
+                    flex_basis: Some(Dimension::Auto),
+                    ..Default::default()
                 },
                 ChildOf(flex_container),
             ));
@@ -167,15 +170,15 @@ fn main() -> Result<()> {
                         a: 1.0,
                     }, // 青
                 },
-                BoxSize {
-                    width: Some(Dimension::Px(100.0)),
-                    height: Some(Dimension::Px(100.0)),
-                },
-                FlexItem {
-                    grow: 2.0,
-                    shrink: 1.0,
-                    basis: Dimension::Auto,
-                    align_self: None,
+                BoxStyle {
+                    size: Some(BoxSize {
+                        width: Some(Dimension::Px(100.0)),
+                        height: Some(Dimension::Px(100.0)),
+                    }),
+                    flex_grow: Some(2.0),
+                    flex_shrink: Some(1.0),
+                    flex_basis: Some(Dimension::Auto),
+                    ..Default::default()
                 },
                 ChildOf(flex_container),
             ));
@@ -194,32 +197,34 @@ fn main() -> Result<()> {
         let _ = tx.send(Box::new(|world: &mut World| {
             // FlexContainerを縦並びに変更
             let mut container_query =
-                world.query_filtered::<&mut FlexContainer, With<FlexDemoContainer>>();
-            if let Some(mut flex_container) = container_query.iter_mut(world).next() {
-                flex_container.direction = taffy::FlexDirection::Column;
-                flex_container.justify_content = Some(taffy::JustifyContent::SpaceAround);
+                world.query_filtered::<&mut BoxStyle, With<FlexDemoContainer>>();
+            if let Some(mut style) = container_query.iter_mut(world).next() {
+                style.flex_direction = Some(taffy::FlexDirection::Column);
+                style.justify_content = Some(taffy::JustifyContent::SpaceAround);
                 println!("[Test] FlexContainer direction changed to Column");
             }
 
             // 赤い矩形のサイズを変更
-            let mut red_query = world.query_filtered::<&mut BoxSize, With<RedBox>>();
-            if let Some(mut box_size) = red_query.iter_mut(world).next() {
-                box_size.width = Some(Dimension::Px(150.0)); // 200 → 150に変更
-                box_size.height = Some(Dimension::Px(80.0)); // 100 → 80に変更
+            let mut red_query = world.query_filtered::<&mut BoxStyle, With<RedBox>>();
+            if let Some(mut style) = red_query.iter_mut(world).next() {
+                if let Some(ref mut size) = style.size {
+                    size.width = Some(Dimension::Px(150.0)); // 200 → 150に変更
+                    size.height = Some(Dimension::Px(80.0)); // 100 → 80に変更
+                }
                 println!("[Test] RedBox size changed to 150x80");
             }
 
             // 緑の矩形のgrowを変更
-            let mut green_query = world.query_filtered::<&mut FlexItem, With<GreenBox>>();
-            if let Some(mut flex_item) = green_query.iter_mut(world).next() {
-                flex_item.grow = 2.0; // 1.0 → 2.0
+            let mut green_query = world.query_filtered::<&mut BoxStyle, With<GreenBox>>();
+            if let Some(mut style) = green_query.iter_mut(world).next() {
+                style.flex_grow = Some(2.0); // 1.0 → 2.0
                 println!("[Test] GreenBox grow changed to 2.0");
             }
 
             // 青い矩形のgrowを変更
-            let mut blue_query = world.query_filtered::<&mut FlexItem, With<BlueBox>>();
-            if let Some(mut flex_item) = blue_query.iter_mut(world).next() {
-                flex_item.grow = 1.0; // 2.0 → 1.0
+            let mut blue_query = world.query_filtered::<&mut BoxStyle, With<BlueBox>>();
+            if let Some(mut style) = blue_query.iter_mut(world).next() {
+                style.flex_grow = Some(1.0); // 2.0 → 1.0
                 println!("[Test] BlueBox grow changed to 1.0");
             }
 

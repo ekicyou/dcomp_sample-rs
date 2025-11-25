@@ -6,7 +6,7 @@ use wintf::ecs::layout::systems::{
     sync_taffy_tree_system, update_arrangements_system,
 };
 use wintf::ecs::layout::taffy::{TaffyComputedLayout, TaffyLayoutResource, TaffyStyle};
-use wintf::ecs::layout::{Arrangement, BoxSize, Dimension, LayoutRoot};
+use wintf::ecs::layout::{Arrangement, BoxSize, BoxStyle, Dimension, LayoutRoot};
 use wintf::ecs::ChildOf;
 
 // ===== Task 7.2: TaffyComputedLayout→Arrangement変換テスト =====
@@ -180,12 +180,12 @@ fn test_hierarchy_addition_syncs_taffy_tree() {
 
     // 親エンティティ
     let parent = world
-        .spawn((TaffyStyle::default(), BoxSize::default()))
+        .spawn((TaffyStyle::default(), BoxStyle::default()))
         .id();
 
     // 子エンティティ
     let child = world
-        .spawn((TaffyStyle::default(), BoxSize::default()))
+        .spawn((TaffyStyle::default(), BoxStyle::default()))
         .id();
 
     // システム実行（TaffyStyleからノード作成）
@@ -216,10 +216,10 @@ fn test_hierarchy_removal_syncs_taffy_tree() {
 
     // 親子関係を持つエンティティを作成
     let parent = world
-        .spawn((TaffyStyle::default(), BoxSize::default()))
+        .spawn((TaffyStyle::default(), BoxStyle::default()))
         .id();
     let child = world
-        .spawn((TaffyStyle::default(), BoxSize::default(), ChildOf(parent)))
+        .spawn((TaffyStyle::default(), BoxStyle::default(), ChildOf(parent)))
         .id();
 
     // システム実行
@@ -247,16 +247,16 @@ fn test_deep_hierarchy_sync() {
 
     // 深い階層構造: Root -> A -> B -> C
     let root = world
-        .spawn((TaffyStyle::default(), BoxSize::default()))
+        .spawn((TaffyStyle::default(), BoxStyle::default()))
         .id();
     let a = world
-        .spawn((TaffyStyle::default(), BoxSize::default(), ChildOf(root)))
+        .spawn((TaffyStyle::default(), BoxStyle::default(), ChildOf(root)))
         .id();
     let b = world
-        .spawn((TaffyStyle::default(), BoxSize::default(), ChildOf(a)))
+        .spawn((TaffyStyle::default(), BoxStyle::default(), ChildOf(a)))
         .id();
     let c = world
-        .spawn((TaffyStyle::default(), BoxSize::default(), ChildOf(b)))
+        .spawn((TaffyStyle::default(), BoxStyle::default(), ChildOf(b)))
         .id();
 
     // システム実行
@@ -303,9 +303,12 @@ fn test_no_change_no_compute() {
         .spawn((
             TaffyStyle::default(),
             TaffyComputedLayout::default(), // 明示的に挿入
-            BoxSize {
-                width: Some(Dimension::Px(800.0)),
-                height: Some(Dimension::Px(600.0)),
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(800.0)),
+                    height: Some(Dimension::Px(600.0)),
+                }),
+                ..Default::default()
             },
             LayoutRoot,
         ))
@@ -342,9 +345,12 @@ fn test_high_level_component_change_triggers_compute() {
             TaffyStyle::default(),
             TaffyComputedLayout::default(),
             Arrangement::default(),
-            BoxSize {
-                width: Some(Dimension::Px(800.0)),
-                height: Some(Dimension::Px(600.0)),
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(800.0)),
+                    height: Some(Dimension::Px(600.0)),
+                }),
+                ..Default::default()
             },
             LayoutRoot,
         ))
@@ -365,10 +371,13 @@ fn test_high_level_component_change_triggers_compute() {
     // 初回のArrangementを記録
     let initial_arrangement = *world.get::<Arrangement>(root).unwrap();
 
-    // BoxSizeを変更
-    world.entity_mut(root).insert(BoxSize {
-        width: Some(Dimension::Px(1024.0)),
-        height: Some(Dimension::Px(768.0)),
+    // BoxStyleを変更
+    world.entity_mut(root).insert(BoxStyle {
+        size: Some(BoxSize {
+            width: Some(Dimension::Px(1024.0)),
+            height: Some(Dimension::Px(768.0)),
+        }),
+        ..Default::default()
     });
 
     // システム再実行
@@ -393,9 +402,12 @@ fn test_hierarchy_change_triggers_compute() {
         .spawn((
             TaffyStyle::default(),
             TaffyComputedLayout::default(),
-            BoxSize {
-                width: Some(Dimension::Px(800.0)),
-                height: Some(Dimension::Px(600.0)),
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(800.0)),
+                    height: Some(Dimension::Px(600.0)),
+                }),
+                ..Default::default()
             },
             LayoutRoot,
         ))
@@ -405,7 +417,7 @@ fn test_hierarchy_change_triggers_compute() {
         .spawn((
             TaffyStyle::default(),
             TaffyComputedLayout::default(),
-            BoxSize::default(),
+            BoxStyle::default(),
         ))
         .id();
 
@@ -549,9 +561,12 @@ fn test_single_node_tree() {
             TaffyStyle::default(),
             TaffyComputedLayout::default(),
             Arrangement::default(),
-            BoxSize {
-                width: Some(Dimension::Px(100.0)),
-                height: Some(Dimension::Px(100.0)),
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(100.0)),
+                    height: Some(Dimension::Px(100.0)),
+                }),
+                ..Default::default()
             },
             LayoutRoot,
         ))
@@ -590,9 +605,12 @@ fn test_many_siblings() {
         .spawn((
             TaffyStyle::default(),
             TaffyComputedLayout::default(),
-            BoxSize {
-                width: Some(Dimension::Px(1000.0)),
-                height: Some(Dimension::Px(1000.0)),
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(1000.0)),
+                    height: Some(Dimension::Px(1000.0)),
+                }),
+                ..Default::default()
             },
             LayoutRoot,
         ))
@@ -605,7 +623,7 @@ fn test_many_siblings() {
             .spawn((
                 TaffyStyle::default(),
                 TaffyComputedLayout::default(),
-                BoxSize::default(),
+                BoxStyle::default(),
                 ChildOf(root),
             ))
             .id();
@@ -639,9 +657,12 @@ fn test_deep_hierarchy() {
         .spawn((
             TaffyStyle::default(),
             TaffyComputedLayout::default(),
-            BoxSize {
-                width: Some(Dimension::Px(800.0)),
-                height: Some(Dimension::Px(600.0)),
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(800.0)),
+                    height: Some(Dimension::Px(600.0)),
+                }),
+                ..Default::default()
             },
             LayoutRoot,
         ))
@@ -652,7 +673,7 @@ fn test_deep_hierarchy() {
             .spawn((
                 TaffyStyle::default(),
                 TaffyComputedLayout::default(),
-                BoxSize::default(),
+                BoxStyle::default(),
                 ChildOf(current),
             ))
             .id();
@@ -683,9 +704,12 @@ fn test_zero_size_box() {
         .spawn((
             TaffyStyle::default(),
             TaffyComputedLayout::default(),
-            BoxSize {
-                width: Some(Dimension::Px(0.0)),
-                height: Some(Dimension::Px(0.0)),
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(0.0)),
+                    height: Some(Dimension::Px(0.0)),
+                }),
+                ..Default::default()
             },
             LayoutRoot,
         ))
@@ -722,16 +746,19 @@ fn test_negative_margin_handling() {
         .spawn((
             TaffyStyle::default(),
             TaffyComputedLayout::default(),
-            BoxSize {
-                width: Some(Dimension::Px(100.0)),
-                height: Some(Dimension::Px(100.0)),
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(100.0)),
+                    height: Some(Dimension::Px(100.0)),
+                }),
+                margin: Some(BoxMargin(Rect {
+                    left: LengthPercentageAuto::Px(-10.0),
+                    right: LengthPercentageAuto::Px(-10.0),
+                    top: LengthPercentageAuto::Px(-10.0),
+                    bottom: LengthPercentageAuto::Px(-10.0),
+                })),
+                ..Default::default()
             },
-            BoxMargin(Rect {
-                left: LengthPercentageAuto::Px(-10.0),
-                right: LengthPercentageAuto::Px(-10.0),
-                top: LengthPercentageAuto::Px(-10.0),
-                bottom: LengthPercentageAuto::Px(-10.0),
-            }),
             LayoutRoot,
         ))
         .id();

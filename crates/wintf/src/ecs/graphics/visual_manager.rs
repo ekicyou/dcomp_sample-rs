@@ -120,11 +120,11 @@ pub fn visual_reinit_system(
 /// そのVisualをウィンドウのルートVisualとして設定する。
 pub fn window_visual_integration_system(
     query: Query<
-        (Entity, &WindowGraphics, &VisualGraphics), 
-        Or<(Changed<WindowGraphics>, Changed<VisualGraphics>)>
+        (Entity, &WindowGraphics, &VisualGraphics),
+        Or<(Changed<WindowGraphics>, Changed<VisualGraphics>)>,
     >,
 ) {
-    for (entity, window_graphics, visual_graphics) in query.iter() {
+    for (_entity, window_graphics, visual_graphics) in query.iter() {
         if let Some(target) = window_graphics.get_target() {
             if let Some(visual) = visual_graphics.visual() {
                 unsafe {
