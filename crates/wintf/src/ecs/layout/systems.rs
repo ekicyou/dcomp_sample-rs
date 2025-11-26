@@ -277,17 +277,12 @@ pub fn update_arrangements_system(
             entity_name, layout.location.x, layout.location.y, layout.size.width, layout.size.height
         );
         eprintln!(
-            "[update_arrangements] Entity={}, Arrangement: offset=({}, {}), scale=({}, {})",
-            entity_name, new_arrangement.offset.x, new_arrangement.offset.y, new_arrangement.scale.x, new_arrangement.scale.y
+            "[update_arrangements] Entity={}, Arrangement: offset=({}, {}), size=({}, {})",
+            entity_name, new_arrangement.offset.x, new_arrangement.offset.y, new_arrangement.size.width, new_arrangement.size.height
         );
 
         if let Some(mut arr) = arrangement {
-            // 値比較で変更検知を抑制
-            if *arr != new_arrangement {
-                *arr = new_arrangement;
-                // Arrangementの変更でChanged<Arrangement>が検知される
-                // ArrangementTreeChangedはmark_dirty_arrangement_treesで適切に処理される
-            }
+            arr.set_if_neq(new_arrangement);
         } else {
             commands.entity(entity).insert(new_arrangement);
         }

@@ -66,26 +66,26 @@ Taffy Flexboxレイアウトのデモ:
 [visual_hierarchy_sync] AddVisual success: child="RedBox" -> parent="FlexDemo-Container"
 [visual_hierarchy_sync] AddVisual success: child="GreenBox" -> parent="FlexDemo-Container"
 [update_arrangements] Entity=RedBox, TaffyLayout: location=(100, 240), size=(200, 100)
-[update_arrangements] Entity=RedBox, Arrangement: offset=(100, 240), scale=(1, 1)
+[update_arrangements] Entity=RedBox, Arrangement: offset=(100, 240), size=(200, 100)
 [update_arrangements] Entity=Entity(1v0), TaffyLayout: location=(-1080, -836), size=(1080, 1920)
-[update_arrangements] Entity=Entity(1v0), Arrangement: offset=(-1080, -836), scale=(1, 1)
+[update_arrangements] Entity=Entity(1v0), Arrangement: offset=(-1080, -836), size=(1080, 1920)
 [update_arrangements] Entity=Entity(2v0), TaffyLayout: location=(0, 0), size=(1920, 1080)
-[update_arrangements] Entity=Entity(2v0), Arrangement: offset=(0, 0), scale=(1, 1)
+[update_arrangements] Entity=Entity(2v0), Arrangement: offset=(0, 0), size=(1920, 1080)
 [update_arrangements] Entity=FlexDemo-Window, TaffyLayout: location=(100, 100), size=(800, 600)
-[update_arrangements] Entity=FlexDemo-Window, Arrangement: offset=(100, 100), scale=(1, 1)
+[update_arrangements] Entity=FlexDemo-Window, Arrangement: offset=(100, 100), size=(800, 600)
 [update_arrangements] Entity=FlexDemo-Container, TaffyLayout: location=(10, 10), size=(400, 580)
-[update_arrangements] Entity=FlexDemo-Container, Arrangement: offset=(10, 10), scale=(1, 1)
+[update_arrangements] Entity=FlexDemo-Container, Arrangement: offset=(10, 10), size=(400, 580)
 [update_arrangements] Entity=GreenBox, TaffyLayout: location=(0, 240), size=(100, 100)
-[update_arrangements] Entity=GreenBox, Arrangement: offset=(0, 240), scale=(1, 1)
+[update_arrangements] Entity=GreenBox, Arrangement: offset=(0, 240), size=(100, 100)
 [update_arrangements] Entity=BlueBox, TaffyLayout: location=(300, 240), size=(100, 100)
-[update_arrangements] Entity=BlueBox, Arrangement: offset=(300, 240), scale=(1, 1)
+[update_arrangements] Entity=BlueBox, Arrangement: offset=(300, 240), size=(100, 100)
 [update_arrangements] Entity=Entity(0v0), TaffyLayout: location=(0, 0), size=(3000, 1920)
-[update_arrangements] Entity=Entity(0v0), Arrangement: offset=(0, 0), scale=(1, 1)
+[update_arrangements] Entity=Entity(0v0), Arrangement: offset=(0, 0), size=(3000, 1920)
 [propagate_global_arrangements] Root Entity=0v0, Arrangement: offset=(0, 0), scale=(1, 1)
 [propagate_global_arrangements] Root Entity=0v0, GlobalArrangement: transform=[1,0,0,0],bounds=(0,0,0,0)
 [Frame 1] [create_windows] ウィンドウ作成開始 (Entity: FlexDemo-Window, title: wintf - Taffy Flexbox Demo)
-[Frame 1] [create_windows] HWND作成成功 (Entity: FlexDemo-Window, hwnd: HWND(0x260378))
-[Hook] WindowHandle added to entity 3v0, hwnd HWND(0x260378)
+[Frame 1] [create_windows] HWND作成成功 (Entity: FlexDemo-Window, hwnd: HWND(0x3c0698))
+[Hook] WindowHandle added to entity 3v0, hwnd HWND(0x3c0698)
 [App] Window created. Entity: 3v0, Total windows: 1
 [Frame 1] [create_windows] WindowHandle即時追加完了 (Entity: FlexDemo-Window)
 [Frame 1] [create_windows] ShowWindow完了 (Entity: FlexDemo-Window)
@@ -154,15 +154,15 @@ Taffy Flexboxレイアウトのデモ:
   GreenBox: grow 1.0 → 2.0
   BlueBox: grow 2.0 → 1.0
 [update_arrangements] Entity=FlexDemo-Window, TaffyLayout: location=(100, 100), size=(800, 600)
-[update_arrangements] Entity=FlexDemo-Window, Arrangement: offset=(100, 100), scale=(1, 1)
+[update_arrangements] Entity=FlexDemo-Window, Arrangement: offset=(100, 100), size=(800, 600)
 [update_arrangements] Entity=GreenBox, TaffyLayout: location=(25, 0), size=(100, 220)
-[update_arrangements] Entity=GreenBox, Arrangement: offset=(25, 0), scale=(1, 1)
+[update_arrangements] Entity=GreenBox, Arrangement: offset=(25, 0), size=(100, 220)
 [update_arrangements] Entity=RedBox, TaffyLayout: location=(0, 220), size=(150, 200)
-[update_arrangements] Entity=RedBox, Arrangement: offset=(0, 220), scale=(1, 1)
+[update_arrangements] Entity=RedBox, Arrangement: offset=(0, 220), size=(150, 200)
 [update_arrangements] Entity=FlexDemo-Container, TaffyLayout: location=(10, 10), size=(150, 580)
-[update_arrangements] Entity=FlexDemo-Container, Arrangement: offset=(10, 10), scale=(1, 1)
+[update_arrangements] Entity=FlexDemo-Container, Arrangement: offset=(10, 10), size=(150, 580)
 [update_arrangements] Entity=BlueBox, TaffyLayout: location=(25, 420), size=(100, 160)
-[update_arrangements] Entity=BlueBox, Arrangement: offset=(25, 420), scale=(1, 1)
+[update_arrangements] Entity=BlueBox, Arrangement: offset=(25, 420), size=(100, 160)
 [propagate_global_arrangements] Root Entity=0v0, Arrangement: offset=(0, 0), scale=(1, 1)
 [propagate_global_arrangements] Root Entity=0v0, GlobalArrangement: transform=[1,0,0,0],bounds=(0,0,3000,1920)
 [Frame 301] [sync_surface_from_arrangement] Processing Entity=GreenBox, size=100x220, has_surface=true
@@ -205,15 +205,11 @@ Taffy Flexboxレイアウトのデモ:
 [visual_offset_sync] Entity=RedBox, offset=(0, 220)
 [visual_offset_sync] Entity=FlexDemo-Container, offset=(10, 10)
 [visual_offset_sync] Entity=BlueBox, offset=(25, 420)
-[Timer Thread] 10s: Closing window
-[ECS] Frame rate: 60.10 fps (601 frames in 10.00s, avg 16.64ms/frame)
-[Test] Removing Window entity 3v0
-[Hook] Entity 3v0 being removed, sending WM_CLOSE to hwnd HWND(0x260378)
+[Hook] Entity 3v0 being removed, sending WM_CLOSE to hwnd HWND(0x3c0698)
 [App] Window destroyed. Entity: 3v0, Remaining windows: 0
 [App] Last window closed. Quitting application...
 [WinThreadMgr] WM_LAST_WINDOW_DESTROYED received. Calling PostQuitMessage(0).
 WM_NCDESTROY
-
 ```
 
 ## 確認
