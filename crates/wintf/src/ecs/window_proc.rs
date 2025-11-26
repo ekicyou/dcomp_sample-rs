@@ -87,22 +87,70 @@ pub extern "system" fn ecs_wndproc(
                             let windowpos = lparam.0 as *const WINDOWPOS;
                             if !windowpos.is_null() {
                                 let wp = &*windowpos;
-                                
-                                // WindowPosコンポーネントを更新
-                                if let Ok(mut entity_ref) = world_borrow.world_mut().get_entity_mut(entity) {
-                                    if let Some(mut window_pos) = entity_ref.get_mut::<crate::ecs::window::WindowPos>() {
-                                        let new_position = POINT { x: wp.x, y: wp.y };
-                                        let new_size = SIZE { cx: wp.cx, cy: wp.cy };
-                                        
-                                        // エコーバックチェック
-                                        if !window_pos.is_echo(new_position, new_size) {
-                                            // エコーバックでない場合のみ更新（ユーザー操作による変更）
-                                            let bypass = window_pos.bypass_change_detection();
-                                            bypass.position = Some(new_position);
-                                            bypass.size = Some(new_size);
-                                            // last_sentはクリア（次回のSetWindowPos検知のため）
-                                            bypass.last_sent_position = None;
-                                            bypass.last_sent_size = None;
+
+                                // WindowPosコンポーネントとWindowHandleを更新
+                                if let Ok(mut entity_ref) =
+                                    world_borrow.world_mut().get_entity_mut(entity)
+                                {
+                                    // WindowHandleを取得してウィンドウ座標→クライアント座標に変換
+                                    let client_coords = entity_ref
+                                        .get::<crate::ecs::window::WindowHandle>()
+                                        .and_then(|handle| {
+                                            handle
+                                                .window_to_client_coords(wp.x, wp.y, wp.cx, wp.cy)
+                                                .ok()
+                                        });
+
+                                    // クライアント座標が取得できた場合のみ処理
+                                    if let Some((client_pos, client_size)) = client_coords {
+                                        if let Some(mut window_pos) =
+                                            entity_ref.get_mut::<crate::ecs::window::WindowPos>()
+                                        {
+                                            // エコーバックチェック（クライアント座標で比較）
+                                            if !window_pos.is_echo(client_pos, client_size) {
+                                                // エコーバックでない場合のみ更新（ユーザー操作による変更）
+                                                // 変更検知を発火させるため、通常の代入を使用
+                                                window_pos.position = Some(client_pos);
+                                                window_pos.size = Some(client_size);
+                                                // last_sentはクリア（次回のSetWindowPos検知のため）
+                                                window_pos.last_sent_position = None;
+                                                window_pos.last_sent_size = None;
+
+                                                eprintln!(
+                                                    "[WM_WINDOWPOSCHANGED] Entity {:?}: User operation detected. window=({},{},{},{}) -> client=({},{},{},{})",
+                                                    entity, wp.x, wp.y, wp.cx, wp.cy,
+                                                    client_pos.x, client_pos.y, client_size.cx, client_size.cy
+                                                );
+                                            }
+                                        }
+
+                                        // BoxStyleがあれば更新（なければスキップ）
+                                        if let Some(mut box_style) =
+                                            entity_ref.get_mut::<crate::ecs::layout::BoxStyle>()
+                                        {
+                                            use crate::ecs::layout::{
+                                                BoxInset, BoxSize, Dimension, LengthPercentageAuto,
+                                                Rect,
+                                            };
+
+                                            // サイズを更新
+                                            box_style.size = Some(BoxSize {
+                                                width: Some(Dimension::Px(client_size.cx as f32)),
+                                                height: Some(Dimension::Px(client_size.cy as f32)),
+                                            });
+
+                                            // 位置を更新（絶対配置のinset）
+                                            box_style.inset = Some(BoxInset(Rect {
+                                                left: LengthPercentageAuto::Px(client_pos.x as f32),
+                                                top: LengthPercentageAuto::Px(client_pos.y as f32),
+                                                right: LengthPercentageAuto::Auto,
+                                                bottom: LengthPercentageAuto::Auto,
+                                            }));
+
+                                            eprintln!(
+                                                "[WM_WINDOWPOSCHANGED] Entity {:?}: BoxStyle updated. size=({},{}), inset=({},{})",
+                                                entity, client_size.cx, client_size.cy, client_pos.x, client_pos.y
+                                            );
                                         }
                                     }
                                 }
@@ -116,7 +164,10 @@ pub extern "system" fn ecs_wndproc(
                 // ディスプレイ構成が変更された
                 if let Some(world) = try_get_ecs_world() {
                     if let Ok(mut world_borrow) = world.try_borrow_mut() {
-                        if let Some(mut app) = world_borrow.world_mut().get_resource_mut::<crate::ecs::App>() {
+                        if let Some(mut app) = world_borrow
+                            .world_mut()
+                            .get_resource_mut::<crate::ecs::App>()
+                        {
                             app.mark_display_change();
                         }
                     }
