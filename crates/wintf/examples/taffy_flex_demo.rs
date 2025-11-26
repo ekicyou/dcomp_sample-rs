@@ -205,8 +205,7 @@ fn main() -> Result<()> {
         println!("[Timer Thread] 5s: Changing layout parameters");
         let _ = tx.send(Box::new(|world: &mut World| {
             // *** WindowエンティティのBoxStyleを変更してウィンドウを移動・リサイズ ***
-            let mut window_query =
-                world.query_filtered::<&mut BoxStyle, With<FlexDemoWindow>>();
+            let mut window_query = world.query_filtered::<&mut BoxStyle, With<FlexDemoWindow>>();
             if let Some(mut style) = window_query.iter_mut(world).next() {
                 // ウィンドウを (200, 150) に移動し、サイズを 600x400 に変更
                 style.size = Some(BoxSize {
