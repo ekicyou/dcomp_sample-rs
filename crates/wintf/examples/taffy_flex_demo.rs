@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use std::sync::mpsc::channel;
 use std::sync::Mutex;
@@ -56,6 +57,7 @@ fn main() -> Result<()> {
             // Note: LayoutRootマーカーは不要 - Window追加時に自動的にLayoutRootの子になる
             let window_entity = world
                 .spawn((
+                    Name::new("FlexDemo-Window"), // R1.1: Windowエンティティに名前を付与
                     FlexDemoWindow,
                     // LayoutRoot削除: on_window_addフックでChildOf(layout_root)が自動設定される
                     BoxStyle {
@@ -84,6 +86,7 @@ fn main() -> Result<()> {
             // Flexコンテナ（横並び）
             let flex_container = world
                 .spawn((
+                    Name::new("FlexDemo-Container"), // R1.2: FlexContainerエンティティに名前を付与
                     FlexDemoContainer, // マーカー追加
                     Rectangle {
                         color: D2D1_COLOR_F {
@@ -113,6 +116,7 @@ fn main() -> Result<()> {
                 ))
                 .id(); // Flexアイテム1（赤、固定200px幅）
             world.spawn((
+                Name::new("RedBox"), // R1.3: RedBoxエンティティに名前を付与
                 RedBox, // マーカー追加
                 Rectangle {
                     color: D2D1_COLOR_F {
@@ -137,6 +141,7 @@ fn main() -> Result<()> {
 
             // Flexアイテム2（緑、growで伸縮）
             world.spawn((
+                Name::new("GreenBox"), // R1.4: GreenBoxエンティティに名前を付与
                 GreenBox, // マーカー追加
                 Rectangle {
                     color: D2D1_COLOR_F {
@@ -161,6 +166,7 @@ fn main() -> Result<()> {
 
             // Flexアイテム3（青、growで伸縮、より大きなgrow値）
             world.spawn((
+                Name::new("BlueBox"), // R1.5: BlueBoxエンティティに名前を付与
                 BlueBox, // マーカー追加
                 Rectangle {
                     color: D2D1_COLOR_F {

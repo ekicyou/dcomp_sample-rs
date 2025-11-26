@@ -11,11 +11,27 @@ use crate::ecs::graphics::{
 };
 use crate::ecs::layout::GlobalArrangement;
 use bevy_ecs::hierarchy::{ChildOf, Children};
+use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
 
 // ========== ヘルパー関数 ==========
+
+/// エンティティ名をログ用にフォーマットする
+///
+/// # Arguments
+/// * `entity` - エンティティID
+/// * `name` - Nameコンポーネント（オプション）
+///
+/// # Returns
+/// Nameがあれば名前をそのまま返し、なければ`Entity(0v1)`形式でEntity IDを返す
+pub fn format_entity_name(entity: Entity, name: Option<&Name>) -> String {
+    match name {
+        Some(n) => n.to_string(),
+        None => format!("Entity({:?})", entity),
+    }
+}
 
 /// HWNDに対してWindowGraphicsリソースを作成する
 fn create_window_graphics_for_hwnd(
@@ -750,21 +766,36 @@ pub fn mark_dirty_surfaces(
 /// 注意: エラーは無視する（親が先に削除されている場合など）
 pub fn visual_hierarchy_sync_system(
     mut vg_queries: ParamSet<(
-        // ChildOf + VisualGraphics を持つ全Entity
-        Query<(Entity, &ChildOf, &mut VisualGraphics)>,
-        Query<&VisualGraphics>,
+        // ChildOf + VisualGraphics を持つ全Entity (Option<&Name>追加: R3.1)
+        Query<(Entity, &ChildOf, &mut VisualGraphics, Option<&Name>)>,
+        // 親エンティティクエリ (Option<&Name>追加: R3.1)
+        Query<(&VisualGraphics, Option<&Name>)>,
     )>,
 ) {
     use crate::com::dcomp::DCompositionVisualExt;
 
-    // 1. まず未同期（parent_visual==None）のエンティティと親情報を収集
-    let mut updates: Vec<(Entity, Entity)> = Vec::new(); // (child_entity, parent_entity)
+    // 1. まず未同期（parent_visual==None）のエンティティと親情報とName情報を収集
+    // (child_entity, parent_entity, child_name, parent_name)
+    let mut updates: Vec<(Entity, Entity, Option<String>, Option<String>)> = Vec::new();
     {
         let child_query = vg_queries.p0();
-        for (entity, child_of, child_vg) in child_query.iter() {
+        for (entity, child_of, child_vg, child_name) in child_query.iter() {
             // parent_visualがNoneなら未同期
             if child_vg.parent_visual().is_none() {
-                updates.push((entity, child_of.parent()));
+                let child_name_str = child_name.map(|n| n.to_string());
+                updates.push((entity, child_of.parent(), child_name_str, None));
+                // parent_nameは後で取得
+            }
+        }
+    }
+
+    // 親のNameを取得
+    {
+        let parent_query = vg_queries.p1();
+        for item in updates.iter_mut() {
+            let parent_entity = item.1;
+            if let Ok((_, parent_name)) = parent_query.get(parent_entity) {
+                item.3 = parent_name.map(|n| n.to_string());
             }
         }
     }
@@ -777,19 +808,25 @@ pub fn visual_hierarchy_sync_system(
     }
 
     // 2. 各子エンティティに対して処理
-    for (child_entity, parent_entity) in updates {
+    for (child_entity, parent_entity, child_name_str, parent_name_str) in updates {
+        // フォーマット済み名前を生成（フォールバック用の文字列を先にlet束縛）
+        let child_fallback = format!("Entity({:?})", child_entity);
+        let parent_fallback = format!("Entity({:?})", parent_entity);
+        let child_display = child_name_str.as_deref().unwrap_or(&child_fallback);
+        let parent_display = parent_name_str.as_deref().unwrap_or(&parent_fallback);
+
         // 親のVisualを取得
         let parent_visual = {
             let parent_query = vg_queries.p1();
             parent_query
                 .get(parent_entity)
                 .ok()
-                .and_then(|pv| pv.visual().cloned())
+                .and_then(|(pv, _)| pv.visual().cloned())
         };
 
         // 子のVisualGraphicsを更新
         let mut child_query = vg_queries.p0();
-        if let Ok((_, _, mut child_vg)) = child_query.get_mut(child_entity) {
+        if let Ok((_, _, mut child_vg, _)) = child_query.get_mut(child_entity) {
             // 子のvisualを取得
             let child_visual = match child_vg.visual() {
                 Some(v) => v.clone(),
@@ -800,14 +837,16 @@ pub fn visual_hierarchy_sync_system(
             if let Some(ref parent_visual) = parent_visual {
                 // 親がVisualGraphicsを持つ場合: 親Visualに追加
                 if let Err(e) = parent_visual.add_visual(&child_visual, false, None) {
+                    // R4.2: add_visual失敗ログフォーマット
                     eprintln!(
-                        "[visual_hierarchy_sync] AddVisual failed: child={:?}, parent={:?}, error={:?}",
-                        child_entity, parent_entity, e
+                        "[visual_hierarchy_sync] AddVisual failed: child=\"{}\", parent=\"{}\", error={:?}",
+                        child_display, parent_display, e
                     );
                 } else {
+                    // R4.1: add_visual成功ログフォーマット
                     eprintln!(
-                        "[visual_hierarchy_sync] AddVisual success: child={:?} -> parent={:?}",
-                        child_entity, parent_entity
+                        "[visual_hierarchy_sync] AddVisual success: child=\"{}\" -> parent=\"{}\"",
+                        child_display, parent_display
                     );
                 }
                 // parent_visualキャッシュを更新
@@ -817,9 +856,10 @@ pub fn visual_hierarchy_sync_system(
                 // この子はVisual階層のルート。自分自身のVisualをセンチネル値として設定し、
                 // 処理済みとしてマークする。window_visual_integration_systemがWindowのVisualを
                 // CompositionTargetのルートとして設定するので、ここでは追加処理不要。
+                // R4.3: Visual階層ルート検出ログフォーマット
                 eprintln!(
-                    "[visual_hierarchy_sync] Parent {:?} has no VisualGraphics, child={:?} is Visual hierarchy root",
-                    parent_entity, child_entity
+                    "[visual_hierarchy_sync] Visual hierarchy root: name=\"{}\"",
+                    child_display
                 );
                 // 自分自身のVisualを設定して「処理済み」とマーク
                 child_vg.set_parent_visual(Some(child_visual.clone()));
