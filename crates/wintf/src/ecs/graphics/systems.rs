@@ -150,12 +150,14 @@ fn draw_recursive(
 /// - SurfaceUpdateRequestedマーカーを持つEntityが対象
 /// - 自分のGraphicsCommandListのみを描画（子は描画しない）
 /// - 子の描画は各子が自分のSurfaceで行う
+/// - GlobalArrangementのスケール成分を適用（DPIスケール対応）
 pub fn render_surface(
     mut commands: Commands,
     surfaces: Query<
         (
             Entity,
             &SurfaceGraphics,
+            &GlobalArrangement,
             Option<&GraphicsCommandList>,
             Option<&Name>,
         ),
@@ -168,7 +170,7 @@ pub fn render_surface(
     use windows::Win32::Graphics::Direct2D::Common::D2D1_COMPOSITE_MODE_SOURCE_OVER;
     use windows::Win32::Graphics::Direct2D::D2D1_INTERPOLATION_MODE_LINEAR;
 
-    for (entity, surface, cmd_list_opt, name) in surfaces.iter() {
+    for (entity, surface, global_arrangement, cmd_list_opt, name) in surfaces.iter() {
         let entity_name = format_entity_name(entity, name);
         eprintln!(
             "[Frame {}] [render_surface] === Self-rendering Entity={} ===",
@@ -208,13 +210,35 @@ pub fn render_surface(
             }
         };
 
-        // BeginDrawのoffsetを適用するためにtransformを設定
-        // DirectCompositionのSurfaceは部分更新をサポートしており、
-        // BeginDrawはその更新領域の開始位置をoffsetとして返す
+        // BeginDrawのoffsetとGlobalArrangementのスケールを適用
+        // - offset: Surface内の描画開始位置（物理ピクセル単位）
+        // - scale: GlobalArrangementから抽出したスケール成分（DPIスケール含む）
+        // - Visual.SetOffsetX/Yで位置は設定済みなので、ここではスケールのみ
         unsafe {
-            let transform =
+            // GlobalArrangementからスケール成分のみを抽出（M11=scaleX, M22=scaleY）
+            let scale_transform = windows_numerics::Matrix3x2 {
+                M11: global_arrangement.transform.M11,
+                M12: 0.0,
+                M21: 0.0,
+                M22: global_arrangement.transform.M22,
+                M31: 0.0,
+                M32: 0.0,
+            };
+
+            // offset（物理ピクセル）で平行移動
+            let offset_transform =
                 windows_numerics::Matrix3x2::translation(offset.x as f32, offset.y as f32);
+
+            // 変換順序: offset → scale
+            // GraphicsCommandListは論理座標で描画されているため、
+            // まずoffsetで描画開始位置に移動し、その後scaleで拡大
+            let transform = offset_transform * scale_transform;
             dc.SetTransform(&transform);
+
+            eprintln!(
+                "[render_surface] Transform for Entity={}: scale=({}, {}), offset=({}, {})",
+                entity_name, scale_transform.M11, scale_transform.M22, offset.x, offset.y
+            );
         }
 
         // 透明色クリア
