@@ -153,7 +153,12 @@ fn draw_recursive(
 pub fn render_surface(
     mut commands: Commands,
     surfaces: Query<
-        (Entity, &SurfaceGraphics, Option<&GraphicsCommandList>),
+        (
+            Entity,
+            &SurfaceGraphics,
+            Option<&GraphicsCommandList>,
+            Option<&Name>,
+        ),
         With<SurfaceUpdateRequested>,
     >,
     _graphics_core: Option<Res<GraphicsCore>>,
@@ -163,16 +168,17 @@ pub fn render_surface(
     use windows::Win32::Graphics::Direct2D::Common::D2D1_COMPOSITE_MODE_SOURCE_OVER;
     use windows::Win32::Graphics::Direct2D::D2D1_INTERPOLATION_MODE_LINEAR;
 
-    for (entity, surface, cmd_list_opt) in surfaces.iter() {
+    for (entity, surface, cmd_list_opt, name) in surfaces.iter() {
+        let entity_name = format_entity_name(entity, name);
         eprintln!(
-            "[Frame {}] [render_surface] === Self-rendering Entity={:?} ===",
-            frame_count.0, entity
+            "[Frame {}] [render_surface] === Self-rendering Entity={} ===",
+            frame_count.0, entity_name
         );
 
         if !surface.is_valid() {
             eprintln!(
-                "[render_surface] Surface invalid for Entity={:?}, skipping",
-                entity
+                "[render_surface] Surface invalid for Entity={}, skipping",
+                entity_name
             );
             continue;
         }
@@ -186,15 +192,15 @@ pub fn render_surface(
         let (dc, _offset) = match surface_ref.begin_draw(None) {
             Ok(result) => {
                 eprintln!(
-                    "[render_surface] BeginDraw succeeded for Entity={:?}, offset=({}, {})",
-                    entity, result.1.x, result.1.y
+                    "[render_surface] BeginDraw succeeded for Entity={}, offset=({}, {})",
+                    entity_name, result.1.x, result.1.y
                 );
                 result
             }
             Err(err) => {
                 eprintln!(
-                    "[render_surface] BeginDraw failed for Entity={:?}: {:?}, HRESULT: 0x{:08X}",
-                    entity,
+                    "[render_surface] BeginDraw failed for Entity={}: {:?}, HRESULT: 0x{:08X}",
+                    entity_name,
                     err,
                     err.code().0
                 );
@@ -215,8 +221,8 @@ pub fn render_surface(
         if let Some(cmd_list) = cmd_list_opt {
             if let Some(command_list) = cmd_list.command_list() {
                 eprintln!(
-                    "[render_surface] Drawing own CommandList for Entity={:?}",
-                    entity
+                    "[render_surface] Drawing own CommandList for Entity={}",
+                    entity_name
                 );
                 unsafe {
                     dc.DrawImage(
@@ -372,6 +378,7 @@ pub fn init_window_graphics(
             Entity,
             &crate::ecs::window::WindowHandle,
             Option<&mut WindowGraphics>,
+            Option<&Name>,
         ),
         Or<(Without<WindowGraphics>, With<GraphicsNeedsInit>)>,
     >,
@@ -382,22 +389,26 @@ pub fn init_window_graphics(
         return;
     }
 
-    for (entity, handle, window_graphics) in query.iter_mut() {
+    for (entity, handle, window_graphics, name) in query.iter_mut() {
+        let entity_name = format_entity_name(entity, name);
         match window_graphics {
             None => {
                 eprintln!(
-                    "[Frame {}] [init_window_graphics] WindowGraphics新規作成 (Entity: {:?})",
-                    frame_count.0, entity
+                    "[Frame {}] [init_window_graphics] WindowGraphics新規作成 (Entity: {})",
+                    frame_count.0, entity_name
                 );
                 match create_window_graphics_for_hwnd(&graphics, handle.hwnd) {
                     Ok(wg) => {
-                        eprintln!("[Frame {}] [init_window_graphics] WindowGraphics作成完了 (Entity: {:?})", frame_count.0, entity);
+                        eprintln!(
+                            "[Frame {}] [init_window_graphics] WindowGraphics作成完了 (Entity: {})",
+                            frame_count.0, entity_name
+                        );
                         commands.entity(entity).insert(wg);
                     }
                     Err(e) => {
                         eprintln!(
-                            "[Frame {}] [init_window_graphics] エラー: Entity {:?}, HRESULT {:?}",
-                            frame_count.0, entity, e
+                            "[Frame {}] [init_window_graphics] エラー: Entity {}, HRESULT {:?}",
+                            frame_count.0, entity_name, e
                         );
                     }
                 }
@@ -405,8 +416,8 @@ pub fn init_window_graphics(
             Some(mut wg) => {
                 if !wg.is_valid() {
                     eprintln!(
-                        "[Frame {}] [init_window_graphics] WindowGraphics再初期化 (Entity: {:?})",
-                        frame_count.0, entity
+                        "[Frame {}] [init_window_graphics] WindowGraphics再初期化 (Entity: {})",
+                        frame_count.0, entity_name
                     );
                     let old_generation = wg.generation();
                     match create_window_graphics_for_hwnd(&graphics, handle.hwnd) {
@@ -418,11 +429,11 @@ pub fn init_window_graphics(
                             while wg.generation() < new_generation {
                                 wg.increment_generation();
                             }
-                            eprintln!("[Frame {}] [init_window_graphics] WindowGraphics再初期化完了 (Entity: {:?}, generation: {} -> {})", 
-                                frame_count.0, entity, old_generation, wg.generation());
+                            eprintln!("[Frame {}] [init_window_graphics] WindowGraphics再初期化完了 (Entity: {}, generation: {} -> {})", 
+                                frame_count.0, entity_name, old_generation, wg.generation());
                         }
                         Err(e) => {
-                            eprintln!("[Frame {}] [init_window_graphics] 再初期化エラー: Entity {:?}, HRESULT {:?}", frame_count.0, entity, e);
+                            eprintln!("[Frame {}] [init_window_graphics] 再初期化エラー: Entity {}, HRESULT {:?}", frame_count.0, entity_name, e);
                         }
                     }
                 }
@@ -456,6 +467,7 @@ pub fn sync_surface_from_arrangement(
             &VisualGraphics,
             &crate::ecs::layout::Arrangement,
             Option<&mut SurfaceGraphics>,
+            Option<&Name>,
         ),
         Changed<crate::ecs::layout::Arrangement>,
     >,
@@ -470,13 +482,14 @@ pub fn sync_surface_from_arrangement(
         return;
     }
 
-    let mut processed_count = 0;
+    let mut _processed_count = 0;
 
-    for (entity, visual_graphics, arrangement, surface) in query.iter_mut() {
+    for (entity, visual_graphics, arrangement, surface, name) in query.iter_mut() {
+        let entity_name = format_entity_name(entity, name);
         if !visual_graphics.is_valid() {
             eprintln!(
-                "[Frame {}] [sync_surface_from_arrangement] Entity={:?} has invalid VisualGraphics, skipping",
-                frame_count.0, entity
+                "[Frame {}] [sync_surface_from_arrangement] Entity={} has invalid VisualGraphics, skipping",
+                frame_count.0, entity_name
             );
             continue;
         }
@@ -487,16 +500,16 @@ pub fn sync_surface_from_arrangement(
         // サイズが0の場合はスキップ（まだレイアウトされていない）
         if width == 0 || height == 0 {
             eprintln!(
-                "[Frame {}] [sync_surface_from_arrangement] Entity={:?} has zero size ({}x{}), skipping",
-                frame_count.0, entity, width, height
+                "[Frame {}] [sync_surface_from_arrangement] Entity={} has zero size ({}x{}), skipping",
+                frame_count.0, entity_name, width, height
             );
             continue;
         }
 
-        processed_count += 1;
+        _processed_count += 1;
         eprintln!(
-            "[Frame {}] [sync_surface_from_arrangement] Processing Entity={:?}, size={}x{}, has_surface={}",
-            frame_count.0, entity, width, height, surface.is_some()
+            "[Frame {}] [sync_surface_from_arrangement] Processing Entity={}, size={}x{}, has_surface={}",
+            frame_count.0, entity_name, width, height, surface.is_some()
         );
 
         match surface {
@@ -504,14 +517,14 @@ pub fn sync_surface_from_arrangement(
                 // サイズ不一致の場合のみ再作成
                 if surf.size != (width, height) {
                     eprintln!(
-                        "[Frame {}] [sync_surface_from_arrangement] Entity={:?} resizing from {:?} to {}x{}",
-                        frame_count.0, entity, surf.size, width, height
+                        "[Frame {}] [sync_surface_from_arrangement] Entity={} resizing from {:?} to {}x{}",
+                        frame_count.0, entity_name, surf.size, width, height
                     );
                     match create_surface_for_window(&graphics, visual_graphics, width, height) {
                         Ok(new_surface) => {
                             eprintln!(
-                                "[Frame {}] [sync_surface_from_arrangement] Entity={:?} Surface resized successfully",
-                                frame_count.0, entity
+                                "[Frame {}] [sync_surface_from_arrangement] Entity={} Surface resized successfully",
+                                frame_count.0, entity_name
                             );
                             commands.entity(entity).insert(new_surface);
                         }
@@ -525,14 +538,14 @@ pub fn sync_surface_from_arrangement(
             None => {
                 // Surfaceがまだ作成されていない場合は作成
                 eprintln!(
-                    "[Frame {}] [sync_surface_from_arrangement] Entity={:?} creating new Surface {}x{}",
-                    frame_count.0, entity, width, height
+                    "[Frame {}] [sync_surface_from_arrangement] Entity={} creating new Surface {}x{}",
+                    frame_count.0, entity_name, width, height
                 );
                 match create_surface_for_window(&graphics, visual_graphics, width, height) {
                     Ok(new_surface) => {
                         eprintln!(
-                            "[Frame {}] [sync_surface_from_arrangement] Entity={:?} Surface created successfully",
-                            frame_count.0, entity
+                            "[Frame {}] [sync_surface_from_arrangement] Entity={} Surface created successfully",
+                            frame_count.0, entity_name
                         );
                         commands.entity(entity).insert(new_surface);
                     }
@@ -877,13 +890,18 @@ pub fn visual_hierarchy_sync_system(
 /// Compositionスケジュールで実行。
 pub fn visual_offset_sync_system(
     changed_arrangements: Query<
-        (Entity, &crate::ecs::layout::Arrangement, &VisualGraphics),
+        (
+            Entity,
+            &crate::ecs::layout::Arrangement,
+            &VisualGraphics,
+            Option<&Name>,
+        ),
         Changed<crate::ecs::layout::Arrangement>,
     >,
 ) {
     use crate::com::dcomp::DCompositionVisualExt;
 
-    for (entity, arrangement, vg) in changed_arrangements.iter() {
+    for (entity, arrangement, vg, name) in changed_arrangements.iter() {
         let Some(visual) = vg.visual() else {
             continue;
         };
@@ -893,24 +911,26 @@ pub fn visual_offset_sync_system(
         let offset_x = arrangement.offset.x;
         let offset_y = arrangement.offset.y;
 
+        let entity_name = format_entity_name(entity, name);
+
         // VisualのOffset設定
         if let Err(e) = visual.set_offset_x(offset_x) {
             eprintln!(
-                "[visual_offset_sync] SetOffsetX failed for Entity={:?}: {:?}",
-                entity, e
+                "[visual_offset_sync] SetOffsetX failed for Entity={}: {:?}",
+                entity_name, e
             );
         }
         if let Err(e) = visual.set_offset_y(offset_y) {
             eprintln!(
-                "[visual_offset_sync] SetOffsetY failed for Entity={:?}: {:?}",
-                entity, e
+                "[visual_offset_sync] SetOffsetY failed for Entity={}: {:?}",
+                entity_name, e
             );
         }
 
         #[cfg(debug_assertions)]
         eprintln!(
-            "[visual_offset_sync] Entity={:?}, offset=({}, {})",
-            entity, offset_x, offset_y
+            "[visual_offset_sync] Entity={}, offset=({}, {})",
+            entity_name, offset_x, offset_y
         );
     }
 }

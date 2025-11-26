@@ -2,8 +2,11 @@ use crate::com::dcomp::DCompositionDeviceExt;
 use crate::ecs::graphics::{
     GraphicsCore, GraphicsNeedsInit, Visual, VisualGraphics, WindowGraphics,
 };
+use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use windows::Win32::Graphics::DirectComposition::*;
+
+use super::format_entity_name;
 
 /// デフォルトのVisualコンポーネントをEntityに挿入する (R3)
 ///
@@ -75,7 +78,7 @@ fn create_visual_only(
 pub fn visual_resource_management_system(
     mut commands: Commands,
     graphics: Res<GraphicsCore>,
-    query: Query<(Entity, &Visual), Added<Visual>>,
+    query: Query<(Entity, &Visual, Option<&Name>), Added<Visual>>,
     frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     if !graphics.is_valid() {
@@ -87,15 +90,16 @@ pub fn visual_resource_management_system(
         None => return,
     };
 
-    for (entity, visual) in query.iter() {
+    for (entity, visual, name) in query.iter() {
+        let entity_name = format_entity_name(entity, name);
         eprintln!(
-            "[Frame {}] [visual_resource_management] VisualGraphics作成開始 (Entity: {:?})",
-            frame_count.0, entity
+            "[Frame {}] [visual_resource_management] VisualGraphics作成開始 (Entity: {})",
+            frame_count.0, entity_name
         );
         create_visual_only(&mut commands, entity, visual, dcomp);
         eprintln!(
-            "[Frame {}] [visual_resource_management] VisualGraphics作成完了 (Entity: {:?})",
-            frame_count.0, entity
+            "[Frame {}] [visual_resource_management] VisualGraphics作成完了 (Entity: {})",
+            frame_count.0, entity_name
         );
     }
 }
@@ -128,17 +132,18 @@ pub fn visual_reinit_system(
 /// そのVisualをウィンドウのルートVisualとして設定する。
 pub fn window_visual_integration_system(
     query: Query<
-        (Entity, &WindowGraphics, &VisualGraphics),
+        (Entity, &WindowGraphics, &VisualGraphics, Option<&Name>),
         Or<(Changed<WindowGraphics>, Changed<VisualGraphics>)>,
     >,
     frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
-    for (entity, window_graphics, visual_graphics) in query.iter() {
+    for (entity, window_graphics, visual_graphics, name) in query.iter() {
         if let Some(target) = window_graphics.get_target() {
             if let Some(visual) = visual_graphics.visual() {
+                let entity_name = format_entity_name(entity, name);
                 eprintln!(
-                    "[Frame {}] [window_visual_integration] SetRoot実行 (Entity: {:?})",
-                    frame_count.0, entity
+                    "[Frame {}] [window_visual_integration] SetRoot実行 (Entity: {})",
+                    frame_count.0, entity_name
                 );
                 unsafe {
                     let _ = target.SetRoot(visual);

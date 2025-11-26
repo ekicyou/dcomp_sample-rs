@@ -2,6 +2,7 @@ use crate::ecs::common::tree_system::{
     mark_dirty_trees, propagate_parent_transforms, sync_simple_transforms, NodeQuery, WorkQueue,
 };
 use bevy_ecs::hierarchy::{ChildOf, Children};
+use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 
 use super::metrics::{LayoutScale, Offset, Size};
@@ -9,6 +10,7 @@ use super::taffy::{TaffyComputedLayout, TaffyLayoutResource, TaffyStyle};
 use super::{
     Arrangement, ArrangementTreeChanged, D2DRectExt, Dimension, GlobalArrangement, LayoutRoot,
 };
+use crate::ecs::graphics::format_entity_name;
 use crate::ecs::window::{Window, WindowPos};
 use taffy::prelude::*;
 
@@ -250,11 +252,11 @@ pub fn compute_taffy_layout_system(
 pub fn update_arrangements_system(
     mut commands: Commands,
     mut query: Query<
-        (Entity, &TaffyComputedLayout, Option<&mut Arrangement>),
+        (Entity, &TaffyComputedLayout, Option<&mut Arrangement>, Option<&Name>),
         (Changed<TaffyComputedLayout>, With<TaffyStyle>),
     >,
 ) {
-    for (entity, computed_layout, arrangement) in query.iter_mut() {
+    for (entity, computed_layout, arrangement, name) in query.iter_mut() {
         let layout = &computed_layout.0;
 
         let new_arrangement = Arrangement {
@@ -269,13 +271,14 @@ pub fn update_arrangements_system(
             },
         };
 
+        let entity_name = format_entity_name(entity, name);
         eprintln!(
-            "[update_arrangements] Entity={:?}, TaffyLayout: location=({}, {}), size=({}, {})",
-            entity, layout.location.x, layout.location.y, layout.size.width, layout.size.height
+            "[update_arrangements] Entity={}, TaffyLayout: location=({}, {}), size=({}, {})",
+            entity_name, layout.location.x, layout.location.y, layout.size.width, layout.size.height
         );
         eprintln!(
-            "[update_arrangements] Entity={:?}, Arrangement: offset=({}, {}), scale=({}, {})",
-            entity, new_arrangement.offset.x, new_arrangement.offset.y, new_arrangement.scale.x, new_arrangement.scale.y
+            "[update_arrangements] Entity={}, Arrangement: offset=({}, {}), scale=({}, {})",
+            entity_name, new_arrangement.offset.x, new_arrangement.offset.y, new_arrangement.scale.x, new_arrangement.scale.y
         );
 
         if let Some(mut arr) = arrangement {

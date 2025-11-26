@@ -1,9 +1,10 @@
 use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt};
-use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore};
+use crate::ecs::graphics::{format_entity_name, GraphicsCommandList, GraphicsCore};
 use crate::ecs::layout::Arrangement;
 use crate::ecs::Visual;
 use bevy_ecs::component::Component;
 use bevy_ecs::lifecycle::HookContext;
+use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use bevy_ecs::world::DeferredWorld;
 use windows::Win32::Graphics::Direct2D::Common::{D2D1_COLOR_F, D2D_RECT_F};
@@ -104,6 +105,7 @@ pub fn draw_rectangles(
             &Rectangle,
             &Arrangement,
             Option<&GraphicsCommandList>,
+            Option<&Name>,
         ),
         Or<(Changed<Rectangle>, Changed<Arrangement>)>,
     >,
@@ -114,10 +116,11 @@ pub fn draw_rectangles(
         return;
     };
 
-    for (entity, rectangle, arrangement, cmd_list_opt) in query.iter() {
+    for (entity, rectangle, arrangement, cmd_list_opt, name) in query.iter() {
+        let entity_name = format_entity_name(entity, name);
         eprintln!(
-            "[draw_rectangles] Entity={:?}, size=({}, {})",
-            entity, arrangement.size.width, arrangement.size.height
+            "[draw_rectangles] Entity={}, size=({}, {})",
+            entity_name, arrangement.size.width, arrangement.size.height
         );
 
         // DeviceContextとCommandList生成
@@ -126,8 +129,8 @@ pub fn draw_rectangles(
             Some(dc) => dc,
             None => {
                 eprintln!(
-                    "[draw_rectangles] DeviceContext not available for Entity={:?}",
-                    entity
+                    "[draw_rectangles] DeviceContext not available for Entity={}",
+                    entity_name
                 );
                 continue;
             }
@@ -137,8 +140,8 @@ pub fn draw_rectangles(
             Ok(cl) => cl,
             Err(err) => {
                 eprintln!(
-                    "[draw_rectangles] Failed to create CommandList for Entity={:?}: {:?}",
-                    entity, err
+                    "[draw_rectangles] Failed to create CommandList for Entity={}: {:?}",
+                    entity_name, err
                 );
                 continue;
             }
@@ -165,8 +168,8 @@ pub fn draw_rectangles(
             };
 
             eprintln!(
-                "[draw_rectangles] Entity={:?}, rect=({},{},{},{}), color=({:.2},{:.2},{:.2},{:.2})",
-                entity, rect.left, rect.top, rect.right, rect.bottom,
+                "[draw_rectangles] Entity={}, rect=({},{},{},{}), color=({:.2},{:.2},{:.2},{:.2})",
+                entity_name, rect.left, rect.top, rect.right, rect.bottom,
                 rectangle.color.r, rectangle.color.g, rectangle.color.b, rectangle.color.a
             );
 
@@ -175,8 +178,8 @@ pub fn draw_rectangles(
                 Ok(b) => b,
                 Err(err) => {
                     eprintln!(
-                        "[draw_rectangles] Failed to create brush for Entity={:?}: {:?}",
-                        entity, err
+                        "[draw_rectangles] Failed to create brush for Entity={}: {:?}",
+                        entity_name, err
                     );
                     let _ = dc.EndDraw(None, None);
                     continue;
@@ -187,8 +190,8 @@ pub fn draw_rectangles(
 
             if let Err(err) = dc.EndDraw(None, None) {
                 eprintln!(
-                    "[draw_rectangles] EndDraw failed for Entity={:?}: {:?}",
-                    entity, err
+                    "[draw_rectangles] EndDraw failed for Entity={}: {:?}",
+                    entity_name, err
                 );
                 continue;
             }
@@ -197,8 +200,8 @@ pub fn draw_rectangles(
         // CommandListを閉じる
         if let Err(err) = command_list.close() {
             eprintln!(
-                "[draw_rectangles] Failed to close CommandList for Entity={:?}: {:?}",
-                entity, err
+                "[draw_rectangles] Failed to close CommandList for Entity={}: {:?}",
+                entity_name, err
             );
             continue;
         }
@@ -209,21 +212,21 @@ pub fn draw_rectangles(
             Some(existing) if *existing != new_cmd_list => {
                 commands.entity(entity).insert(new_cmd_list);
                 eprintln!(
-                    "[draw_rectangles] CommandList updated for Entity={:?}",
-                    entity
+                    "[draw_rectangles] CommandList updated for Entity={}",
+                    entity_name
                 );
             }
             None => {
                 commands.entity(entity).insert(new_cmd_list);
                 eprintln!(
-                    "[draw_rectangles] CommandList created for Entity={:?}",
-                    entity
+                    "[draw_rectangles] CommandList created for Entity={}",
+                    entity_name
                 );
             }
             _ => {
                 eprintln!(
-                    "[draw_rectangles] CommandList unchanged for Entity={:?}",
-                    entity
+                    "[draw_rectangles] CommandList unchanged for Entity={}",
+                    entity_name
                 );
             }
         }

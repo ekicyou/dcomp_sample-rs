@@ -1,5 +1,6 @@
 use crate::ecs::*;
 use crate::process_singleton::*;
+use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemState;
 use windows::core::*;
@@ -27,7 +28,7 @@ pub fn init_window_arrangement(
 pub fn create_windows(world: &mut World) {
     // SystemStateを使ってクエリとリソースにアクセス
     let mut system_state: SystemState<(
-        Query<(Entity, &Window, Option<&WindowStyle>, Option<&WindowPos>), Without<WindowHandle>>,
+        Query<(Entity, &Window, Option<&WindowStyle>, Option<&WindowPos>, Option<&Name>), Without<WindowHandle>>,
         Res<crate::ecs::world::FrameCount>,
     )> = SystemState::new(world);
 
@@ -36,13 +37,14 @@ pub fn create_windows(world: &mut World) {
     let frame = frame_count.0;
     let entities_to_create: Vec<_> = query
         .iter()
-        .map(|(entity, window, opt_style, opt_pos)| {
+        .map(|(entity, window, opt_style, opt_pos, name)| {
             (
                 entity,
                 window.title.clone(),
                 window.parent,
                 opt_style.copied(),
                 opt_pos.copied(),
+                name.map(|n| n.as_str().to_string()),
             )
         })
         .collect();
@@ -50,10 +52,14 @@ pub fn create_windows(world: &mut World) {
     // 収集したエンティティに対してウィンドウを作成
     let singleton = WinProcessSingleton::get_or_init();
 
-    for (entity, title, parent, opt_style, opt_pos) in entities_to_create {
+    for (entity, title, parent, opt_style, opt_pos, name_str) in entities_to_create {
+        let entity_name = match &name_str {
+            Some(n) => n.clone(),
+            None => format!("Entity({:?})", entity),
+        };
         eprintln!(
-            "[Frame {}] [create_windows] ウィンドウ作成開始 (Entity: {:?}, title: {})",
-            frame, entity, title
+            "[Frame {}] [create_windows] ウィンドウ作成開始 (Entity: {}, title: {})",
+            frame, entity_name, title
         );
 
         let title_hstring = HSTRING::from(&title);
@@ -89,8 +95,8 @@ pub fn create_windows(world: &mut World) {
         match result {
             Ok(hwnd) => {
                 eprintln!(
-                    "[Frame {}] [create_windows] HWND作成成功 (Entity: {:?}, hwnd: {:?})",
-                    frame, entity, hwnd
+                    "[Frame {}] [create_windows] HWND作成成功 (Entity: {}, hwnd: {:?})",
+                    frame, entity_name, hwnd
                 );
 
                 // 即時にWindowHandleを追加（排他システムなので即時反映）
@@ -103,8 +109,8 @@ pub fn create_windows(world: &mut World) {
                 ));
 
                 eprintln!(
-                    "[Frame {}] [create_windows] WindowHandle即時追加完了 (Entity: {:?})",
-                    frame, entity
+                    "[Frame {}] [create_windows] WindowHandle即時追加完了 (Entity: {})",
+                    frame, entity_name
                 );
 
                 unsafe {
@@ -112,14 +118,14 @@ pub fn create_windows(world: &mut World) {
                 }
 
                 eprintln!(
-                    "[Frame {}] [create_windows] ShowWindow完了 (Entity: {:?})",
-                    frame, entity
+                    "[Frame {}] [create_windows] ShowWindow完了 (Entity: {})",
+                    frame, entity_name
                 );
             }
             Err(e) => {
                 eprintln!(
-                    "[Frame {}] [create_windows] エラー: Entity {:?}, {:?}",
-                    frame, entity, e
+                    "[Frame {}] [create_windows] エラー: Entity {}, {:?}",
+                    frame, entity_name, e
                 );
             }
         }
