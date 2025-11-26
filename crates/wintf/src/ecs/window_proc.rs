@@ -112,9 +112,12 @@ pub extern "system" fn ecs_wndproc(
                                                 // 変更検知を発火させるため、通常の代入を使用
                                                 window_pos.position = Some(client_pos);
                                                 window_pos.size = Some(client_size);
-                                                // last_sentはクリア（次回のSetWindowPos検知のため）
-                                                window_pos.last_sent_position = None;
-                                                window_pos.last_sent_size = None;
+                                                // last_sentに現在値を設定（apply_window_pos_changesでのSetWindowPos呼び出しを抑制）
+                                                // これにより、ユーザー操作による変更はECS内で完結し、Win32への再通知を防ぐ
+                                                window_pos.last_sent_position =
+                                                    Some((client_pos.x, client_pos.y));
+                                                window_pos.last_sent_size =
+                                                    Some((client_size.cx, client_size.cy));
 
                                                 eprintln!(
                                                     "[WM_WINDOWPOSCHANGED] Entity {:?}: User operation detected. window=({},{},{},{}) -> client=({},{},{},{})",
