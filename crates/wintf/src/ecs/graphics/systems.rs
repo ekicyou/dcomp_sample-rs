@@ -657,6 +657,7 @@ pub fn apply_window_pos_changes(
             Entity,
             &crate::ecs::window::WindowHandle,
             &mut crate::ecs::window::WindowPos,
+            Option<&Name>,
         ),
         (
             Changed<crate::ecs::window::WindowPos>,
@@ -664,13 +665,19 @@ pub fn apply_window_pos_changes(
         ),
     >,
 ) {
-    for (_entity, window_handle, mut window_pos) in query.iter_mut() {
+    for (entity, window_handle, mut window_pos, name) in query.iter_mut() {
+        let entity_name = format_entity_name(entity, name);
+
         // エコーバックチェック
         let position = window_pos.position.unwrap_or_default();
         let size = window_pos.size.unwrap_or_default();
 
         if window_pos.is_echo(position, size) {
-            continue; // エコーバックなのでスキップ
+            eprintln!(
+                "[apply_window_pos_changes] Entity={}: Echo-back detected, skipping. pos=({}, {}), size=({}, {})",
+                entity_name, position.x, position.y, size.cx, size.cy
+            );
+            continue;
         }
 
         // CW_USEDEFAULTが設定されている場合はスキップ（ウィンドウ作成時の初期値）
@@ -678,6 +685,10 @@ pub fn apply_window_pos_changes(
         if position.x == windows::Win32::UI::WindowsAndMessaging::CW_USEDEFAULT
             || size.cx == windows::Win32::UI::WindowsAndMessaging::CW_USEDEFAULT
         {
+            eprintln!(
+                "[apply_window_pos_changes] Entity={}: CW_USEDEFAULT detected, skipping. pos=({}, {}), size=({}, {})",
+                entity_name, position.x, position.y, size.cx, size.cy
+            );
             continue;
         }
 
@@ -687,8 +698,8 @@ pub fn apply_window_pos_changes(
             Err(e) => {
                 // 変換失敗時はフォールバック：元の座標でSetWindowPosを呼び出す
                 eprintln!(
-                    "Failed to transform window coordinates: {}. Using original values.",
-                    e
+                    "[apply_window_pos_changes] Entity={}: Failed to transform window coordinates: {}. Using original values.",
+                    entity_name, e
                 );
                 (position.x, position.y, size.cx, size.cy)
             }
@@ -697,6 +708,11 @@ pub fn apply_window_pos_changes(
         // SetWindowPos呼び出し（変換後の座標を使用）
         let flags = window_pos.build_flags_for_system();
         let hwnd_insert_after = window_pos.get_hwnd_insert_after();
+
+        eprintln!(
+            "[apply_window_pos_changes] Entity={}: Calling SetWindowPos. client=({}, {}), size=({}, {}) -> window=({}, {}), size=({}, {})",
+            entity_name, position.x, position.y, size.cx, size.cy, x, y, width, height
+        );
 
         let result = unsafe {
             windows::Win32::UI::WindowsAndMessaging::SetWindowPos(
@@ -715,6 +731,15 @@ pub fn apply_window_pos_changes(
             let bypass = window_pos.bypass_change_detection();
             bypass.last_sent_position = Some((x, y));
             bypass.last_sent_size = Some((width, height));
+            eprintln!(
+                "[apply_window_pos_changes] Entity={}: SetWindowPos succeeded",
+                entity_name
+            );
+        } else {
+            eprintln!(
+                "[apply_window_pos_changes] Entity={}: SetWindowPos failed",
+                entity_name
+            );
         }
     }
 }
