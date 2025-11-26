@@ -693,7 +693,7 @@ pub fn apply_window_pos_changes(
         }
 
         // クライアント領域座標をウィンドウ全体座標に変換
-        let (x, y, width, height) = match window_pos.to_window_coords(window_handle.hwnd) {
+        let (x, y, width, height) = match window_pos.to_window_coords(window_handle) {
             Ok(coords) => coords,
             Err(e) => {
                 // 変換失敗時はフォールバック：元の座標でSetWindowPosを呼び出す
@@ -727,13 +727,14 @@ pub fn apply_window_pos_changes(
         };
 
         if result.is_ok() {
-            // 成功時のみlast_sent値を記録（変換後の値を記録）
+            // 成功時のみlast_sent値を記録（クライアント座標で記録）
+            // WM_WINDOWPOSCHANGEDでの比較時に逆変換して一致するため
             let bypass = window_pos.bypass_change_detection();
-            bypass.last_sent_position = Some((x, y));
-            bypass.last_sent_size = Some((width, height));
+            bypass.last_sent_position = Some((position.x, position.y));
+            bypass.last_sent_size = Some((size.cx, size.cy));
             eprintln!(
-                "[apply_window_pos_changes] Entity={}: SetWindowPos succeeded",
-                entity_name
+                "[apply_window_pos_changes] Entity={}: SetWindowPos succeeded, recorded client coords ({}, {}), ({}, {})",
+                entity_name, position.x, position.y, size.cx, size.cy
             );
         } else {
             eprintln!(

@@ -20,7 +20,11 @@ fn test_to_window_coords_overlapped_window() {
         .with_size(SIZE { cx: 800, cy: 600 });
 
     // 座標変換を実行
-    let result = window_pos.to_window_coords(hwnd);
+    let window_handle = wintf::ecs::window::WindowHandle {
+        hwnd,
+        instance: windows::Win32::Foundation::HINSTANCE::default(),
+    };
+    let result = window_pos.to_window_coords(&window_handle);
 
     // クリーンアップ
     unsafe {
@@ -70,7 +74,11 @@ fn test_to_window_coords_popup_window() {
         .with_size(SIZE { cx: 800, cy: 600 });
 
     // 座標変換を実行
-    let result = window_pos.to_window_coords(hwnd);
+    let window_handle = wintf::ecs::window::WindowHandle {
+        hwnd,
+        instance: windows::Win32::Foundation::HINSTANCE::default(),
+    };
+    let result = window_pos.to_window_coords(&window_handle);
 
     // クリーンアップ
     unsafe {
@@ -100,7 +108,11 @@ fn test_to_window_coords_invalid_hwnd() {
         .with_size(SIZE { cx: 800, cy: 600 });
 
     // 座標変換を実行 - Errが返されることを期待
-    let result = window_pos.to_window_coords(invalid_hwnd);
+    let window_handle = wintf::ecs::window::WindowHandle {
+        hwnd: invalid_hwnd,
+        instance: windows::Win32::Foundation::HINSTANCE::default(),
+    };
+    let result = window_pos.to_window_coords(&window_handle);
 
     // エラーが返されることを確認
     assert!(result.is_err(), "無効なHWNDでErrが返されること");

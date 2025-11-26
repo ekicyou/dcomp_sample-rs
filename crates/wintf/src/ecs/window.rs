@@ -42,6 +42,171 @@ pub struct WindowHandle {
 unsafe impl Send for WindowHandle {}
 unsafe impl Sync for WindowHandle {}
 
+impl WindowHandle {
+    /// ウィンドウのDPI値を取得
+    pub fn get_dpi(&self) -> u32 {
+        unsafe { GetDpiForWindow(self.hwnd) }
+    }
+
+    /// ウィンドウスタイルと拡張スタイルを取得
+    pub fn get_style(&self) -> Result<(WINDOW_STYLE, WINDOW_EX_STYLE), String> {
+        let style = match get_window_long_ptr(self.hwnd, GWL_STYLE) {
+            Ok(v) => WINDOW_STYLE(v as u32),
+            Err(e) => {
+                return Err(format!(
+                    "GetWindowLongPtrW(GWL_STYLE) failed for HWND {:?}: {:?}",
+                    self.hwnd, e
+                ));
+            }
+        };
+
+        let ex_style = match get_window_long_ptr(self.hwnd, GWL_EXSTYLE) {
+            Ok(v) => WINDOW_EX_STYLE(v as u32),
+            Err(e) => {
+                return Err(format!(
+                    "GetWindowLongPtrW(GWL_EXSTYLE) failed for HWND {:?}: {:?}",
+                    self.hwnd, e
+                ));
+            }
+        };
+
+        Ok((style, ex_style))
+    }
+
+    /// クライアント領域RECTをウィンドウ全体RECTに変換
+    ///
+    /// # Arguments
+    /// * `client_rect` - クライアント領域の矩形
+    ///
+    /// # Returns
+    /// * `Ok(RECT)` - ウィンドウ全体の矩形
+    /// * `Err(String)` - 変換失敗時のエラーメッセージ
+    pub fn client_to_window_rect(&self, client_rect: RECT) -> Result<RECT, String> {
+        let (style, ex_style) = self.get_style()?;
+        let dpi = self.get_dpi();
+        if dpi == 0 {
+            return Err(format!(
+                "GetDpiForWindow returned 0 for HWND {:?}",
+                self.hwnd
+            ));
+        }
+
+        let mut rect = client_rect;
+        let result = unsafe { AdjustWindowRectExForDpi(&mut rect, style, false, ex_style, dpi) };
+
+        if result.is_err() {
+            return Err(format!(
+                "AdjustWindowRectExForDpi failed for HWND {:?}: {:?}",
+                self.hwnd, result
+            ));
+        }
+
+        Ok(rect)
+    }
+
+    /// ウィンドウ全体RECTをクライアント領域RECTに変換（逆変換）
+    ///
+    /// AdjustWindowRectExForDpiの逆変換を行う。
+    /// 原点(0,0)での差分を計算し、その差分を使って変換する。
+    ///
+    /// # Arguments
+    /// * `window_rect` - ウィンドウ全体の矩形
+    ///
+    /// # Returns
+    /// * `Ok(RECT)` - クライアント領域の矩形
+    /// * `Err(String)` - 変換失敗時のエラーメッセージ
+    pub fn window_to_client_rect(&self, window_rect: RECT) -> Result<RECT, String> {
+        // 原点でクライアント→ウィンドウ変換を行い、差分を計算
+        let origin_client = RECT {
+            left: 0,
+            top: 0,
+            right: 100, // サイズは差分計算には影響しない
+            bottom: 100,
+        };
+        let origin_window = self.client_to_window_rect(origin_client)?;
+
+        // 差分: ウィンドウ座標 - クライアント座標
+        let left_diff = origin_window.left - origin_client.left;
+        let top_diff = origin_window.top - origin_client.top;
+        let right_diff = origin_window.right - origin_client.right;
+        let bottom_diff = origin_window.bottom - origin_client.bottom;
+
+        // 逆変換: クライアント座標 = ウィンドウ座標 - 差分
+        Ok(RECT {
+            left: window_rect.left - left_diff,
+            top: window_rect.top - top_diff,
+            right: window_rect.right - right_diff,
+            bottom: window_rect.bottom - bottom_diff,
+        })
+    }
+
+    /// クライアント領域の座標・サイズをウィンドウ全体の座標・サイズに変換
+    ///
+    /// # Arguments
+    /// * `position` - クライアント領域の左上座標
+    /// * `size` - クライアント領域のサイズ
+    ///
+    /// # Returns
+    /// * `Ok((x, y, width, height))` - ウィンドウ全体座標
+    /// * `Err(String)` - 変換失敗時のエラーメッセージ
+    pub fn client_to_window_coords(
+        &self,
+        position: POINT,
+        size: SIZE,
+    ) -> Result<(i32, i32, i32, i32), String> {
+        let client_rect = RECT {
+            left: position.x,
+            top: position.y,
+            right: position.x + size.cx,
+            bottom: position.y + size.cy,
+        };
+        let window_rect = self.client_to_window_rect(client_rect)?;
+        Ok((
+            window_rect.left,
+            window_rect.top,
+            window_rect.right - window_rect.left,
+            window_rect.bottom - window_rect.top,
+        ))
+    }
+
+    /// ウィンドウ全体の座標・サイズをクライアント領域の座標・サイズに変換
+    ///
+    /// # Arguments
+    /// * `x` - ウィンドウ左上X座標
+    /// * `y` - ウィンドウ左上Y座標
+    /// * `width` - ウィンドウ幅
+    /// * `height` - ウィンドウ高さ
+    ///
+    /// # Returns
+    /// * `Ok((POINT, SIZE))` - クライアント領域の座標とサイズ
+    /// * `Err(String)` - 変換失敗時のエラーメッセージ
+    pub fn window_to_client_coords(
+        &self,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<(POINT, SIZE), String> {
+        let window_rect = RECT {
+            left: x,
+            top: y,
+            right: x + width,
+            bottom: y + height,
+        };
+        let client_rect = self.window_to_client_rect(window_rect)?;
+        Ok((
+            POINT {
+                x: client_rect.left,
+                y: client_rect.top,
+            },
+            SIZE {
+                cx: client_rect.right - client_rect.left,
+                cy: client_rect.bottom - client_rect.top,
+            },
+        ))
+    }
+}
+
 /// WindowHandleコンポーネントが追加された直後に呼ばれるフック
 fn on_window_handle_add(
     mut world: bevy_ecs::world::DeferredWorld,
@@ -451,74 +616,24 @@ impl WindowPos {
     /// クライアント領域の座標・サイズをウィンドウ全体の座標・サイズに変換する。
     ///
     /// # Arguments
-    /// * `hwnd` - 変換対象のウィンドウハンドル
+    /// * `window_handle` - 変換対象のウィンドウハンドル
     ///
     /// # Returns
     /// * `Ok((x, y, width, height))` - 変換後のウィンドウ全体座標（左上x, 左上y, 幅, 高さ）
     /// * `Err(String)` - Win32 API呼び出し失敗時のエラーメッセージ
     ///
     /// # Notes
-    /// - `AdjustWindowRectExForDpi`を使用して、ウィンドウスタイルとDPIに基づく変換を行う
-    /// - `GetWindowLongPtrW`でスタイル情報、`GetDpiForWindow`でDPI値を取得する
+    /// - `WindowHandle::client_to_window_coords`に委譲
     /// - Windows 11専用実装（DPIフォールバック不要）
-    pub fn to_window_coords(&self, hwnd: HWND) -> Result<(i32, i32, i32, i32), String> {
+    pub fn to_window_coords(
+        &self,
+        window_handle: &WindowHandle,
+    ) -> Result<(i32, i32, i32, i32), String> {
         // position/sizeがNoneの場合はデフォルト値(0, 0)を使用
         let position = self.position.unwrap_or(POINT { x: 0, y: 0 });
         let size = self.size.unwrap_or(SIZE { cx: 0, cy: 0 });
 
-        // ウィンドウスタイルを取得
-        let style = match get_window_long_ptr(hwnd, GWL_STYLE) {
-            Ok(v) => WINDOW_STYLE(v as u32),
-            Err(e) => {
-                return Err(format!(
-                    "GetWindowLongPtrW(GWL_STYLE) failed for HWND {:?}: {:?}",
-                    hwnd, e
-                ));
-            }
-        };
-
-        // 拡張スタイルを取得
-        let ex_style = match get_window_long_ptr(hwnd, GWL_EXSTYLE) {
-            Ok(v) => WINDOW_EX_STYLE(v as u32),
-            Err(e) => {
-                return Err(format!(
-                    "GetWindowLongPtrW(GWL_EXSTYLE) failed for HWND {:?}: {:?}",
-                    hwnd, e
-                ));
-            }
-        };
-
-        // DPI値を取得
-        let dpi = unsafe { GetDpiForWindow(hwnd) };
-        if dpi == 0 {
-            return Err(format!("GetDpiForWindow returned 0 for HWND {:?}", hwnd));
-        }
-
-        // クライアント領域からRECT構造体を構築
-        let mut rect = RECT {
-            left: position.x,
-            top: position.y,
-            right: position.x + size.cx,
-            bottom: position.y + size.cy,
-        };
-
-        // AdjustWindowRectExForDpiでウィンドウ全体の矩形を計算
-        let result = unsafe { AdjustWindowRectExForDpi(&mut rect, style, false, ex_style, dpi) };
-
-        if result.is_err() {
-            return Err(format!(
-                "AdjustWindowRectExForDpi failed for HWND {:?}: {:?}",
-                hwnd, result
-            ));
-        }
-
-        // 変換後の座標・サイズを抽出
-        let window_x = rect.left;
-        let window_y = rect.top;
-        let window_width = rect.right - rect.left;
-        let window_height = rect.bottom - rect.top;
-
-        Ok((window_x, window_y, window_width, window_height))
+        window_handle.client_to_window_coords(position, size)
     }
 
     /// ウィンドウ作成時に使用する座標変換（HWNDなしでスタイル情報から変換）
