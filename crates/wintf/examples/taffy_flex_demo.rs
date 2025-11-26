@@ -9,7 +9,7 @@ use std::time::Duration;
 use windows::core::Result;
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use wintf::ecs::layout::{
-    BoxInset, BoxMargin, BoxPosition, BoxSize, BoxStyle, Dimension, LengthPercentageAuto,
+    BoxInset, BoxMargin, BoxPosition, BoxSize, BoxStyle, Dimension, LengthPercentageAuto, Opacity,
 };
 use wintf::ecs::widget::shapes::Rectangle;
 use wintf::ecs::Window;
@@ -87,7 +87,7 @@ fn main() -> Result<()> {
             let flex_container = world
                 .spawn((
                     Name::new("FlexDemo-Container"), // R1.2: FlexContainerエンティティに名前を付与
-                    FlexDemoContainer, // マーカー追加
+                    FlexDemoContainer,               // マーカー追加
                     Rectangle {
                         color: D2D1_COLOR_F {
                             r: 0.9,
@@ -117,7 +117,8 @@ fn main() -> Result<()> {
                 .id(); // Flexアイテム1（赤、固定200px幅）
             world.spawn((
                 Name::new("RedBox"), // R1.3: RedBoxエンティティに名前を付与
-                RedBox, // マーカー追加
+                RedBox,              // マーカー追加
+                Opacity(0.5),        // 50%透明度
                 Rectangle {
                     color: D2D1_COLOR_F {
                         r: 1.0,
@@ -142,7 +143,8 @@ fn main() -> Result<()> {
             // Flexアイテム2（緑、growで伸縮）
             world.spawn((
                 Name::new("GreenBox"), // R1.4: GreenBoxエンティティに名前を付与
-                GreenBox, // マーカー追加
+                GreenBox,              // マーカー追加
+                Opacity(0.5),          // 50%透明度
                 Rectangle {
                     color: D2D1_COLOR_F {
                         r: 0.0,
@@ -167,7 +169,8 @@ fn main() -> Result<()> {
             // Flexアイテム3（青、growで伸縮、より大きなgrow値）
             world.spawn((
                 Name::new("BlueBox"), // R1.5: BlueBoxエンティティに名前を付与
-                BlueBox, // マーカー追加
+                BlueBox,              // マーカー追加
+                Opacity(0.5),         // 50%透明度
                 Rectangle {
                     color: D2D1_COLOR_F {
                         r: 0.0,

@@ -126,6 +126,8 @@ pub trait DCompositionVisualExt {
     fn set_offset_x(&self, offset: f32) -> Result<()>;
     /// SetOffsetY
     fn set_offset_y(&self, offset: f32) -> Result<()>;
+    /// SetOpacity - Visualの不透明度を設定 (0.0 = 完全透明, 1.0 = 完全不透明)
+    fn set_opacity(&self, opacity: f32) -> Result<()>;
     /// AddVisual
     fn add_visual<P0, P1>(&self, visual: P0, insertabove: bool, referencevisual: P1) -> Result<()>
     where
@@ -161,6 +163,11 @@ impl DCompositionVisualExt for IDCompositionVisual3 {
     #[inline(always)]
     fn set_offset_y(&self, offset: f32) -> Result<()> {
         unsafe { self.SetOffsetY2(offset) }
+    }
+
+    #[inline(always)]
+    fn set_opacity(&self, opacity: f32) -> Result<()> {
+        unsafe { self.SetOpacity2(opacity) }
     }
 
     #[inline(always)]

@@ -270,9 +270,13 @@ impl EcsWorld {
             // RenderSurfaceスケジュールに描画システムを登録
             schedules.add_systems(RenderSurface, crate::ecs::graphics::render_surface);
 
-            // Compositionスケジュールに Offset同期システムを登録
-            // visual_offset_syncはArrangementに依存するのでレイアウト後に実行
-            schedules.add_systems(Composition, crate::ecs::graphics::visual_offset_sync_system);
+            // Compositionスケジュールに Visual プロパティ同期システムを登録
+            // visual_property_sync_systemはArrangementに依存するのでレイアウト後に実行
+            // Offset と Opacity を一括で同期
+            schedules.add_systems(
+                Composition,
+                crate::ecs::graphics::visual_property_sync_system,
+            );
 
             // CommitCompositionスケジュールにコミットシステムを登録
             schedules.add_systems(CommitComposition, crate::ecs::graphics::commit_composition);

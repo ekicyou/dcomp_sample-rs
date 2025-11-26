@@ -784,28 +784,38 @@ pub fn mark_dirty_surfaces(
 /// - parent_visualがNone: 階層未構築なので同期実行
 /// - 親がVisualGraphicsを持たない場合（LayoutRootなど）: Visual階層のルートとして処理済みマーク
 ///
+/// 重要: 親→子の順序でAddVisualを呼ぶ必要がある（DirectComposition要件）。
+/// 深さでソートして親が先に処理されるようにする。
+///
 /// 注意: エラーは無視する（親が先に削除されている場合など）
 pub fn visual_hierarchy_sync_system(
     mut vg_queries: ParamSet<(
-        // ChildOf + VisualGraphics を持つ全Entity (Option<&Name>追加: R3.1)
+        // ChildOf + VisualGraphics を持つ全Entity
         Query<(Entity, &ChildOf, &mut VisualGraphics, Option<&Name>)>,
-        // 親エンティティクエリ (Option<&Name>追加: R3.1)
+        // 親エンティティクエリ
         Query<(&VisualGraphics, Option<&Name>)>,
     )>,
+    child_of_query: Query<&ChildOf>,
 ) {
     use crate::com::dcomp::DCompositionVisualExt;
 
     // 1. まず未同期（parent_visual==None）のエンティティと親情報とName情報を収集
-    // (child_entity, parent_entity, child_name, parent_name)
-    let mut updates: Vec<(Entity, Entity, Option<String>, Option<String>)> = Vec::new();
+    // (child_entity, parent_entity, child_name, parent_name, depth)
+    let mut updates: Vec<(Entity, Entity, Option<String>, Option<String>, usize)> = Vec::new();
     {
         let child_query = vg_queries.p0();
         for (entity, child_of, child_vg, child_name) in child_query.iter() {
             // parent_visualがNoneなら未同期
             if child_vg.parent_visual().is_none() {
                 let child_name_str = child_name.map(|n| n.to_string());
-                updates.push((entity, child_of.parent(), child_name_str, None));
-                // parent_nameは後で取得
+                // 深さを計算
+                let mut depth = 0;
+                let mut current = entity;
+                while let Ok(co) = child_of_query.get(current) {
+                    depth += 1;
+                    current = co.parent();
+                }
+                updates.push((entity, child_of.parent(), child_name_str, None, depth));
             }
         }
     }
@@ -821,16 +831,19 @@ pub fn visual_hierarchy_sync_system(
         }
     }
 
+    // 2. 深さでソート（浅い＝親が先）
+    updates.sort_by_key(|item| item.4);
+
     if !updates.is_empty() {
         eprintln!(
-            "[visual_hierarchy_sync] Processing {} entities",
+            "[visual_hierarchy_sync] Processing {} entities (sorted by depth)",
             updates.len()
         );
     }
 
-    // 2. 各子エンティティに対して処理
-    for (child_entity, parent_entity, child_name_str, parent_name_str) in updates {
-        // フォーマット済み名前を生成（フォールバック用の文字列を先にlet束縛）
+    // 3. 各子エンティティに対して処理
+    for (child_entity, parent_entity, child_name_str, parent_name_str, depth) in updates {
+        // フォーマット済み名前を生成
         let child_fallback = format!("Entity({:?})", child_entity);
         let parent_fallback = format!("Entity({:?})", parent_entity);
         let child_display = child_name_str.as_deref().unwrap_or(&child_fallback);
@@ -858,29 +871,23 @@ pub fn visual_hierarchy_sync_system(
             if let Some(ref parent_visual) = parent_visual {
                 // 親がVisualGraphicsを持つ場合: 親Visualに追加
                 if let Err(e) = parent_visual.add_visual(&child_visual, false, None) {
-                    // R4.2: add_visual失敗ログフォーマット
                     eprintln!(
-                        "[visual_hierarchy_sync] AddVisual failed: child=\"{}\", parent=\"{}\", error={:?}",
-                        child_display, parent_display, e
+                        "[visual_hierarchy_sync] AddVisual failed: child=\"{}\" (depth={}), parent=\"{}\", error={:?}",
+                        child_display, depth, parent_display, e
                     );
                 } else {
-                    // R4.1: add_visual成功ログフォーマット
                     eprintln!(
-                        "[visual_hierarchy_sync] AddVisual success: child=\"{}\" -> parent=\"{}\"",
-                        child_display, parent_display
+                        "[visual_hierarchy_sync] AddVisual success: child=\"{}\" (depth={}) -> parent=\"{}\"",
+                        child_display, depth, parent_display
                     );
                 }
                 // parent_visualキャッシュを更新
                 child_vg.set_parent_visual(Some(parent_visual.clone()));
             } else {
-                // 親がVisualGraphicsを持たない場合（LayoutRootなど）:
-                // この子はVisual階層のルート。自分自身のVisualをセンチネル値として設定し、
-                // 処理済みとしてマークする。window_visual_integration_systemがWindowのVisualを
-                // CompositionTargetのルートとして設定するので、ここでは追加処理不要。
-                // R4.3: Visual階層ルート検出ログフォーマット
+                // 親がVisualGraphicsを持たない場合: Visual階層のルート
                 eprintln!(
-                    "[visual_hierarchy_sync] Visual hierarchy root: name=\"{}\"",
-                    child_display
+                    "[visual_hierarchy_sync] Visual hierarchy root: name=\"{}\" (depth={})",
+                    child_display, depth
                 );
                 // 自分自身のVisualを設定して「処理済み」とマーク
                 child_vg.set_parent_visual(Some(child_visual.clone()));
@@ -889,57 +896,78 @@ pub fn visual_hierarchy_sync_system(
     }
 }
 
-/// Visual Offset同期システム (R8)
+/// Visual プロパティ同期システム (R8)
 ///
-/// Arrangement変更を検知してVisualのSetOffsetX/SetOffsetYを呼び出す。
-/// Arrangementのoffset（親Entity相対のローカル座標）をそのまま使用する。
-/// DirectCompositionのVisual Offsetも親Visual相対なので、1:1で対応する。
+/// ArrangementまたはOpacity変更を検知してVisualのプロパティを同期する。
+/// - Arrangement.offset → Visual.SetOffsetX/SetOffsetY
+/// - Opacity → Visual.SetOpacity
+///
+/// DirectCompositionのVisual Offsetは親Visual相対なので、Arrangement.offsetをそのまま使用。
 ///
 /// Compositionスケジュールで実行。
-pub fn visual_offset_sync_system(
-    changed_arrangements: Query<
+pub fn visual_property_sync_system(
+    changed_entities: Query<
         (
             Entity,
             &crate::ecs::layout::Arrangement,
+            Option<&crate::ecs::layout::Opacity>,
             &VisualGraphics,
             Option<&Name>,
         ),
-        Changed<crate::ecs::layout::Arrangement>,
+        Or<(
+            Changed<crate::ecs::layout::Arrangement>,
+            Changed<crate::ecs::layout::Opacity>,
+        )>,
     >,
 ) {
     use crate::com::dcomp::DCompositionVisualExt;
 
-    for (entity, arrangement, vg, name) in changed_arrangements.iter() {
+    for (entity, arrangement, opacity_opt, vg, name) in changed_entities.iter() {
         let Some(visual) = vg.visual() else {
             continue;
         };
 
-        // Arrangementのoffsetはローカル座標（親Entity相対）
-        // DirectCompositionのVisual Offsetも親Visual相対なので、そのまま使用
+        let entity_name = format_entity_name(entity, name);
+
+        // Offset同期: Arrangementのoffsetはローカル座標（親Entity相対）
         let offset_x = arrangement.offset.x;
         let offset_y = arrangement.offset.y;
 
-        let entity_name = format_entity_name(entity, name);
-
-        // VisualのOffset設定
         if let Err(e) = visual.set_offset_x(offset_x) {
             eprintln!(
-                "[visual_offset_sync] SetOffsetX failed for Entity={}: {:?}",
+                "[visual_property_sync] SetOffsetX failed for Entity={}: {:?}",
                 entity_name, e
             );
         }
         if let Err(e) = visual.set_offset_y(offset_y) {
             eprintln!(
-                "[visual_offset_sync] SetOffsetY failed for Entity={}: {:?}",
+                "[visual_property_sync] SetOffsetY failed for Entity={}: {:?}",
                 entity_name, e
             );
         }
 
-        #[cfg(debug_assertions)]
-        eprintln!(
-            "[visual_offset_sync] Entity={}, offset=({}, {})",
-            entity_name, offset_x, offset_y
-        );
+        // Opacity同期: Opacityコンポーネントがあれば反映
+        if let Some(opacity) = opacity_opt {
+            let opacity_value = opacity.clamped();
+            if let Err(e) = visual.set_opacity(opacity_value) {
+                eprintln!(
+                    "[visual_property_sync] SetOpacity failed for Entity={}: {:?}",
+                    entity_name, e
+                );
+            }
+
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "[visual_property_sync] Entity={}, offset=({}, {}), opacity={}",
+                entity_name, offset_x, offset_y, opacity_value
+            );
+        } else {
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "[visual_property_sync] Entity={}, offset=({}, {})",
+                entity_name, offset_x, offset_y
+            );
+        }
     }
 }
 
