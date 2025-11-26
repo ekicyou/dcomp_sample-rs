@@ -791,6 +791,11 @@ pub fn invalidate_dependent_components(
 /// Phase 4以降の自己描画方式では、各EntityがSurfaceを持ち、自分自身のみを描画するため、
 /// 親をたどる必要はない。変更があったEntity自身にマーカーを付与する。
 ///
+/// 検知対象:
+/// - GraphicsCommandList: 描画コマンドの変更
+/// - SurfaceGraphics: Surfaceの再作成
+/// - GlobalArrangement: スケール成分の変更（DPIスケール対応）
+///
 /// **Note**: 将来的にはSurfaceUpdateRequestedを廃止し、Changed<GraphicsCommandList>を
 /// render_surfaceのフィルターとして直接使用する予定。
 pub fn mark_dirty_surfaces(
@@ -798,7 +803,11 @@ pub fn mark_dirty_surfaces(
     changed_query: Query<
         Entity,
         (
-            Or<(Changed<GraphicsCommandList>, Changed<SurfaceGraphics>)>,
+            Or<(
+                Changed<GraphicsCommandList>,
+                Changed<SurfaceGraphics>,
+                Changed<GlobalArrangement>,
+            )>,
             With<SurfaceGraphics>,
         ),
     >,
