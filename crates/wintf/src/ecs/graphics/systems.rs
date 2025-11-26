@@ -953,6 +953,7 @@ pub fn deferred_surface_creation_system(
             &VisualGraphics,
             &GraphicsCommandList,
             Option<&crate::ecs::layout::Arrangement>,
+            Option<&Name>,
         ),
         Without<SurfaceGraphics>,
     >,
@@ -968,7 +969,8 @@ pub fn deferred_surface_creation_system(
         None => return,
     };
 
-    for (entity, visual_graphics, _cmd_list, arrangement_opt) in query.iter() {
+    for (entity, visual_graphics, _cmd_list, arrangement_opt, name) in query.iter() {
+        let entity_name = format_entity_name(entity, name);
         // サイズをArrangementから取得（なければデフォルト1x1）
         let (width, height) = if let Some(arr) = arrangement_opt {
             let w = arr.size.width.max(1.0) as u32;
@@ -979,8 +981,8 @@ pub fn deferred_surface_creation_system(
         };
 
         eprintln!(
-            "[deferred_surface_creation] Creating Surface for Entity={:?}, size={}x{}",
-            entity, width, height
+            "[deferred_surface_creation] Creating Surface for Entity={}, size={}x{}",
+            entity_name, width, height
         );
 
         // Surface作成
@@ -1007,14 +1009,14 @@ pub fn deferred_surface_creation_system(
                     .entity(entity)
                     .insert(super::components::SurfaceUpdateRequested);
                 eprintln!(
-                    "[deferred_surface_creation] Surface created successfully for Entity={:?}",
-                    entity
+                    "[deferred_surface_creation] Surface created successfully for Entity={}",
+                    entity_name
                 );
             }
             Err(e) => {
                 eprintln!(
-                    "[deferred_surface_creation] Failed to create surface for Entity={:?}: {:?}",
-                    entity, e
+                    "[deferred_surface_creation] Failed to create surface for Entity={}: {:?}",
+                    entity_name, e
                 );
             }
         }
