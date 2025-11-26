@@ -204,6 +204,24 @@ fn main() -> Result<()> {
         thread::sleep(Duration::from_secs(5));
         println!("[Timer Thread] 5s: Changing layout parameters");
         let _ = tx.send(Box::new(|world: &mut World| {
+            // *** WindowエンティティのBoxStyleを変更してウィンドウを移動・リサイズ ***
+            let mut window_query =
+                world.query_filtered::<&mut BoxStyle, With<FlexDemoWindow>>();
+            if let Some(mut style) = window_query.iter_mut(world).next() {
+                // ウィンドウを (200, 150) に移動し、サイズを 600x400 に変更
+                style.size = Some(BoxSize {
+                    width: Some(Dimension::Px(600.0)),
+                    height: Some(Dimension::Px(400.0)),
+                });
+                style.inset = Some(BoxInset(wintf::ecs::layout::Rect {
+                    left: LengthPercentageAuto::Px(200.0),
+                    top: LengthPercentageAuto::Px(150.0),
+                    right: LengthPercentageAuto::Auto,
+                    bottom: LengthPercentageAuto::Auto,
+                }));
+                println!("[Test] Window BoxStyle changed: position=(200,150), size=(600,400)");
+            }
+
             // FlexContainerを縦並びに変更
             let mut container_query =
                 world.query_filtered::<&mut BoxStyle, With<FlexDemoContainer>>();
