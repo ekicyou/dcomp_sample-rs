@@ -189,7 +189,7 @@ pub fn render_surface(
             None => continue,
         };
 
-        let (dc, _offset) = match surface_ref.begin_draw(None) {
+        let (dc, offset) = match surface_ref.begin_draw(None) {
             Ok(result) => {
                 eprintln!(
                     "[render_surface] BeginDraw succeeded for Entity={}, offset=({}, {})",
@@ -207,6 +207,15 @@ pub fn render_surface(
                 continue;
             }
         };
+
+        // BeginDrawのoffsetを適用するためにtransformを設定
+        // DirectCompositionのSurfaceは部分更新をサポートしており、
+        // BeginDrawはその更新領域の開始位置をoffsetとして返す
+        unsafe {
+            let transform =
+                windows_numerics::Matrix3x2::translation(offset.x as f32, offset.y as f32);
+            dc.SetTransform(&transform);
+        }
 
         // 透明色クリア
         dc.clear(Some(&D2D1_COLOR_F {
