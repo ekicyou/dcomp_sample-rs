@@ -520,6 +520,10 @@ pub fn sync_surface_from_arrangement(
                         "[Frame {}] [sync_surface_from_arrangement] Entity={} resizing from {:?} to {}x{}",
                         frame_count.0, entity_name, surf.size, width, height
                     );
+                    eprintln!(
+                        "[Frame {}] [sync_surface_from_arrangement] Entity={} >>> SetContent calling",
+                        frame_count.0, entity_name
+                    );
                     match create_surface_for_window(&graphics, visual_graphics, width, height) {
                         Ok(new_surface) => {
                             eprintln!(
@@ -540,6 +544,10 @@ pub fn sync_surface_from_arrangement(
                 eprintln!(
                     "[Frame {}] [sync_surface_from_arrangement] Entity={} creating new Surface {}x{}",
                     frame_count.0, entity_name, width, height
+                );
+                eprintln!(
+                    "[Frame {}] [sync_surface_from_arrangement] Entity={} >>> SetContent calling",
+                    frame_count.0, entity_name
                 );
                 match create_surface_for_window(&graphics, visual_graphics, width, height) {
                     Ok(new_surface) => {
@@ -997,6 +1005,10 @@ pub fn deferred_surface_creation_system(
             Ok(surface) => {
                 // VisualにSurfaceを設定
                 if let Some(visual) = visual_graphics.visual() {
+                    eprintln!(
+                        "[deferred_surface_creation] Entity={} >>> SetContent calling",
+                        entity_name
+                    );
                     unsafe {
                         let _ = visual.SetContent(&surface);
                     }
