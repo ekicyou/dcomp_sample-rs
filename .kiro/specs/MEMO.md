@@ -7,6 +7,8 @@ BoxSize,BoxMargin,BoxPaddingなど、build_taffy_styles_systemに関わるクエ
 "
 ```
 
+## ログの問題点
+- `deferred_surface_creation_system`が動いている形跡がない。
 
 ## ログ
 ```log
@@ -84,8 +86,8 @@ Taffy Flexboxレイアウトのデモ:
 [propagate_global_arrangements] Root Entity=0v0, Arrangement: offset=(0, 0), scale=(1, 1)
 [propagate_global_arrangements] Root Entity=0v0, GlobalArrangement: transform=[1,0,0,0],bounds=(0,0,0,0)
 [Frame 1] [create_windows] ウィンドウ作成開始 (Entity: FlexDemo-Window, title: wintf - Taffy Flexbox Demo)
-[Frame 1] [create_windows] HWND作成成功 (Entity: FlexDemo-Window, hwnd: HWND(0x3c0698))
-[Hook] WindowHandle added to entity 3v0, hwnd HWND(0x3c0698)
+[Frame 1] [create_windows] HWND作成成功 (Entity: FlexDemo-Window, hwnd: HWND(0x3c7073a))
+[Hook] WindowHandle added to entity 3v0, hwnd HWND(0x3c7073a)
 [App] Window created. Entity: 3v0, Total windows: 1
 [Frame 1] [create_windows] WindowHandle即時追加完了 (Entity: FlexDemo-Window)
 [Frame 1] [create_windows] ShowWindow完了 (Entity: FlexDemo-Window)
@@ -205,11 +207,17 @@ Taffy Flexboxレイアウトのデモ:
 [visual_offset_sync] Entity=RedBox, offset=(0, 220)
 [visual_offset_sync] Entity=FlexDemo-Container, offset=(10, 10)
 [visual_offset_sync] Entity=BlueBox, offset=(25, 420)
-[Hook] Entity 3v0 being removed, sending WM_CLOSE to hwnd HWND(0x3c0698)
+[Timer Thread] 10s: Closing window
+[Test] Removing Window entity 3v0
+[Hook] Entity 3v0 being removed, sending WM_CLOSE to hwnd HWND(0x3c7073a)
 [App] Window destroyed. Entity: 3v0, Remaining windows: 0
 [App] Last window closed. Quitting application...
 [WinThreadMgr] WM_LAST_WINDOW_DESTROYED received. Calling PostQuitMessage(0).
+[ECS] Frame rate: 60.07 fps (602 frames in 10.02s, avg 16.65ms/frame)
 WM_NCDESTROY
+PS C:\home\maz\git\dcomp_sample-rs> 
+
+
 ```
 
 ## 確認
