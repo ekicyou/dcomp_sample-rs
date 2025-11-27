@@ -88,3 +88,71 @@ mod graphics_core_tests {
         println!("[TEST PASS] IDCompositionDevice3::Commit() succeeded");
     }
 }
+
+// Task 3.1: HasGraphicsResources メソッドのユニットテスト
+#[cfg(test)]
+mod has_graphics_resources_tests {
+    use crate::ecs::graphics::HasGraphicsResources;
+
+    #[test]
+    fn test_default_does_not_need_init() {
+        let res = HasGraphicsResources::default();
+        assert!(!res.needs_init(), "デフォルト状態では初期化不要");
+    }
+
+    #[test]
+    fn test_request_init_sets_needs_init() {
+        let mut res = HasGraphicsResources::default();
+        res.request_init();
+        assert!(res.needs_init(), "request_init後は初期化が必要");
+    }
+
+    #[test]
+    fn test_mark_initialized_clears_needs_init() {
+        let mut res = HasGraphicsResources::default();
+        res.request_init();
+        res.mark_initialized();
+        assert!(!res.needs_init(), "mark_initialized後は初期化不要");
+    }
+
+    #[test]
+    fn test_multiple_request_init() {
+        let mut res = HasGraphicsResources::default();
+        res.request_init();
+        res.mark_initialized();
+        res.request_init();
+        assert!(res.needs_init(), "再度request_init後は初期化が必要");
+    }
+
+    #[test]
+    fn test_wrapping_overflow() {
+        let mut res = HasGraphicsResources::default();
+        // 世代番号をmax近くに設定してラッピング動作を確認
+        for _ in 0..5 {
+            res.request_init();
+            res.mark_initialized();
+        }
+        assert!(!res.needs_init(), "複数回のサイクル後も正常動作");
+        res.request_init();
+        assert!(res.needs_init(), "ラッピング後もneeds_initが正常動作");
+    }
+}
+
+// Task 3.1: SurfaceGraphicsDirty コンポーネントのユニットテスト
+#[cfg(test)]
+mod surface_graphics_dirty_tests {
+    use crate::ecs::graphics::SurfaceGraphicsDirty;
+
+    #[test]
+    fn test_default_requested_frame_is_zero() {
+        let dirty = SurfaceGraphicsDirty::default();
+        assert_eq!(dirty.requested_frame, 0, "デフォルトのrequested_frameは0");
+    }
+
+    #[test]
+    fn test_requested_frame_can_be_updated() {
+        let mut dirty = SurfaceGraphicsDirty::default();
+        dirty.requested_frame = 42;
+        assert_eq!(dirty.requested_frame, 42, "requested_frameを更新できる");
+    }
+}

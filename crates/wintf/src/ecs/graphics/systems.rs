@@ -1,13 +1,11 @@
 use super::command_list::GraphicsCommandList;
-use super::components::SurfaceUpdateRequested;
 use crate::com::d2d::{D2D1DeviceContextExt, D2D1DeviceExt};
 use crate::com::dcomp::{
     DCompositionDesktopDeviceExt, DCompositionDeviceExt, DCompositionSurfaceExt,
     DCompositionVisualExt,
 };
 use crate::ecs::graphics::{
-    GraphicsCore, GraphicsNeedsInit, HasGraphicsResources, SurfaceGraphics, VisualGraphics,
-    WindowGraphics,
+    GraphicsCore, HasGraphicsResources, SurfaceGraphics, VisualGraphics, WindowGraphics,
 };
 use crate::ecs::layout::GlobalArrangement;
 use bevy_ecs::hierarchy::{ChildOf, Children};
@@ -147,12 +145,11 @@ fn draw_recursive(
 /// 各Entityが自分のSurfaceに自分のGraphicsCommandListのみを描画する。
 /// draw_recursive方式を廃止し、DirectCompositionのVisual階層で合成を行う。
 ///
-/// - SurfaceUpdateRequestedマーカーを持つEntityが対象
+/// - Changed<SurfaceGraphicsDirty>を持つEntityが対象（マーカー方式から移行）
 /// - 自分のGraphicsCommandListのみを描画（子は描画しない）
 /// - 子の描画は各子が自分のSurfaceで行う
 /// - GlobalArrangementのスケール成分を適用（DPIスケール対応）
 pub fn render_surface(
-    mut commands: Commands,
     surfaces: Query<
         (
             Entity,
@@ -161,7 +158,7 @@ pub fn render_surface(
             Option<&GraphicsCommandList>,
             Option<&Name>,
         ),
-        With<SurfaceUpdateRequested>,
+        Changed<super::components::SurfaceGraphicsDirty>,
     >,
     _graphics_core: Option<Res<GraphicsCore>>,
     frame_count: Res<crate::ecs::world::FrameCount>,
@@ -274,8 +271,8 @@ pub fn render_surface(
             eprintln!("[render_surface] EndDraw failed: {:?}", e);
         }
 
-        // Remove marker
-        commands.entity(entity).remove::<SurfaceUpdateRequested>();
+        // Note: Changed<SurfaceGraphicsDirty> は自動リセットされるため、
+        // マーカー削除は不要（旧SurfaceUpdateRequestedパターンから移行済み）
     }
 }
 
@@ -335,9 +332,14 @@ pub fn commit_composition(
 // ========== 新しい再初期化システム ==========
 
 /// GraphicsCore初期化・再初期化・一括マーキング
+///
+/// GraphicsCoreが無効な場合に再作成し、HasGraphicsResourcesを持つ全エンティティに
+/// 初期化リクエストを発行する。
+///
+/// Changed: GraphicsNeedsInitマーカー挿入から、HasGraphicsResources.request_init()に移行
 pub fn init_graphics_core(
     graphics: Option<ResMut<GraphicsCore>>,
-    query: Query<Entity, With<HasGraphicsResources>>,
+    mut query: Query<&mut HasGraphicsResources>,
     mut commands: Commands,
     frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
@@ -360,9 +362,9 @@ pub fn init_graphics_core(
                     );
 
                     let count = query.iter().count();
-                    eprintln!("[Frame {}] [init_graphics_core] {}個のエンティティにGraphicsNeedsInitマーカーを追加", frame_count.0, count);
-                    for entity in query.iter() {
-                        commands.entity(entity).insert(GraphicsNeedsInit);
+                    eprintln!("[Frame {}] [init_graphics_core] {}個のエンティティにrequest_init()を呼び出し", frame_count.0, count);
+                    for mut res in query.iter_mut() {
+                        res.request_init();
                     }
                 }
                 Err(e) => {
@@ -387,9 +389,9 @@ pub fn init_graphics_core(
                     commands.insert_resource(gc);
 
                     let count = query.iter().count();
-                    eprintln!("[Frame {}] [init_graphics_core] {}個のエンティティにGraphicsNeedsInitマーカーを追加", frame_count.0, count);
-                    for entity in query.iter() {
-                        commands.entity(entity).insert(GraphicsNeedsInit);
+                    eprintln!("[Frame {}] [init_graphics_core] {}個のエンティティにrequest_init()を呼び出し", frame_count.0, count);
+                    for mut res in query.iter_mut() {
+                        res.request_init();
                     }
                 }
                 Err(e) => {
@@ -404,16 +406,19 @@ pub fn init_graphics_core(
 }
 
 /// WindowGraphics初期化・再初期化
+///
+/// Changed: GraphicsNeedsInitマーカーから、Changed<HasGraphicsResources> + needs_init()に移行
 pub fn init_window_graphics(
     graphics: Res<GraphicsCore>,
     mut query: Query<
         (
             Entity,
             &crate::ecs::window::WindowHandle,
+            &HasGraphicsResources,
             Option<&mut WindowGraphics>,
             Option<&Name>,
         ),
-        Or<(Without<WindowGraphics>, With<GraphicsNeedsInit>)>,
+        Or<(Without<WindowGraphics>, Changed<HasGraphicsResources>)>,
     >,
     mut commands: Commands,
     frame_count: Res<crate::ecs::world::FrameCount>,
@@ -422,7 +427,7 @@ pub fn init_window_graphics(
         return;
     }
 
-    for (entity, handle, window_graphics, name) in query.iter_mut() {
+    for (entity, handle, res, window_graphics, name) in query.iter_mut() {
         let entity_name = format_entity_name(entity, name);
         match window_graphics {
             None => {
@@ -447,7 +452,8 @@ pub fn init_window_graphics(
                 }
             }
             Some(mut wg) => {
-                if !wg.is_valid() {
+                // needs_init()がtrueの場合のみ再初期化
+                if res.needs_init() && !wg.is_valid() {
                     eprintln!(
                         "[Frame {}] [init_window_graphics] WindowGraphics再初期化 (Entity: {})",
                         frame_count.0, entity_name
@@ -476,11 +482,19 @@ pub fn init_window_graphics(
 }
 
 /// Visual初期化・再初期化 (Deprecated: Use Visual component)
+///
+/// Changed: GraphicsNeedsInitマーカーから、Changed<HasGraphicsResources> + needs_init()に移行
+/// 現在はvisual_resource_management_systemが担当
 pub fn init_window_visual(
     _graphics: Res<GraphicsCore>,
     _query: Query<
-        (Entity, &WindowGraphics, Option<&mut VisualGraphics>),
-        Or<(Without<VisualGraphics>, With<GraphicsNeedsInit>)>,
+        (
+            Entity,
+            &WindowGraphics,
+            &HasGraphicsResources,
+            Option<&mut VisualGraphics>,
+        ),
+        Or<(Without<VisualGraphics>, Changed<HasGraphicsResources>)>,
     >,
     _commands: Commands,
     _frame_count: Res<crate::ecs::world::FrameCount>,
@@ -746,43 +760,47 @@ pub fn apply_window_pos_changes(
 }
 
 /// GraphicsNeedsInitマーカー削除・初期化完了判定
+///
+/// Changed: GraphicsNeedsInitマーカー削除から、mark_initialized()に移行
 pub fn cleanup_graphics_needs_init(
-    query: Query<
-        (Entity, &WindowGraphics, &VisualGraphics, &SurfaceGraphics),
-        With<GraphicsNeedsInit>,
-    >,
-    mut commands: Commands,
+    mut query: Query<(
+        Entity,
+        &mut HasGraphicsResources,
+        &WindowGraphics,
+        &VisualGraphics,
+        &SurfaceGraphics,
+    )>,
 ) {
-    for (entity, window_graphics, visual, surface) in query.iter() {
-        if window_graphics.is_valid() && visual.is_valid() && surface.is_valid() {
+    for (entity, mut res, window_graphics, visual, surface) in query.iter_mut() {
+        // needs_init()がtrueで、すべてのリソースが有効な場合に初期化完了をマーク
+        if res.needs_init() && window_graphics.is_valid() && visual.is_valid() && surface.is_valid()
+        {
             eprintln!(
-                "[cleanup_graphics_needs_init] GraphicsNeedsInitマーカー削除 (Entity: {:?})",
+                "[cleanup_graphics_needs_init] mark_initialized() (Entity: {:?})",
                 entity
             );
-            commands.entity(entity).remove::<GraphicsNeedsInit>();
+            res.mark_initialized();
         }
     }
 }
 
-/// GraphicsNeedsInit時に古いGraphicsCommandListを削除
+/// 再初期化時に古いGraphicsCommandListを削除
+///
+/// Changed: GraphicsNeedsInitマーカーから、needs_init()条件に移行
 pub fn cleanup_command_list_on_reinit(
-    query: Query<
-        Entity,
-        (
-            With<GraphicsNeedsInit>,
-            With<crate::ecs::graphics::GraphicsCommandList>,
-        ),
-    >,
+    query: Query<(Entity, &HasGraphicsResources), With<crate::ecs::graphics::GraphicsCommandList>>,
     mut commands: Commands,
 ) {
-    for entity in query.iter() {
-        commands
-            .entity(entity)
-            .remove::<crate::ecs::graphics::GraphicsCommandList>();
-        eprintln!(
-            "[cleanup_command_list_on_reinit] GraphicsCommandList削除 (Entity: {:?})",
-            entity
-        );
+    for (entity, res) in query.iter() {
+        if res.needs_init() {
+            commands
+                .entity(entity)
+                .remove::<crate::ecs::graphics::GraphicsCommandList>();
+            eprintln!(
+                "[cleanup_command_list_on_reinit] GraphicsCommandList削除 (Entity: {:?})",
+                entity
+            );
+        }
     }
 }
 
@@ -812,34 +830,35 @@ pub fn invalidate_dependent_components(
     }
 }
 
-/// 変更検知システム：描画内容に変更があった場合、そのEntityに更新要求マーカーを付与する
+/// 変更検知システム：描画内容に変更があった場合、SurfaceGraphicsDirtyを更新する
 ///
 /// Phase 4以降の自己描画方式では、各EntityがSurfaceを持ち、自分自身のみを描画するため、
-/// 親をたどる必要はない。変更があったEntity自身にマーカーを付与する。
+/// 親をたどる必要はない。変更があったEntity自身のSurfaceGraphicsDirtyを更新する。
 ///
 /// 検知対象:
 /// - GraphicsCommandList: 描画コマンドの変更
-/// - SurfaceGraphics: Surfaceの再作成
+/// - SurfaceGraphics: Surfaceの再作成（Added含む）
 /// - GlobalArrangement: スケール成分の変更（DPIスケール対応）
 ///
-/// **Note**: 将来的にはSurfaceUpdateRequestedを廃止し、Changed<GraphicsCommandList>を
-/// render_surfaceのフィルターとして直接使用する予定。
+/// Changed<SurfaceGraphicsDirty>を検出することで、render_surfaceが描画を実行する。
+/// SurfaceUpdateRequestedマーカーは廃止され、フレーム番号更新方式に置き換えられた。
 pub fn mark_dirty_surfaces(
-    mut commands: Commands,
-    changed_query: Query<
-        Entity,
+    mut changed_query: Query<
+        &mut super::components::SurfaceGraphicsDirty,
         (
             Or<(
                 Changed<GraphicsCommandList>,
                 Changed<SurfaceGraphics>,
+                Added<SurfaceGraphics>,
                 Changed<GlobalArrangement>,
             )>,
             With<SurfaceGraphics>,
         ),
     >,
+    frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
-    for entity in changed_query.iter() {
-        commands.entity(entity).insert(SurfaceUpdateRequested);
+    for mut dirty in changed_query.iter_mut() {
+        dirty.requested_frame = frame_count.0 as u64;
     }
 }
 
@@ -1123,10 +1142,12 @@ pub fn deferred_surface_creation_system(
                 commands
                     .entity(entity)
                     .insert(SurfaceGraphics::new(surface, (width, height)));
-                // SurfaceUpdateRequestedも挿入して描画をトリガー
+                // SurfaceGraphicsDirtyも挿入して描画をトリガー
+                // Added<SurfaceGraphics>がmark_dirty_surfacesで検出され、
+                // Changed<SurfaceGraphicsDirty>がrender_surfaceで検出される
                 commands
                     .entity(entity)
-                    .insert(super::components::SurfaceUpdateRequested);
+                    .insert(super::components::SurfaceGraphicsDirty::default());
                 eprintln!(
                     "[deferred_surface_creation] Surface created successfully for Entity={}",
                     entity_name

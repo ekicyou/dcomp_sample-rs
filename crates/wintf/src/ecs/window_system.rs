@@ -28,7 +28,16 @@ pub fn init_window_arrangement(
 pub fn create_windows(world: &mut World) {
     // SystemStateを使ってクエリとリソースにアクセス
     let mut system_state: SystemState<(
-        Query<(Entity, &Window, Option<&WindowStyle>, Option<&WindowPos>, Option<&Name>), Without<WindowHandle>>,
+        Query<
+            (
+                Entity,
+                &Window,
+                Option<&WindowStyle>,
+                Option<&WindowPos>,
+                Option<&Name>,
+            ),
+            Without<WindowHandle>,
+        >,
         Res<crate::ecs::world::FrameCount>,
     )> = SystemState::new(world);
 
@@ -105,7 +114,7 @@ pub fn create_windows(world: &mut World) {
                         hwnd,
                         instance: singleton.instance(),
                     },
-                    crate::ecs::graphics::HasGraphicsResources,
+                    crate::ecs::graphics::HasGraphicsResources::default(),
                 ));
 
                 eprintln!(

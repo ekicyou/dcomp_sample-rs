@@ -1,6 +1,6 @@
 use crate::com::dcomp::DCompositionDeviceExt;
 use crate::ecs::graphics::{
-    GraphicsCore, GraphicsNeedsInit, Visual, VisualGraphics, WindowGraphics,
+    GraphicsCore, HasGraphicsResources, Visual, VisualGraphics, WindowGraphics,
 };
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
@@ -107,10 +107,11 @@ pub fn visual_resource_management_system(
 /// Visualリソースの再初期化システム
 ///
 /// Phase 6: Visualのみを作成し、Surfaceは作成しない。
+/// Changed: GraphicsNeedsInitマーカーから、Changed<HasGraphicsResources> + needs_init()に移行
 pub fn visual_reinit_system(
     mut commands: Commands,
     graphics: Res<GraphicsCore>,
-    query: Query<(Entity, &Visual), With<GraphicsNeedsInit>>,
+    query: Query<(Entity, &Visual, &HasGraphicsResources), Changed<HasGraphicsResources>>,
 ) {
     if !graphics.is_valid() {
         return;
@@ -121,8 +122,10 @@ pub fn visual_reinit_system(
         None => return,
     };
 
-    for (entity, visual) in query.iter() {
-        create_visual_only(&mut commands, entity, visual, dcomp);
+    for (entity, visual, res) in query.iter() {
+        if res.needs_init() {
+            create_visual_only(&mut commands, entity, visual, dcomp);
+        }
     }
 }
 

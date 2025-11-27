@@ -7,13 +7,44 @@ use windows_numerics::Vector2;
 
 use crate::com::dcomp::DCompositionVisualExt;
 
-/// グラフィックスリソースを使用するエンティティを宣言（静的マーカー）
-#[derive(Component, Default)]
-pub struct HasGraphicsResources;
+/// グラフィックスリソースを使用するエンティティを宣言 + 初期化状態管理
+///
+/// このコンポーネントは以下の2つの役割を持つ：
+/// 1. GPUリソースを使用するエンティティを宣言（存在自体がマーカー）
+/// 2. 初期化/再初期化が必要かどうかの状態を世代番号で管理
+///
+/// `Changed<HasGraphicsResources>` でグラフィックス初期化トリガーを検出し、
+/// `needs_init()` で実際に初期化が必要かを判定する。
+#[derive(Component, Default, Debug, Clone, PartialEq)]
+pub struct HasGraphicsResources {
+    /// 初期化が必要な世代番号
+    needs_init_generation: u32,
+    /// 処理済みの世代番号
+    processed_generation: u32,
+}
 
-/// 初期化が必要な状態を示す動的マーカー
-#[derive(Component, Default)]
-pub struct GraphicsNeedsInit;
+impl HasGraphicsResources {
+    /// 初期化をリクエスト（ダーティにする）
+    ///
+    /// 世代番号をインクリメントし、`Changed` フラグを発火させる。
+    pub fn request_init(&mut self) {
+        self.needs_init_generation = self.needs_init_generation.wrapping_add(1);
+    }
+
+    /// 初期化が必要か判定
+    ///
+    /// 世代番号が不一致の場合は初期化が必要。
+    pub fn needs_init(&self) -> bool {
+        self.needs_init_generation != self.processed_generation
+    }
+
+    /// 初期化完了をマーク（クリーンにする）
+    ///
+    /// 処理済み世代番号を更新し、`needs_init()` が `false` になる。
+    pub fn mark_initialized(&mut self) {
+        self.processed_generation = self.needs_init_generation;
+    }
+}
 
 #[derive(Debug)]
 struct WindowGraphicsInner {
@@ -146,8 +177,10 @@ impl VisualGraphics {
 }
 
 /// ウィンドウの描画サーフェス
+///
+/// Note: 旧on_add/on_replaceフックは廃止され、
+/// mark_dirty_surfacesシステムでAdded<SurfaceGraphics>として検出される
 #[derive(Component, Debug, Default)]
-#[component(on_add = on_surface_graphics_changed, on_replace = on_surface_graphics_changed)]
 pub struct SurfaceGraphics {
     inner: Option<IDCompositionSurface>,
     pub size: (u32, u32),
@@ -179,28 +212,16 @@ impl SurfaceGraphics {
     }
 }
 
-struct SafeInsertSurfaceUpdateRequested {
-    entity: Entity,
+/// SurfaceGraphicsがダーティ（再描画が必要）であることを示すコンポーネント
+///
+/// マーカーコンポーネント `SurfaceUpdateRequested` の置き換え。
+/// `Changed<SurfaceGraphicsDirty>` パターンにより、アーキタイプ変更を排除し、
+/// 同一スケジュール内での即時伝搬を実現する。
+#[derive(Component, Default, Debug, Clone, PartialEq)]
+pub struct SurfaceGraphicsDirty {
+    /// 最後に描画をリクエストしたフレーム番号
+    pub requested_frame: u64,
 }
-
-impl Command for SafeInsertSurfaceUpdateRequested {
-    fn apply(self, world: &mut World) {
-        if let Ok(mut entity_mut) = world.get_entity_mut(self.entity) {
-            entity_mut.insert(SurfaceUpdateRequested);
-        }
-    }
-}
-
-fn on_surface_graphics_changed(mut world: DeferredWorld, context: HookContext) {
-    let mut commands = world.commands();
-    commands.queue(SafeInsertSurfaceUpdateRequested {
-        entity: context.entity,
-    });
-}
-
-/// 描画更新が必要なサーフェスを示すマーカーコンポーネント
-#[derive(Component, Default)]
-pub struct SurfaceUpdateRequested;
 
 /// 論理的なVisualコンポーネント
 /// サイズ情報はArrangementから取得する（Single Source of Truth）
