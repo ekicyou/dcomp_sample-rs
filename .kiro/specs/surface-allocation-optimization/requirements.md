@@ -33,7 +33,7 @@ Surface生成の最適化: GraphicsCommandListの有無や要求サイズを集�
 1. The Graphics System shall Surfaceサイズを`GlobalArrangement.bounds`から計算する（物理ピクセルサイズ）
 2. When DPIスケールが100%以外の場合, the Graphics System shall スケール適用後のサイズでSurfaceを作成する
 3. If `GlobalArrangement.bounds`のサイズが0の場合, then the Graphics System shall Surface生成をスキップする
-4. When `GlobalArrangement`のサイズが変更された場合 and 既存の`SurfaceGraphics`が存在する場合, the Graphics System shall Surfaceをリサイズまたは再作成する
+4. When `GlobalArrangement`のサイズが変更された場合 and 既存の`SurfaceGraphics`が存在する場合, the Graphics System shall Surfaceを再作成する
 
 ### Requirement 4: 既存SurfaceGraphicsとの整合性維持
 **Objective:** 開発者として、最適化導入後も既存の描画フローが正常に機能することで、リグレッションを防止したい。
