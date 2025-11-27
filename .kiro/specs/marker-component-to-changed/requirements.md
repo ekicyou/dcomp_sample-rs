@@ -1,13 +1,10 @@
 # マーカーコンポーネントからChanged検出への移行
 
-## 1. 概要
+## Introduction
 
-bevy_ecsにおけるマーカーコンポーネントの`With<Marker>` + `remove()` パターンを、
-`Changed<T>` パターンに移行し、アーキタイプ変更のオーバーヘッドを排除する。
+本仕様は、bevy_ecsにおけるマーカーコンポーネントの`With<Marker>` + `remove()` パターンを、`Changed<T>` パターンに移行し、アーキタイプ変更のオーバーヘッドを排除するためのリファクタリングを定義する。
 
-## 2. 背景と動機
-
-### 2.1 現状の問題
+### 背景
 
 現在のマーカーコンポーネントパターンでは：
 - `commands.entity(entity).insert(MarkerComponent)` → アーキタイプ変更（高コスト）
@@ -15,27 +12,177 @@ bevy_ecsにおけるマーカーコンポーネントの`With<Marker>` + `remove
 
 これが毎フレーム複数エンティティで発生すると、パフォーマンス上の問題となる。
 
-### 2.2 Changed\<T\>パターンの利点
+### Changedパターンの利点
 
-- `Changed<T>` は各フレーム末に自動的にリセットされる
-- コンポーネントの値を変更するだけでフラグが立つ
-- アーキタイプ変更が発生しない（`insert`/`remove`不要）
-- 低オーバーヘッド
+1. **アーキタイプ変更の排除**: コンポーネントの値変更のみでフラグが立ち、`insert`/`remove`によるアーキタイプ変更が発生しない
+2. **同一スケジュール内での即時伝搬（最重要）**: `insert()`はCommandsキューに積まれるため、同じスケジュール内の後続システムに変更が伝搬しない可能性が高い。一方、`Changed<T>`はシステム実行中に直ちにフラグが立つため、同一スケジュール内の後続システムで即座に検出可能
+3. **デバッグ容易性**: フレーム番号や世代番号による状態追跡が可能
 
-## 3. 影響を受けるマーカーコンポーネント
+### Changedパターンのデメリットと許容性
 
-### 3.1 SurfaceUpdateRequested
+**デメリット1**: フレームを跨いだ変更通知ができない
 
-**用途**: Surface描画更新が必要なことを示す
+- `Changed`フラグは全スケジュールの最後に自動でOFFになる
+- マーカー方式では`remove()`を明示的に呼ぶまでマーカーが残るため、次フレーム以降でも検出可能だった
 
-**現在のコード**:
-```rust
-// components.rs
-#[derive(Component, Default)]
-pub struct SurfaceUpdateRequested;
-```
+**デメリット2**: コンポーネントの事前登録が必要
 
-**使用箇所**:
+- `Changed<T>`はコンポーネントの値変更を検出するため、コンポーネントが事前に存在している必要がある
+- マーカー方式では`insert()`で同時に追加・検出できたが、Changedパターンでは不可
+- エンティティ生成時にライフサイクルフック等で確実に事前登録する設計が必要
+
+**許容性**: これらのデメリットは実質的に影響しない
+
+- 「フレームを跨いだ変更通知」を必要とするシステムは現状存在しない
+- そのような要件は設計上存在すべきではない（各フレームで状態を完結させるのがECSの原則）
+- 仮に必要な場合は、世代番号や処理済みフラグで明示的に管理すべき
+
+### 対象マーカーコンポーネント
+
+| マーカー | 用途 | 新コンポーネント |
+|---------|------|------------------|
+| `SurfaceUpdateRequested` | Surface描画更新のリクエスト | `SurfaceRenderTrigger` |
+| `GraphicsNeedsInit` | グラフィックス初期化/再初期化 | `GraphicsInitState` |
+
+---
+
+## Requirements
+
+### Requirement 1: SurfaceRenderTrigger コンポーネント定義
+
+**Objective:** As a システム開発者, I want `SurfaceUpdateRequested`マーカーを`SurfaceRenderTrigger`コンポーネントに置き換える, so that Surface描画リクエストにおけるアーキタイプ変更を排除できる
+
+#### Acceptance Criteria
+
+1. The wintf shall `SurfaceRenderTrigger`コンポーネントを`ecs/graphics/components.rs`に定義する
+2. The wintf shall `SurfaceRenderTrigger`にリクエストフレーム番号を保持する`requested_frame: u64`フィールドを持たせる
+3. The wintf shall `SurfaceRenderTrigger`に`Default`トレイトを実装し、初期値として`requested_frame: 0`を設定する
+4. When Surface描画がリクエストされた時, the wintf shall `requested_frame`フィールドを現在のフレーム番号で更新する
+5. The wintf shall `SurfaceUpdateRequested`マーカーコンポーネントの定義を削除する
+
+---
+
+### Requirement 2: SurfaceRenderTrigger を使用したシステム変更
+
+**Objective:** As a システム開発者, I want 既存のマーカー検出システムを`Changed<SurfaceRenderTrigger>`パターンに変更する, so that 描画リクエストの検出がアーキタイプ変更なしで行える
+
+#### Acceptance Criteria
+
+1. When `render_surface`システムがSurface描画を行う時, the wintf shall `With<SurfaceUpdateRequested>`フィルターの代わりに`Changed<SurfaceRenderTrigger>`フィルターを使用する
+2. When Surface描画が完了した時, the wintf shall `remove::<SurfaceUpdateRequested>()`呼び出しを削除する（Changedは自動リセットのため不要）
+3. When `mark_dirty_surfaces`システムがSurfaceを汚染マークする時, the wintf shall `insert(SurfaceUpdateRequested)`の代わりに`trigger.requested_frame = current_frame`を実行する
+4. When `deferred_surface_creation_system`がSurfaceを作成した時, the wintf shall 描画トリガーとして`SurfaceRenderTrigger`のフレーム更新を実行する
+5. The wintf shall `on_surface_graphics_changed`フックの`SafeInsertSurfaceUpdateRequested`コマンドを`SurfaceRenderTrigger`の更新に置き換える
+6. The wintf shall `SafeInsertSurfaceUpdateRequested`カスタムコマンドを削除する
+
+---
+
+### Requirement 3: GraphicsInitState コンポーネント定義
+
+**Objective:** As a システム開発者, I want `GraphicsNeedsInit`マーカーを`GraphicsInitState`コンポーネントに置き換える, so that グラフィックス初期化リクエストにおけるアーキタイプ変更を排除できる
+
+#### Acceptance Criteria
+
+1. The wintf shall `GraphicsInitState`コンポーネントを`ecs/graphics/components.rs`に定義する
+2. The wintf shall `GraphicsInitState`に以下のフィールドを持たせる:
+   - `needs_init_generation: u32` - 初期化が必要な世代番号
+   - `processed_generation: u32` - 処理済みの世代番号
+3. The wintf shall `GraphicsInitState`に`Default`トレイトを実装し、両フィールドを`0`に初期化する
+4. The wintf shall `GraphicsInitState`に`request_init()`メソッドを実装し、`needs_init_generation`をインクリメントする
+5. The wintf shall `GraphicsInitState`に`needs_init() -> bool`メソッドを実装し、`needs_init_generation != processed_generation`を返す
+6. The wintf shall `GraphicsInitState`に`mark_initialized()`メソッドを実装し、`processed_generation = needs_init_generation`を設定する
+7. The wintf shall `GraphicsNeedsInit`マーカーコンポーネントの定義を削除する
+
+---
+
+### Requirement 4: GraphicsInitState を使用したシステム変更
+
+**Objective:** As a システム開発者, I want 既存の初期化マーカー検出システムを`Changed<GraphicsInitState>`パターンに変更する, so that グラフィックス初期化リクエストの検出がアーキタイプ変更なしで行える
+
+#### Acceptance Criteria
+
+1. When `init_graphics_core`システムが再初期化をトリガーする時, the wintf shall `insert(GraphicsNeedsInit)`の代わりに`state.request_init()`を呼び出す
+2. When `init_window_graphics`システムが初期化対象を検索する時, the wintf shall `With<GraphicsNeedsInit>`の代わりに`Changed<GraphicsInitState>`と`state.needs_init()`条件を使用する
+3. When `init_window_visual`システムが初期化対象を検索する時, the wintf shall `With<GraphicsNeedsInit>`の代わりに`Changed<GraphicsInitState>`と`state.needs_init()`条件を使用する
+4. When `cleanup_graphics_needs_init`システムが初期化完了を処理する時, the wintf shall `remove::<GraphicsNeedsInit>()`の代わりに`state.mark_initialized()`を呼び出す
+5. When `cleanup_command_list_on_reinit`システムが再初期化対象を検索する時, the wintf shall `With<GraphicsNeedsInit>`の代わりに適切な条件を使用する
+6. When `create_visuals_for_init_marked`システムがVisual作成対象を検索する時, the wintf shall `With<GraphicsNeedsInit>`の代わりに`Changed<GraphicsInitState>`と`state.needs_init()`条件を使用する
+
+---
+
+### Requirement 5: コンポーネント初期化の統合
+
+**Objective:** As a システム開発者, I want 新コンポーネントがエンティティ生成時に適切に初期化される, so that `Changed<T>`パターンが正常に機能し既存のエンティティ生成フローが動作する
+
+#### 背景
+
+`Changed<T>`パターンでは、コンポーネントが**事前に存在している**必要がある。後から`insert()`した場合、そのフレームでは`Changed`として検出されるが、意図しないタイミングでの検出やレースコンディションの原因となりうる。関連コンポーネントのライフサイクルフックで確実に事前登録する設計が望ましい。
+
+#### Acceptance Criteria
+
+1. The wintf shall グラフィックス関連の状態追跡コンポーネントを一括で挿入する`GraphicsStateBundle`を定義する
+2. The wintf shall `GraphicsStateBundle`に`SurfaceRenderTrigger`と`GraphicsInitState`を含める
+3. When `HasGraphicsResources`コンポーネントがエンティティに追加される時, the wintf shall `on_add`フックで`GraphicsStateBundle`の各コンポーネントを挿入する
+4. When `Visual`コンポーネントがエンティティに追加される時, the wintf shall `on_add`フックで`SurfaceRenderTrigger`を挿入する（Surfaceを持つ可能性のあるエンティティ）
+5. While エンティティが`SurfaceRenderTrigger`を持つ場合, the wintf shall `Changed`検出が初回フレームでトリガーされることを保証する
+6. While エンティティが`GraphicsInitState`を持つ場合, the wintf shall 初期状態では`needs_init()`が`false`を返すことを保証する
+7. The wintf shall 既存の手動`spawn()`呼び出しで状態追跡コンポーネントの明示的追加を不要にする
+
+---
+
+### Requirement 8: 状態追跡コンポーネントの集約設計
+
+**Objective:** As a システム開発者, I want 複数の状態追跡コンポーネントが一箇所で管理される, so that コンポーネント追加漏れを防ぎメンテナンス性を向上させる
+
+#### 背景
+
+現在のマーカーコンポーネント:
+- `HasGraphicsResources` - 静的マーカー（グラフィックスリソースを使用するエンティティ）
+- `GraphicsNeedsInit` → `GraphicsInitState`（動的状態）
+- `SurfaceUpdateRequested` → `SurfaceRenderTrigger`（動的状態）
+
+将来追加される可能性のある状態追跡コンポーネントも考慮し、集約管理する設計とする。
+
+#### Acceptance Criteria
+
+1. The wintf shall `ecs/graphics/state_tracking.rs`モジュールを新設し、状態追跡コンポーネントを集約する
+2. The wintf shall `ensure_graphics_state_components()`関数を提供し、必要なコンポーネントが存在しない場合のみ挿入する
+3. The wintf shall コンポーネント追加フックから`ensure_graphics_state_components()`を呼び出す
+4. If 将来新しい状態追跡コンポーネントが追加される場合, then the wintf shall `state_tracking.rs`への追加のみで対応可能とする
+5. The wintf shall 状態追跡コンポーネントの一覧と用途をドキュメントコメントで記載する
+
+---
+
+### Requirement 6: テストコードの更新
+
+**Objective:** As a テスト作成者, I want 既存のテストが新しいパターンに対応する, so that テストカバレッジが維持される
+
+#### Acceptance Criteria
+
+1. The wintf shall `surface_optimization_test.rs`の`test_surface_update_requested_component_exists`を`SurfaceRenderTrigger`用に更新する
+2. The wintf shall `surface_optimization_test.rs`の`test_mark_dirty_surfaces_propagation`を新しいパターンに更新する
+3. The wintf shall `surface_optimization_test.rs`の`test_surface_update_requested_on_add_hook`を新しいパターンに更新またはフック不要の場合は削除する
+4. The wintf shall 新コンポーネントの`needs_init()`、`request_init()`、`mark_initialized()`メソッドのユニットテストを追加する
+5. If 既存テストがマーカーコンポーネントの存在を検証している場合, then the wintf shall 新コンポーネントの状態検証に置き換える
+6. The wintf shall `cargo test --all-targets`で全テストが成功することを保証する
+
+---
+
+### Requirement 7: 公開APIの互換性
+
+**Objective:** As a ライブラリ利用者, I want API変更が明確に文書化される, so that マイグレーションが容易にできる
+
+#### Acceptance Criteria
+
+1. If `SurfaceUpdateRequested`が公開APIとして使用されている場合, then the wintf shall `SurfaceRenderTrigger`への移行ガイドを提供する
+2. The wintf shall 新コンポーネントを`pub`として公開し、`wintf::ecs`モジュールからアクセス可能にする
+3. The wintf shall 削除されるコンポーネント名と新しいコンポーネント名のマッピングをドキュメント化する
+
+---
+
+## 参考情報
+
+### 現在の使用箇所（SurfaceUpdateRequested）
 
 | ファイル | 行 | 用途 | パターン |
 |---------|-----|------|---------|
@@ -45,18 +192,7 @@ pub struct SurfaceUpdateRequested;
 | `systems.rs` | 1129 | `deferred_surface_creation_system` 描画トリガー | `commands.entity(entity).insert(SurfaceUpdateRequested)` |
 | `components.rs` | 189-196 | `on_surface_graphics_changed` フック | `SafeInsertSurfaceUpdateRequested` Command |
 
-### 3.2 GraphicsNeedsInit
-
-**用途**: グラフィックスリソースの初期化/再初期化が必要なことを示す
-
-**現在のコード**:
-```rust
-// components.rs
-#[derive(Component, Default)]
-pub struct GraphicsNeedsInit;
-```
-
-**使用箇所**:
+### 現在の使用箇所（GraphicsNeedsInit）
 
 | ファイル | 行 | 用途 | パターン |
 |---------|-----|------|---------|
@@ -69,16 +205,9 @@ pub struct GraphicsNeedsInit;
 | `systems.rs` | 772 | `cleanup_command_list_on_reinit` クエリフィルター | `With<GraphicsNeedsInit>` |
 | `visual_manager.rs` | 113 | `create_visuals_for_init_marked` クエリフィルター | `With<GraphicsNeedsInit>` |
 
-## 4. 変換方針
+### 新コンポーネント設計
 
-### 4.1 SurfaceUpdateRequested
-
-**現在**: Unit structマーカー
-```rust
-pub struct SurfaceUpdateRequested;
-```
-
-**変更後**: フレームカウントを持つコンポーネント
+#### SurfaceRenderTrigger
 ```rust
 #[derive(Component, Default)]
 pub struct SurfaceRenderTrigger {
@@ -87,19 +216,7 @@ pub struct SurfaceRenderTrigger {
 }
 ```
 
-**検出方法**:
-- `With<SurfaceUpdateRequested>` → `Changed<SurfaceRenderTrigger>`
-- `remove::<SurfaceUpdateRequested>()` → 削除不要（`Changed`は自動リセット）
-- `insert(SurfaceUpdateRequested)` → `trigger.requested_frame = current_frame`
-
-### 4.2 GraphicsNeedsInit
-
-**現在**: Unit structマーカー
-```rust
-pub struct GraphicsNeedsInit;
-```
-
-**変更後**: 初期化世代を持つコンポーネント
+#### GraphicsInitState
 ```rust
 #[derive(Component, Default)]
 pub struct GraphicsInitState {
@@ -127,56 +244,11 @@ impl GraphicsInitState {
 }
 ```
 
-**検出方法**:
-- `With<GraphicsNeedsInit>` → `Changed<GraphicsInitState>` + `state.needs_init()`
-- `remove::<GraphicsNeedsInit>()` → `state.mark_initialized()`
-- `insert(GraphicsNeedsInit)` → `state.request_init()`
+### 期待される効果
 
-## 5. 移行手順
+1. **同一スケジュール内での即時伝搬（最重要）**: `insert()`はCommandsキューに積まれ適用が遅延するが、`Changed<T>`はシステム実行中に直ちにフラグが立ち、同一スケジュール内の後続システムで即座に検出可能
+2. **パフォーマンス向上**: アーキタイプ変更の排除
+3. **コード簡素化**: `insert`/`remove`の冗長なコードが削減
+4. **デバッグ容易性**: フレーム番号や世代番号による追跡が可能
+5. **一貫性**: 全マーカーコンポーネントが同じパターンに統一
 
-### Phase 1: SurfaceUpdateRequested移行
-1. `SurfaceRenderTrigger` コンポーネント定義追加
-2. `render_surface` システム変更
-3. `mark_dirty_surfaces` システム変更
-4. `deferred_surface_creation_system` システム変更
-5. `on_surface_graphics_changed` フック変更
-6. テストコード更新
-
-### Phase 2: GraphicsNeedsInit移行
-1. `GraphicsInitState` コンポーネント定義追加
-2. `init_graphics_core` システム変更
-3. `init_window_graphics` システム変更
-4. `init_window_visual` システム変更
-5. `cleanup_graphics_needs_init` システム変更
-6. `cleanup_command_list_on_reinit` システム変更
-7. `visual_manager.rs` の関連システム変更
-
-### Phase 3: 旧コンポーネント削除
-1. `SurfaceUpdateRequested` 定義削除
-2. `GraphicsNeedsInit` 定義削除
-3. 関連する `SafeInsertSurfaceUpdateRequested` Command削除
-
-## 6. 互換性への影響
-
-### 6.1 テストコード
-
-`surface_optimization_test.rs` の以下のテストが影響を受ける：
-- `test_surface_update_requested_component_exists`
-- `test_mark_dirty_surfaces_propagation`
-- `test_surface_update_requested_on_add_hook`
-
-### 6.2 公開API
-
-`wintf::ecs::SurfaceUpdateRequested` が公開されている場合、
-`SurfaceRenderTrigger` への移行が必要。
-
-## 7. 期待される効果
-
-1. **パフォーマンス向上**: アーキタイプ変更の排除
-2. **コード簡素化**: `insert`/`remove` の冗長なコードが削減
-3. **デバッグ容易性**: フレーム番号や世代番号による追跡が可能
-4. **一貫性**: 全マーカーコンポーネントが同じパターンに
-
-## 8. 関連仕様
-
-- `surface-allocation-optimization`: Surface作成/再作成の最適化（本仕様と連携）
