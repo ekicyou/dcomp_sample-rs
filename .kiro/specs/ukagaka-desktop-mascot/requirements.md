@@ -24,7 +24,7 @@
 
 ### 本文書について
 
-本書は、`GitHub Copilot` + `Claude Opus 4.5`による製作文書に、えちょによるディスカッションによる修正の結果出力されました。えちょが直接書いたのはこの行とProject Descriptionだけです。Appendixとか最初からありました。ほんとですってば。
+本書は、`GitHub Copilot` + `Claude Opus 4.5`が製作したEARS準拠要求仕様書を元に、えちょによるディスカッションによる修正を行い出力されました。えちょが直接書いたのはこの行とProject Descriptionだけです。Appendixとか最初からありました。ほんとですってば。
 
 ---
 
