@@ -79,7 +79,7 @@ fn main() -> Result<()> {
                         ..Default::default()
                     },
                     WindowPos::default(), // レイアウトシステムが更新
-                    // Visual は Window の on_add フックで自動挿入される
+                                          // Visual は Window の on_add フックで自動挿入される
                 ))
                 .id();
 
