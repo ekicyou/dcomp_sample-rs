@@ -138,14 +138,20 @@
 
 #### 背景
 
-`Changed<T>`パターンでは、コンポーネントが**事前に存在している**必要がある。`HasGraphicsResources`は既にspawn時に付与されているため事前登録問題は解消済み。`SurfaceGraphicsDirty`のみ自動登録が必要。
+`Changed<T>`パターンでは、コンポーネントが**事前に存在している**必要がある。
+
+**設計原則「すべてはビジュアルである」**:
+- Window を含むすべてのウィジェットは `Visual` コンポーネントを持つ
+- 各ウィジェット（Window, Rectangle, Label）の `on_add` フックで `Visual` を自動挿入
+- `Visual` の `on_add` フックで `SurfaceGraphicsDirty` を自動挿入
+- これにより、単一のアンカーポイント（`Visual`）から関連コンポーネントを連鎖的に登録
 
 #### Acceptance Criteria
 
-1. When `HasGraphicsResources`コンポーネントがエンティティに追加される時, the wintf shall `on_add`フックで`SurfaceGraphicsDirty`を挿入する
-2. When `Visual`コンポーネントがエンティティに追加される時, the wintf shall `on_add`フックで`SurfaceGraphicsDirty`を挿入する（Surfaceを持つ可能性のあるエンティティ）
-3. While エンティティが`SurfaceGraphicsDirty`を持つ場合, the wintf shall `Changed`検出が初回フレームでトリガーされることを保証する
-4. The wintf shall 既存の手動`spawn()`呼び出しで`SurfaceGraphicsDirty`の明示的追加を不要にする
+1. When `Visual`コンポーネントがエンティティに追加される時, the wintf shall `on_add`フックで`SurfaceGraphicsDirty`を挿入する
+2. While エンティティが`SurfaceGraphicsDirty`を持つ場合, the wintf shall `Changed`検出が初回フレームでトリガーされることを保証する
+3. The wintf shall 既存の手動`spawn()`呼び出しで`SurfaceGraphicsDirty`の明示的追加を不要にする
+4. The wintf shall 各ウィジェット（Window, Rectangle, Label）の`on_add`フックで`Visual`を自動挿入する（既存実装を維持）
 
 ---
 

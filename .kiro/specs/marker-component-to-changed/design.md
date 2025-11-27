@@ -431,22 +431,40 @@ res.mark_initialized();
 | Intent | SurfaceGraphicsDirty の事前登録 |
 | Requirements | 5.1, 5.2, 5.3, 5.4 |
 
+**設計原則「すべてはビジュアルである」**:
+
+ウィジェット階層において、`Visual` をアンカーコンポーネントとして採用。
+Window を含むすべてのウィジェットは `Visual` を持ち、`Visual` の `on_add` フックで
+関連コンポーネント（`SurfaceGraphicsDirty`）を連鎖的に登録する。
+
+**コンポーネント登録チェーン**:
+```
+Window/Rectangle/Label の on_add
+  └─> Visual 挿入
+        └─> Visual の on_add
+              └─> SurfaceGraphicsDirty 挿入
+```
+
 **実装方法**:
 
 ```rust
 // Visual コンポーネントの on_add フックで SurfaceGraphicsDirty を挿入
+#[derive(Component)]
+#[component(on_add = on_visual_added)]
+pub struct Visual { ... }
+
 fn on_visual_added(mut world: DeferredWorld, context: HookContext) {
-    world.commands().entity(context.entity).insert(SurfaceGraphicsDirty::default());
+    // 既に存在する場合はスキップ
+    if world.get::<SurfaceGraphicsDirty>(context.entity).is_none() {
+        world.commands().entity(context.entity).insert(SurfaceGraphicsDirty::default());
+    }
 }
 ```
 
-または `HasGraphicsResources` の `on_add` フックで挿入:
-
-```rust
-fn on_has_graphics_resources_added(mut world: DeferredWorld, context: HookContext) {
-    world.commands().entity(context.entity).insert(SurfaceGraphicsDirty::default());
-}
-```
+**既存の Visual 自動挿入（維持）**:
+- `Window`: `on_window_add` フックで `Visual::default()` を挿入（実装済み）
+- `Rectangle`: `on_rectangle_add` フックで `Visual::default()` を挿入（実装済み）
+- `Label`: `on_label_add` フックで `Visual::default()` を挿入（実装済み）
 
 **Implementation Notes**
 - フック選択: `HasGraphicsResources` フックが推奨（より明確な依存関係）
