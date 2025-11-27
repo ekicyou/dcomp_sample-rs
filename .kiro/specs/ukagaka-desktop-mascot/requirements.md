@@ -542,6 +542,48 @@
 
 ---
 
+### Requirement 28: 開発者体験（Developer Experience）
+
+**Description**: ゴースト/シェル/バルーン作者の開発効率を向上させるため、デバッグ・テスト・プレビュー機能を提供する。プラットフォーム組み込み機能とIDE連携機能を分離し、高度なデバッグ機能は外部IDE（VS Code等）との連携で実現する。
+
+**Acceptance Criteria**:
+
+**組み込みデバッグ機能（必須）**
+
+1. **The** Mascot Application **shall** 実行中のスクリプト・イベントをリアルタイムでログ表示できる
+2. **The** Mascot Application **shall** デバッグモードを有効/無効に切り替えできる
+3. **While** デバッグモードが有効な間, **the** Mascot Application **shall** 詳細なエラー情報とスタックトレースを表示する
+4. **The** Mascot Application **shall** シェル・スクリプトを再起動せずにリロードできる
+5. **The** Mascot Application **shall** 発生したイベントの履歴を確認できる
+
+**開発支援機能（必須）**
+
+6. **The** Mascot Application **shall** ファイル変更を検知して自動リロード（ホットリロード）できる
+7. **The** Mascot Application **shall** スクリプトの構文エラーを検出し、エラー箇所を特定できる
+8. **The** Mascot Application **shall** サーフェス画像・アニメーションを単体でプレビューできる
+9. **The** Mascot Application **shall** 任意のイベントを手動で発火してテストできる（イベントシミュレーター）
+10. **The** Mascot Application **shall** パッケージ（nar相当）をワンクリックで生成できる
+
+**IDE連携（DAP/LSP）**
+
+> **注記**: 高度なデバッグ機能はDebug Adapter Protocol (DAP)およびLanguage Server Protocol (LSP)を通じて外部IDEと連携する。VS Code拡張は別プロジェクトとして開発されることを想定。
+
+11. **The** Mascot Application **shall** Debug Adapter Protocol (DAP) サーバーを提供する
+12. **Where** DAPクライアントが接続している場合, **the** Mascot Application **shall** ブレークポイントでスクリプト実行を停止できる
+13. **Where** DAPクライアントが接続している場合, **the** Mascot Application **shall** ステップ実行（Step Over/Into/Out）をサポートする
+14. **Where** DAPクライアントが接続している場合, **the** Mascot Application **shall** 実行中の変数状態をインスペクトできる
+15. **The** Mascot Application **shall** Language Server Protocol (LSP) サーバーを提供する
+16. **Where** LSPクライアントが接続している場合, **the** Mascot Application **shall** スクリプトの構文エラー・警告をリアルタイムで通知する
+17. **Where** LSPクライアントが接続している場合, **the** Mascot Application **shall** コード補完候補を提供する
+
+**パッケージ作成支援**
+
+18. **The** Mascot Application **shall** 新規ゴースト/シェル/バルーンのテンプレートを生成できる
+19. **The** Mascot Application **shall** パッケージ作成時に除外するファイルを設定できる（.gitignore形式）
+20. **The** Mascot Application **shall** パッケージのマニフェスト整合性を検証できる
+
+---
+
 ## Non-Functional Requirements
 
 ### NFR-1: 互換性
