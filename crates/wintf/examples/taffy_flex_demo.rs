@@ -78,8 +78,8 @@ fn main() -> Result<()> {
                         title: "wintf - Taffy Flexbox Demo".to_string(),
                         ..Default::default()
                     },
-                    WindowPos::default(),          // レイアウトシステムが更新
-                    wintf::ecs::Visual::default(), // Visual追加
+                    WindowPos::default(), // レイアウトシステムが更新
+                    // Visual は Window の on_add フックで自動挿入される
                 ))
                 .id();
 
