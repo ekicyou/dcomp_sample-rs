@@ -11,6 +11,7 @@
 - **自然な対話**: 人工的でない、血の通った会話体験
 - **愛着の形成**: 長期間使い続けることで深まる関係性
 - **拡張性**: コミュニティによる創作と共有の基盤
+- **モジュール化**: コアは軽量に、高度な機能はプラグインで提供
 
 ---
 
@@ -54,7 +55,7 @@
 3. **When** サーフェス切り替え命令を受けた時, **the** Mascot Application **shall** 滑らかなトランジション効果で切り替える
 4. **The** Mascot Application **shall** フレームアニメーション（連番画像）を再生できる
 5. **While** アニメーション再生中, **the** Mascot Application **shall** 60fps以上の滑らかな描画を維持する
-6. **Where** 高度なアニメーション機能が有効な場合, **the** Mascot Application **shall** 呼吸のような微細な動きをアイドル時に付与する
+6. **Where** 拡張アニメーションプラグインが有効な場合, **the** Mascot Application **shall** 呼吸のような微細な動きをアイドル時に付与する
 7. **The** Mascot Application **shall** アニメーション定義を外部ファイル（JSON/YAML等）から読み込める
 8. **The** Mascot Application **shall** 複数キャラクター間で連動したアニメーション（掛け合い、同期動作等）を再生できる
 
@@ -81,7 +82,7 @@
 **Objective:** ユーザーとして、キャラクターと自然な会話を楽しみたい。それによりキャラクターに人格と魅力を感じられる。
 
 #### Acceptance Criteria
-1. **The** Mascot Application **shall** スクリプト言語（Satori互換または独自形式）を解釈・実行できる
+1. **The** Mascot Application **shall** 里々にインスパイアされた対話記述DSLを解釈・実行できる（会話を自然に書ける構文を重視、里々完全互換は保証しない）
 2. **The** Mascot Application **shall** ランダムトーク（時間経過で自発的に話す）を実行できる
 3. **When** ユーザーがキャラクターをダブルクリックした時, **the** Mascot Application **shall** 対話イベントを発火する
 4. **The** Mascot Application **shall** 変数を保持し、スクリプト内で参照・更新できる
@@ -175,17 +176,18 @@
 
 ---
 
-### Requirement 11: SSP/互換性サポート
-**Objective:** 既存の伺か資産（ゴースト・シェル）を利用したい。それにより20年以上の歴史あるコミュニティ資産を活用できる。
+### Requirement 11: レガシー資産活用
+**Objective:** 既存の伺か資産（ゴースト・シェル）の知見を活かしたい。それにより20年以上の歴史あるコミュニティの蓄積を新世代に継承できる。
+
+**設計方針:** 完全互換はSSPに委ね、本アプリは「伺的」の思想を継承した新世代アプリとして設計する。32bit SHIORI.DLLの互換性問題は解決困難であり、労力に見合わない。
 
 #### Acceptance Criteria
-1. **The** Mascot Application **shall** 里々（Satori）スクリプトの基本構文を解釈できる
-2. **The** Mascot Application **shall** さくらスクリプト（タグベース）を解釈・実行できる
-3. **The** Mascot Application **shall** 標準的なゴーストディレクトリ構造を認識できる
-4. **The** Mascot Application **shall** surfaces.txt形式のサーフェス定義を読み込める
-5. **The** Mascot Application **shall** descript.txtからゴースト/シェル情報を読み込める
-6. **If** 互換性のないスクリプト構文に遭遇した場合, **the** Mascot Application **shall** 警告ログを出力し、可能な限り継続する
-7. **Where** 高度な互換モードが有効な場合, **the** Mascot Application **shall** SHIORIプロトコルを通じて外部辞書と通信できる
+1. **The** Mascot Application **shall** 既存シェル画像（PNG）を新形式ゴーストの素材として取り込める
+2. **The** Mascot Application **shall** surfaces.txt形式のサーフェス定義を参考情報として読み込み、新形式への変換を支援できる
+3. **The** Mascot Application **shall** descript.txtからゴースト/シェルのメタ情報を抽出できる
+4. **Where** レガシー変換ツールが提供される場合, **the** Mascot Application **shall** 既存ゴーストの対話内容を新DSL形式に変換できる
+5. **The** Mascot Application **shall** 伺か由来の概念（ゴースト、シェル、サーフェス、バルーン等）を踏襲した設計とする
+6. **If** ユーザーが既存資産との完全互換を求める場合, **the** Mascot Application **shall** SSPとの併用を推奨する
 
 ---
 
@@ -248,7 +250,7 @@
 2. **Where** 控えめモードが選択されている場合, **the** Mascot Application **shall** 画面端で静かに待機し、呼びかけられるまで自発的に話しかけない
 3. **Where** 活発モードが選択されている場合, **the** Mascot Application **shall** デスクトップ上を自由に移動し、積極的に話しかける
 4. **The** Mascot Application **shall** 時間帯や作業状況に応じて自動的に存在スタイルを調整できる（作業集中時は控えめに等）
-5. **Where** 3D表示モードが有効な場合, **the** Mascot Application **shall** Desktop Mate風の3Dキャラクターをデスクトップ上で動かせる
+5. **Where** 3Dレンダラープラグインが有効な場合, **the** Mascot Application **shall** プラグインが生成したサーフェスを受け取り、3Dキャラクターを表示できる
 6. **The** Mascot Application **shall** キャラクターの移動範囲を制限できる（特定のモニター、画面端のみ等）
 7. **When** ユーザーがフルスクリーンアプリケーションを使用している時, **the** Mascot Application **shall** 自動的に非表示または最小化できる
 
@@ -377,8 +379,7 @@
 3. **The** Mascot Application **shall** 会話履歴の暗号化オプションを提供する
 4. **The** Mascot Application **shall** 特定の会話を「秘密」としてマークし、追加の保護を適用できる
 5. **The** Mascot Application **shall** 会話履歴の選択的削除ができる
-6. **When** センシティブな話題を検知した時, **the** Mascot Application **shall** 適切な対応（傾聴、専門機関の案内等）ができる
-7. **The** Mascot Application **shall** 子供向けモード（不適切コンテンツのフィルタリング）を提供できる
+6. **The** Mascot Application **shall** 子供向けモード（不適切コンテンツのフィルタリング）を提供できる
 
 ---
 
@@ -390,7 +391,9 @@
 - ネイティブアプリケーションとして動作し、ランタイムのインストールを必要としない
 
 ### NFR-2: 拡張性
-- プラグインアーキテクチャにより機能追加が可能
+- **プラグインアーキテクチャ**: コア機能と拡張機能を明確に分離し、プラグインによる機能追加が可能
+- **コア機能**: 描画、スクリプト実行、イベントシステム、設定管理
+- **プラグインで提供可能な機能**: LLM連携、音声合成/認識、画面認識、RAG、外部サービス連携等
 - スクリプト言語の拡張・追加が可能
 - コミュニティによるゴースト/シェル配布基盤との連携
 - 外部LLM/音声合成エンジンとの統合が容易
@@ -419,8 +422,8 @@
 | **サーフェス** | キャラクターの1つの表情・ポーズを表す画像 |
 | **バルーン** | キャラクターの発言を表示する吹き出しウィンドウ |
 | **ドコイツ** | 1つのゴーストに複数キャラクターを搭載し、掛け合いや漫才的会話を実現するシステム設計思想 |
-| **里々（Satori）** | 伺か向けスクリプト言語の一つ |
-| **さくらスクリプト** | タグベースのキャラクター制御言語 |
+| **里々（Satori）** | 伺か向けスクリプト言語の一つ。会話イベントを自然に書ける構文が特徴で、デベロッパーの圧倒的支持を得たデファクトスタンダード |
+| **さくらスクリプト** | タグベースのキャラクター制御言語。互換レイヤーとして重要だが、2025年版として再定義の余地がある |
 | **SHIORI** | シェルとゴースト（辞書）間の通信プロトコル |
 | **SSP** | 現在最も普及している伺か互換シェル（Entire Sara Software Package）|
 | **RAG** | Retrieval-Augmented Generation。検索拡張生成。大量のデータから関連情報を検索しLLMの応答に活用する技術 |

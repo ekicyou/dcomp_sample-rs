@@ -1,9 +1,9 @@
 {
     "feature_name": "marker-component-to-changed",
     "created_at": "2025-11-27T14:30:00+09:00",
-    "updated_at": "2025-11-27T19:10:00+09:00",
+    "updated_at": "2025-11-27T20:58:00+09:00",
     "language": "ja",
-    "phase": "tasks-approved",
+    "phase": "completed",
     "approvals": {
         "requirements": {
             "generated": true,
@@ -15,6 +15,10 @@
         },
         "tasks": {
             "generated": true,
+            "approved": true
+        },
+        "implementation": {
+            "validated": true,
             "approved": true
         }
     },
