@@ -9,6 +9,7 @@ use windows_numerics::*;
 
 use crate::api::*;
 use crate::ecs::layout::LayoutRoot;
+use crate::ecs::Visual;
 
 /// Windowコンポーネント - ウィンドウ作成に必要な基本パラメータを保持
 /// スタイルや位置・サイズは WindowStyle, WindowPos コンポーネントで指定
@@ -729,9 +730,17 @@ impl Command for SetWindowParentToLayoutRoot {
 }
 
 /// Windowコンポーネントが追加されたときに呼ばれるフック
-/// WindowをLayoutRootの子として自動的に設定する
+/// WindowをLayoutRootの子として自動的に設定し、Visualコンポーネントを自動挿入する
 fn on_window_add(mut world: DeferredWorld, context: HookContext) {
-    world.commands().queue(SetWindowParentToLayoutRoot {
-        entity: context.entity,
-    });
+    let entity = context.entity;
+
+    // LayoutRootの子として設定
+    world
+        .commands()
+        .queue(SetWindowParentToLayoutRoot { entity });
+
+    // Visual自動挿入（既に存在する場合はスキップ）
+    if world.get::<Visual>(entity).is_none() {
+        world.commands().entity(entity).insert(Visual::default());
+    }
 }
