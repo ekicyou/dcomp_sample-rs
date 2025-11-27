@@ -578,6 +578,10 @@ pub fn sync_surface_from_arrangement(
                                 frame_count.0, entity_name
                             );
                             commands.entity(entity).insert(new_surface);
+                            // SurfaceGraphicsDirtyも挿入して描画をトリガー
+                            commands
+                                .entity(entity)
+                                .insert(super::components::SurfaceGraphicsDirty::default());
                         }
                         Err(e) => {
                             eprintln!("[sync_surface_from_arrangement] エラー: {:?}", e);
@@ -603,6 +607,10 @@ pub fn sync_surface_from_arrangement(
                             frame_count.0, entity_name
                         );
                         commands.entity(entity).insert(new_surface);
+                        // SurfaceGraphicsDirtyも挿入して描画をトリガー
+                        commands
+                            .entity(entity)
+                            .insert(super::components::SurfaceGraphicsDirty::default());
                     }
                     Err(e) => {
                         eprintln!("[sync_surface_from_arrangement] エラー (新規作成): {:?}", e);
