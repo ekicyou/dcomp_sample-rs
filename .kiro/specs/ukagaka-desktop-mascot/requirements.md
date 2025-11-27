@@ -1,5 +1,14 @@
 # Requirements Document
 
+| 項目 | 内容 |
+|------|------|
+| **Document Title** | 伺的デスクトップマスコットアプリ 要件定義書 |
+| **Version** | 1.0 |
+| **Date** | 2025-12-06 |
+| **Author** | 99% Claude Opus 4.5 + 1% えちょの無茶ぶり |
+
+---
+
 ## Introduction
 
 本仕様書は「伺的デスクトップマスコットアプリ」の要件を定義します。
@@ -359,14 +368,17 @@
 ### Requirement 24: 創作エコシステム — 2025年のコミュニティ
 **Objective:** 創作者として、自分の作ったキャラクターを世界に届けたい。ユーザーとして、多様なキャラクターと出会いたい。
 
+**設計方針:** 配布基盤は特定プラットフォームに依存せず、多様な配布元（GitHub、BOOTH、自サイト等）からのインストールを可能にする。「公式マーケットプレイス」の構築は将来的な別プロジェクトとして検討。
+
 #### Acceptance Criteria
-1. **The** Mascot Application **shall** ゴースト/シェルのオンラインマーケットプレイスと連携できる
-2. **The** Mascot Application **shall** ゴーストの「人格テンプレート」をシェアできる（LLMプロンプトの共有）
-3. **Where** AI人格生成機能が有効な場合, **the** Mascot Application **shall** 簡単な設定から人格を自動生成できる
-4. **The** Mascot Application **shall** ユーザーの会話ログから人格を学習・抽出できる（オプトイン）
-5. **The** Mascot Application **shall** 既存ゴーストの「派生」「アレンジ」を作成できる
-6. **When** ゴーストがアップデートされた時, **the** Mascot Application **shall** ユーザーの個人データを保持したまま更新できる
-7. **The** Mascot Application **shall** クリエイターへの投げ銭・サポート機能と連携できる
+1. **The** Mascot Application **shall** URLを指定してゴースト/シェルをダウンロード・インストールできる
+2. **The** Mascot Application **shall** ゴーストパッケージの標準フォーマット（ZIP等）を定義し、配布元を問わず読み込める
+3. **The** Mascot Application **shall** ゴーストの「人格テンプレート」をエクスポート・インポートできる（LLMプロンプトの共有）
+4. **Where** AI人格生成機能が有効な場合, **the** Mascot Application **shall** 簡単な設定から人格を自動生成できる
+5. **The** Mascot Application **shall** ユーザーの会話ログから人格を学習・抽出できる（オプトイン）
+6. **The** Mascot Application **shall** 既存ゴーストの「派生」「アレンジ」を作成できる
+7. **When** ゴーストがアップデートされた時, **the** Mascot Application **shall** ユーザーの個人データを保持したまま更新できる
+8. **The** Mascot Application **shall** ゴーストのメタ情報にクリエイターの支援先リンク（BOOTH、Fantia、Ko-fi等）を含められる
 
 ---
 
@@ -379,7 +391,6 @@
 3. **The** Mascot Application **shall** 会話履歴の暗号化オプションを提供する
 4. **The** Mascot Application **shall** 特定の会話を「秘密」としてマークし、追加の保護を適用できる
 5. **The** Mascot Application **shall** 会話履歴の選択的削除ができる
-6. **The** Mascot Application **shall** 子供向けモード（不適切コンテンツのフィルタリング）を提供できる
 
 ---
 
