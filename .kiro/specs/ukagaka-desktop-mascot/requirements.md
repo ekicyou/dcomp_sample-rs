@@ -398,6 +398,67 @@
 
 ---
 
+### Requirement 26: キャラクター間コミュニケーション — 「彼女たちの世界」
+**Objective:** ユーザーとして、キャラクター同士が自然に会話している姿を眺めたい。それにより「自分がいなくても彼女たちは存在している」という実感を得られ、対話の強要なく常駐させられる。
+
+#### Acceptance Criteria
+
+**基本：ゴースト内キャラクター間会話（スクリプトベース）**
+
+1. **The** Mascot Application **shall** 同一ゴースト内の複数キャラクター間の会話をスクリプトで記述・再生できる
+2. **The** Mascot Application **shall** ユーザーの介入なしに、時間経過でキャラクター同士の会話を自発的に開始できる
+3. **The** Mascot Application **shall** キャラクター間会話中、ユーザーに選択肢や応答を求めない「傍観モード」を提供する
+
+**関係性とダイナミクス**
+
+4. **The** Mascot Application **shall** キャラクター同士の関係性パラメータ（親密度、信頼度、ライバル度等）を保持できる
+5. **When** 関係性パラメータが変化した時, **the** Mascot Application **shall** 会話のトーンや内容に反映できる
+6. **The** Mascot Application **shall** キャラクター間の「共有記憶」（一緒に体験したこと）を保持・参照できる
+
+**LLM連携：ゴースト内即興会話**
+
+7. **Where** LLM連携が有効な場合, **the** Mascot Application **shall** 同一ゴースト内のキャラクター同士がLLMを介して即興で会話できる
+8. **When** LLMによるキャラクター間会話を生成する時, **the** Mascot Application **shall** 各キャラクターの人格設定を維持したまま対話を継続できる
+9. **The** Mascot Application **shall** 一方のキャラクターの発言を他方のキャラクターのLLMコンテキストに渡し、応答を生成できる
+10. **The** Mascot Application **shall** キャラクター間LLM会話のターン数上限を設定できる（無限ループ防止）
+
+**ゴースト間通信：MCPによる媒介**
+
+11. **The** Mascot Application **shall** MCPサーバーとして、起動中のゴースト一覧と各ゴーストの公開プロフィールを提供できる
+12. **The** Mascot Application **shall** ゴーストが他のゴーストの存在を認識し、名前・属性・状態を取得できる
+13. **When** ゴーストが他のゴーストに話しかけたい時, **the** Mascot Application **shall** MCPを介してメッセージを送信できる
+14. **When** 他のゴーストからメッセージを受信した時, **the** Mascot Application **shall** 受信イベントをゴーストに通知し、応答を返せる
+15. **The** Mascot Application **shall** ゴースト間会話の許可設定（話しかけられてOK/NG、特定ゴーストのみ等）を提供する
+
+**ゴースト間LLM会話：異なる人格の邂逅**
+
+16. **Where** 双方のゴーストでLLM連携が有効な場合, **the** Mascot Application **shall** 異なるゴースト同士がLLMを介して自由に会話できる
+17. **The** Mascot Application **shall** ゴースト間LLM会話において、各ゴーストの人格設定とプライバシー設定を尊重できる
+18. **The** Mascot Application **shall** ゴースト間で共有してよい情報（公開記憶）と共有しない情報（プライベート記憶）を区別できる
+19. **When** ゴースト間会話が発生した時, **the** Mascot Application **shall** 会話履歴を双方のゴーストに記録できる
+20. **The** Mascot Application **shall** ゴースト間の「初対面」「顔見知り」「友人」等の関係性を追跡できる
+
+**会話のきっかけと話題**
+
+21. **The** Mascot Application **shall** キャラクター間会話のトリガー条件を定義できる（時間帯、ユーザーのアイドル状態、特定イベント等）
+22. **Where** 環境認識機能が有効な場合, **the** Mascot Application **shall** 画面上の出来事をキャラクター同士の話題にできる
+23. **The** Mascot Application **shall** 過去のユーザーとの会話内容を、キャラクター同士の話題として参照できる
+24. **The** Mascot Application **shall** 他のゴーストの存在や過去の交流を、会話の話題として参照できる
+
+**ユーザーとの境界**
+
+25. **When** キャラクター間会話中にユーザーがクリックした時, **the** Mascot Application **shall** 会話を中断してユーザーに反応するか、会話を続けるかを選択できる
+26. **The** Mascot Application **shall** キャラクター間会話にユーザーが「割り込む」ことができる
+27. **The** Mascot Application **shall** キャラクターがユーザーについて話す（噂話、心配、愚痴等）シナリオを記述できる
+
+**演出と表現**
+
+28. **While** キャラクター間会話中, **the** Mascot Application **shall** 発言者に応じてバルーンの表示位置・スタイルを切り替える
+29. **The** Mascot Application **shall** 会話の「テンポ」を調整できる（ゆったり/テンポよく）
+30. **Where** 音声合成が有効な場合, **the** Mascot Application **shall** キャラクターごとに異なる声で掛け合いを音声再生できる
+
+---
+
 ## Non-Functional Requirements
 
 ### NFR-1: 互換性
