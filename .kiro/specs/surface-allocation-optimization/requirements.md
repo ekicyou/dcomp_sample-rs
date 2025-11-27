@@ -12,9 +12,10 @@ Surface生成の最適化: GraphicsCommandListの有無や要求サイズを集�
 **Objective:** 開発者として、描画コマンドを持たないエンティティにSurfaceが作成されないことで、VRAMとGPUリソースの消費を削減したい。
 
 #### Acceptance Criteria
-1. When `GraphicsCommandList`が追加された場合, the Graphics System shall 対象エンティティに`SurfaceGraphics`を作成する
+1. When `GraphicsCommandList`が追加された場合, the Graphics System shall 対象エンティティに`SurfaceGraphics`を作成し、`VisualGraphics`に登録する
 2. If エンティティが`GraphicsCommandList`を持たない場合, then the Graphics System shall `SurfaceGraphics`の作成をスキップする
-3. When `GraphicsCommandList`が削除された場合, the Graphics System shall 対応する`SurfaceGraphics`を解放する
+3. When `GraphicsCommandList`が削除された場合, the Graphics System shall 対応する`SurfaceGraphics`を解放し、`VisualGraphics`から登録解除する
+4. The Graphics System shall Surface削除処理を専用システム（`cleanup_surface_on_commandlist_removed`）で実装する
 
 ### Requirement 2: Surface生成システムの一本化
 **Objective:** 開発者として、Surface生成ロジックが一箇所に集約されることで、保守性と挙動の予測可能性を向上させたい。

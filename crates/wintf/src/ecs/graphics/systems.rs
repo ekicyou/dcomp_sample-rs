@@ -60,7 +60,7 @@ fn create_window_graphics_for_hwnd(
 }
 
 /// Surfaceを作成してVisualに設定する
-fn create_surface_for_window(
+fn create_surface_for_visual(
     graphics: &GraphicsCore,
     visual: &VisualGraphics,
     width: u32,
@@ -557,7 +557,7 @@ pub fn sync_surface_from_arrangement(
                         "[Frame {}] [sync_surface_from_arrangement] Entity={} >>> SetContent calling",
                         frame_count.0, entity_name
                     );
-                    match create_surface_for_window(&graphics, visual_graphics, width, height) {
+                    match create_surface_for_visual(&graphics, visual_graphics, width, height) {
                         Ok(new_surface) => {
                             eprintln!(
                                 "[Frame {}] [sync_surface_from_arrangement] Entity={} Surface resized successfully",
@@ -582,7 +582,7 @@ pub fn sync_surface_from_arrangement(
                     "[Frame {}] [sync_surface_from_arrangement] Entity={} >>> SetContent calling",
                     frame_count.0, entity_name
                 );
-                match create_surface_for_window(&graphics, visual_graphics, width, height) {
+                match create_surface_for_visual(&graphics, visual_graphics, width, height) {
                     Ok(new_surface) => {
                         eprintln!(
                             "[Frame {}] [sync_surface_from_arrangement] Entity={} Surface created successfully",
