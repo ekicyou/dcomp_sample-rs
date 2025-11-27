@@ -2,27 +2,32 @@
 
 ## 最終更新
 
-- **日時**: 2025-11-27 19:00 JST
-- **フェーズ**: requirements-generated（要件生成済み・未承認）
-- **次のステップ**: 要件承認 → 設計フェーズへ
+- **日時**: 2025-11-28 (要件承認)
+- **フェーズ**: requirements-approved（要件承認済み）
+- **次のステップ**: 設計生成 (`/kiro-spec-design`)
+- **前提条件**: marker-component-to-changed ✅ 完了済み
 
 ## 現在の状況
 
 ### 完了済み
 
-1. **要件定義** ✅ 生成済み（未承認）
+1. **要件定義** ✅ 承認済み
    - R1: GraphicsCommandList存在に基づくSurface生成判定
    - R2: Surface生成システムの一本化
    - R3: DPIスケール対応のSurfaceサイズ計算
    - R4: 既存SurfaceGraphicsとの整合性維持
    - R5: 診断とデバッグ支援
 
+2. **ギャップ分析** ✅ 完了
+   - 推奨アプローチ: Option A（既存コンポーネント拡張）
+   - 工数: M (3-7日)
+   - リスク: Medium
+
 ### 未完了
 
-1. **要件承認** ⏳
-2. **設計生成** ⏳
-3. **タスク生成** ⏳
-4. **実装** ⏳
+1. **設計生成** ⏳
+2. **タスク生成** ⏳
+3. **実装** ⏳
 
 ## 重要な議論経緯
 
@@ -47,27 +52,42 @@
 
 ## 関連仕様
 
-- **marker-component-to-changed**: マーカーコンポーネントパターンの移行（design-approved）
-  - 本仕様の前提となる変更を含む
-  - 先に実装すべきか、並行して進めるか要検討
+- **marker-component-to-changed**: ✅ **完了済み・アーカイブ** (2025-11-27)
+  - `Changed<SurfaceGraphicsDirty>` パターン実装済み
+  - `HasGraphicsResources` 世代番号方式実装済み
+  - 本仕様の前提条件が満たされた
+
+## 現在のコードベース状況（2025-11-28確認）
+
+### Surface生成の二重経路（解消対象）
+1. **`sync_surface_from_arrangement`**: `Changed<Arrangement>` で発火
+   - GraphicsCommandList有無を確認せずSurface作成 → **廃止対象**
+2. **`deferred_surface_creation_system`**: GraphicsCommandList存在時のみ発火
+   - 正しい方式 → **唯一のシステムとする**
+
+### DPIスケール問題
+- 現在: `Arrangement`（論理サイズ）を使用
+- 目標: `GlobalArrangement.bounds`（物理ピクセルサイズ）を使用
 
 ## 再開時の手順
 
 1. このファイルを確認
 2. `/kiro-spec-status surface-allocation-optimization`で状態確認
-3. `requirements.md`を確認し、承認するかどうか判断
-4. 承認する場合: spec.jsonの`approvals.requirements.approved`を`true`に更新
-5. `/kiro-spec-design surface-allocation-optimization`で設計生成
+3. `/kiro-spec-design surface-allocation-optimization`で設計生成
 
 ## 議題（要件承認時に検討）
 
-1. **marker-component-to-changedとの依存関係**
-   - Changed方式を前提とするか
-   - 先行実装が必要か
+1. ~~**marker-component-to-changedとの依存関係**~~ ✅ 解決済み
+   - Changed方式は実装完了
+   - 先行実装の必要なし
 
 2. **R2とR3の統合可能性**
    - 生成と再作成を同一システムで処理
    - 検出システムは分離するか統合するか
+
+3. **要件定義の妥当性確認**
+   - R2: `sync_surface_from_arrangement`廃止は現コードと整合
+   - R3: `GlobalArrangement`使用への変更が必要
 
 ## ファイル構成
 
@@ -75,5 +95,6 @@
 .kiro/specs/surface-allocation-optimization/
 ├── spec.json              # 仕様メタデータ（requirements-generated）
 ├── requirements.md        # 要件定義（R1-R5）
+├── gap-analysis.md        # ギャップ分析（2025-11-28生成）
 └── SESSION_CONTEXT.md     # 本ファイル
 ```
