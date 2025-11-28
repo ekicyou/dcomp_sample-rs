@@ -28,9 +28,12 @@
 #### Acceptance Criteria
 
 1. The VSYNCスレッド shall `WM_VSYNC`メッセージ送信**に加えて**、アトミックなtick_countカウンターをインクリメントする。
-2. The tick_countカウンター shall `static AtomicU64`で実装され、グローバルにアクセス可能とする。
-3. When VSYNCスレッドがDwmFlush()から復帰したとき, the VSYNCスレッド shall tick_countをインクリメントしてからWM_VSYNCをPostMessageする。
+2. The フレームワーク shall 以下の2つのカウンターを`static AtomicU64`で実装する：
+   - `VSYNC_TICK_COUNT`: VSYNCスレッドがインクリメント（VSYNC到来回数）
+   - `LAST_VSYNC_TICK`: メインスレッドのみが更新（前回処理したtick_count値）
+3. When VSYNCスレッドがDwmFlush()から復帰したとき, the VSYNCスレッド shall `VSYNC_TICK_COUNT`をインクリメントしてからWM_VSYNCをPostMessageする。
 4. The tick_countの値 shall ラップアラウンドに対応し、u64の範囲で安全に比較できる。
+5. The `LAST_VSYNC_TICK` shall メインスレッドからのみ更新され、RefCell借用状態に依存しない。
 
 ### Requirement 2: WndProc内からのVSYNC駆動tick関数
 
@@ -39,15 +42,14 @@
 #### Acceptance Criteria
 
 1. The フレームワーク shall `EcsWorld`に`try_tick_on_vsync(&mut self) -> bool`メソッドを追加する。このメソッドは以下の順序で処理を行う：
-   1. tick_countの変化を検出（前回値`last_vsync_tick`と比較）
-   2. 変化があれば`try_tick_world()`を呼び出す
-   3. 前回値を更新する
-   4. tickが実行されたかどうかを`bool`で返す
+   1. `VSYNC_TICK_COUNT`と`LAST_VSYNC_TICK`を比較してtick_countの変化を検出
+   2. 変化があれば`LAST_VSYNC_TICK`を更新し、`try_tick_world()`を呼び出す
+   3. tickが実行されたかどうかを`bool`で返す
 2. The フレームワーク shall `VsyncTick`トレイトを定義し、`Rc<RefCell<EcsWorld>>`に実装する。このトレイトは`try_tick_on_vsync(&self) -> bool`メソッドを提供する：
    1. `try_borrow_mut()`でEcsWorldの借用を試みる
    2. 借用成功時、`EcsWorld::try_tick_on_vsync()`を呼び出す
    3. 借用失敗時（再入時）は安全にスキップしてfalseを返す
-3. The `EcsWorld` shall `last_vsync_tick: u64`フィールドを持ち、前回処理したtick_count値を保持する。
+3. The カウンター shall `static AtomicU64`で管理され、EcsWorldにフィールド追加は不要とする。
 4. When `try_borrow_mut()`が失敗したとき（再入時）, the トレイト実装 shall 安全にスキップしてfalseを返す。
 
 ### Requirement 3: WM_WINDOWPOSCHANGED でのtick呼び出し
@@ -61,16 +63,16 @@
 3. When モーダルループ中（ウィンドウドラッグ中）, the WM_WINDOWPOSCHANGED shall VSYNCタイミングでworld tickを駆動する。
 4. When 通常時（モーダルループ外）, the WM_WINDOWPOSCHANGED shall tick_countが変化していなければスキップする（run()のWM_VSYNCで処理済み）。
 
-### Requirement 4: 既存WM_VSYNC処理の維持
+### Requirement 4: WM_VSYNC処理の統一
 
-**Objective:** As a フレームワーク開発者, I want 既存のWM_VSYNC処理を変更せず維持したい, so that 安定性を確保できる。
+**Objective:** As a フレームワーク開発者, I want WM_VSYNC処理も統一されたtick関数を使用したい, so that 重複実行防止が確実に行われる。
 
 #### Acceptance Criteria
 
-1. The `run()`メソッドのWM_VSYNC処理 shall 従来通り`borrow_mut()`で`try_tick_world()`を呼び出す。
+1. The `run()`メソッドのWM_VSYNC処理 shall `borrow_mut()`で借用後、`EcsWorld::try_tick_on_vsync()`を呼び出す。
 2. The WM_VSYNCメッセージ shall 引き続きVSYNCスレッドからPostMessageで送信される。
 3. When 通常動作時（モーダルループ外）, the world tick shall 主にWM_VSYNC処理で実行される。
-4. The `try_tick_on_vsync()`とWM_VSYNC処理 shall tick_count値の比較により重複実行を防ぐ。
+4. The `run()`と`WndProc`の両方 shall 同じ`try_tick_on_vsync()`を使用し、`LAST_VSYNC_TICK`の比較により重複実行を防ぐ。
 
 ### Requirement 5: 既存動作との互換性
 
