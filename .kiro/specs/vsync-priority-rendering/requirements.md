@@ -38,14 +38,17 @@
 
 #### Acceptance Criteria
 
-1. The フレームワーク shall `try_tick_on_vsync()`関数を提供する。この関数は以下の順序で処理を行う：
+1. The フレームワーク shall `EcsWorld`に`try_tick_on_vsync(&mut self) -> bool`メソッドを追加する。このメソッドは以下の順序で処理を行う：
+   1. tick_countの変化を検出（前回値`last_vsync_tick`と比較）
+   2. 変化があれば`try_tick_world()`を呼び出す
+   3. 前回値を更新する
+   4. tickが実行されたかどうかを`bool`で返す
+2. The フレームワーク shall `VsyncTick`トレイトを定義し、`Rc<RefCell<EcsWorld>>`に実装する。このトレイトは`try_tick_on_vsync(&self) -> bool`メソッドを提供する：
    1. `try_borrow_mut()`でEcsWorldの借用を試みる
-   2. 借用成功時、tick_countの変化を検出（前回値と比較）
-   3. 変化があれば`try_tick_world()`を呼び出す
-   4. 前回値を更新する
-2. The `try_tick_on_vsync()` shall `bool`を返す（tickが実行されたかどうか）。
-3. When `try_borrow_mut()`が失敗したとき（再入時）, the 関数 shall 安全にスキップしてfalseを返す。
-4. The 前回tick_count値 shall 借用成功後にのみアクセスされ、再入時の競合を防ぐ。
+   2. 借用成功時、`EcsWorld::try_tick_on_vsync()`を呼び出す
+   3. 借用失敗時（再入時）は安全にスキップしてfalseを返す
+3. The `EcsWorld` shall `last_vsync_tick: u64`フィールドを持ち、前回処理したtick_count値を保持する。
+4. When `try_borrow_mut()`が失敗したとき（再入時）, the トレイト実装 shall 安全にスキップしてfalseを返す。
 
 ### Requirement 3: WM_WINDOWPOSCHANGED でのtick呼び出し
 
