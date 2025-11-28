@@ -105,3 +105,56 @@
 2. When デバッグビルドのとき, the フレームワーク shall エコーバック判定の結果をログ出力する（判定理由、差分値）。
 3. Where ドラッグ中抑制が発生したとき, the フレームワーク shall 抑制された操作をログ出力する。
 
+### Requirement 8: World外DPI変更コンテキスト管理
+
+**Objective:** As a フレームワーク開発者, I want DPI変更情報をWorld借用に依存せずに管理したい, so that WndProc再入時でも正しいDPI値を参照できる。
+
+#### Background
+
+`WM_DPICHANGED`は`SetWindowPos`内から同期的に送信され、その後`WM_WINDOWPOSCHANGED`が続けて発火する。
+現在の`PostMessage`による遅延処理では、`WM_WINDOWPOSCHANGED`処理時に新DPIを参照できない。
+
+```
+SetWindowPos() ← apply_window_pos_changes（World借用中）
+  ↓
+WM_DPICHANGED (同期、再入) ← World借用中なのでコンポーネント更新不可
+  ↓
+WM_WINDOWPOSCHANGED (同期、再入) ← 新DPIを参照したいが、まだ更新されていない
+  ↓
+WM_DPICHANGED_DEFERRED (非同期) ← ようやくDPIコンポーネント更新（手遅れ）
+```
+
+#### Acceptance Criteria
+
+1. The フレームワーク shall スレッドローカルな`DpiChangeContext`構造体を提供する。
+2. The `DpiChangeContext` shall 以下の情報を保持する：
+   - `new_dpi`: 新しいDPI値（既存の`DPI`型を使用）
+   - `suggested_rect`: Windowsが推奨するウィンドウRECT（物理座標）
+3. When `WM_DPICHANGED`を受信したとき, the フレームワーク shall `DpiChangeContext`をスレッドローカルストレージに保存する（World借用不要）。
+4. When `WM_WINDOWPOSCHANGED`を処理するとき, the フレームワーク shall まずスレッドローカルから`DpiChangeContext`を取得・消費する。
+5. If `DpiChangeContext`が存在するとき, the `WM_WINDOWPOSCHANGED`処理 shall `suggested_rect`と`new_dpi`を使用して論理座標を計算する。
+6. If `DpiChangeContext`が存在しないとき, the `WM_WINDOWPOSCHANGED`処理 shall 従来通り現在のDPIコンポーネントを使用する。
+7. The `DpiChangeContext` shall `WM_WINDOWPOSCHANGED`での消費後、または`WM_DPICHANGED_DEFERRED`処理後にクリアされる。
+
+### Requirement 9: 物理座標ベースのエコーバック検知
+
+**Objective:** As a フレームワーク開発者, I want エコーバック判定を物理座標ベースで行いたい, so that DPI変更時でも正確に判定できる。
+
+#### Background
+
+現在の`is_echo()`は論理座標で比較している。DPI変更時、同じ物理サイズでも論理サイズが変わるため、エコーバック検知が機能しない。
+
+```
+[DPI=120] 物理 (800, 600) → 論理 (666.7, 500)
+[DPI=192] 物理 (800, 600) → 論理 (416.7, 312.5)  ← 論理サイズが異なる！
+```
+
+#### Acceptance Criteria
+
+1. The `WindowPos`コンポーネント shall エコーバック検知用に物理座標を記録するフィールドを持つ：
+   - `last_sent_physical_position: Option<(i32, i32)>`
+   - `last_sent_physical_size: Option<(i32, i32)>`
+2. When `SetWindowPos`を呼び出すとき, the `apply_window_pos_changes` shall 送信した物理座標を記録する。
+3. The `WindowPos::is_echo_physical()`メソッド shall 物理座標ベースでエコーバック判定を行う。
+4. When `WM_WINDOWPOSCHANGED`で受信した物理座標が`last_sent_physical_*`と一致するとき, the 処理 shall これをエコーバックと判定する。
+5. The 既存の論理座標ベース`is_echo()` shall 互換性のため残すが、主要な判定は物理座標ベースで行う。
