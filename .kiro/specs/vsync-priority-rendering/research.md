@@ -87,6 +87,16 @@
 - **Trade-offs**: 理論上はリオーダリングの可能性があるが、実用上問題なし
 - **Follow-up**: パフォーマンス問題が発生した場合に再検討
 
+### Decision: LAST_VSYNC_TICK更新順序
+- **Context**: try_tick_on_vsync()内でのLAST_VSYNC_TICK更新タイミング
+- **Selected Approach**: `try_tick_world()`呼び出しの**前**に`LAST_VSYNC_TICK`を更新
+- **Rationale**: 
+  - `try_tick_world()`内でWndProcが再帰的に呼ばれる可能性がある
+  - 先に更新しておくことで、再入時は`current == last`となりスキップされる
+  - CAS（compare_exchange）不要でシンプルな実装を維持
+- **Trade-offs**: なし（この順序が必須）
+- **Critical**: この順序を変えると再入時に重複tickが発生する可能性がある
+
 ### Decision: VsyncTickトレイトの配置
 - **Context**: トレイトをどのモジュールに配置するか
 - **Alternatives Considered**:
