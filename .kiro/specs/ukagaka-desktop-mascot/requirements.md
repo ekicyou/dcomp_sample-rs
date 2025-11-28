@@ -549,6 +549,12 @@
 23. **The** Mascot Application **shall** ローカルファイルからパッケージをインストールできる
 24. **The** Mascot Application **shall** パッケージの更新確認と自動更新をサポートする
 
+**アップデート保護**
+
+25. **The** Mascot Application **shall** 特定フォルダ（例: `save/`, `.local/`）をアップデート対象外として保護できる
+26. **The** Mascot Application **shall** パッケージごとに除外ルールを定義できる（.updateignore形式）
+27. **When** パッケージを更新する時, **the** Mascot Application **shall** 保護対象のファイル・フォルダを上書きしない
+
 ---
 
 ### Requirement 28: 開発者体験（Developer Experience）
