@@ -103,6 +103,12 @@ pub extern "system" fn ecs_wndproc(
 
                                     // クライアント座標が取得できた場合のみ処理
                                     if let Some((client_pos, client_size)) = client_coords {
+                                        // DPIを先に取得（BoxStyle更新前に不変借用を完了させる）
+                                        let dpi = entity_ref
+                                            .get::<crate::ecs::window::DPI>()
+                                            .copied()
+                                            .unwrap_or_default();
+
                                         if let Some(mut window_pos) =
                                             entity_ref.get_mut::<crate::ecs::window::WindowPos>()
                                         {
@@ -128,6 +134,7 @@ pub extern "system" fn ecs_wndproc(
                                         }
 
                                         // BoxStyleがあれば更新（なければスキップ）
+                                        // 注: BoxStyleは論理座標（DIP）を使用するため、物理ピクセルから変換が必要
                                         if let Some(mut box_style) =
                                             entity_ref.get_mut::<crate::ecs::layout::BoxStyle>()
                                         {
@@ -136,23 +143,32 @@ pub extern "system" fn ecs_wndproc(
                                                 Rect,
                                             };
 
-                                            // サイズを更新
+                                            // 物理ピクセルサイズ→DIPサイズに変換
+                                            let (logical_width, logical_height) =
+                                                dpi.to_logical_size(client_size.cx, client_size.cy);
+                                            // 物理ピクセル位置→DIP位置に変換
+                                            let (logical_x, logical_y) =
+                                                dpi.to_logical_point(client_pos.x, client_pos.y);
+
+                                            // サイズを更新（DIP単位）
                                             box_style.size = Some(BoxSize {
-                                                width: Some(Dimension::Px(client_size.cx as f32)),
-                                                height: Some(Dimension::Px(client_size.cy as f32)),
+                                                width: Some(Dimension::Px(logical_width)),
+                                                height: Some(Dimension::Px(logical_height)),
                                             });
 
-                                            // 位置を更新（絶対配置のinset）
+                                            // 位置を更新（絶対配置のinset、DIP単位）
                                             box_style.inset = Some(BoxInset(Rect {
-                                                left: LengthPercentageAuto::Px(client_pos.x as f32),
-                                                top: LengthPercentageAuto::Px(client_pos.y as f32),
+                                                left: LengthPercentageAuto::Px(logical_x),
+                                                top: LengthPercentageAuto::Px(logical_y),
                                                 right: LengthPercentageAuto::Auto,
                                                 bottom: LengthPercentageAuto::Auto,
                                             }));
 
                                             eprintln!(
-                                                "[WM_WINDOWPOSCHANGED] Entity {:?}: BoxStyle updated. size=({},{}), inset=({},{})",
-                                                entity, client_size.cx, client_size.cy, client_pos.x, client_pos.y
+                                                "[WM_WINDOWPOSCHANGED] Entity {:?}: BoxStyle updated (DIP). physical=({},{},{},{}) -> logical=({:.1},{:.1},{:.1},{:.1}), scale=({:.2},{:.2})",
+                                                entity, client_pos.x, client_pos.y, client_size.cx, client_size.cy,
+                                                logical_x, logical_y, logical_width, logical_height,
+                                                dpi.scale_x(), dpi.scale_y()
                                             );
                                         }
                                     }
@@ -179,25 +195,32 @@ pub extern "system" fn ecs_wndproc(
             }
             WM_DPICHANGED => {
                 // DPIが変更された（モニター間移動など）
-                let dpi_x = (wparam.0 & 0xFFFF) as u16;
-                let dpi_y = ((wparam.0 >> 16) & 0xFFFF) as u16;
-                let scale_x = dpi_x as f32 / 96.0;
-                let scale_y = dpi_y as f32 / 96.0;
+                // WM_DPICHANGEDはSetWindowPos等の処理中に同期的に送信されるため、
+                // Worldが借用中の可能性がある。PostMessageで遅延処理する。
+                let new_dpi = crate::ecs::window::DPI::from_WM_DPICHANGED(wparam, lparam);
 
                 if let Some(entity) = get_entity_from_hwnd(hwnd) {
                     eprintln!(
-                        "[WM_DPICHANGED] Entity {:?}: dpi=({}, {}), scale=({:.2}, {:.2})",
-                        entity, dpi_x, dpi_y, scale_x, scale_y
+                        "[WM_DPICHANGED] Entity {:?}: dpi=({}, {}), scale=({:.2}, {:.2}) -> posting deferred message",
+                        entity,
+                        new_dpi.dpi_x,
+                        new_dpi.dpi_y,
+                        new_dpi.scale_x(),
+                        new_dpi.scale_y()
                     );
+
+                    // PostMessageで遅延処理
+                    crate::ecs::window::post_dpi_change(hwnd, entity, new_dpi);
                 } else {
                     eprintln!(
-                        "[WM_DPICHANGED] hwnd {:?}: dpi=({}, {}), scale=({:.2}, {:.2})",
-                        hwnd, dpi_x, dpi_y, scale_x, scale_y
+                        "[WM_DPICHANGED] hwnd {:?}: dpi=({}, {}), scale=({:.2}, {:.2}) (no entity)",
+                        hwnd,
+                        new_dpi.dpi_x,
+                        new_dpi.dpi_y,
+                        new_dpi.scale_x(),
+                        new_dpi.scale_y()
                     );
                 }
-
-                // TODO: DPIコンポーネントを更新する処理を追加予定
-                // 現在はログ出力のみ
 
                 DefWindowProcW(hwnd, message, wparam, lparam)
             }

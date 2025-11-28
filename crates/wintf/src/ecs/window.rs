@@ -5,11 +5,88 @@ use bevy_ecs::world::DeferredWorld;
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow};
 use windows::Win32::UI::WindowsAndMessaging::*;
-use windows_numerics::*;
 
 use crate::api::*;
 use crate::ecs::layout::LayoutRoot;
 use crate::ecs::Visual;
+
+/// WM_DPICHANGED_DEFERRED メッセージを PostMessage で送信
+///
+/// WM_DPICHANGED は SetWindowPos などの処理中に同期的に送信されるため、
+/// World が既に借用されている場合がある。PostMessage で遅延処理することで
+/// World 借用競合を回避する。
+///
+/// # パッキング形式
+/// - wparam: Entity の bits (u64)
+/// - lparam: packed DPI (dpi_x の下位8ビット | dpi_y の下位8ビット << 8)
+///
+/// 注: DPI値は通常 96, 120, 144, 168, 192 など 8ビットに収まる値のため、下位8ビットのみを使用。
+pub fn post_dpi_change(hwnd: HWND, entity: Entity, new_dpi: DPI) {
+    // Entity の bits を取得 (index + generation が含まれる)
+    let entity_bits = entity.to_bits();
+
+    // DPI をパック (下位8ビットのみ使用)
+    let packed_dpi = ((new_dpi.dpi_x as u32) & 0xFF) | (((new_dpi.dpi_y as u32) & 0xFF) << 8);
+
+    unsafe {
+        let _ = PostMessageW(
+            Some(hwnd),
+            crate::win_thread_mgr::WM_DPICHANGED_DEFERRED,
+            WPARAM(entity_bits as usize),
+            LPARAM(packed_dpi as isize),
+        );
+    }
+    eprintln!(
+        "[DPI PostMessage] Posted deferred DPI change for entity {:?}: dpi=({}, {})",
+        entity, new_dpi.dpi_x, new_dpi.dpi_y
+    );
+}
+
+/// WM_DPICHANGED_DEFERRED メッセージを処理
+///
+/// メッセージループから呼び出され、World が借用されていない状態で DPI コンポーネントを更新する。
+pub fn process_deferred_dpi_change(world: &mut World, wparam: WPARAM, lparam: LPARAM) {
+    // Entity をアンパック
+    let entity_bits = wparam.0 as u64;
+    let packed_dpi = lparam.0 as u32;
+
+    // DPI をアンパック
+    let dpi_x = (packed_dpi & 0xFF) as u16;
+    let dpi_y = ((packed_dpi >> 8) & 0xFF) as u16;
+    let new_dpi = DPI::from_dpi(dpi_x, dpi_y);
+
+    // Entity を再構築
+    let entity = Entity::from_bits(entity_bits);
+
+    eprintln!(
+        "[DPI Deferred] Processing deferred DPI change for entity {:?}: dpi=({}, {})",
+        entity, dpi_x, dpi_y
+    );
+
+    // DPI コンポーネントを更新
+    if let Ok(mut entity_ref) = world.get_entity_mut(entity) {
+        if let Some(mut dpi) = entity_ref.get_mut::<DPI>() {
+            let old_dpi = *dpi;
+            dpi.set_if_neq(new_dpi);
+            eprintln!(
+                "[DPI Deferred] Entity {:?}: DPI updated from ({}, {}) to ({}, {})",
+                entity, old_dpi.dpi_x, old_dpi.dpi_y, new_dpi.dpi_x, new_dpi.dpi_y
+            );
+        } else {
+            // DPI コンポーネントがない場合は挿入（通常は on_window_handle_add で追加済み）
+            entity_ref.insert(new_dpi);
+            eprintln!(
+                "[DPI Deferred] Entity {:?}: DPI component inserted (unexpected)",
+                entity
+            );
+        }
+    } else {
+        eprintln!(
+            "[DPI Deferred] Entity {:?}: get_entity_mut failed (entity may have been despawned)",
+            entity
+        );
+    }
+}
 
 /// Windowコンポーネント - ウィンドウ作成に必要な基本パラメータを保持
 /// スタイルや位置・サイズは WindowStyle, WindowPos コンポーネントで指定
@@ -215,10 +292,28 @@ fn on_window_handle_add(
 ) {
     let entity = hook.entity;
     if let Some(handle) = world.get::<WindowHandle>(entity) {
+        let hwnd = handle.hwnd;
         println!(
             "[Hook] WindowHandle added to entity {:?}, hwnd {:?}",
-            entity, handle.hwnd
+            entity, hwnd
         );
+
+        // DPIコンポーネントを挿入
+        let dpi_value = unsafe { GetDpiForWindow(hwnd) };
+        let dpi_component = if dpi_value > 0 {
+            DPI::from_dpi(dpi_value as u16, dpi_value as u16)
+        } else {
+            DPI::default() // 取得失敗時はデフォルト96
+        };
+        println!(
+            "[Hook] DPI component inserted for entity {:?}: dpi=({}, {}), scale=({:.2}, {:.2})",
+            entity,
+            dpi_component.dpi_x,
+            dpi_component.dpi_y,
+            dpi_component.scale_x(),
+            dpi_component.scale_y()
+        );
+        world.commands().entity(entity).insert(dpi_component);
 
         // アプリに通知
         if let Some(mut app) = world.get_resource_mut::<crate::ecs::app::App>() {
@@ -253,39 +348,132 @@ fn on_window_handle_remove(
     }
 }
 
-/// DPI変換行列を保持するコンポーネント
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
+/// DPI情報を保持するコンポーネント
+///
+/// Windowエンティティ専用。SparseSetストレージを使用。
+/// - dpi_x, dpi_y: 通常同一値だが、将来の拡張性のため分離
+/// - デフォルト値: 96 (Windows標準DPI)
+///
+/// # Example
+/// ```
+/// use wintf::ecs::DPI;
+///
+/// let dpi = DPI::from_dpi(120, 120);
+/// assert_eq!(dpi.scale_x(), 1.25);
+/// ```
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 #[component(storage = "SparseSet")]
-pub struct DpiTransform {
-    pub transform: Matrix3x2,
-    pub global_transform: Matrix3x2,
+pub struct DPI {
+    /// X方向のDPI値 (96 = 100%)
+    pub dpi_x: u16,
+    /// Y方向のDPI値 (96 = 100%)
+    pub dpi_y: u16,
 }
 
-impl DpiTransform {
-    /// WM_DPICHANGED イベントのパラメーターから作成
+impl Default for DPI {
+    fn default() -> Self {
+        Self {
+            dpi_x: 96,
+            dpi_y: 96,
+        }
+    }
+}
+
+impl DPI {
+    /// DPI値からインスタンスを作成
+    pub fn from_dpi(x_dpi: u16, y_dpi: u16) -> Self {
+        Self {
+            dpi_x: x_dpi,
+            dpi_y: y_dpi,
+        }
+    }
+
+    /// WM_DPICHANGEDメッセージのwparamから作成
+    ///
+    /// # Arguments
+    /// * `wparam` - WM_DPICHANGEDのWPARAM (LOWORD=X DPI, HIWORD=Y DPI)
+    /// * `_lparam` - WM_DPICHANGEDのLPARAM (未使用だが署名の一貫性のため保持)
     #[allow(non_snake_case)]
     pub fn from_WM_DPICHANGED(wparam: WPARAM, _lparam: LPARAM) -> Self {
-        let (x_dpi, y_dpi) = (wparam.0 as u16, (wparam.0 >> 16) as u16);
+        let x_dpi = (wparam.0 & 0xFFFF) as u16;
+        let y_dpi = ((wparam.0 >> 16) & 0xFFFF) as u16;
         Self::from_dpi(x_dpi, y_dpi)
     }
 
-    pub fn from_dpi(x_dpi: u16, y_dpi: u16) -> Self {
-        let scale_x = x_dpi as f32 / 96.0;
-        let scale_y = y_dpi as f32 / 96.0;
-        let transform = Matrix3x2::scale(scale_x, scale_y);
-        let global_transform = transform;
-        Self {
-            transform,
-            global_transform,
-        }
+    /// X方向のスケール係数を取得 (1.0 = 96 DPI)
+    pub fn scale_x(&self) -> f32 {
+        self.dpi_x as f32 / 96.0
     }
 
-    pub fn push(self, transform: Matrix3x2) -> Self {
-        let global_transform = self.global_transform * transform;
-        Self {
-            transform,
-            global_transform,
-        }
+    /// Y方向のスケール係数を取得 (1.0 = 96 DPI)
+    pub fn scale_y(&self) -> f32 {
+        self.dpi_y as f32 / 96.0
+    }
+
+    // ========================================
+    // 座標変換関数（物理ピクセル ⇔ 論理座標 DIP）
+    // ========================================
+
+    /// 物理ピクセル値をX方向の論理座標（DIP）に変換
+    ///
+    /// # Example
+    /// ```
+    /// use wintf::ecs::DPI;
+    /// let dpi = DPI::from_dpi(192, 192); // 200% scale
+    /// assert_eq!(dpi.to_logical_x(200), 100.0); // 200px → 100dip
+    /// ```
+    #[inline]
+    pub fn to_logical_x(&self, physical: i32) -> f32 {
+        physical as f32 / self.scale_x()
+    }
+
+    /// 物理ピクセル値をY方向の論理座標（DIP）に変換
+    #[inline]
+    pub fn to_logical_y(&self, physical: i32) -> f32 {
+        physical as f32 / self.scale_y()
+    }
+
+    /// 物理ピクセルサイズを論理座標サイズ（DIP）に変換
+    #[inline]
+    pub fn to_logical_size(&self, width: i32, height: i32) -> (f32, f32) {
+        (self.to_logical_x(width), self.to_logical_y(height))
+    }
+
+    /// 物理ピクセル位置を論理座標位置（DIP）に変換
+    #[inline]
+    pub fn to_logical_point(&self, x: i32, y: i32) -> (f32, f32) {
+        (self.to_logical_x(x), self.to_logical_y(y))
+    }
+
+    /// 論理座標（DIP）を物理ピクセル値に変換（X方向）
+    ///
+    /// # Example
+    /// ```
+    /// use wintf::ecs::DPI;
+    /// let dpi = DPI::from_dpi(192, 192); // 200% scale
+    /// assert_eq!(dpi.to_physical_x(100.0), 200); // 100dip → 200px
+    /// ```
+    #[inline]
+    pub fn to_physical_x(&self, logical: f32) -> i32 {
+        (logical * self.scale_x()).round() as i32
+    }
+
+    /// 論理座標（DIP）を物理ピクセル値に変換（Y方向）
+    #[inline]
+    pub fn to_physical_y(&self, logical: f32) -> i32 {
+        (logical * self.scale_y()).round() as i32
+    }
+
+    /// 論理座標サイズ（DIP）を物理ピクセルサイズに変換
+    #[inline]
+    pub fn to_physical_size(&self, width: f32, height: f32) -> (i32, i32) {
+        (self.to_physical_x(width), self.to_physical_y(height))
+    }
+
+    /// 論理座標位置（DIP）を物理ピクセル位置に変換
+    #[inline]
+    pub fn to_physical_point(&self, x: f32, y: f32) -> (i32, i32) {
+        (self.to_physical_x(x), self.to_physical_y(y))
     }
 }
 

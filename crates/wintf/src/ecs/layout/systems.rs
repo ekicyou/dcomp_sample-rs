@@ -11,7 +11,7 @@ use super::{
     Arrangement, ArrangementTreeChanged, D2DRectExt, Dimension, GlobalArrangement, LayoutRoot,
 };
 use crate::ecs::graphics::format_entity_name;
-use crate::ecs::window::{Window, WindowPos};
+use crate::ecs::window::{Window, WindowPos, DPI};
 use taffy::prelude::*;
 
 /// 階層に属していないEntity（ルートWindow）のGlobalArrangementを更新
@@ -248,23 +248,43 @@ pub fn compute_taffy_layout_system(
     }
 }
 
-/// TaffyComputedLayoutの結果をArrangementに反映
+/// TaffyComputedLayoutまたはDPIの変更をArrangementに反映
+///
+/// # Triggers
+/// - TaffyComputedLayoutの追加・変更
+/// - DPIコンポーネントの変更
+///
+/// # Behavior
+/// どちらのトリガーでも全フィールド（offset, size, scale）を再計算
 pub fn update_arrangements_system(
     mut commands: Commands,
     mut query: Query<
-        (Entity, &TaffyComputedLayout, Option<&mut Arrangement>, Option<&Name>),
-        (Changed<TaffyComputedLayout>, With<TaffyStyle>),
+        (Entity, &TaffyComputedLayout, Option<&mut Arrangement>, Option<&Name>, Option<Ref<DPI>>),
+        (Or<(Changed<TaffyComputedLayout>, Changed<DPI>)>, With<TaffyStyle>),
     >,
 ) {
-    for (entity, computed_layout, arrangement, name) in query.iter_mut() {
+    for (entity, computed_layout, arrangement, name, dpi) in query.iter_mut() {
         let layout = &computed_layout.0;
+
+        // DPIが存在する場合はスケールファクターを使用、なければデフォルト(1.0, 1.0)
+        let scale = dpi.as_ref().map_or(
+            LayoutScale::default(),
+            |d| LayoutScale { x: d.scale_x(), y: d.scale_y() }
+        );
+        
+        // デバッグ: DPI変更検知の確認
+        if let Some(ref d) = dpi {
+            if d.is_changed() {
+                eprintln!("[update_arrangements] DPI is_changed=true for Entity={:?}", entity);
+            }
+        }
 
         let new_arrangement = Arrangement {
             offset: Offset {
                 x: layout.location.x,
                 y: layout.location.y,
             },
-            scale: LayoutScale::default(),
+            scale,
             size: Size {
                 width: layout.size.width,
                 height: layout.size.height,
@@ -277,8 +297,10 @@ pub fn update_arrangements_system(
             entity_name, layout.location.x, layout.location.y, layout.size.width, layout.size.height
         );
         eprintln!(
-            "[update_arrangements] Entity={}, Arrangement: offset=({}, {}), size=({}, {})",
-            entity_name, new_arrangement.offset.x, new_arrangement.offset.y, new_arrangement.size.width, new_arrangement.size.height
+            "[update_arrangements] Entity={}, Arrangement: offset=({}, {}), scale=({}, {}), size=({}, {})",
+            entity_name, new_arrangement.offset.x, new_arrangement.offset.y, 
+            new_arrangement.scale.x, new_arrangement.scale.y,
+            new_arrangement.size.width, new_arrangement.size.height
         );
 
         if let Some(mut arr) = arrangement {
