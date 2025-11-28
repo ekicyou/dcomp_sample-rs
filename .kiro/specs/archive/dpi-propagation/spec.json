@@ -2,8 +2,9 @@
     "feature_name": "dpi-propagation",
     "created_at": "2025-11-28T00:00:00+09:00",
     "updated_at": "2025-11-28T00:00:00+09:00",
+    "completed_at": "2025-11-28T00:00:00+09:00",
     "language": "ja",
-    "phase": "tasks-approved",
+    "phase": "completed",
     "approvals": {
         "requirements": {
             "generated": true,
@@ -16,7 +17,11 @@
         "tasks": {
             "generated": true,
             "approved": true
+        },
+        "implementation": {
+            "completed": true,
+            "validated": true
         }
     },
-    "ready_for_implementation": true
+    "ready_for_implementation": false
 }

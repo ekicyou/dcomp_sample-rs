@@ -57,7 +57,7 @@
   - `cargo test`で既存テストが通過することを確認する
   - _Requirements: 6.1, 6.3_
 
-- [ ] 4.4* 手動統合テストの実施
+- [x] 4.4* 手動統合テストの実施
   - デュアルモニタ環境でtaffy_flex_demoを実行する
   - 低DPIモニタでウィンドウ作成、初期DPI値を確認する
   - 高DPIモニタへ移動、WM_DPICHANGEDログとArrangement.scale更新を確認する
