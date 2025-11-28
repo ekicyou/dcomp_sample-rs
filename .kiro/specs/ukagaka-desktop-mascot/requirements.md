@@ -593,6 +593,34 @@
 
 ---
 
+### Requirement 29: 互換性・マイグレーション
+
+**Description**: 既存の伺か資産（ゴースト/シェル/バルーン）を新プラットフォームで活用するための変換機能を提供する。新プラットフォームは現代的レイアウトシステム（Flexbox/Grid相当）をネイティブとし、旧フォーマットは変換して利用する。2000年代の伺かは絶対座標ベースのレイアウトシステムを採用していたが、現代的なレイアウトシステムとは根本的に異なるため、互換レイヤーではなく変換アプローチを採用する。
+
+**Acceptance Criteria**:
+
+**フォーマット変換**
+
+1. **The** Mascot Application **shall** 旧シェル定義（descript.txt, surfaces.txt等）を新フォーマットに変換できる
+2. **The** Mascot Application **shall** 旧座標ベースレイアウトを現代的レイアウト定義に変換できる
+3. **When** フォーマット変換を実行した時, **the** Mascot Application **shall** 元ファイルを `old/` フォルダに退避して保持する
+4. **The** Mascot Application **shall** 変換結果の検証レポートを出力できる
+5. **The** Mascot Application **shall** 変換時に解決できない定義を警告として報告できる
+
+**互換プロトコル**
+
+6. **The** Mascot Application **shall** さくらスクリプト互換の出力を生成できる（既存ゴーストとの互換）
+7. **The** Mascot Application **shall** SHIORI互換プロトコルをサポートする（既存ゴーストとの通信）
+8. **The** Mascot Application **shall** 旧イベント名を新イベント名にマッピングできる
+
+**設計原則**
+
+9. **The** Mascot Application **shall** ネイティブフォーマットとして現代的レイアウトシステム（taffy等）を採用する
+10. **The** Mascot Application **shall not** 旧フォーマットの直接実行をサポートする（変換必須）
+11. **The** Mascot Application **shall** 変換ツールをプラットフォーム本体とは分離可能な形で提供する
+
+---
+
 ## Non-Functional Requirements
 
 ### NFR-1: 互換性
