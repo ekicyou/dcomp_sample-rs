@@ -177,6 +177,30 @@ pub extern "system" fn ecs_wndproc(
                 }
                 DefWindowProcW(hwnd, message, wparam, lparam)
             }
+            WM_DPICHANGED => {
+                // DPIが変更された（モニター間移動など）
+                let dpi_x = (wparam.0 & 0xFFFF) as u16;
+                let dpi_y = ((wparam.0 >> 16) & 0xFFFF) as u16;
+                let scale_x = dpi_x as f32 / 96.0;
+                let scale_y = dpi_y as f32 / 96.0;
+
+                if let Some(entity) = get_entity_from_hwnd(hwnd) {
+                    eprintln!(
+                        "[WM_DPICHANGED] Entity {:?}: dpi=({}, {}), scale=({:.2}, {:.2})",
+                        entity, dpi_x, dpi_y, scale_x, scale_y
+                    );
+                } else {
+                    eprintln!(
+                        "[WM_DPICHANGED] hwnd {:?}: dpi=({}, {}), scale=({:.2}, {:.2})",
+                        hwnd, dpi_x, dpi_y, scale_x, scale_y
+                    );
+                }
+
+                // TODO: DPIコンポーネントを更新する処理を追加予定
+                // 現在はログ出力のみ
+
+                DefWindowProcW(hwnd, message, wparam, lparam)
+            }
             _ => DefWindowProcW(hwnd, message, wparam, lparam),
         }
     }

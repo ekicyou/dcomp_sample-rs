@@ -207,18 +207,22 @@ fn main() -> Result<()> {
             // *** WindowエンティティのBoxStyleを変更してウィンドウを移動・リサイズ ***
             let mut window_query = world.query_filtered::<&mut BoxStyle, With<FlexDemoWindow>>();
             if let Some(mut style) = window_query.iter_mut(world).next() {
-                // ウィンドウを (200, 150) に移動し、サイズを 600x400 に変更
+                // ウィンドウを左モニター (-1500, 500) に移動し、サイズを 600x400 に変更
+                // 左モニターは x=-2880〜0 の範囲、DPI=192 (200%スケール)
+                // 右モニターは x=0〜3840, DPI=120 (125%スケール)
+                // これによりWM_DPICHANGEDが発火するはず
                 style.size = Some(BoxSize {
                     width: Some(Dimension::Px(600.0)),
                     height: Some(Dimension::Px(400.0)),
                 });
                 style.inset = Some(BoxInset(wintf::ecs::layout::Rect {
-                    left: LengthPercentageAuto::Px(200.0),
-                    top: LengthPercentageAuto::Px(150.0),
+                    left: LengthPercentageAuto::Px(-1500.0), // 左モニター領域へ移動
+                    top: LengthPercentageAuto::Px(500.0),
                     right: LengthPercentageAuto::Auto,
                     bottom: LengthPercentageAuto::Auto,
                 }));
-                println!("[Test] Window BoxStyle changed: position=(200,150), size=(600,400)");
+                println!("[Test] Window BoxStyle changed: position=(-1500,500), size=(600,400)");
+                println!("[Test] Moving to left monitor (DPI=192) to trigger WM_DPICHANGED");
             }
 
             // FlexContainerを縦並びに変更
