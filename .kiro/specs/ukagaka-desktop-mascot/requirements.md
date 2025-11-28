@@ -621,6 +621,33 @@
 
 ---
 
+### Requirement 30: エラーハンドリング・復旧
+
+**Description**: アプリケーションのクラッシュや異常終了時に、デバッグに必要な情報を記録し、可能な範囲で状態を復元する。完全な復元は保証しないが、プラットフォームとして合理的な努力（ベストエフォート）を行う。
+
+**Acceptance Criteria**:
+
+**クラッシュログ**
+
+1. **When** クラッシュが発生した時, **the** Mascot Application **shall** 直近の会話ログを保存する
+2. **When** クラッシュが発生した時, **the** Mascot Application **shall** 直近のイベント履歴を保存する
+3. **When** クラッシュが発生した時, **the** Mascot Application **shall** MCPサーバーログを保存する
+4. **The** Mascot Application **shall** クラッシュログにスタックトレース・エラー情報を含める
+5. **The** Mascot Application **shall** クラッシュログの保存場所をユーザーが確認できる
+
+**状態復元（ベストエフォート）**
+
+6. **When** 起動時に前回の状態が保存されている場合, **the** Mascot Application **shall** 前回の表示位置を復元できる
+7. **When** 起動時に前回の状態が保存されている場合, **the** Mascot Application **shall** 前回起動していたゴーストを復元できる
+8. **The** Mascot Application **shall** 定期的な状態自動保存を行う（間隔は設定可能）
+
+**エラー通知**
+
+9. **When** 回復可能なエラーが発生した時, **the** Mascot Application **shall** ユーザーに通知し継続動作できる
+10. **When** 致命的エラーが発生した時, **the** Mascot Application **shall** クラッシュレポート送信の同意を求めることができる（オプション機能）
+
+---
+
 ## Non-Functional Requirements
 
 ### NFR-1: 互換性
