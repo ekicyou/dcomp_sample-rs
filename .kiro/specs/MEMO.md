@@ -2,12 +2,7 @@
 
 ## 初期化
 /kiro-spec-init
-WindowエンティティのDPIをArrangement.scaleを経由してエンティティツリーに伝搬する仕組みを作る。
-1. DPIコンポーネント（dpi_x: u16/dpi_y: u16）を作る。このコンポーネントはWindowエンティティにしか作成されないのでコンポーネントメモリ戦略に注意。
-2. DPIコンポーネントはWindowHandleコンポーネント作成時にWindowエンティティに作成される。
-3. DPIコンポーネントは`fn ecs_wndproc`内の`WM_DPICHANGED`メッセージで更新される。
-4.`fn update_arrangements_system`に`Changed<DPI>`のOR条件を追加し、`Option<&DPI>`を入力に追加。DPIをArrangement.scaleに伝搬する。
-5. DpiTransformコンポーネントについて、未使用であることが確認されたら削除する。ただし、実装コードで有用なものは新DPIコンポーネントに流用する。
+WindowPosおよびSurfaceGraphicsのサイズを決定するのにGlobalArrangementを使っていると思うが、サイズについて小数点以下を切り上げる必要がある。確認して欲しい。
 
 ## ログの問題点
 - `deferred_surface_creation_system`が動いている形跡がない。
