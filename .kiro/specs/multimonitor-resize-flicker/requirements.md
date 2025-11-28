@@ -56,16 +56,11 @@
 3. When 物理→論理→物理の往復変換を行ったとき, the 結果 shall 元の物理座標と一致する（または許容誤差内に収まる）。
 4. The フレームワーク shall 丸め誤差の許容範囲を定義し、その範囲内の差異はエコーバックとして扱う。
 
-### Requirement 3: ドラッグ中のSetWindowPos抑制
+### ~~Requirement 3: ドラッグ中のSetWindowPos抑制~~ [REQ-009に統合]
 
-**Objective:** As a フレームワーク開発者, I want ユーザーがウィンドウをドラッグしている間はSetWindowPosを呼び出さないようにしたい, so that フィードバックループを防止し、スムーズなドラッグ操作を実現する。
+**Status:** 廃止 - REQ-009「物理座標ベースのエコーバック検知」に統合
 
-#### Acceptance Criteria
-
-1. While ユーザーがウィンドウをドラッグしている間, the `apply_window_pos_changes`システム shall サイズ変更のみ許可し、位置変更のSetWindowPosを抑制する。
-2. When `WM_ENTERSIZEMOVE`を受信したとき, the フレームワーク shall ドラッグ中フラグを設定する。
-3. When `WM_EXITSIZEMOVE`を受信したとき, the フレームワーク shall ドラッグ中フラグをクリアする。
-4. While ドラッグ中フラグが設定されているとき, the `WM_WINDOWPOSCHANGED`処理 shall `BoxStyle`の位置のみ更新し、サイズは変更しない（DPI変更時を除く）。
+**理由:** REQ-009 の`WindowPosChanged`コンポーネントによる物理座標比較により、ドラッグ中かどうかに関係なく`WM_WINDOWPOSCHANGED`由来の変更は自動的に抑制される。ドラッグ中フラグは不要。
 
 ### Requirement 4: エコーバック判定の改善
 
