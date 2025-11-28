@@ -306,8 +306,8 @@
 
 #### Acceptance Criteria
 1. **The** Mascot Application **shall** 存在スタイルを「控えめ」「標準」「活発」から選択できる
-2. **Where** 控えめモードが選択されている場合, **the** Mascot Application **shall** 画面端で静かに待機し、呼びかけられるまで自発的に話しかけない
-3. **Where** 活発モードが選択されている場合, **the** Mascot Application **shall** デスクトップ上を自由に移動し、積極的に話しかける
+2. **Where** 控えめモードが選択されている場合, **the** Mascot Application **shall** 存在スタイル「控えめ」をゴーストに通知する（解釈と具体的な振る舞いはゴースト側で決定）
+3. **Where** 活発モードが選択されている場合, **the** Mascot Application **shall** 存在スタイル「活発」をゴーストに通知する（解釈と具体的な振る舞いはゴースト側で決定）
 4. **The** Mascot Application **shall** 時間帯や作業状況に応じて自動的に存在スタイルを調整できる（作業集中時は控えめに等）
 5. **Where** 3Dレンダラープラグインが有効な場合, **the** Mascot Application **shall** プラグインが生成したサーフェスを受け取り、3Dキャラクターを表示できる
 6. **The** Mascot Application **shall** キャラクターの移動範囲を制限できる（特定のモニター、画面端のみ等）
