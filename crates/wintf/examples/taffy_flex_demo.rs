@@ -207,10 +207,10 @@ fn main() -> Result<()> {
             // *** WindowエンティティのBoxStyleを変更してウィンドウを移動・リサイズ ***
             let mut window_query = world.query_filtered::<&mut BoxStyle, With<FlexDemoWindow>>();
             if let Some(mut style) = window_query.iter_mut(world).next() {
-                // ウィンドウを左モニター (-500, 100) に移動し、サイズを 600x400 に変更
+                // ウィンドウを左モニター (-500, 400) に移動し、サイズを 600x400 に変更
                 // 注: BoxStyle座標はDIP（論理座標）。スケール適用後がスクリーン座標になる。
-                // 左モニターは物理座標 x=-1080〜0、DPI=192 (200%スケール)
-                // 右モニターは物理座標 x=0〜1920, DPI=120 (125%スケール)
+                // 左モニターは物理座標 x=-2880〜0, y=365〜2165、DPI=192 (200%スケール)
+                // 右モニターは物理座標 x=0〜3840, y=0〜2160, DPI=120 (125%スケール)
                 // これによりWM_DPICHANGEDが発火するはず
                 style.size = Some(BoxSize {
                     width: Some(Dimension::Px(600.0)),
@@ -218,12 +218,12 @@ fn main() -> Result<()> {
                 });
                 style.inset = Some(BoxInset(wintf::ecs::layout::Rect {
                     left: LengthPercentageAuto::Px(-500.0), // 左モニター領域へ移動（DIP座標）
-                    top: LengthPercentageAuto::Px(100.0),
+                    top: LengthPercentageAuto::Px(400.0),   // Y座標も左モニター範囲内に
                     right: LengthPercentageAuto::Auto,
                     bottom: LengthPercentageAuto::Auto,
                 }));
                 println!(
-                    "[Test] Window BoxStyle changed: position=(-500,100), size=(600,400) in DIP"
+                    "[Test] Window BoxStyle changed: position=(-500,400), size=(600,400) in DIP"
                 );
                 println!("[Test] Moving to left monitor (DPI=192) to trigger WM_DPICHANGED");
             }
