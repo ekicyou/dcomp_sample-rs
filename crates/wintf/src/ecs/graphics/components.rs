@@ -241,3 +241,52 @@ impl Default for Visual {
         }
     }
 }
+
+// ========== Surface Creation Statistics ==========
+
+/// デバッグビルド時のSurface生成統計リソース
+///
+/// Surface生成の最適化状況を把握するための統計情報を収集する。
+/// 開発者がパフォーマンスチューニングやデバッグを行う際に使用。
+///
+/// # Requirements
+/// - Req 5.3: デバッグビルド時のSurface生成統計
+///
+/// # Usage
+/// ```ignore
+/// let stats = world.resource::<SurfaceCreationStats>();
+/// eprintln!("Created: {}, Skipped: {}", stats.created_count, stats.skipped_count);
+/// ```
+#[derive(Resource, Default, Debug, Clone, PartialEq)]
+pub struct SurfaceCreationStats {
+    /// 作成されたSurfaceの累計数
+    pub created_count: u64,
+    /// スキップされたSurface作成の累計数（CommandList不在等）
+    pub skipped_count: u64,
+    /// 削除されたSurfaceの累計数
+    pub deleted_count: u64,
+    /// リサイズされたSurfaceの累計数
+    pub resize_count: u64,
+}
+
+impl SurfaceCreationStats {
+    /// Surface作成を記録
+    pub fn record_created(&mut self) {
+        self.created_count += 1;
+    }
+
+    /// スキップを記録
+    pub fn record_skipped(&mut self) {
+        self.skipped_count += 1;
+    }
+
+    /// 削除を記録
+    pub fn record_deleted(&mut self) {
+        self.deleted_count += 1;
+    }
+
+    /// リサイズを記録
+    pub fn record_resized(&mut self) {
+        self.resize_count += 1;
+    }
+}

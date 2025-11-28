@@ -31,6 +31,42 @@ pub fn format_entity_name(entity: Entity, name: Option<&Name>) -> String {
     }
 }
 
+/// GlobalArrangementの境界から物理ピクセルサイズを計算する
+///
+/// # Arguments
+/// * `global_arrangement` - GlobalArrangementコンポーネント
+///
+/// # Returns
+/// * `Some((width, height))` - 有効なサイズ（幅と高さが両方1以上）
+/// * `None` - 無効なサイズ（幅または高さが0以下）
+///
+/// # Requirements
+/// - Req 3.1: GlobalArrangement.boundsから計算（物理ピクセルサイズ）
+/// - Req 3.2: スケール適用後のサイズ（小数点切り上げ）
+/// - Req 3.3: サイズ0の場合はNone
+pub fn calculate_surface_size_from_global_arrangement(
+    global_arrangement: &GlobalArrangement,
+) -> Option<(u32, u32)> {
+    let width = global_arrangement.bounds.right - global_arrangement.bounds.left;
+    let height = global_arrangement.bounds.bottom - global_arrangement.bounds.top;
+
+    // サイズが0以下の場合はNone
+    if width <= 0.0 || height <= 0.0 {
+        return None;
+    }
+
+    // 小数点以下を切り上げて物理ピクセルサイズを計算
+    let width_px = width.ceil() as u32;
+    let height_px = height.ceil() as u32;
+
+    // 最低1ピクセルを保証
+    if width_px == 0 || height_px == 0 {
+        return None;
+    }
+
+    Some((width_px, height_px))
+}
+
 /// HWNDに対してWindowGraphicsリソースを作成する
 fn create_window_graphics_for_hwnd(
     graphics: &GraphicsCore,
