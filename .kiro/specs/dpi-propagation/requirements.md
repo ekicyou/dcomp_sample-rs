@@ -20,11 +20,11 @@ WindowエンティティのDPIをArrangement.scaleを経由してエンティテ
 **Objective:** As a 開発者, I want DPI情報を保持するECSコンポーネント, so that WindowのDPI値をECSシステムで参照・変更検知できる
 
 #### Acceptance Criteria
-1. The wintf shall define a `DPI` component with `dpi_x: u16` and `dpi_y: u16` fields to store horizontal and vertical DPI values
-2. The `DPI` component shall use `SparseSet` storage strategy because it is only attached to Window entities (少数のエンティティにのみ付与されるため)
-3. The `DPI` component shall provide a `from_dpi(x_dpi: u16, y_dpi: u16)` constructor method
-4. The `DPI` component shall provide a `from_WM_DPICHANGED(wparam: WPARAM, lparam: LPARAM)` constructor method to parse Windows message parameters
-5. The `DPI` component shall provide `scale_x()` and `scale_y()` methods that return `f32` scale factors (DPI / 96.0)
+1. wintfは水平・垂直DPI値を保持する`dpi_x: u16`および`dpi_y: u16`フィールドを持つ`DPI`コンポーネントを定義する
+2. `DPI`コンポーネントはWindowエンティティにのみ付与されるため、`SparseSet`ストレージ戦略を使用する（少数のエンティティにのみ付与されるため効率的）
+3. `DPI`コンポーネントは`from_dpi(x_dpi: u16, y_dpi: u16)`コンストラクタメソッドを提供する
+4. `DPI`コンポーネントはWindowsメッセージパラメータを解析する`from_WM_DPICHANGED(wparam: WPARAM, lparam: LPARAM)`コンストラクタメソッドを提供する
+5. `DPI`コンポーネントはスケールファクター（DPI / 96.0）を`f32`で返す`scale_x()`および`scale_y()`メソッドを提供する
 
 ---
 
@@ -32,9 +32,9 @@ WindowエンティティのDPIをArrangement.scaleを経由してエンティテ
 **Objective:** As a 開発者, I want DPIコンポーネントがWindowエンティティに自動付与される, so that 手動でDPIコンポーネントを追加する必要がなくなる
 
 #### Acceptance Criteria
-1. When `WindowHandle` component is added to an entity, the wintf shall automatically insert a `DPI` component to the same entity
-2. When `WindowHandle` is added, the wintf shall initialize `DPI` with the current DPI value obtained from `GetDpiForWindow` Win32 API
-3. If `GetDpiForWindow` fails, the wintf shall use the default DPI value of 96 (standard DPI)
+1. When `WindowHandle`コンポーネントがエンティティに追加された時, wintfは同じエンティティに`DPI`コンポーネントを自動挿入する
+2. When `WindowHandle`が追加された時, wintfは`GetDpiForWindow` Win32 APIから取得した現在のDPI値で`DPI`を初期化する
+3. If `GetDpiForWindow`が失敗した場合, wintfはデフォルトDPI値96（標準DPI）を使用する
 
 ---
 
@@ -42,21 +42,29 @@ WindowエンティティのDPIをArrangement.scaleを経由してエンティテ
 **Objective:** As a 開発者, I want WM_DPICHANGEDメッセージでDPIコンポーネントが更新される, so that モニター移動やDPI設定変更に対応できる
 
 #### Acceptance Criteria
-1. When `WM_DPICHANGED` message is received in `ecs_wndproc`, the wintf shall update the `DPI` component with the new DPI values from wparam
-2. When updating `DPI` component, the wintf shall use `set_if_neq` to trigger change detection only when the value actually changes
-3. The wintf shall extract `dpi_x` from the low word of wparam and `dpi_y` from the high word of wparam
+1. When `ecs_wndproc`で`WM_DPICHANGED`メッセージを受信した時, wintfはwparamから新しいDPI値を取得して`DPI`コンポーネントを更新する
+2. When `DPI`コンポーネントを更新する時, wintfは値が実際に変更された場合のみ変更検知をトリガーするため`set_if_neq`を使用する
+3. wintfはwparamの下位ワードから`dpi_x`を、上位ワードから`dpi_y`を抽出する
 
 ---
 
 ### Requirement 4: DPIからArrangement.scaleへの伝搬
 **Objective:** As a 開発者, I want DPI変更がArrangement.scaleに反映される, so that 子孫エンティティのレイアウトがDPIスケールを考慮するようになる
 
+#### Design Decision
+`Arrangement`コンポーネントを変更するシステムは`update_arrangements_system`の1つのみとする。変更トリガーは以下の2条件のOR:
+- `Changed<TaffyComputedLayout>`: `offset`と`size`フィールドを更新
+- `Changed<DPI>`: `scale`フィールドを更新
+
+これにより責務が単一システムに集約され、Arrangementの整合性が保証される。
+
 #### Acceptance Criteria
-1. When `DPI` component changes on a Window entity, the `update_arrangements_system` shall update `Arrangement.scale` to reflect the DPI scale factors
-2. The `update_arrangements_system` shall include `Changed<DPI>` in its query filter (OR condition with existing `Changed<TaffyComputedLayout>`)
-3. The `update_arrangements_system` shall accept `Option<&DPI>` as an input parameter to access the DPI component
-4. When `DPI` is present on an entity, the wintf shall set `Arrangement.scale.x` to `dpi.scale_x()` and `Arrangement.scale.y` to `dpi.scale_y()`
-5. When `DPI` is not present, the wintf shall use default scale of (1.0, 1.0)
+1. When Windowエンティティで`DPI`コンポーネントが変更された時, `update_arrangements_system`は`Arrangement.scale`をDPIスケールファクターに更新する
+2. `update_arrangements_system`はいずれかの変更に応答するため、クエリフィルターとして`Or<(Changed<TaffyComputedLayout>, Changed<DPI>)>`を使用する
+3. `update_arrangements_system`は`DPI`コンポーネントにアクセスするため、入力パラメータとして`Option<&DPI>`を受け取る
+4. When `Changed<DPI>`によりシステムが実行された時, wintfは`offset`と`size`フィールドを設定するため`TaffyComputedLayout`を再読み込みする（値は変わらないが再適用される）
+5. When エンティティに`DPI`が存在する時, wintfは`Arrangement.scale.x`を`dpi.scale_x()`に、`Arrangement.scale.y`を`dpi.scale_y()`に設定する
+6. When `DPI`が存在しない時, wintfはデフォルトスケール(1.0, 1.0)を使用する
 
 ---
 
@@ -64,9 +72,9 @@ WindowエンティティのDPIをArrangement.scaleを経由してエンティテ
 **Objective:** As a 開発者, I want 未使用のDpiTransformコンポーネントを削除, so that コードベースが整理され保守性が向上する
 
 #### Acceptance Criteria
-1. The wintf shall remove the `DpiTransform` struct definition from `window.rs` if it is confirmed unused in the codebase
-2. The wintf shall migrate any useful implementation code from `DpiTransform` to the new `DPI` component (e.g., `from_WM_DPICHANGED` method, scale calculation logic)
-3. If `DpiTransform` is referenced by any code, the wintf shall update those references to use the new `DPI` component
+1. wintfはコードベースで未使用であることが確認された場合、`window.rs`から`DpiTransform`構造体定義を削除する
+2. wintfは`DpiTransform`から有用な実装コード（例: `from_WM_DPICHANGED`メソッド、スケール計算ロジック）を新しい`DPI`コンポーネントに移行する
+3. If `DpiTransform`がコードで参照されている場合, wintfはそれらの参照を新しい`DPI`コンポーネントを使用するよう更新する
 
 ---
 
@@ -74,9 +82,9 @@ WindowエンティティのDPIをArrangement.scaleを経由してエンティテ
 **Objective:** As a 開発者, I want 既存のレイアウトシステムが正常に動作し続ける, so that 既存のアプリケーションが壊れない
 
 #### Acceptance Criteria
-1. While `DPI` component is not present on an entity, the wintf shall use default scale (1.0, 1.0) for `Arrangement.scale`
-2. The wintf shall not change the behavior of entities without `DPI` component (non-Window entities)
-3. The existing `propagate_global_arrangements` system shall correctly propagate scale values through the entity tree
+1. While エンティティに`DPI`コンポーネントが存在しない間, wintfは`Arrangement.scale`にデフォルトスケール(1.0, 1.0)を使用する
+2. wintfは`DPI`コンポーネントを持たないエンティティ（非Windowエンティティ）の動作を変更しない
+3. 既存の`propagate_global_arrangements`システムはエンティティツリー全体にスケール値を正しく伝搬する
 
 ---
 
