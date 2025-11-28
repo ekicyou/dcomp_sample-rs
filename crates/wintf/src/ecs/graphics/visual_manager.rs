@@ -1,6 +1,7 @@
 use crate::com::dcomp::DCompositionDeviceExt;
 use crate::ecs::graphics::{
-    GraphicsCore, HasGraphicsResources, Visual, VisualGraphics, WindowGraphics,
+    GraphicsCore, HasGraphicsResources, SurfaceGraphics, SurfaceGraphicsDirty, Visual,
+    VisualGraphics, WindowGraphics,
 };
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
@@ -39,6 +40,9 @@ pub fn insert_visual_with(world: &mut World, entity: Entity, visual: Visual) {
 ///
 /// Phase 6リファクタリング: Visual作成をPreLayoutに移動し、
 /// Surface作成はDrawスケジュールでCommandList存在時に遅延実行する。
+///
+/// 同時に空のSurfaceGraphicsとSurfaceGraphicsDirtyを配置し、
+/// 後で直接更新できるようにする（commands.insert問題の回避）。
 fn create_visual_only(
     commands: &mut Commands,
     entity: Entity,
@@ -56,12 +60,16 @@ fn create_visual_only(
             //     }
             // }
 
-            commands
-                .entity(entity)
-                .insert(VisualGraphics::new(v3.clone()));
+            // VisualGraphicsと同時に空のSurfaceGraphics/SurfaceGraphicsDirtyも配置
+            // これにより後で直接更新でき、commands.insert()の遅延問題を回避
+            commands.entity(entity).insert((
+                VisualGraphics::new(v3.clone()),
+                SurfaceGraphics::default(),
+                SurfaceGraphicsDirty::default(),
+            ));
 
             eprintln!(
-                "[visual_creation_system] Visual created for Entity={:?} (Surface deferred)",
+                "[visual_creation_system] Visual created for Entity={:?} (Surface deferred, SurfaceGraphics pre-allocated)",
                 entity
             );
         }

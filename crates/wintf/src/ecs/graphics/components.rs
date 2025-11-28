@@ -210,6 +210,25 @@ impl SurfaceGraphics {
     pub fn surface(&self) -> Option<&IDCompositionSurface> {
         self.inner.as_ref()
     }
+
+    /// Surfaceを設定（既存のコンポーネントを直接更新）
+    ///
+    /// commands.insert()の代わりにこのメソッドを使用することで、
+    /// 同一フレーム内で変更が即座に反映される。
+    /// サイズが異なる場合のみ更新し、Changedフラグを適切に管理。
+    pub fn set_surface(&mut self, surface: IDCompositionSurface, size: (u32, u32)) {
+        self.inner = Some(surface);
+        self.size = size;
+    }
+
+    /// Surfaceをクリア（invalidateと同じだが意図を明確に）
+    ///
+    /// commands.remove()の代わりにこのメソッドを使用することで、
+    /// コンポーネント自体は残したまま内容だけをクリアする。
+    pub fn clear(&mut self) {
+        self.inner = None;
+        self.size = (0, 0);
+    }
 }
 
 /// SurfaceGraphicsがダーティ（再描画が必要）であることを示すコンポーネント

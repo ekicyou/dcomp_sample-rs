@@ -77,6 +77,62 @@ pub struct GlobalArrangement {
     pub bounds: D2DRect,
 }
 
+impl GlobalArrangement {
+    /// 累積変換行列からX方向のスケールを取得
+    #[inline]
+    pub fn scale_x(&self) -> f32 {
+        self.transform.M11
+    }
+
+    /// 累積変換行列からY方向のスケールを取得
+    #[inline]
+    pub fn scale_y(&self) -> f32 {
+        self.transform.M22
+    }
+
+    /// 累積変換行列からスケールを (scale_x, scale_y) として取得
+    #[inline]
+    pub fn scale(&self) -> (f32, f32) {
+        (self.transform.M11, self.transform.M22)
+    }
+
+    /// 累積変換行列からX方向のオフセット（平行移動）を取得
+    #[inline]
+    pub fn offset_x(&self) -> f32 {
+        self.transform.M31
+    }
+
+    /// 累積変換行列からY方向のオフセット（平行移動）を取得
+    #[inline]
+    pub fn offset_y(&self) -> f32 {
+        self.transform.M32
+    }
+
+    /// 累積変換行列からオフセットを (offset_x, offset_y) として取得
+    #[inline]
+    pub fn offset(&self) -> (f32, f32) {
+        (self.transform.M31, self.transform.M32)
+    }
+
+    /// boundsの幅を取得
+    #[inline]
+    pub fn width(&self) -> f32 {
+        self.bounds.right - self.bounds.left
+    }
+
+    /// boundsの高さを取得
+    #[inline]
+    pub fn height(&self) -> f32 {
+        self.bounds.bottom - self.bounds.top
+    }
+
+    /// boundsのサイズを (width, height) として取得
+    #[inline]
+    pub fn size(&self) -> (f32, f32) {
+        (self.width(), self.height())
+    }
+}
+
 impl Default for GlobalArrangement {
     fn default() -> Self {
         use windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F;
