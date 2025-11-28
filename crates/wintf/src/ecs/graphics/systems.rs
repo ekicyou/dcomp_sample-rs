@@ -5,7 +5,8 @@ use crate::com::dcomp::{
     DCompositionVisualExt,
 };
 use crate::ecs::graphics::{
-    GraphicsCore, HasGraphicsResources, SurfaceCreationStats, SurfaceGraphics, VisualGraphics, WindowGraphics,
+    GraphicsCore, HasGraphicsResources, SurfaceCreationStats, SurfaceGraphics, VisualGraphics,
+    WindowGraphics,
 };
 use crate::ecs::layout::GlobalArrangement;
 use bevy_ecs::hierarchy::{ChildOf, Children};
@@ -704,9 +705,11 @@ pub fn sync_window_pos(
             x: global_arr.bounds.left as i32,
             y: global_arr.bounds.top as i32,
         };
+        // 小数点以下を切り上げて物理ピクセルサイズを計算
+        // SurfaceGraphicsと同様にceilを使用
         let new_size = SIZE {
-            cx: arrangement.size.width as i32,
-            cy: arrangement.size.height as i32,
+            cx: arrangement.size.width.ceil() as i32,
+            cy: arrangement.size.height.ceil() as i32,
         };
 
         // 実際に変更があった場合のみ更新
@@ -1189,7 +1192,9 @@ pub fn deferred_surface_creation_system(
         let entity_name = format_entity_name(entity, name);
 
         // GlobalArrangementからサイズを計算
-        let Some((width, height)) = calculate_surface_size_from_global_arrangement(global_arrangement) else {
+        let Some((width, height)) =
+            calculate_surface_size_from_global_arrangement(global_arrangement)
+        else {
             // Req 5.1: スキップ理由ログ
             eprintln!(
                 "[deferred_surface_creation] Entity={} skipped: invalid size from GlobalArrangement (bounds={:?})",
@@ -1247,11 +1252,15 @@ pub fn deferred_surface_creation_system(
     }
 
     // Req 3.4: サイズ変更時にSurface再作成
-    for (entity, visual_graphics, _cmd_list, global_arrangement, existing_surface, name) in query_resize.iter() {
+    for (entity, visual_graphics, _cmd_list, global_arrangement, existing_surface, name) in
+        query_resize.iter()
+    {
         let entity_name = format_entity_name(entity, name);
 
         // GlobalArrangementからサイズを計算
-        let Some((width, height)) = calculate_surface_size_from_global_arrangement(global_arrangement) else {
+        let Some((width, height)) =
+            calculate_surface_size_from_global_arrangement(global_arrangement)
+        else {
             // サイズが無効になった場合はスキップ（後でcleanupされる可能性）
             eprintln!(
                 "[deferred_surface_creation] Entity={} resize skipped: invalid size",
@@ -1343,7 +1352,9 @@ pub fn cleanup_surface_on_commandlist_removed(
             // SurfaceGraphicsコンポーネントを削除
             commands.entity(entity).remove::<SurfaceGraphics>();
             // SurfaceGraphicsDirtyも不要になるので削除
-            commands.entity(entity).remove::<super::components::SurfaceGraphicsDirty>();
+            commands
+                .entity(entity)
+                .remove::<super::components::SurfaceGraphicsDirty>();
 
             stats.record_deleted();
 
