@@ -38,14 +38,14 @@
 
 #### Acceptance Criteria
 
-1. The フレームワーク shall `try_tick_on_vsync()`関数を提供する。この関数は以下を行う：
-   - tick_countの変化を検出（前回値と比較）
-   - 変化があれば`try_borrow_mut()`でEcsWorldの借用を試みる
-   - 借用成功時のみ`try_tick_world()`を呼び出す
-   - 前回値を更新する
+1. The フレームワーク shall `try_tick_on_vsync()`関数を提供する。この関数は以下の順序で処理を行う：
+   1. `try_borrow_mut()`でEcsWorldの借用を試みる
+   2. 借用成功時、tick_countの変化を検出（前回値と比較）
+   3. 変化があれば`try_tick_world()`を呼び出す
+   4. 前回値を更新する
 2. The `try_tick_on_vsync()` shall `bool`を返す（tickが実行されたかどうか）。
 3. When `try_borrow_mut()`が失敗したとき（再入時）, the 関数 shall 安全にスキップしてfalseを返す。
-4. The 前回tick_count値 shall スレッドローカルまたはAtomicで管理し、複数呼び出しで重複tickを防ぐ。
+4. The 前回tick_count値 shall 借用成功後にのみアクセスされ、再入時の競合を防ぐ。
 
 ### Requirement 3: WM_WINDOWPOSCHANGED でのtick呼び出し
 
