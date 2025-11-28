@@ -198,7 +198,7 @@ pub fn render_surface(
         Changed<super::components::SurfaceGraphicsDirty>,
     >,
     _graphics_core: Option<Res<GraphicsCore>>,
-    frame_count: Res<crate::ecs::world::FrameCount>,
+    _frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
     use windows::Win32::Graphics::Direct2D::Common::D2D1_COMPOSITE_MODE_SOURCE_OVER;
@@ -206,16 +206,12 @@ pub fn render_surface(
 
     for (entity, surface, global_arrangement, cmd_list_opt, name) in surfaces.iter() {
         let entity_name = format_entity_name(entity, name);
-        eprintln!(
-            "[Frame {}] [render_surface] === Self-rendering Entity={} ===",
-            frame_count.0, entity_name
-        );
+        // 正常パスのログは抑制（毎フレーム出力されるため）
+        // eprintln!("[Frame {}] [render_surface] === Self-rendering Entity={} ===", _frame_count.0, entity_name);
 
         if !surface.is_valid() {
-            eprintln!(
-                "[render_surface] Surface invalid for Entity={}, skipping",
-                entity_name
-            );
+            // Surface未初期化時のみログ出力
+            // eprintln!("[render_surface] Surface invalid for Entity={}, skipping", entity_name);
             continue;
         }
 
@@ -227,10 +223,8 @@ pub fn render_surface(
 
         let (dc, offset) = match surface_ref.begin_draw(None) {
             Ok(result) => {
-                eprintln!(
-                    "[render_surface] BeginDraw succeeded for Entity={}, offset=({}, {})",
-                    entity_name, result.1.x, result.1.y
-                );
+                // 正常パスのログは抑制
+                // eprintln!("[render_surface] BeginDraw succeeded for Entity={}, offset=({}, {})", entity_name, result.1.x, result.1.y);
                 result
             }
             Err(err) => {
@@ -266,10 +260,8 @@ pub fn render_surface(
 
             dc.SetTransform(&transform);
 
-            eprintln!(
-                "[render_surface] Transform for Entity={}: scale=({}, {}), offset=({}, {})",
-                entity_name, scale_x, scale_y, offset.x, offset.y
-            );
+            // 正常パスのログは抑制
+            // eprintln!("[render_surface] Transform for Entity={}: scale=({}, {}), offset=({}, {})", entity_name, scale_x, scale_y, offset.x, offset.y);
         }
 
         // 透明色クリア
@@ -284,10 +276,8 @@ pub fn render_surface(
         // 子の描画は行わない（各子が自分のSurfaceで行う）
         if let Some(cmd_list) = cmd_list_opt {
             if let Some(command_list) = cmd_list.command_list() {
-                eprintln!(
-                    "[render_surface] Drawing own CommandList for Entity={}",
-                    entity_name
-                );
+                // 正常パスのログは抑制
+                // eprintln!("[render_surface] Drawing own CommandList for Entity={}", entity_name);
                 unsafe {
                     dc.DrawImage(
                         command_list,
@@ -344,10 +334,9 @@ pub fn commit_composition(
 
     match dcomp.commit() {
         Ok(()) => {
-            // 成功時は最初の数フレームだけログ出力
-            if frame_count.0 <= 5 {
-                eprintln!("[Frame {}] [commit_composition] Commit成功", frame_count.0);
-            }
+            // 正常時はログ出力を抑制（毎フレーム出力されるため）
+            // デバッグ時はコメントを外して有効化
+            // eprintln!("[Frame {}] [commit_composition] Commit成功", frame_count.0);
         }
         Err(e) => {
             eprintln!(
@@ -901,7 +890,11 @@ pub fn invalidate_dependent_components(
 /// SurfaceUpdateRequestedマーカーは廃止され、フレーム番号更新方式に置き換えられた。
 pub fn mark_dirty_surfaces(
     mut changed_query: Query<
-        &mut super::components::SurfaceGraphicsDirty,
+        (
+            Entity,
+            &mut super::components::SurfaceGraphicsDirty,
+            Option<&Name>,
+        ),
         (
             Or<(
                 Changed<GraphicsCommandList>,
@@ -914,8 +907,17 @@ pub fn mark_dirty_surfaces(
     >,
     frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
-    for mut dirty in changed_query.iter_mut() {
+    let mut count = 0;
+    for (entity, mut dirty, name) in changed_query.iter_mut() {
         dirty.requested_frame = frame_count.0 as u64;
+        count += 1;
+        // 正常パスのログは抑制（毎フレーム出力されるため）
+        let _entity_name = format_entity_name(entity, name);
+        // eprintln!("[Frame {}] [mark_dirty_surfaces] Entity={} marked dirty", frame_count.0, _entity_name);
+    }
+    if count > 0 {
+        // 正常パスのログは抑制（毎フレーム出力されるため）
+        // eprintln!("[Frame {}] [mark_dirty_surfaces] Total {} entities marked dirty", frame_count.0, count);
     }
 }
 
@@ -1103,17 +1105,13 @@ pub fn visual_property_sync_system(
                 );
             }
 
-            #[cfg(debug_assertions)]
-            eprintln!(
-                "[visual_property_sync] Entity={}, offset=({}, {}) [physical], scale=({}, {})",
-                entity_name, offset_x, offset_y, scale_x, scale_y
-            );
+            // 正常パスのログは抑制（毎フレーム出力されるため）
+            // #[cfg(debug_assertions)]
+            // eprintln!("[visual_property_sync] Entity={}, offset=({}, {}) [physical], scale=({}, {})", entity_name, offset_x, offset_y, scale_x, scale_y);
         } else {
-            #[cfg(debug_assertions)]
-            eprintln!(
-                "[visual_property_sync] Entity={} (Window): offset skipped",
-                entity_name
-            );
+            // 正常パスのログは抑制
+            // #[cfg(debug_assertions)]
+            // eprintln!("[visual_property_sync] Entity={} (Window): offset skipped", entity_name);
         }
 
         // Opacity同期: Opacityコンポーネントがあれば反映（Windowも含む）
@@ -1126,11 +1124,9 @@ pub fn visual_property_sync_system(
                 );
             }
 
-            #[cfg(debug_assertions)]
-            eprintln!(
-                "[visual_property_sync] Entity={}, opacity={}",
-                entity_name, opacity_value
-            );
+            // 正常パスのログは抑制
+            // #[cfg(debug_assertions)]
+            // eprintln!("[visual_property_sync] Entity={}, opacity={}", entity_name, opacity_value);
         }
     }
 }

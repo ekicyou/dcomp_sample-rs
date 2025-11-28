@@ -84,6 +84,23 @@ pub extern "system" fn ecs_wndproc(
                 LRESULT(0)
             }
             WM_WINDOWPOSCHANGED => {
+                // ======================================================================
+                // VSYNC優先レンダリング: モーダルループ中のtick実行
+                // ウィンドウドラッグ等でDefWindowProcWがモーダルループを実行している間、
+                // run()メソッドのメッセージループはブロックされる。しかしWndProcは
+                // DefWindowProcWの内部ループから呼び出されるため、ここでVSYNC駆動の
+                // world tickを実行することで描画を継続できる。
+                //
+                // 拡張ポイント: 他のモーダルループ関連メッセージ（WM_ENTERSIZEMOVE等）
+                // で同様の問題が発見された場合、ここと同様のtry_tick_on_vsync()呼び出しを
+                // 追加するだけで対応可能。
+                // ======================================================================
+                if let Some(world) = try_get_ecs_world() {
+                    use crate::ecs::world::VsyncTick;
+                    // 借用失敗時（再入時）は安全にスキップ
+                    let _ = world.try_tick_on_vsync();
+                }
+
                 // ウィンドウの位置・サイズが変更された
                 if let Some(entity) = get_entity_from_hwnd(hwnd) {
                     if let Some(world) = try_get_ecs_world() {

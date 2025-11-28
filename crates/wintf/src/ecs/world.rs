@@ -1,8 +1,64 @@
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::*;
 use bevy_ecs::system::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::Instant;
 use windows::Win32::Foundation::HWND;
+
+// ============================================================
+// VSYNC優先レンダリング用トレイト
+// WndProcからRefCell<EcsWorld>を安全に借用してtickを実行する。
+// ============================================================
+
+/// VSYNC駆動のtick実行を提供するトレイト
+///
+/// `Rc<RefCell<EcsWorld>>`に実装され、WndProcから安全にtickを呼び出せる。
+/// 借用失敗時（再入時）は安全にスキップしてfalseを返す。
+///
+/// # 設計意図
+/// - WndProc（特にWM_WINDOWPOSCHANGED）からのVSYNC駆動tick実行を可能にする
+/// - モーダルループ（ウィンドウドラッグ等）中でも描画を継続する
+/// - RefCellの借用状態を確認し、再入時は安全にスキップする
+///
+/// # 拡張ポイント
+/// 他のモーダルループ関連メッセージで同様の問題が発見された場合、
+/// 該当メッセージ処理でこのトレイトのメソッドを呼び出すだけで対応可能。
+pub trait VsyncTick {
+    /// VSYNCカウンターの変化を検知し、必要に応じてworld tickを実行
+    ///
+    /// # Returns
+    /// - `true`: tickが実行された
+    /// - `false`: tickがスキップされた（借用失敗またはカウンター変化なし）
+    fn try_tick_on_vsync(&self) -> bool;
+}
+
+impl VsyncTick for Rc<RefCell<EcsWorld>> {
+    fn try_tick_on_vsync(&self) -> bool {
+        // RefCellの借用を試みる
+        // 既に借用されている場合（再入時）は安全にスキップ
+        match self.try_borrow_mut() {
+            Ok(mut world) => {
+                let result = world.try_tick_on_vsync();
+
+                // デバッグビルドのみ: WndProc経由のtick回数をカウント
+                #[cfg(debug_assertions)]
+                if result {
+                    use crate::win_thread_mgr::DEBUG_WNDPROC_TICK_COUNT;
+                    use std::sync::atomic::Ordering;
+                    DEBUG_WNDPROC_TICK_COUNT.fetch_add(1, Ordering::Relaxed);
+                }
+
+                result
+            }
+            Err(_) => {
+                // 借用失敗（再入時）- 安全にスキップ
+                // これは正常な動作であり、エラーではない
+                false
+            }
+        }
+    }
+}
 
 /// フレームカウンタリソース
 #[derive(Resource, Default, Debug)]
@@ -398,6 +454,39 @@ impl EcsWorld {
         let _ = self.world.try_run_schedule(CommitComposition);
 
         true
+    }
+
+    /// VSYNCカウンターの変化を検知し、必要に応じてworld tickを実行
+    ///
+    /// この関数は`run()`のWM_VSYNC処理と`WndProc`のWM_WINDOWPOSCHANGED処理の
+    /// 両方から呼び出され、重複実行を防ぐ。
+    ///
+    /// # Returns
+    /// - `true`: tickが実行された
+    /// - `false`: tickがスキップされた（カウンター変化なし）
+    ///
+    /// # 拡張ポイント
+    /// 他のモーダルループ関連メッセージ（WM_ENTERSIZEMOVEなど）で同様の問題が
+    /// 発見された場合、該当メッセージ処理でこの関数を呼び出すだけで対応可能。
+    pub fn try_tick_on_vsync(&mut self) -> bool {
+        use crate::win_thread_mgr::{LAST_VSYNC_TICK, VSYNC_TICK_COUNT};
+        use std::sync::atomic::Ordering;
+
+        // 現在のVSYNCカウンターを取得
+        let current_tick = VSYNC_TICK_COUNT.load(Ordering::Relaxed);
+        let last_tick = LAST_VSYNC_TICK.load(Ordering::Relaxed);
+
+        // カウンターが変化していなければスキップ
+        if current_tick == last_tick {
+            return false;
+        }
+
+        // 前回処理値を更新（try_tick_world()呼び出し前に更新することで、
+        // 再入時の重複tickを防止）
+        LAST_VSYNC_TICK.store(current_tick, Ordering::Relaxed);
+
+        // world tickを実行
+        self.try_tick_world()
     }
 }
 

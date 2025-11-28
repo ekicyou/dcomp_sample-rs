@@ -8,14 +8,41 @@ use std::cell::RefCell;
 use std::future::*;
 use std::ops::Deref;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::*;
 use std::thread;
+use std::time::Instant;
 use windows::core::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Dwm::*;
 use windows::Win32::System::Com::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
+
+// デバッグ用カウンター
+static DEBUG_LOOP_COUNT: AtomicU64 = AtomicU64::new(0);
+static DEBUG_VSYNC_COUNT: AtomicU64 = AtomicU64::new(0);
+static DEBUG_OTHER_MSG_COUNT: AtomicU64 = AtomicU64::new(0);
+static DEBUG_NO_MSG_COUNT: AtomicU64 = AtomicU64::new(0);
+
+// ============================================================
+// VSYNC優先レンダリング用カウンター
+// モーダルループ（ウィンドウドラッグ等）中でもWndProcからVSYNC
+// タイミングを検知してworld tickを実行可能にする。
+// ============================================================
+
+/// VSYNCスレッドがインクリメントするカウンター（VSYNC到来回数）
+/// メインスレッドからload()で読み取り、tickが必要かどうかを判断する。
+pub(crate) static VSYNC_TICK_COUNT: AtomicU64 = AtomicU64::new(0);
+
+/// メインスレッドのみが更新するカウンター（前回処理したtick_count値）
+/// try_tick_on_vsync()内でVSYNC_TICK_COUNTと比較し、異なればtickを実行する。
+pub(crate) static LAST_VSYNC_TICK: AtomicU64 = AtomicU64::new(0);
+
+// デバッグ用: WndProc経由のtick回数とrun()経由のtick回数を区別して計測
+#[cfg(debug_assertions)]
+pub(crate) static DEBUG_WNDPROC_TICK_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(debug_assertions)]
+pub(crate) static DEBUG_RUN_TICK_COUNT: AtomicU64 = AtomicU64::new(0);
 
 // フレームワーク内部用カスタムメッセージ定義
 // WM_USER (0x0400) ベース: ウィンドウクラス/フレームワーク固有のメッセージ
@@ -161,17 +188,57 @@ impl WinThreadMgrInner {
 
     pub fn run(&self) -> Result<()> {
         let mut msg = MSG::default();
+        let mut last_stats_time = Instant::now();
+
         unsafe {
             loop {
+                DEBUG_LOOP_COUNT.fetch_add(1, Ordering::Relaxed);
+
+                // 1秒ごとに統計をログ出力
+                let now = Instant::now();
+                if now.duration_since(last_stats_time).as_secs() >= 1 {
+                    let loop_count = DEBUG_LOOP_COUNT.swap(0, Ordering::Relaxed);
+                    let vsync_count = DEBUG_VSYNC_COUNT.swap(0, Ordering::Relaxed);
+                    let other_msg_count = DEBUG_OTHER_MSG_COUNT.swap(0, Ordering::Relaxed);
+                    let no_msg_count = DEBUG_NO_MSG_COUNT.swap(0, Ordering::Relaxed);
+
+                    // デバッグビルドのみ: tick実行元の区別
+                    #[cfg(debug_assertions)]
+                    {
+                        let wndproc_tick = DEBUG_WNDPROC_TICK_COUNT.swap(0, Ordering::Relaxed);
+                        let run_tick = DEBUG_RUN_TICK_COUNT.swap(0, Ordering::Relaxed);
+                        eprintln!(
+                            "[STATS] loop={}, vsync={}, other_msg={}, no_msg={}, tick(wndproc={}, run={})",
+                            loop_count, vsync_count, other_msg_count, no_msg_count, wndproc_tick, run_tick
+                        );
+                    }
+                    #[cfg(not(debug_assertions))]
+                    eprintln!(
+                        "[STATS] loop={}, vsync={}, other_msg={}, no_msg={}",
+                        loop_count, vsync_count, other_msg_count, no_msg_count
+                    );
+                    last_stats_time = now;
+                }
+
                 if PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
                     if msg.message == WM_QUIT {
                         break;
                     }
 
                     // WM_VSYNCメッセージでECSを更新
+                    // try_tick_on_vsync()を使用することで、WndProcで既に処理済みの場合は
+                    // カウンター比較によりスキップされ、重複実行が防止される
                     if msg.message == WM_VSYNC {
+                        DEBUG_VSYNC_COUNT.fetch_add(1, Ordering::Relaxed);
                         let mut world = self.world.borrow_mut();
-                        world.try_tick_world();
+                        let ticked = world.try_tick_on_vsync();
+
+                        // デバッグビルドのみ: run()経由のtick回数をカウント
+                        #[cfg(debug_assertions)]
+                        if ticked {
+                            DEBUG_RUN_TICK_COUNT.fetch_add(1, Ordering::Relaxed);
+                        }
+
                         continue;
                     }
 
@@ -183,6 +250,9 @@ impl WinThreadMgrInner {
                     }
 
                     // WM_DPICHANGED_DEFERRED は DispatchMessageW → WndProc で処理される
+
+                    // デバッグ: 全メッセージをカウント
+                    DEBUG_OTHER_MSG_COUNT.fetch_add(1, Ordering::Relaxed);
 
                     // デバッグ: WM_USER ベースのメッセージを監視
                     if msg.message >= 0x0400 && msg.message <= 0x040F {
@@ -196,6 +266,8 @@ impl WinThreadMgrInner {
                     DispatchMessageW(&msg);
                     continue;
                 }
+
+                DEBUG_NO_MSG_COUNT.fetch_add(1, Ordering::Relaxed);
 
                 if self.try_tick_normal() {
                     continue;
@@ -250,7 +322,11 @@ fn spawn_vsync_thread(message_window: HWND, stop_flag: Arc<AtomicBool>) -> threa
             // この関数は次のVSyncまでブロックする
             unsafe {
                 if DwmFlush().is_ok() {
-                    // VSync到来 - メッセージウィンドウに通知
+                    // VSync到来 - まずカウンターをインクリメント
+                    // （WM_VSYNC送信より前に実行することで、WndProcからの検知を可能にする）
+                    VSYNC_TICK_COUNT.fetch_add(1, Ordering::Relaxed);
+
+                    // メッセージウィンドウに通知（従来の動作を維持）
                     let _ = PostMessageW(Some(message_window), WM_VSYNC, WPARAM(0), LPARAM(0));
                 } else {
                     // エラーの場合は少し待機してリトライ
