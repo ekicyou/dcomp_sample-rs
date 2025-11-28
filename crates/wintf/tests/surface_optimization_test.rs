@@ -1,19 +1,19 @@
 use bevy_ecs::prelude::*;
+use wintf::ecs::calculate_surface_size_from_global_arrangement;
 use wintf::ecs::layout::GlobalArrangement;
 use wintf::ecs::mark_dirty_surfaces;
+use wintf::ecs::world::FrameCount;
 use wintf::ecs::GraphicsCommandList;
 use wintf::ecs::SurfaceCreationStats;
 use wintf::ecs::SurfaceGraphics;
 use wintf::ecs::SurfaceGraphicsDirty;
-use wintf::ecs::world::FrameCount;
-use wintf::ecs::calculate_surface_size_from_global_arrangement;
 
 #[test]
 fn test_surface_graphics_dirty_component_exists() {
     let mut world = World::new();
     let entity = world.spawn(SurfaceGraphicsDirty::default()).id();
     assert!(world.entity(entity).contains::<SurfaceGraphicsDirty>());
-    
+
     // デフォルトのrequested_frameは0
     let dirty = world.entity(entity).get::<SurfaceGraphicsDirty>().unwrap();
     assert_eq!(dirty.requested_frame, 0);
@@ -26,15 +26,18 @@ fn test_mark_dirty_surfaces_updates_frame() {
     app.add_systems(bevy_app::Update, mark_dirty_surfaces);
 
     // SurfaceGraphics と SurfaceGraphicsDirty を持つエンティティを作成
-    let entity = app.world_mut().spawn((
-        SurfaceGraphics::default(),
-        SurfaceGraphicsDirty::default(),
-        GraphicsCommandList::empty(),
-    )).id();
+    let entity = app
+        .world_mut()
+        .spawn((
+            SurfaceGraphics::default(),
+            SurfaceGraphicsDirty::default(),
+            GraphicsCommandList::empty(),
+        ))
+        .id();
 
     // 最初のupdateでChangeトラッカーを初期化
     app.update();
-    
+
     // フレーム番号を更新
     app.world_mut().resource_mut::<FrameCount>().0 = 42;
 
@@ -50,7 +53,11 @@ fn test_mark_dirty_surfaces_updates_frame() {
     app.update();
 
     // SurfaceGraphicsDirtyのrequested_frameがフレーム番号で更新されていることを確認
-    let dirty = app.world().entity(entity).get::<SurfaceGraphicsDirty>().unwrap();
+    let dirty = app
+        .world()
+        .entity(entity)
+        .get::<SurfaceGraphicsDirty>()
+        .unwrap();
     assert_eq!(dirty.requested_frame, 42);
 }
 
@@ -60,18 +67,21 @@ fn test_surface_graphics_dirty_on_surface_added() {
     // （実際にはdeferred_surface_creation_systemが担当）
     let mut app = bevy_app::App::new();
     app.insert_resource(FrameCount(0));
-    
+
     // SurfaceGraphicsとSurfaceGraphicsDirtyを一緒にspawn
-    let entity = app.world_mut().spawn((
-        SurfaceGraphics::default(),
-        SurfaceGraphicsDirty::default(),
-    )).id();
+    let entity = app
+        .world_mut()
+        .spawn((SurfaceGraphics::default(), SurfaceGraphicsDirty::default()))
+        .id();
 
     app.update();
 
     // 両方のコンポーネントが存在することを確認
     assert!(app.world().entity(entity).contains::<SurfaceGraphics>());
-    assert!(app.world().entity(entity).contains::<SurfaceGraphicsDirty>());
+    assert!(app
+        .world()
+        .entity(entity)
+        .contains::<SurfaceGraphicsDirty>());
 }
 
 // ========== Task 1.1: SurfaceCreationStats テスト ==========
@@ -121,13 +131,15 @@ fn test_surface_creation_stats_as_resource() {
     // SurfaceCreationStatsがECSリソースとして使えることを確認
     let mut world = World::new();
     world.insert_resource(SurfaceCreationStats::default());
-    
+
     // リソースが取得できることを確認
     let stats = world.resource::<SurfaceCreationStats>();
     assert_eq!(stats.created_count, 0);
-    
+
     // 可変参照で更新
-    world.resource_mut::<SurfaceCreationStats>().record_created();
+    world
+        .resource_mut::<SurfaceCreationStats>()
+        .record_created();
     assert_eq!(world.resource::<SurfaceCreationStats>().created_count, 1);
 }
 
@@ -137,7 +149,7 @@ fn test_surface_creation_stats_as_resource() {
 fn test_calculate_surface_size_from_global_arrangement_normal() {
     // Req 3.1, 3.2: GlobalArrangement.boundsから物理ピクセルサイズを計算
     use windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F;
-    
+
     let ga = GlobalArrangement {
         bounds: D2D_RECT_F {
             left: 10.0,
@@ -147,7 +159,7 @@ fn test_calculate_surface_size_from_global_arrangement_normal() {
         },
         ..Default::default()
     };
-    
+
     let result = calculate_surface_size_from_global_arrangement(&ga);
     assert_eq!(result, Some((100, 60))); // 110-10=100, 80-20=60
 }
@@ -156,7 +168,7 @@ fn test_calculate_surface_size_from_global_arrangement_normal() {
 fn test_calculate_surface_size_from_global_arrangement_fractional() {
     // Req 3.2: 小数点以下の切り上げ
     use windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F;
-    
+
     let ga = GlobalArrangement {
         bounds: D2D_RECT_F {
             left: 0.0,
@@ -166,7 +178,7 @@ fn test_calculate_surface_size_from_global_arrangement_fractional() {
         },
         ..Default::default()
     };
-    
+
     let result = calculate_surface_size_from_global_arrangement(&ga);
     assert_eq!(result, Some((101, 51))); // ceil(100.5)=101, ceil(50.3)=51
 }
@@ -175,7 +187,7 @@ fn test_calculate_surface_size_from_global_arrangement_fractional() {
 fn test_calculate_surface_size_from_global_arrangement_zero_width() {
     // Req 3.3: サイズ0の場合はNone
     use windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F;
-    
+
     let ga = GlobalArrangement {
         bounds: D2D_RECT_F {
             left: 50.0,
@@ -185,7 +197,7 @@ fn test_calculate_surface_size_from_global_arrangement_zero_width() {
         },
         ..Default::default()
     };
-    
+
     let result = calculate_surface_size_from_global_arrangement(&ga);
     assert_eq!(result, None);
 }
@@ -194,7 +206,7 @@ fn test_calculate_surface_size_from_global_arrangement_zero_width() {
 fn test_calculate_surface_size_from_global_arrangement_zero_height() {
     // Req 3.3: サイズ0の場合はNone
     use windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F;
-    
+
     let ga = GlobalArrangement {
         bounds: D2D_RECT_F {
             left: 0.0,
@@ -204,7 +216,7 @@ fn test_calculate_surface_size_from_global_arrangement_zero_height() {
         },
         ..Default::default()
     };
-    
+
     let result = calculate_surface_size_from_global_arrangement(&ga);
     assert_eq!(result, None);
 }
@@ -213,17 +225,17 @@ fn test_calculate_surface_size_from_global_arrangement_zero_height() {
 fn test_calculate_surface_size_from_global_arrangement_negative() {
     // 負の幅・高さの場合もNone
     use windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F;
-    
+
     let ga = GlobalArrangement {
         bounds: D2D_RECT_F {
             left: 100.0,
             top: 100.0,
-            right: 50.0, // negative width
+            right: 50.0,  // negative width
             bottom: 50.0, // negative height
         },
         ..Default::default()
     };
-    
+
     let result = calculate_surface_size_from_global_arrangement(&ga);
     assert_eq!(result, None);
 }

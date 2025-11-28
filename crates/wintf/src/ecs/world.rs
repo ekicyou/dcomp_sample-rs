@@ -121,6 +121,8 @@ impl EcsWorld {
         world.insert_resource(crate::ecs::app::App::new());
         world.insert_resource(FrameCount::default());
         world.insert_resource(crate::ecs::layout::taffy::TaffyLayoutResource::default());
+        // Surface生成統計リソース（Req 5.3）
+        world.insert_resource(crate::ecs::graphics::SurfaceCreationStats::default());
 
         // LayoutRootとMonitor階層を初期化（Window spawnより前に必要）
         crate::ecs::layout::initialize_layout_root(&mut world);
@@ -233,6 +235,7 @@ impl EcsWorld {
 
             // GraphicsSetupスケジュール: グラフィックスリソース系
             // UISetupの後に実行され、WindowHandleが利用可能
+            // Note: sync_surface_from_arrangementは廃止（deferred_surface_creation_systemに統合）
             schedules.add_systems(
                 GraphicsSetup,
                 (
@@ -241,25 +244,24 @@ impl EcsWorld {
                         .after(crate::ecs::graphics::cleanup_command_list_on_reinit),
                     crate::ecs::graphics::window_visual_integration_system
                         .after(crate::ecs::graphics::init_window_graphics),
-                    // sync_visual_from_layout_root は廃止
-                    // sync_surface_from_arrangement: Arrangementから直接Surfaceサイズを取得
-                    crate::ecs::graphics::sync_surface_from_arrangement
-                        .after(crate::ecs::graphics::window_visual_integration_system),
                 )
                     .chain(),
             );
 
             // Drawスケジュールにクリーンアップシステムとウィジェット描画システムを登録
-            // Phase 6: 遅延Surface作成を追加（CommandList作成後に自動実行）
+            // Surface生成とクリーンアップを統合管理
             schedules.add_systems(
                 Draw,
                 (
                     crate::ecs::graphics::cleanup_graphics_needs_init,
                     crate::ecs::widget::shapes::rectangle::draw_rectangles,
                     crate::ecs::widget::text::draw_labels,
-                    // 遅延Surface作成（CommandList存在時）
+                    // 遅延Surface作成（GraphicsCommandList存在時、GlobalArrangementベース）
                     crate::ecs::graphics::deferred_surface_creation_system
                         .after(crate::ecs::widget::text::draw_labels),
+                    // GraphicsCommandList削除時のSurface解放（Req 1.3, 1.4）
+                    crate::ecs::graphics::cleanup_surface_on_commandlist_removed
+                        .after(crate::ecs::graphics::deferred_surface_creation_system),
                 )
                     .chain(),
             );

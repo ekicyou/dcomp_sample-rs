@@ -5,7 +5,7 @@ use crate::com::dcomp::{
     DCompositionVisualExt,
 };
 use crate::ecs::graphics::{
-    GraphicsCore, HasGraphicsResources, SurfaceGraphics, VisualGraphics, WindowGraphics,
+    GraphicsCore, HasGraphicsResources, SurfaceCreationStats, SurfaceGraphics, VisualGraphics, WindowGraphics,
 };
 use crate::ecs::layout::GlobalArrangement;
 use bevy_ecs::hierarchy::{ChildOf, Children};
@@ -542,6 +542,19 @@ pub fn init_window_visual(
 
 /// Arrangement変更時にDirectComposition Surfaceを作成/リサイズ
 /// ArrangementをSingle Source of Truthとして直接参照
+///
+/// # Deprecated
+/// この関数は `deferred_surface_creation_system` に置き換えられました。
+/// `deferred_surface_creation_system` は `GlobalArrangement.bounds` から
+/// 物理ピクセルサイズを計算し、GraphicsCommandListの存在を条件として
+/// Surface生成を行います。
+///
+/// Req 2.1: sync_surface_from_arrangement廃止
+#[deprecated(
+    since = "0.1.0",
+    note = "Use deferred_surface_creation_system instead. This function will be removed in a future version."
+)]
+#[allow(dead_code)]
 pub fn sync_surface_from_arrangement(
     graphics: Option<Res<GraphicsCore>>,
     mut query: Query<
@@ -1113,28 +1126,52 @@ pub fn visual_property_sync_system(
     }
 }
 
-/// 遅延Surface作成システム (Phase 6)
+/// 遅延Surface作成システム (最適化版)
 ///
-/// CommandListが存在するEntityに対してSurfaceを遅延作成する。
-/// - 対象: VisualGraphics + CommandList を持ち、SurfaceGraphicsを持たないEntity
-/// - タイミング: Drawスケジュール（draw_rectangles/draw_labels の後）
-/// - サイズ: Arrangementから取得（レイアウト済み）
+/// GraphicsCommandListが存在するEntityに対してSurfaceを条件付きで作成する。
+/// - 対象: VisualGraphics + GraphicsCommandList を持つEntity
+/// - サイズ: GlobalArrangement.boundsから物理ピクセルサイズを計算
+/// - 条件: サイズが有効（幅・高さが1以上）な場合のみ作成
+/// - サイズ変更: 既存Surfaceとサイズ不一致の場合は再作成
 ///
-/// これにより、Visual作成（PreLayout）とSurface作成（Draw）を分離し、
-/// タイミング問題を解決する。
+/// # Requirements
+/// - Req 1.1: CommandList追加時にSurface作成
+/// - Req 1.2: CommandListなしならスキップ（クエリ条件で実現）
+/// - Req 2.2: deferred_surface_creation唯一化
+/// - Req 2.3: トリガーをCommandList存在のみに
+/// - Req 3.1: GlobalArrangement.boundsから計算
+/// - Req 3.2: スケール適用後のサイズ（物理ピクセル）
+/// - Req 3.3: サイズ0の場合はスキップ
+/// - Req 3.4: サイズ変更時にSurface再作成
+/// - Req 5.1: スキップ理由ログ
+/// - Req 5.2: 作成ログ（物理サイズ）
 pub fn deferred_surface_creation_system(
     mut commands: Commands,
     graphics: Res<GraphicsCore>,
-    query: Query<
+    // 新規作成用クエリ: SurfaceGraphicsを持たないEntity
+    query_new: Query<
         (
             Entity,
             &VisualGraphics,
             &GraphicsCommandList,
-            Option<&crate::ecs::layout::Arrangement>,
+            &GlobalArrangement,
             Option<&Name>,
         ),
         Without<SurfaceGraphics>,
     >,
+    // サイズ変更検出用クエリ: SurfaceGraphicsを持ち、GlobalArrangementが変更されたEntity
+    query_resize: Query<
+        (
+            Entity,
+            &VisualGraphics,
+            &GraphicsCommandList,
+            &GlobalArrangement,
+            &SurfaceGraphics,
+            Option<&Name>,
+        ),
+        Changed<GlobalArrangement>,
+    >,
+    mut stats: ResMut<SurfaceCreationStats>,
 ) {
     use crate::com::dcomp::DCompositionDeviceExt;
 
@@ -1147,19 +1184,24 @@ pub fn deferred_surface_creation_system(
         None => return,
     };
 
-    for (entity, visual_graphics, _cmd_list, arrangement_opt, name) in query.iter() {
+    // 新規Surface作成
+    for (entity, visual_graphics, _cmd_list, global_arrangement, name) in query_new.iter() {
         let entity_name = format_entity_name(entity, name);
-        // サイズをArrangementから取得（なければデフォルト1x1）
-        let (width, height) = if let Some(arr) = arrangement_opt {
-            let w = arr.size.width.max(1.0) as u32;
-            let h = arr.size.height.max(1.0) as u32;
-            (w.max(1), h.max(1))
-        } else {
-            (1, 1)
+
+        // GlobalArrangementからサイズを計算
+        let Some((width, height)) = calculate_surface_size_from_global_arrangement(global_arrangement) else {
+            // Req 5.1: スキップ理由ログ
+            eprintln!(
+                "[deferred_surface_creation] Entity={} skipped: invalid size from GlobalArrangement (bounds={:?})",
+                entity_name, global_arrangement.bounds
+            );
+            stats.record_skipped();
+            continue;
         };
 
+        // Req 5.2: 作成ログ（物理サイズ）
         eprintln!(
-            "[deferred_surface_creation] Creating Surface for Entity={}, size={}x{}",
+            "[deferred_surface_creation] Creating Surface for Entity={}, physical_size={}x{}",
             entity_name, width, height
         );
 
@@ -1186,12 +1228,10 @@ pub fn deferred_surface_creation_system(
                 commands
                     .entity(entity)
                     .insert(SurfaceGraphics::new(surface, (width, height)));
-                // SurfaceGraphicsDirtyも挿入して描画をトリガー
-                // Added<SurfaceGraphics>がmark_dirty_surfacesで検出され、
-                // Changed<SurfaceGraphicsDirty>がrender_surfaceで検出される
                 commands
                     .entity(entity)
                     .insert(super::components::SurfaceGraphicsDirty::default());
+                stats.record_created();
                 eprintln!(
                     "[deferred_surface_creation] Surface created successfully for Entity={}",
                     entity_name
@@ -1203,6 +1243,114 @@ pub fn deferred_surface_creation_system(
                     entity_name, e
                 );
             }
+        }
+    }
+
+    // Req 3.4: サイズ変更時にSurface再作成
+    for (entity, visual_graphics, _cmd_list, global_arrangement, existing_surface, name) in query_resize.iter() {
+        let entity_name = format_entity_name(entity, name);
+
+        // GlobalArrangementからサイズを計算
+        let Some((width, height)) = calculate_surface_size_from_global_arrangement(global_arrangement) else {
+            // サイズが無効になった場合はスキップ（後でcleanupされる可能性）
+            eprintln!(
+                "[deferred_surface_creation] Entity={} resize skipped: invalid size",
+                entity_name
+            );
+            stats.record_skipped();
+            continue;
+        };
+
+        // サイズが同じなら何もしない
+        if existing_surface.size == (width, height) {
+            continue;
+        }
+
+        eprintln!(
+            "[deferred_surface_creation] Resizing Surface for Entity={}: {:?} -> {}x{}",
+            entity_name, existing_surface.size, width, height
+        );
+
+        // Surface再作成
+        let surface_res = dcomp.create_surface(
+            width,
+            height,
+            DXGI_FORMAT_B8G8R8A8_UNORM,
+            DXGI_ALPHA_MODE_PREMULTIPLIED,
+        );
+
+        match surface_res {
+            Ok(surface) => {
+                if let Some(visual) = visual_graphics.visual() {
+                    unsafe {
+                        let _ = visual.SetContent(&surface);
+                    }
+                }
+                commands
+                    .entity(entity)
+                    .insert(SurfaceGraphics::new(surface, (width, height)));
+                commands
+                    .entity(entity)
+                    .insert(super::components::SurfaceGraphicsDirty::default());
+                stats.record_resized();
+                eprintln!(
+                    "[deferred_surface_creation] Surface resized successfully for Entity={}",
+                    entity_name
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "[deferred_surface_creation] Failed to resize surface for Entity={}: {:?}",
+                    entity_name, e
+                );
+            }
+        }
+    }
+}
+
+/// GraphicsCommandList削除時のSurface解放システム
+///
+/// GraphicsCommandListが削除されたEntityからSurfaceGraphicsを解放する。
+/// VisualGraphicsはVisual階層を維持するため削除しない。
+///
+/// # Requirements
+/// - Req 1.3: CommandList削除時にSurface解放
+/// - Req 1.4: 専用クリーンアップシステム
+pub fn cleanup_surface_on_commandlist_removed(
+    mut commands: Commands,
+    mut removed: RemovedComponents<GraphicsCommandList>,
+    query: Query<(Entity, &VisualGraphics, Option<&Name>), With<SurfaceGraphics>>,
+    mut stats: ResMut<SurfaceCreationStats>,
+) {
+    for entity in removed.read() {
+        // SurfaceGraphicsを持つEntityのみ処理
+        if let Ok((entity, visual_graphics, name)) = query.get(entity) {
+            let entity_name = format_entity_name(entity, name);
+
+            eprintln!(
+                "[cleanup_surface_on_commandlist_removed] Removing SurfaceGraphics from Entity={}",
+                entity_name
+            );
+
+            // VisualのContentをクリア（Req 1.3）
+            if let Some(visual) = visual_graphics.visual() {
+                unsafe {
+                    // nullptrを設定してSurfaceを解除
+                    let _ = visual.SetContent(None);
+                }
+            }
+
+            // SurfaceGraphicsコンポーネントを削除
+            commands.entity(entity).remove::<SurfaceGraphics>();
+            // SurfaceGraphicsDirtyも不要になるので削除
+            commands.entity(entity).remove::<super::components::SurfaceGraphicsDirty>();
+
+            stats.record_deleted();
+
+            eprintln!(
+                "[cleanup_surface_on_commandlist_removed] SurfaceGraphics removed successfully from Entity={}",
+                entity_name
+            );
         }
     }
 }
