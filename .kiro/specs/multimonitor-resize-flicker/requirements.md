@@ -170,15 +170,24 @@ Requirement 8 により、DPIコンポーネントの更新は`WM_WINDOWPOSCHANG
 [DPI=192] 物理 (800, 600) → 論理 (416.7, 312.5)  ← 論理サイズが異なる！
 ```
 
+また、`WM_WINDOWPOSCHANGED`由来の`BoxStyle`更新は、Windowsが既にウィンドウを正しい位置/サイズに設定済みであるため、`SetWindowPosCommand`を生成すべきではない。変更の発生源を区別するために専用コンポーネントを使用する。
+
 #### Acceptance Criteria
 
-1. The `WindowPos`コンポーネント shall エコーバック検知用に物理座標を記録するフィールドを持つ：
+1. The フレームワーク shall `WM_WINDOWPOSCHANGED`で受信した物理座標を記録する`WindowPosChanged`コンポーネントを提供する。
+2. The `WindowPosChanged`コンポーネント shall 以下の情報を保持する：
+   - `x`: X位置（物理座標）
+   - `y`: Y位置（物理座標）
+   - `width`: 幅（物理座標）
+   - `height`: 高さ（物理座標）
+3. The `WindowPosChanged`コンポーネント shall `#[component(storage = "SparseSet")]`属性を持ち、Windowエンティティのみに効率的に割り当てられる。
+4. When `WM_WINDOWPOSCHANGED`を処理するとき, the フレームワーク shall `WindowPosChanged`コンポーネントを更新する。
+5. The `WindowPos`コンポーネント shall 送信した物理座標を記録するフィールドを持つ：
    - `last_sent_physical_position: Option<(i32, i32)>`
    - `last_sent_physical_size: Option<(i32, i32)>`
-2. When `SetWindowPos`を呼び出すとき, the `apply_window_pos_changes` shall 送信した物理座標を記録する。
-3. The `WindowPos::is_echo_physical()`メソッド shall 物理座標ベースでエコーバック判定を行う。
-4. When `WM_WINDOWPOSCHANGED`で受信した物理座標が`last_sent_physical_*`と一致するとき, the 処理 shall これをエコーバックと判定する。
-5. The 既存の論理座標ベース`is_echo()` shall 互換性のため残すが、主要な判定は物理座標ベースで行う。
+6. When `SetWindowPosCommand`をキューに追加するとき, the `apply_window_pos_changes` shall 送信予定の物理座標を`last_sent_physical_*`に記録する。
+7. The `apply_window_pos_changes`システム shall `WindowPosChanged`の物理座標と計算した物理座標を比較し、一致する場合は`SetWindowPosCommand`を生成しない（Windowsが既に正しい位置/サイズを設定済み）。
+8. The 既存の論理座標ベース`is_echo()` shall 互換性のため残すが、主要な判定は`WindowPosChanged`との物理座標比較で行う。
 
 ### Requirement 11: SetWindowPos遅延実行によるWorld借用競合の防止
 
