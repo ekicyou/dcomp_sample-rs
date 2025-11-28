@@ -33,12 +33,17 @@
 
 **Objective:** As a アプリケーションユーザー, I want DPI変更時にウィンドウサイズが適切にスケーリングして欲しい, so that 異なるDPIのモニター間を移動しても論理サイズが維持される。
 
+#### Background
+
+`WM_DPICHANGED`受信時点ではウィンドウサイズはまだ変更されていない。
+`lparam`に含まれる`suggested_rect`はWindowsからの推奨サイズであり、`DefWindowProcW`を呼ぶことで内部的に`SetWindowPos`が実行され、推奨サイズが適用される。
+
 #### Acceptance Criteria
 
-1. When `WM_DPICHANGED`メッセージを受信したとき, the フレームワーク shall `lparam`で提供される推奨RECTを使用してウィンドウサイズを設定する。
+1. When `WM_DPICHANGED`メッセージを受信したとき, the フレームワーク shall 新DPIと`suggested_rect`を`DpiChangeContext`に保存した後、`DefWindowProcW`を呼び出して推奨サイズを適用させる。
 2. The フレームワーク shall DPI変更後も論理サイズ（DIP単位）を維持する（例: 800x600 DIPのウィンドウは新DPIでも800x600 DIPを維持）。
-3. When 推奨RECTが適用されたとき, the フレームワーク shall その値を`WindowPos`コンポーネントに反映し、`BoxStyle`の論理サイズは変更しない。
-4. The DPI変更処理 shall `WM_WINDOWPOSCHANGED`より前に完了し、後続のサイズ更新で論理サイズが縮小しない。
+3. When `DefWindowProcW`内で`WM_WINDOWPOSCHANGED`が発火したとき, the フレームワーク shall `DpiChangeContext`から新DPIを取得してDPIコンポーネントを即時更新する。
+4. The `WM_WINDOWPOSCHANGED`処理 shall 新DPIを使用して物理→論理座標変換を行い、正しい論理サイズを`BoxStyle`に反映する。
 
 ### Requirement 2: 座標変換丸め誤差の防止
 
@@ -111,17 +116,21 @@
 
 #### Background
 
-`WM_DPICHANGED`は`SetWindowPos`内から同期的に送信され、その後`WM_WINDOWPOSCHANGED`が続けて発火する。
-現在の`PostMessage`による遅延処理では、`WM_WINDOWPOSCHANGED`処理時に新DPIを参照できない。
+`WM_DPICHANGED`は`DefWindowProcW`内から`SetWindowPos`を呼び、その中で`WM_WINDOWPOSCHANGED`が同期的に発火する。
+スレッドローカルコンテキストにより、World借用状態に関係なく新DPIを`WM_WINDOWPOSCHANGED`に渡すことができる。
 
 ```
-SetWindowPos() ← apply_window_pos_changes（World借用中）
-  ↓
-WM_DPICHANGED (同期、再入) ← World借用中なのでコンポーネント更新不可
-  ↓
-WM_WINDOWPOSCHANGED (同期、再入) ← 新DPIを参照したいが、まだ更新されていない
-  ↓
-WM_DPICHANGED_DEFERRED (非同期) ← ようやくDPIコンポーネント更新（手遅れ）
+WM_DPICHANGED (同期)
+  ├─ ① DpiChangeContext をスレッドローカルに保存（new_dpi, suggested_rect）
+  └─ ② DefWindowProcW を呼ぶ → 内部で SetWindowPos(suggested_rect)
+       ↓
+       WM_WINDOWPOSCHANGED (再入、同期)
+         ├─ ③ DpiChangeContext を取得・消費
+         ├─ ④ new_dpi で DPIコンポーネントを更新
+         ├─ ⑤ new_dpi で物理→論理座標変換
+         └─ ⑥ BoxStyle 更新（正しい論理サイズ）
+       ↓
+       DefWindowProcW から戻る
 ```
 
 #### Acceptance Criteria
@@ -130,11 +139,28 @@ WM_DPICHANGED_DEFERRED (非同期) ← ようやくDPIコンポーネント更�
 2. The `DpiChangeContext` shall 以下の情報を保持する：
    - `new_dpi`: 新しいDPI値（既存の`DPI`型を使用）
    - `suggested_rect`: Windowsが推奨するウィンドウRECT（物理座標）
-3. When `WM_DPICHANGED`を受信したとき, the フレームワーク shall `DpiChangeContext`をスレッドローカルストレージに保存する（World借用不要）。
+3. When `WM_DPICHANGED`を受信したとき, the フレームワーク shall `DefWindowProcW`を呼ぶ前に`DpiChangeContext`をスレッドローカルストレージに保存する。
 4. When `WM_WINDOWPOSCHANGED`を処理するとき, the フレームワーク shall まずスレッドローカルから`DpiChangeContext`を取得・消費する。
-5. If `DpiChangeContext`が存在するとき, the `WM_WINDOWPOSCHANGED`処理 shall `suggested_rect`と`new_dpi`を使用して論理座標を計算する。
+5. If `DpiChangeContext`が存在するとき, the `WM_WINDOWPOSCHANGED`処理 shall DPIコンポーネントを即時更新し、`new_dpi`を使用して論理座標を計算する。
 6. If `DpiChangeContext`が存在しないとき, the `WM_WINDOWPOSCHANGED`処理 shall 従来通り現在のDPIコンポーネントを使用する。
-7. The `DpiChangeContext` shall `WM_WINDOWPOSCHANGED`での消費後、または`WM_DPICHANGED_DEFERRED`処理後にクリアされる。
+7. The `DpiChangeContext` shall `WM_WINDOWPOSCHANGED`での消費後にクリアされる。
+
+### Requirement 10: WM_DPICHANGED_DEFERRED の廃止
+
+**Objective:** As a フレームワーク開発者, I want 不要になった非同期DPI更新機構を削除したい, so that コードの複雑さを軽減し保守性を向上させる。
+
+#### Background
+
+Requirement 8 により、DPIコンポーネントの更新は`WM_WINDOWPOSCHANGED`内で同期的に行われるようになる。
+従来の`PostMessage`による`WM_DPICHANGED_DEFERRED`は不要となる。
+
+#### Acceptance Criteria
+
+1. The フレームワーク shall `WM_DPICHANGED_DEFERRED`カスタムメッセージを廃止する。
+2. The フレームワーク shall `post_dpi_change()`関数を削除する。
+3. The フレームワーク shall `process_deferred_dpi_change()`関数を削除する。
+4. The `WM_DPICHANGED`ハンドラ shall `PostMessage`を呼び出さない。
+5. The DPIコンポーネント更新 shall `WM_WINDOWPOSCHANGED`処理内で完結する。
 
 ### Requirement 9: 物理座標ベースのエコーバック検知
 
