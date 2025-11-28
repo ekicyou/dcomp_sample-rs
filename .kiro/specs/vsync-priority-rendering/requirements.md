@@ -45,12 +45,13 @@
    1. `VSYNC_TICK_COUNT`と`LAST_VSYNC_TICK`を比較してtick_countの変化を検出
    2. 変化があれば`LAST_VSYNC_TICK`を更新し、`try_tick_world()`を呼び出す
    3. tickが実行されたかどうかを`bool`で返す
-2. The フレームワーク shall `VsyncTick`トレイトを定義し、`Rc<RefCell<EcsWorld>>`に実装する。このトレイトは`try_tick_on_vsync(&self) -> bool`メソッドを提供する：
+2. The フレームワーク shall `VsyncTick`トレイトを`world.rs`に定義し、`Rc<RefCell<EcsWorld>>`に実装する。このトレイトは`try_tick_on_vsync(&self) -> bool`メソッドを提供する：
    1. `try_borrow_mut()`でEcsWorldの借用を試みる
    2. 借用成功時、`EcsWorld::try_tick_on_vsync()`を呼び出す
    3. 借用失敗時（再入時）は安全にスキップしてfalseを返す
 3. The カウンター shall `static AtomicU64`で管理され、EcsWorldにフィールド追加は不要とする。
 4. When `try_borrow_mut()`が失敗したとき（再入時）, the トレイト実装 shall 安全にスキップしてfalseを返す。
+5. The `VsyncTick`トレイト shall `world.rs`に配置する。理由：world tick関連機能であり、`win_thread_mgr.rs`からも参照するため。
 
 ### Requirement 3: WM_WINDOWPOSCHANGED でのtick呼び出し
 
