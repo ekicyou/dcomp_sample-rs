@@ -184,3 +184,70 @@ Requirement 8 により、DPIコンポーネントの更新は`WM_WINDOWPOSCHANG
 3. The `WindowPos::is_echo_physical()`メソッド shall 物理座標ベースでエコーバック判定を行う。
 4. When `WM_WINDOWPOSCHANGED`で受信した物理座標が`last_sent_physical_*`と一致するとき, the 処理 shall これをエコーバックと判定する。
 5. The 既存の論理座標ベース`is_echo()` shall 互換性のため残すが、主要な判定は物理座標ベースで行う。
+
+### Requirement 11: SetWindowPos遅延実行によるWorld借用競合の防止
+
+**Objective:** As a フレームワーク開発者, I want `apply_window_pos_changes`から直接`SetWindowPos`を呼び出さないようにしたい, so that World借用中の再入による二重借用エラーを防止する。
+
+#### Background
+
+現在の問題:
+```
+apply_window_pos_changes (World借用中)
+  └─ SetWindowPos()
+       └─ WM_WINDOWPOSCHANGED (同期)
+            └─ try_tick_on_vsync() → World借用試行 → 二重借用エラー！
+```
+
+解決策: SetWindowPosをtick外に追い出す
+```
+apply_window_pos_changes (World借用中)
+  └─ WINDOW_POS_COMMANDS キューに追加（SetWindowPos呼ばない）
+
+try_tick_on_vsync() 終了直後（World借用解放後）
+  └─ flush_window_pos_commands() → SetWindowPos実行
+       └─ WM_WINDOWPOSCHANGED → World借用可能（安全）
+```
+
+#### Acceptance Criteria
+
+1. The フレームワーク shall スレッドローカルな`WINDOW_POS_COMMANDS`キューを提供する。
+2. The `SetWindowPosCommand`構造体 shall 以下の情報を保持する：
+   - `hwnd`: 対象ウィンドウハンドル
+   - `x`, `y`: 位置（物理座標）
+   - `width`, `height`: サイズ（物理座標）
+   - `flags`: SetWindowPosフラグ（SWP_*定数）
+3. When `apply_window_pos_changes`でSetWindowPosが必要なとき, the システム shall `SetWindowPosCommand`をキューに追加し、即座にSetWindowPosを呼び出さない。
+4. The `VsyncTick::try_tick_on_vsync()`実装 shall EcsWorld借用を解放した直後に`flush_window_pos_commands()`を呼び出す。
+5. The `flush_window_pos_commands()`関数 shall キュー内のすべてのコマンドを順次実行し、SetWindowPosを呼び出す。
+6. When `flush_window_pos_commands()`内でSetWindowPosを呼び出すとき, the WM_WINDOWPOSCHANGED shall 安全にWorldを借用できる（二重借用なし）。
+7. The キュー shall 各flush後にクリアされる。
+
+#### Implementation Notes
+
+```rust
+thread_local! {
+    static WINDOW_POS_COMMANDS: RefCell<Vec<SetWindowPosCommand>> = RefCell::new(Vec::new());
+}
+
+pub struct SetWindowPosCommand {
+    hwnd: HWND,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    flags: u32,
+}
+
+impl VsyncTick for Rc<RefCell<EcsWorld>> {
+    fn try_tick_on_vsync(&self) -> bool {
+        let result = match self.try_borrow_mut() {
+            Ok(mut world) => world.try_tick_on_vsync(),
+            Err(_) => return false,
+        };
+        // EcsWorld借用解放後にSetWindowPosを実行
+        flush_window_pos_commands();
+        result
+    }
+}
+```
