@@ -1,9 +1,9 @@
 {
     "feature_name": "surface-allocation-optimization",
     "created_at": "2025-11-20T12:25:00+09:00",
-    "updated_at": "2025-11-28T15:10:00+09:00",
+    "updated_at": "2025-11-28T18:30:00+09:00",
     "language": "ja",
-    "phase": "tasks-approved",
+    "phase": "completed",
     "approvals": {
         "requirements": {
             "generated": true,
@@ -16,7 +16,13 @@
         "tasks": {
             "generated": true,
             "approved": true
+        },
+        "implementation": {
+            "completed": true,
+            "validated": true,
+            "approved": true
         }
     },
-    "ready_for_implementation": true
+    "ready_for_implementation": true,
+    "completed_at": "2025-11-28T18:30:00+09:00"
 }
