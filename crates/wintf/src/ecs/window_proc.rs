@@ -20,6 +20,11 @@ pub fn set_ecs_world(world: Weak<RefCell<crate::ecs::world::EcsWorld>>) {
 }
 
 /// EcsWorldへの参照を取得
+fn get_ecs_world() -> Option<Rc<RefCell<crate::ecs::world::EcsWorld>>> {
+    ECS_WORLD.get().and_then(|w| w.0.upgrade())
+}
+
+/// EcsWorldへの参照を取得
 fn try_get_ecs_world() -> Option<Rc<RefCell<crate::ecs::world::EcsWorld>>> {
     ECS_WORLD.get().and_then(|weak| weak.0.upgrade())
 }
@@ -199,30 +204,38 @@ pub extern "system" fn ecs_wndproc(
                 // Worldが借用中の可能性がある。PostMessageで遅延処理する。
                 let new_dpi = crate::ecs::window::DPI::from_WM_DPICHANGED(wparam, lparam);
 
-                if let Some(entity) = get_entity_from_hwnd(hwnd) {
-                    eprintln!(
-                        "[WM_DPICHANGED] Entity {:?}: dpi=({}, {}), scale=({:.2}, {:.2}) -> posting deferred message",
-                        entity,
-                        new_dpi.dpi_x,
-                        new_dpi.dpi_y,
-                        new_dpi.scale_x(),
-                        new_dpi.scale_y()
-                    );
+                eprintln!(
+                    "[WM_DPICHANGED] hwnd {:?}: dpi=({}, {}), scale=({:.2}, {:.2}) -> posting deferred message",
+                    hwnd,
+                    new_dpi.dpi_x,
+                    new_dpi.dpi_y,
+                    new_dpi.scale_x(),
+                    new_dpi.scale_y()
+                );
 
-                    // PostMessageで遅延処理
-                    crate::ecs::window::post_dpi_change(hwnd, entity, new_dpi);
-                } else {
-                    eprintln!(
-                        "[WM_DPICHANGED] hwnd {:?}: dpi=({}, {}), scale=({:.2}, {:.2}) (no entity)",
+                // PostMessageで遅延処理（wparamをそのまま渡す）
+                crate::ecs::window::post_dpi_change(hwnd, wparam);
+
+                DefWindowProcW(hwnd, message, wparam, lparam)
+            }
+            crate::win_thread_mgr::WM_DPICHANGED_DEFERRED => {
+                // PostMessageで遅延されたDPI変更を処理
+                eprintln!(
+                    "[WM_DPICHANGED_DEFERRED] hwnd {:?}: wparam={:?}",
+                    hwnd, wparam
+                );
+
+                // EcsWorldを取得して処理
+                if let Some(world) = get_ecs_world() {
+                    let mut world = world.borrow_mut();
+                    crate::ecs::window::process_deferred_dpi_change(
+                        world.world_mut(),
                         hwnd,
-                        new_dpi.dpi_x,
-                        new_dpi.dpi_y,
-                        new_dpi.scale_x(),
-                        new_dpi.scale_y()
+                        wparam,
                     );
                 }
 
-                DefWindowProcW(hwnd, message, wparam, lparam)
+                LRESULT(0)
             }
             _ => DefWindowProcW(hwnd, message, wparam, lparam),
         }

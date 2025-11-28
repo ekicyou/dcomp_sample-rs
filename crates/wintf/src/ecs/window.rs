@@ -17,50 +17,44 @@ use crate::ecs::Visual;
 /// World 借用競合を回避する。
 ///
 /// # パッキング形式
-/// - wparam: Entity の bits (u64)
-/// - lparam: packed DPI (dpi_x の下位8ビット | dpi_y の下位8ビット << 8)
+/// - wparam: WM_DPICHANGED の wparam をそのまま渡す (HIWORD=dpi_y, LOWORD=dpi_x)
+/// - lparam: 未使用 (0)
 ///
-/// 注: DPI値は通常 96, 120, 144, 168, 192 など 8ビットに収まる値のため、下位8ビットのみを使用。
-pub fn post_dpi_change(hwnd: HWND, entity: Entity, new_dpi: DPI) {
-    // Entity の bits を取得 (index + generation が含まれる)
-    let entity_bits = entity.to_bits();
-
-    // DPI をパック (下位8ビットのみ使用)
-    let packed_dpi = ((new_dpi.dpi_x as u32) & 0xFF) | (((new_dpi.dpi_y as u32) & 0xFF) << 8);
-
+/// hwnd から Entity を取得するため、Entity の再エンコードは不要。
+pub fn post_dpi_change(hwnd: HWND, wparam: WPARAM) {
     unsafe {
         let _ = PostMessageW(
             Some(hwnd),
             crate::win_thread_mgr::WM_DPICHANGED_DEFERRED,
-            WPARAM(entity_bits as usize),
-            LPARAM(packed_dpi as isize),
+            wparam,
+            LPARAM(0),
         );
     }
     eprintln!(
-        "[DPI PostMessage] Posted deferred DPI change for entity {:?}: dpi=({}, {})",
-        entity, new_dpi.dpi_x, new_dpi.dpi_y
+        "[DPI PostMessage] Posted deferred DPI change for hwnd {:?}",
+        hwnd
     );
 }
 
 /// WM_DPICHANGED_DEFERRED メッセージを処理
 ///
 /// メッセージループから呼び出され、World が借用されていない状態で DPI コンポーネントを更新する。
-pub fn process_deferred_dpi_change(world: &mut World, wparam: WPARAM, lparam: LPARAM) {
-    // Entity をアンパック
-    let entity_bits = wparam.0 as u64;
-    let packed_dpi = lparam.0 as u32;
+pub fn process_deferred_dpi_change(world: &mut World, hwnd: HWND, wparam: WPARAM) {
+    // hwnd から Entity を取得
+    let Some(entity) = crate::ecs::window_proc::get_entity_from_hwnd(hwnd) else {
+        eprintln!(
+            "[DPI Deferred] hwnd {:?}: get_entity_from_hwnd failed",
+            hwnd
+        );
+        return;
+    };
 
-    // DPI をアンパック
-    let dpi_x = (packed_dpi & 0xFF) as u16;
-    let dpi_y = ((packed_dpi >> 8) & 0xFF) as u16;
-    let new_dpi = DPI::from_dpi(dpi_x, dpi_y);
-
-    // Entity を再構築
-    let entity = Entity::from_bits(entity_bits);
+    // WM_DPICHANGED の wparam から DPI を取得
+    let new_dpi = DPI::from_WM_DPICHANGED(wparam, LPARAM(0));
 
     eprintln!(
         "[DPI Deferred] Processing deferred DPI change for entity {:?}: dpi=({}, {})",
-        entity, dpi_x, dpi_y
+        entity, new_dpi.dpi_x, new_dpi.dpi_y
     );
 
     // DPI コンポーネントを更新

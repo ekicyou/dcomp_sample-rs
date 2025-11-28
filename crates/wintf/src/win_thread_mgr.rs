@@ -182,15 +182,14 @@ impl WinThreadMgrInner {
                         continue;
                     }
 
-                    // WM_DPICHANGED_DEFERREDメッセージで遅延DPI更新
-                    if msg.message == WM_DPICHANGED_DEFERRED {
-                        let mut world = self.world.borrow_mut();
-                        crate::ecs::window::process_deferred_dpi_change(
-                            world.world_mut(),
-                            msg.wParam,
-                            msg.lParam,
+                    // WM_DPICHANGED_DEFERRED は DispatchMessageW → WndProc で処理される
+
+                    // デバッグ: WM_USER ベースのメッセージを監視
+                    if msg.message >= 0x0400 && msg.message <= 0x040F {
+                        eprintln!(
+                            "[MessageLoop] WM_USER range message: msg=0x{:04X}, hwnd={:?}",
+                            msg.message, msg.hwnd
                         );
-                        continue;
                     }
 
                     let _ = TranslateMessage(&msg);
