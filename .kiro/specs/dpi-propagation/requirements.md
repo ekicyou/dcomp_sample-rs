@@ -62,9 +62,10 @@ WindowエンティティのDPIをArrangement.scaleを経由してエンティテ
 1. When Windowエンティティで`DPI`コンポーネントが変更された時, `update_arrangements_system`は`Arrangement.scale`をDPIスケールファクターに更新する
 2. `update_arrangements_system`はいずれかの変更に応答するため、クエリフィルターとして`Or<(Changed<TaffyComputedLayout>, Changed<DPI>)>`を使用する
 3. `update_arrangements_system`は`DPI`コンポーネントにアクセスするため、入力パラメータとして`Option<&DPI>`を受け取る
-4. When `Changed<DPI>`によりシステムが実行された時, wintfは`offset`と`size`フィールドを設定するため`TaffyComputedLayout`を再読み込みする（値は変わらないが再適用される）
-5. When エンティティに`DPI`が存在する時, wintfは`Arrangement.scale.x`を`dpi.scale_x()`に、`Arrangement.scale.y`を`dpi.scale_y()`に設定する
-6. When `DPI`が存在しない時, wintfはデフォルトスケール(1.0, 1.0)を使用する
+4. When `Changed<TaffyComputedLayout>`によりシステムが実行された時, wintfは`Arrangement.offset`と`Arrangement.size`を更新する
+5. When `Changed<DPI>`によりシステムが実行された時, wintfは`Arrangement.scale`のみを更新する（`offset`/`size`は変更しない）
+6. When エンティティに`DPI`が存在する時, wintfは`Arrangement.scale.x`を`dpi.scale_x()`に、`Arrangement.scale.y`を`dpi.scale_y()`に設定する
+7. When `DPI`が存在しない時, wintfはデフォルトスケール(1.0, 1.0)を使用する
 
 ---
 
