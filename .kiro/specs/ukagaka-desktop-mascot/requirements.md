@@ -648,6 +648,32 @@
 
 ---
 
+### Requirement 31: コンテンツメタ情報・ライセンス
+
+**Description**: ゴースト/シェル/バルーンの作者情報、利用条件、ライセンスをユーザーに明示する。メタ情報はREADME.md等のマークダウン形式を推奨し、プラットフォームから閲覧可能とする。
+
+**Acceptance Criteria**:
+
+**メタ情報表示**
+
+1. **The** Mascot Application **shall** パッケージの作者名・連絡先を表示できる
+2. **The** Mascot Application **shall** パッケージの説明・概要を表示できる
+3. **The** Mascot Application **shall** パッケージのバージョン情報を表示できる
+4. **The** Mascot Application **shall** パッケージの更新履歴を表示できる
+
+**ライセンス・利用条件**
+
+5. **The** Mascot Application **shall** パッケージの利用条件（二次配布、改変等）を表示できる
+6. **The** Mascot Application **shall** パッケージのライセンス種別（CC、独自等）を表示できる
+7. **Where** 利用条件に同意が必要な場合, **the** Mascot Application **shall** 初回起動時に同意確認を求める
+
+**README表示**
+
+8. **The** Mascot Application **shall** パッケージのREADME（マークダウン形式推奨）をレンダリング表示できる
+9. **The** Mascot Application **shall** README内のリンクをブラウザで開ける
+
+---
+
 ## Non-Functional Requirements
 
 ### NFR-1: 互換性
