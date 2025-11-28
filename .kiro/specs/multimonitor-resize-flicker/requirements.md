@@ -78,16 +78,11 @@
 3. The 許容誤差 shall DPIスケールに応じて調整可能とする（高DPIでは大きめの許容誤差）。
 4. When エコーバックと判定されたとき, the `apply_window_pos_changes` shall SetWindowPosを呼び出さない。
 
-### Requirement 5: WndProc内tickとSetWindowPosの競合防止
+### ~~Requirement 5: WndProc内tickとSetWindowPosの競合防止~~ [REQ-011に統合]
 
-**Objective:** As a フレームワーク開発者, I want WndProc内でworld tickが実行された場合にSetWindowPos呼び出しを抑制したい, so that 座標更新の競合を防止する。
+**Status:** 廃止 - REQ-011「SetWindowPos遅延実行によるWorld借用競合の防止」に統合
 
-#### Acceptance Criteria
-
-1. While `WM_WINDOWPOSCHANGED`処理内でworld tickが実行されているとき, the `apply_window_pos_changes`システム shall SetWindowPosを呼び出さない。
-2. The フレームワーク shall WndProc内tick実行中を示すフラグまたはコンテキストを提供する。
-3. When WndProc内tick実行中フラグが設定されているとき, the `apply_window_pos_changes` shall 処理をスキップする。
-4. The フラグ shall tick完了後に自動的にクリアされる。
+**理由:** REQ-011 のキューベース遅延実行により、`apply_window_pos_changes` は常にキューに追加するだけとなり、フラグベースの抑制は不要になった。
 
 ### Requirement 6: 既存動作との互換性
 
