@@ -907,17 +907,20 @@ pub struct HitTestPolicy {
 
 | プリフィックス | 対象 | 説明 |
 |---------------|------|------|
-| `ukagaka-` | 本プロジェクト | デスクトップマスコット本体・パッケージ |
-| `wintf-` | wintfフレームワーク拡張 | 基盤レベルの機能追加 |
+| `ukagaka-` | 本仕様 | プラットフォーム本体（この仕様書） |
+| `areka-` | 子仕様 | プロジェクト「areka」のコンポーネント |
+| `wintf-` | 依存仕様 | wintfフレームワーク拡張 |
 
-### 子仕様書（ukagaka-*）
+> **Note**: プロジェクト名は「areka」（あれか！）。本仕様は経緯上 `ukagaka-desktop-mascot` だが、子仕様は `areka-*` を使用。
+
+### 子仕様書（areka-*）
 
 | 識別子 | 種別 | 内容 | MVP | 親要件 |
 |--------|------|------|-----|--------|
 | `ukagaka-desktop-mascot` | 親 | プラットフォーム本体 | ✅ | — |
-| `ukagaka-reference-ghost` | 子 | MVP参照ゴースト、里々インスパイアDSL | ✅ | Req 4.x, 26.x |
-| `ukagaka-reference-shell` | 子 | MVP参照シェル（立ち絵セット） | ✅ | Req 2.x, 3.x |
-| `ukagaka-reference-balloon` | 子 | MVP参照バルーン | ✅ | Req 5.x |
+| `areka-reference-ghost` | 子 | MVP参照ゴースト、里々インスパイアDSL | ✅ | Req 4.x, 26.x |
+| `areka-reference-shell` | 子 | MVP参照シェル（立ち絵セット） | ✅ | Req 2.x, 3.x |
+| `areka-reference-balloon` | 子 | MVP参照バルーン | ✅ | Req 5.x |
 
 ### 依存仕様書（wintf-*）
 
@@ -934,10 +937,10 @@ pub struct HitTestPolicy {
 ```
 ukagaka-desktop-mascot (親・プラットフォーム)
 │
-├── [子: パッケージ参照実装]
-│   ├── ukagaka-reference-ghost    # 頭脳（DSL処理、会話生成）
-│   ├── ukagaka-reference-shell    # シェル（立ち絵セット）
-│   └── ukagaka-reference-balloon  # バルーン（吹き出しデザイン）
+├── [子: areka パッケージ参照実装]
+│   ├── areka-reference-ghost      # 頭脳（DSL処理、会話生成）
+│   ├── areka-reference-shell      # シェル（立ち絵セット）
+│   └── areka-reference-balloon    # バルーン（吹き出しデザイン）
 │
 └── [依存: wintf拡張]
     ├── wintf-image-widget         # P0: 画像・アニメーション
