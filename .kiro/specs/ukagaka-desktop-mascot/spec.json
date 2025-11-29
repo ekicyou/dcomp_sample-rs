@@ -22,7 +22,8 @@
   },
   "ready_for_implementation": false,
   "child_specifications": {
-    "total": 31,
+    "total": 32,
+    "note": "31件（機能仕様）+ 1件（開発プロセス支援: kiro-roadmap-management）",
     "categories": {
       "wintf_base": [
         "wintf-image-widget",
