@@ -115,7 +115,7 @@ MVP必須かは不明瞭だが、wintfの基盤レベルで必要になる可能
 | priority | 優先度（P0〜P3） | P0, P1 |
 | feature | 機能名（ケバブケース） | image-widget, reference-ghost |
 
-**例**: `wintf-P0-image-widget`, `areka-P1-timer-events`, `kiro-P2-roadmap-management`
+**例**: `wintf-P0-image-widget`, `areka-P1-timer-events`, `kiro-P0-roadmap-management`
 
 **目的**: 優先度による絞り込み・ソート・一覧取得を容易にする。
 

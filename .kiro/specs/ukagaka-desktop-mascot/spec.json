@@ -71,7 +71,7 @@
         "areka-P1-legacy-converter"
       ],
       "kiro_process": [
-        "kiro-P2-roadmap-management"
+        "kiro-P0-roadmap-management"
       ]
     },
     "created": [
@@ -83,7 +83,7 @@
       "areka-P0-reference-shell",
       "areka-P0-reference-balloon",
       "areka-P0-window-placement",
-      "kiro-P2-roadmap-management"
+      "kiro-P0-roadmap-management"
     ],
     "pending": 23
   }

@@ -10,7 +10,7 @@
 
 > **理由**: 本メタ仕様を駆動している現在のコンテキストがないと正確に作成できないため、Phase 1 に先行して作成する。
 
-- [x] 0.1 (P2) kiro-P2-roadmap-management 仕様書を作成する
+- [x] 0.1 (P0) kiro-P0-roadmap-management 仕様書を作成する
   - 全体計画の駆動文書（ロードマップ管理）の作成
   - steering ドキュメントへの開発フォーカス記載
   - 複数子仕様の進捗追跡の仕組み
@@ -269,9 +269,9 @@
 
 | 優先度 | 分類 | 子仕様群 | 目標 |
 |--------|------|----------|------|
-| **P0** | MVP必須 | wintf-P0-image-widget, wintf-P0-event-system, wintf-P0-typewriter, wintf-P0-balloon-system, wintf-P0-animation-system, areka-P0-script-engine, areka-P0-package-manager, areka-P0-persistence, areka-P0-mcp-server, areka-P0-system-tray, areka-P0-reference-ghost, areka-P0-reference-shell, areka-P0-reference-balloon, areka-P0-window-placement | 2体キャラクター掛け合い会話可能 |
+| **P0** | MVP必須 | wintf-P0-image-widget, wintf-P0-event-system, wintf-P0-typewriter, wintf-P0-balloon-system, wintf-P0-animation-system, areka-P0-script-engine, areka-P0-package-manager, areka-P0-persistence, areka-P0-mcp-server, areka-P0-system-tray, areka-P0-reference-ghost, areka-P0-reference-shell, areka-P0-reference-balloon, areka-P0-window-placement, kiro-P0-roadmap-management | 2体キャラクター掛け合い会話可能 |
 | **P1** | リリース品質 | wintf-P1-clickthrough, wintf-P1-dpi-scaling, areka-P1-legacy-converter, areka-P1-devtools, areka-P1-error-recovery, areka-P1-timer-events, areka-P1-character-communication | 互換性・安定性・開発支援 |
-| **P2** | 差別化機能 | areka-P2-presence-style, areka-P2-memory-system, areka-P2-llm-integration, areka-P2-creator-tools, areka-P2-privacy-security, kiro-P2-roadmap-management | 独自価値の創出 |
+| **P2** | 差別化機能 | areka-P2-presence-style, areka-P2-memory-system, areka-P2-llm-integration, areka-P2-creator-tools, areka-P2-privacy-security | 独自価値の創出 |
 | **P3** | 将来展望 | areka-P3-voice-system, areka-P3-screen-awareness, areka-P3-environment-sense, areka-P3-cloud-sync, areka-P3-ide-integration | 長期ロードマップ |
 
 ---
@@ -343,6 +343,9 @@ Phase 1で作成した31件の子仕様原案について、順次レビュー�
   - `/kiro-spec-impl areka-P0-reference-balloon`
   - `/kiro-spec-impl areka-P0-window-placement`
 
+- [ ] 4.1.4 プロセス支援の実装
+  - `/kiro-spec-impl kiro-P0-roadmap-management`
+
 ### 4.2 P1実装（リリース品質）
 
 - [ ] 4.2.1 安定性・互換性の実装
@@ -364,9 +367,6 @@ Phase 1で作成した31件の子仕様原案について、順次レビュー�
   - `/kiro-spec-impl areka-P2-llm-integration`
   - `/kiro-spec-impl areka-P2-creator-tools`
   - `/kiro-spec-impl areka-P2-privacy-security`
-
-- [ ] 4.3.2 開発プロセス支援の実装
-  - `/kiro-spec-impl kiro-P2-roadmap-management`
 
 ### 4.4 P3実装（将来展望）
 
@@ -459,6 +459,6 @@ Phase 1で作成した31件の子仕様原案について、順次レビュー�
 | Req 29 (さくらスクリプト) | areka-P0-script-engine, areka-P1-legacy-converter | P0/P1 |
 | Req 30 (エラー処理) | areka-P1-error-recovery | P1 |
 | Req 31 (インストーラ) | areka-P0-package-manager | P0 |
-| (プロセス支援) | kiro-P2-roadmap-management | P2 |
+| (プロセス支援) | kiro-P0-roadmap-management | P0 |
 
 > **Note**: 本仕様は「メタ仕様」として全31要件を子仕様に分解し、今後数か月〜年単位での開発を駆動する。各子仕様は独立して要件定義→設計→タスク→実装のサイクルを回す。
