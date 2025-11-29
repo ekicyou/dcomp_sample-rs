@@ -61,7 +61,7 @@
 
 1. **The** focus.md **shall** ROADMAP.mdの参照タイミング（セッション開始時、次仕様決定時等）を簡潔に記載する
 2. **The** focus.md **shall** ROADMAP.mdの更新タイミング（フェーズ変更時、仕様作成時等）を簡潔に記載する
-3. **The** focus.md **shall** 仕様フォルダの配置ルール（specs直下、backlog、archive）を記載する
+3. **The** focus.md **shall** 仕様フォルダの配置ルール（specs直下、backlog、completed）を記載する
 4. **The** focus.md **shall** コンテキスト消費を最小化するため、詳細情報はROADMAP.mdへの参照とする
 5. **The** focus.md **shall** `/kiro-steering-custom focus` で生成可能とする
 
@@ -75,9 +75,9 @@
 
 1. **The** Folder System **shall** アクティブな仕様（現在はP0）を `.kiro/specs/` 直下に配置する
 2. **The** Folder System **shall** 当面駆動しない仕様（P1-P3）を `.kiro/specs/backlog/` に配置する
-3. **The** Folder System **shall** 完了した仕様を `.kiro/specs/archive/` に移動する
+3. **The** Folder System **shall** 完了した仕様を `.kiro/specs/completed/` に移動する
 4. **The** Folder System **shall** メタ仕様（ukagaka-desktop-mascot）を常に `.kiro/specs/` 直下に配置する
-5. **When** 仕様が完了した時, **the** AI Agent **shall** 該当仕様を archive フォルダに移動する
+5. **When** 仕様が完了した時, **the** AI Agent **shall** 該当仕様を completed フォルダに移動する
 6. **When** P1仕様がアクティブ化される時, **the** AI Agent **shall** 該当仕様を backlog から specs 直下に移動する
 
 ---
@@ -137,7 +137,7 @@
 │   └── ROADMAP.md            # ロードマップ
 ├── {active-specs}/           # アクティブな子仕様（P0等）
 ├── backlog/                  # 当面駆動しない仕様（P1-P3）
-└── archive/                  # 完了仕様
+└── completed/                # 完了仕様
 ```
 
 ### C. focus.md の役割
