@@ -24,14 +24,60 @@
   "child_specifications": {
     "total": 31,
     "categories": {
-      "wintf_base": ["wintf-image-widget", "wintf-event-system", "wintf-typewriter", "wintf-clickthrough", "wintf-balloon-system", "wintf-animation-system", "wintf-dpi-scaling"],
-      "areka_core": ["areka-script-engine", "areka-package-manager", "areka-persistence", "areka-mcp-server", "areka-system-tray", "areka-timer-events", "areka-error-recovery"],
-      "areka_reference": ["areka-reference-ghost", "areka-reference-shell", "areka-reference-balloon", "areka-window-placement"],
-      "areka_advanced": ["areka-presence-style", "areka-memory-system", "areka-llm-integration", "areka-creator-tools", "areka-privacy-security", "areka-character-communication"],
-      "areka_future": ["areka-voice-system", "areka-screen-awareness", "areka-environment-sense", "areka-cloud-sync"],
-      "areka_ide": ["areka-devtools", "areka-ide-integration", "areka-legacy-converter"]
+      "wintf_base": [
+        "wintf-image-widget",
+        "wintf-event-system",
+        "wintf-typewriter",
+        "wintf-clickthrough",
+        "wintf-balloon-system",
+        "wintf-animation-system",
+        "wintf-dpi-scaling"
+      ],
+      "areka_core": [
+        "areka-script-engine",
+        "areka-package-manager",
+        "areka-persistence",
+        "areka-mcp-server",
+        "areka-system-tray",
+        "areka-timer-events",
+        "areka-error-recovery"
+      ],
+      "areka_reference": [
+        "areka-reference-ghost",
+        "areka-reference-shell",
+        "areka-reference-balloon",
+        "areka-window-placement"
+      ],
+      "areka_advanced": [
+        "areka-presence-style",
+        "areka-memory-system",
+        "areka-llm-integration",
+        "areka-creator-tools",
+        "areka-privacy-security",
+        "areka-character-communication"
+      ],
+      "areka_future": [
+        "areka-voice-system",
+        "areka-screen-awareness",
+        "areka-environment-sense",
+        "areka-cloud-sync"
+      ],
+      "areka_ide": [
+        "areka-devtools",
+        "areka-ide-integration",
+        "areka-legacy-converter"
+      ]
     },
-    "created": ["wintf-image-widget", "wintf-event-system", "wintf-typewriter", "wintf-clickthrough", "areka-reference-ghost", "areka-reference-shell", "areka-reference-balloon", "areka-window-placement"],
+    "created": [
+      "wintf-image-widget",
+      "wintf-event-system",
+      "wintf-typewriter",
+      "wintf-clickthrough",
+      "areka-reference-ghost",
+      "areka-reference-shell",
+      "areka-reference-balloon",
+      "areka-window-placement"
+    ],
     "pending": 23
   }
 }
