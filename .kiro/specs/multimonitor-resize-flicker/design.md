@@ -101,6 +101,18 @@ flowchart TB
 
 ### フロー1: DPI変更時のサイズ適用
 
+**重要: World借用の区切り原則**
+
+WM_WINDOWPOSCHANGED処理内でWorldを借用する際は、**短く区切って都度解放**する。
+
+```
+WM_WINDOWPOSCHANGED
+  ├─ ① World借用 → DPI更新, WindowPosChanged=true, WindowPos更新, BoxStyle更新 → 借用解放
+  ├─ ② try_tick_on_vsync() (内部で借用→解放)
+  ├─ ③ flush_window_pos_commands() (SetWindowPos実行)
+  └─ ④ World借用 → WindowPosChanged=false → 借用解放
+```
+
 ```mermaid
 sequenceDiagram
     participant W as Windows
@@ -114,14 +126,32 @@ sequenceDiagram
     Note over W: 内部でSetWindowPos(suggested_rect)
     W->>WP: WM_WINDOWPOSCHANGED
     WP->>TL: DpiChangeContext取得・消費
-    WP->>ECS: DPI更新(new_dpi)
-    WP->>ECS: WindowPosChanged.0 = true
-    WP->>ECS: BoxStyle更新(new_dpi使用)
-    WP->>ECS: try_tick_on_vsync()
-    ECS->>ECS: apply_window_pos_changes(フラグで抑制)
-    ECS-->>WP: tick完了
+    
+    rect rgb(200, 230, 200)
+        Note over WP,ECS: ① World借用セクション
+        WP->>ECS: DPI更新(new_dpi)
+        WP->>ECS: WindowPosChanged.0 = true
+        WP->>ECS: WindowPos更新
+        WP->>ECS: BoxStyle更新(new_dpi使用)
+        ECS-->>WP: 借用解放
+    end
+    
+    rect rgb(200, 200, 230)
+        Note over WP,ECS: ② try_tick_on_vsync
+        WP->>ECS: try_tick_on_vsync()
+        ECS->>ECS: apply_window_pos_changes(フラグで抑制)
+        ECS-->>WP: tick完了・借用解放
+    end
+    
+    Note over WP,TL: ③ flush_window_pos_commands()
     WP->>TL: flush_window_pos_commands()
     Note over TL: キュー空のため何もしない
+    
+    rect rgb(230, 200, 200)
+        Note over WP,ECS: ④ World借用セクション
+        WP->>ECS: WindowPosChanged.0 = false
+        ECS-->>WP: 借用解放
+    end
 ```
 
 ### フロー2: アプリによるBoxStyle変更
@@ -137,16 +167,38 @@ sequenceDiagram
     App->>ECS: BoxStyle変更
     Note over ECS: tick実行
     ECS->>ECS: apply_window_pos_changes
-    Note over ECS: WindowPosChanged = false
+    Note over ECS: WindowPosChanged.0 = false → コマンド生成
     ECS->>TL: SetWindowPosCommand追加
-    ECS-->>App: tick完了
+    ECS-->>App: tick完了・借用解放
+    
     App->>TL: flush_window_pos_commands()
     TL->>W: SetWindowPos
     W->>WP: WM_WINDOWPOSCHANGED
-    WP->>ECS: WindowPosChanged.0 = true
-    WP->>ECS: BoxStyle更新
-    WP->>ECS: try_tick_on_vsync()
-    ECS->>ECS: apply_window_pos_changes(フラグで抑制)
+    
+    rect rgb(200, 230, 200)
+        Note over WP,ECS: ① World借用セクション
+        WP->>ECS: WindowPosChanged.0 = true
+        WP->>ECS: WindowPos更新
+        WP->>ECS: BoxStyle更新
+        ECS-->>WP: 借用解放
+    end
+    
+    rect rgb(200, 200, 230)
+        Note over WP,ECS: ② try_tick_on_vsync
+        WP->>ECS: try_tick_on_vsync()
+        ECS->>ECS: apply_window_pos_changes(フラグで抑制)
+        ECS-->>WP: tick完了・借用解放
+    end
+    
+    Note over WP,TL: ③ flush_window_pos_commands()
+    WP->>TL: flush_window_pos_commands()
+    Note over TL: キュー空のため何もしない
+    
+    rect rgb(230, 200, 200)
+        Note over WP,ECS: ④ World借用セクション
+        WP->>ECS: WindowPosChanged.0 = false
+        ECS-->>WP: 借用解放
+    end
 ```
 
 ## Requirements Traceability

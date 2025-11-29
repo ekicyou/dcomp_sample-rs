@@ -153,15 +153,16 @@ Requirement 8 により、DPIコンポーネントの更新は`WM_WINDOWPOSCHANG
 
 `WM_WINDOWPOSCHANGED`由来の`BoxStyle`更新は、Windowsが既にウィンドウを正しい位置/サイズに設定済みであるため、`SetWindowPosCommand`を生成すべきではない。シンプルなフラグで変更の発生源を区別する。
 
+**重要: World借用の区切り原則**
+
+WM_WINDOWPOSCHANGED処理内でWorldを借用する際は、**短く区切って都度解放**する。
+
 ```
 WM_WINDOWPOSCHANGED
-  ├─ WindowPosChanged.0 = true
-  ├─ BoxStyle更新
-  ├─ try_tick_on_vsync()
-  │     └─ apply_window_pos_changes
-  │           └─ if WindowPosChanged.0 == true → 抑制
-  │           └─ else → SetWindowPosCommand生成
-  └─ WindowPosChanged.0 = false  ← tick後に明示的リセット
+  ├─ ① World借用 → DPI更新, WindowPosChanged=true, WindowPos更新, BoxStyle更新 → 借用解放
+  ├─ ② try_tick_on_vsync() (内部で借用→解放)
+  ├─ ③ flush_window_pos_commands() (SetWindowPos実行)
+  └─ ④ World借用 → WindowPosChanged=false → 借用解放
 ```
 
 #### Acceptance Criteria
