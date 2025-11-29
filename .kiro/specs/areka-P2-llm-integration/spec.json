@@ -1,0 +1,37 @@
+{
+    "feature_name": "areka-P2-llm-integration",
+    "created_at": "2025-11-29T15:00:00Z",
+    "updated_at": "2025-11-29T15:00:00Z",
+    "language": "ja",
+    "phase": "requirements-draft",
+    "parent_spec": "ukagaka-desktop-mascot",
+    "approvals": {
+        "requirements": {
+            "generated": true,
+            "approved": false
+        },
+        "design": {
+            "generated": false,
+            "approved": false
+        },
+        "tasks": {
+            "generated": false,
+            "approved": false
+        }
+    },
+    "ready_for_implementation": false,
+    "parent_requirements": [
+        "19.1",
+        "19.2",
+        "19.3",
+        "19.4",
+        "19.5",
+        "19.6"
+    ],
+    "tier": 4,
+    "priority": "P2",
+    "dependencies": [
+        "areka-P0-mcp-server",
+        "areka-P0-script-engine"
+    ]
+}

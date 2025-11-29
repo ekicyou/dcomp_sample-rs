@@ -1,0 +1,36 @@
+{
+    "feature_name": "areka-P1-legacy-converter",
+    "created_at": "2025-11-29T15:00:00Z",
+    "updated_at": "2025-11-29T15:00:00Z",
+    "language": "ja",
+    "phase": "requirements-draft",
+    "parent_spec": "ukagaka-desktop-mascot",
+    "approvals": {
+        "requirements": {
+            "generated": true,
+            "approved": false
+        },
+        "design": {
+            "generated": false,
+            "approved": false
+        },
+        "tasks": {
+            "generated": false,
+            "approved": false
+        }
+    },
+    "ready_for_implementation": false,
+    "parent_requirements": [
+        "17.1",
+        "17.2",
+        "17.3",
+        "17.4",
+        "17.5",
+        "17.6"
+    ],
+    "tier": 3,
+    "priority": "P1",
+    "dependencies": [
+        "areka-P0-package-manager"
+    ]
+}

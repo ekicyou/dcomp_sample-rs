@@ -1,0 +1,35 @@
+{
+    "feature_name": "areka-P1-timer-events",
+    "created_at": "2025-11-29T15:00:00Z",
+    "updated_at": "2025-11-29T15:00:00Z",
+    "language": "ja",
+    "phase": "requirements-draft",
+    "parent_spec": "ukagaka-desktop-mascot",
+    "approvals": {
+        "requirements": {
+            "generated": true,
+            "approved": false
+        },
+        "design": {
+            "generated": false,
+            "approved": false
+        },
+        "tasks": {
+            "generated": false,
+            "approved": false
+        }
+    },
+    "ready_for_implementation": false,
+    "parent_requirements": [
+        "11.1",
+        "11.2",
+        "11.3",
+        "11.4",
+        "11.5"
+    ],
+    "tier": 3,
+    "priority": "P1",
+    "dependencies": [
+        "areka-P0-mcp-server"
+    ]
+}

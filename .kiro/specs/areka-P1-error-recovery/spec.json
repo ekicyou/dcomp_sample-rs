@@ -1,0 +1,34 @@
+{
+    "feature_name": "areka-P1-error-recovery",
+    "created_at": "2025-11-29T15:00:00Z",
+    "updated_at": "2025-11-29T15:00:00Z",
+    "language": "ja",
+    "phase": "requirements-draft",
+    "parent_spec": "ukagaka-desktop-mascot",
+    "approvals": {
+        "requirements": {
+            "generated": true,
+            "approved": false
+        },
+        "design": {
+            "generated": false,
+            "approved": false
+        },
+        "tasks": {
+            "generated": false,
+            "approved": false
+        }
+    },
+    "ready_for_implementation": false,
+    "parent_requirements": [
+        "27.3",
+        "27.4",
+        "27.5"
+    ],
+    "tier": 3,
+    "priority": "P1",
+    "dependencies": [
+        "areka-P0-script-engine",
+        "areka-P0-package-manager"
+    ]
+}
