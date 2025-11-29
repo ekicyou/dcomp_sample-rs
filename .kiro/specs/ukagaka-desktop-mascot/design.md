@@ -57,6 +57,7 @@ wintfフレームワークに以下の拡張を行う：
 | P0 | ドラッグ移動 | 未実装 | キャラクターウィンドウのドラッグ移動 |
 | P0 | タイプライター表示 | 未対応 | 文字単位の表示制御（現Labelの大幅拡張） |
 | P1 | クリックスルー | 未実装 | 透過領域のWM_NCHITTESTハンドリング |
+| P1? | Windows Animation API | 未実装 | DirectComposition統合、プロパティアニメーション |
 | ✅ | マルチモニタDPI | ほぼ完成 | 追加作業不要 |
 
 **アニメーション画像フォーマット**:
@@ -64,11 +65,20 @@ wintfフレームワークに以下の拡張を行う：
 - WebP: Windows 10以降WIC対応、アニメーション可能
 - APNG: WIC標準非対応（非採用）
 
+**Windows Animation API**:
+DirectCompositionとの統合で以下が可能になる：
+- プロパティアニメーション（位置、不透明度、スケール等）
+- イージング関数（ease-in/out等）
+- GPUアクセラレーション
+
+MVP必須かは不明瞭だが、wintfの基盤レベルで必要になる可能性が高い。
+
 **実装順序**:
-1. wintf: Image widget + アニメーション（SurfaceRendererの前提）
+1. wintf: Image widget + アニメーション画像（SurfaceRendererの前提）
 2. wintf: イベントシステム + ドラッグ（EventDispatcherの前提）
 3. wintf: タイプライター表示（BalloonRendererの前提）
-3. 本プロジェクト: SurfaceRenderer, EventDispatcher, etc.
+4. wintf: Windows Animation API統合（必要に応じて）
+5. 本プロジェクト: SurfaceRenderer, EventDispatcher, etc.
 
 ### MCP採用方針
 
