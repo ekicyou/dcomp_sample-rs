@@ -45,16 +45,13 @@
 3. When `DefWindowProcW`内で`WM_WINDOWPOSCHANGED`が発火したとき, the フレームワーク shall `DpiChangeContext`から新DPIを取得してDPIコンポーネントを即時更新する。
 4. The `WM_WINDOWPOSCHANGED`処理 shall 新DPIを使用して物理→論理座標変換を行い、正しい論理サイズを`BoxStyle`に反映する。
 
-### Requirement 2: 座標変換丸め誤差の防止
+### ~~Requirement 2: 座標変換丸め誤差の防止~~ [REQ-009で解決]
 
-**Objective:** As a フレームワーク開発者, I want 物理座標と論理座標の変換で丸め誤差が蓄積しないようにしたい, so that ウィンドウサイズが意図せず変動しない。
+**Status:** 廃止 - REQ-009「WM_WINDOWPOSCHANGED由来のSetWindowPos抑制」で解決
 
-#### Acceptance Criteria
+**理由:** `WindowPosChanged(bool)`フラグにより、フィードバックループは必ず1回で停止する。丸め誤差が蓄積する前に抑制されるため、エコーバック判定機構は不要。
 
-1. The `WM_WINDOWPOSCHANGED`処理 shall 物理座標を論理座標に変換する際、丸め方向を統一する（切り捨て、切り上げ、または四捨五入を一貫して使用）。
-2. The `apply_window_pos_changes`システム shall 論理座標を物理座標に変換する際、同じ丸め方向を使用する。
-3. When 物理→論理→物理の往復変換を行ったとき, the 結果 shall 元の物理座標と一致する（または許容誤差内に収まる）。
-4. The フレームワーク shall 丸め誤差の許容範囲を定義し、その範囲内の差異はエコーバックとして扱う。
+**ガイドライン:** 丸め方向の統一（切り捨て推奨）は良い実践として推奨するが、要件としては不要。
 
 ### ~~Requirement 3: ドラッグ中のSetWindowPos抑制~~ [REQ-009に統合]
 
@@ -92,8 +89,8 @@
 #### Acceptance Criteria
 
 1. When デバッグビルドのとき, the フレームワーク shall DPI変更イベントをログ出力する（変更前後のDPI、推奨RECT、実際に適用されたサイズ）。
-2. When デバッグビルドのとき, the フレームワーク shall エコーバック判定の結果をログ出力する（判定理由、差分値）。
-3. Where ドラッグ中抑制が発生したとき, the フレームワーク shall 抑制された操作をログ出力する。
+2. When デバッグビルドのとき, the フレームワーク shall `WindowPosChanged`フラグによる抑制発生をログ出力する。
+3. When デバッグビルドのとき, the フレームワーク shall `SetWindowPosCommand`のキュー追加・実行をログ出力する。
 
 ### Requirement 8: World外DPI変更コンテキスト管理
 
