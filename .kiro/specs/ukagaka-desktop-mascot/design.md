@@ -899,6 +899,56 @@ pub struct HitTestPolicy {
 
 ---
 
+## Related Specifications
+
+本仕様の実装にあたり、以下の子仕様書・依存仕様書が必要となる。
+
+### プリフィックス体系
+
+| プリフィックス | 対象 | 説明 |
+|---------------|------|------|
+| `ukagaka-` | 本プロジェクト | デスクトップマスコット本体・パッケージ |
+| `wintf-` | wintfフレームワーク拡張 | 基盤レベルの機能追加 |
+
+### 子仕様書（ukagaka-*）
+
+| 識別子 | 種別 | 内容 | MVP | 親要件 |
+|--------|------|------|-----|--------|
+| `ukagaka-desktop-mascot` | 親 | プラットフォーム本体 | ✅ | — |
+| `ukagaka-reference-ghost` | 子 | MVP参照ゴースト、里々インスパイアDSL | ✅ | Req 4.x, 26.x |
+| `ukagaka-reference-shell` | 子 | MVP参照シェル（立ち絵セット） | ✅ | Req 2.x, 3.x |
+| `ukagaka-reference-balloon` | 子 | MVP参照バルーン | ✅ | Req 5.x |
+
+### 依存仕様書（wintf-*）
+
+| 識別子 | 内容 | MVP | Prerequisites対応 |
+|--------|------|-----|-------------------|
+| `wintf-image-widget` | 画像表示 + アニメーション画像（GIF/WebP） | ✅ | P0: Image widget, アニメーション画像 |
+| `wintf-event-system` | イベントシステム + ドラッグ移動 | ✅ | P0: イベントシステム, ドラッグ移動 |
+| `wintf-typewriter` | 文字単位表示制御 | ✅ | P0: タイプライター表示 |
+| `wintf-animation-api` | Windows Animation API統合 | ❓ | P1?: Windows Animation API |
+| `wintf-clickthrough` | 透過領域クリックスルー | P1 | P1: クリックスルー |
+
+### 関係図
+
+```
+ukagaka-desktop-mascot (親・プラットフォーム)
+│
+├── [子: パッケージ参照実装]
+│   ├── ukagaka-reference-ghost    # 頭脳（DSL処理、会話生成）
+│   ├── ukagaka-reference-shell    # シェル（立ち絵セット）
+│   └── ukagaka-reference-balloon  # バルーン（吹き出しデザイン）
+│
+└── [依存: wintf拡張]
+    ├── wintf-image-widget         # P0: 画像・アニメーション
+    ├── wintf-event-system         # P0: イベント・ドラッグ
+    ├── wintf-typewriter           # P0: タイプライター表示
+    ├── wintf-animation-api        # P1?: Windows Animation
+    └── wintf-clickthrough         # P1: クリックスルー
+```
+
+---
+
 ## Supporting References
 
 ### wintf内部型定義
