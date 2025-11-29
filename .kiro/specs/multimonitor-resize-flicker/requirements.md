@@ -126,6 +126,7 @@ WM_DPICHANGED (同期)
 5. If `DpiChangeContext`が存在するとき, the `WM_WINDOWPOSCHANGED`処理 shall DPIコンポーネントを即時更新し、`new_dpi`を使用して論理座標を計算する。
 6. If `DpiChangeContext`が存在しないとき, the `WM_WINDOWPOSCHANGED`処理 shall 従来通り現在のDPIコンポーネントを使用する。
 7. The `DpiChangeContext` shall `WM_WINDOWPOSCHANGED`での消費後にクリアされる。
+8. The `WM_WINDOWPOSCHANGED`処理 shall `DpiChangeContext`の消費とDPIコンポーネント更新を`try_tick_on_vsync()`呼び出しより**前に**行う。これにより、tick内のシステムは常に最新のDPI値を参照できる。
 
 ### Requirement 10: WM_DPICHANGED_DEFERRED の廃止
 
