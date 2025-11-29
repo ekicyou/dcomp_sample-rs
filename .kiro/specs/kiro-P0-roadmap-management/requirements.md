@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | メタ仕様ロードマップ管理システム 要件定義書 |
-| **Version** | 1.2 |
+| **Version** | 1.3 |
 | **Date** | 2025-11-29 |
 | **Parent Specification** | ukagaka-desktop-mascot |
 | **Author** | Claude Opus 4.5 + えちょ |
@@ -45,7 +45,7 @@
 #### Acceptance Criteria
 
 1. **The** Roadmap System **shall** 親仕様ディレクトリ（`.kiro/specs/{meta-spec}/ROADMAP.md`）にロードマップを配置する
-2. **The** Roadmap System **shall** 全子仕様の一覧と優先度（P0/P1/P2/P3）を単一ドキュメントで表示する
+2. **The** Roadmap System **shall** アクティブな子仕様の一覧と優先度を単一ドキュメントで表示する
 3. **The** Roadmap System **shall** 各子仕様の現在のフェーズ（requirements-draft / design-approved / implementing / completed 等）を表示する
 4. **The** Roadmap System **shall** 現在の開発フォーカス（今取り組むべき子仕様）を明示する
 5. **When** 子仕様のフェーズが変更された時, **the** Roadmap System **shall** ドキュメント更新手段を提供する
@@ -53,34 +53,32 @@
 
 ---
 
-### 2. Steering ドキュメント拡張
+### 2. Steering ドキュメント拡張（focus.md）
 
-**Objective:** AIエージェントとして、セッション開始時にプロジェクトの現状を即座に把握したい。それにより継続的な開発支援が可能になる。
+**Objective:** AIエージェントとして、ROADMAP.mdの参照・更新タイミングを知りたい。それにより適切なタイミングで進捗情報を確認・更新できる。
 
 #### Acceptance Criteria
 
-1. **The** Steering Extension **shall** `/kiro-steering-custom` コマンドで生成可能なテンプレートを提供する
-2. **The** Focus Document **shall** 現在取り組み中の子仕様名を明記する
-3. **The** Focus Document **shall** 直近の目標（次のマイルストーン）を記載する
-4. **Where** ブロッカー（未解決の問題・依存関係）が存在する場合, **the** Focus Document **shall** それを記載する
-5. **When** AIエージェントが新しいセッションを開始した時, **the** Agent **shall** `.kiro/steering/` を読み込んでコンテキストを構築する
-6. **The** Focus Document **shall** 人間による手動更新とAIによる更新提案の両方をサポートする
+1. **The** focus.md **shall** ROADMAP.mdの参照タイミング（セッション開始時、次仕様決定時等）を簡潔に記載する
+2. **The** focus.md **shall** ROADMAP.mdの更新タイミング（フェーズ変更時、仕様作成時等）を簡潔に記載する
+3. **The** focus.md **shall** 仕様フォルダの配置ルール（specs直下、backlog、archive）を記載する
+4. **The** focus.md **shall** コンテキスト消費を最小化するため、詳細情報はROADMAP.mdへの参照とする
+5. **The** focus.md **shall** `/kiro-steering-custom focus` で生成可能とする
 
 ---
 
-### 3. AIエージェント連携ガイドライン
+### 3. 仕様フォルダ管理
 
-**Objective:** AIエージェントとして、メタ仕様を効果的に駆動するためのベストプラクティスを知りたい。それにより一貫性のある開発支援が可能になる。
+**Objective:** 開発者/AIとして、仕様の状態に応じた適切なフォルダ配置を維持したい。それによりアクティブな仕様に集中できる。
 
 #### Acceptance Criteria
 
-1. **The** Guidelines **shall** `/kiro-steering-custom` コマンドで生成可能なテンプレートを提供する
-2. **The** Guidelines **shall** メタ仕様の構造（親仕様 → 子仕様の関係）を説明する
-3. **The** Guidelines **shall** 優先度（P0-P3）とTier（0-6）の使い分けを説明する
-4. **The** Guidelines **shall** セッション開始時のコンテキスト構築手順を定義する
-5. **The** Guidelines **shall** 子仕様の作成・更新手順を定義する
-6. **The** Guidelines **shall** ロードマップドキュメントの更新タイミングを定義する
-7. **Where** 複数のAIセッションで作業が継続される場合, **the** Guidelines **shall** 引き継ぎ方法を定義する
+1. **The** Folder System **shall** アクティブな仕様（現在はP0）を `.kiro/specs/` 直下に配置する
+2. **The** Folder System **shall** 当面駆動しない仕様（P1-P3）を `.kiro/specs/backlog/` に配置する
+3. **The** Folder System **shall** 完了した仕様を `.kiro/specs/archive/` に移動する
+4. **The** Folder System **shall** メタ仕様（ukagaka-desktop-mascot）を常に `.kiro/specs/` 直下に配置する
+5. **When** 仕様が完了した時, **the** AI Agent **shall** 該当仕様を archive フォルダに移動する
+6. **When** P1仕様がアクティブ化される時, **the** AI Agent **shall** 該当仕様を backlog から specs 直下に移動する
 
 ---
 
@@ -90,9 +88,9 @@
 
 #### Acceptance Criteria
 
-1. **The** ROADMAP.md **shall** P0子仕様のTier順実行リストを含む
+1. **The** ROADMAP.md **shall** アクティブ仕様のTier順実行リストを含む
 2. **The** ROADMAP.md **shall** 並行実行可能な子仕様を識別可能な形式で記載する
-3. **The** ROADMAP.md **shall** 優先度別（P0/P1/P2/P3）の進捗サマリーを含む
+3. **The** ROADMAP.md **shall** 進捗サマリー（完了数/進行中/未着手）を含む
 4. **The** ROADMAP.md **shall** 親仕様の各要件に対応する子仕様のマッピングを含む
 5. **When** 依存先の子仕様が未完了の場合, **the** ROADMAP.md **shall** その依存関係を明示する
 
@@ -128,35 +126,44 @@
 
 | 成果物 | 形式 | 配置場所 | 生成方法 |
 |--------|------|----------|----------|
-| `ROADMAP.md` | Markdown | `.kiro/specs/{meta-spec}/` | 設計に基づき手動作成 |
+| `ROADMAP.md` | Markdown | `.kiro/specs/{meta-spec}/` | 設計に基づき作成 |
 | `focus.md` | Markdown | `.kiro/steering/` | `/kiro-steering-custom focus` |
-| `ai-guidelines.md` | Markdown | `.kiro/steering/` | `/kiro-steering-custom ai-guidelines` |
 
-### B. 配置場所の設計方針
+### B. 仕様フォルダ構成
 
-**親仕様集約の原則**: ロードマップ情報は親仕様（メタ仕様）ディレクトリに集約する。
+```
+.kiro/specs/
+├── ukagaka-desktop-mascot/   # メタ仕様（常にアクティブ）
+│   └── ROADMAP.md            # ロードマップ
+├── {active-specs}/           # アクティブな子仕様（P0等）
+├── backlog/                  # 当面駆動しない仕様（P1-P3）
+└── archive/                  # 完了仕様
+```
 
-- **`ROADMAP.md`**: 人間が確認する進捗・計画情報 → 親仕様ディレクトリ
-- **`focus.md`**: AIがセッション開始時に読む現在フォーカス → steering（`/kiro-steering-custom`で生成）
-- **`ai-guidelines.md`**: AIエージェント向けガイドライン → steering（`/kiro-steering-custom`で生成）
-- **`spec.json`**: 機械可読なメタデータ → 各仕様ディレクトリ
+### C. focus.md の役割
 
-この分離により、人間向け情報とAI向け情報を明確に区別する。
+`focus.md` はsteeringファイルとしてAIエージェントに常に読み込まれる。コンテキスト消費を最小化するため、以下の指示のみを簡潔に記載する：
 
-### C. 仕様の完了フロー
+- **参照タイミング**: いつROADMAP.mdを読むべきか
+- **更新タイミング**: いつROADMAP.mdを更新すべきか
+- **フォルダ配置ルール**: specs直下/backlog/archiveの使い分け
+
+詳細な進捗情報はROADMAP.mdに集約し、focus.mdからは参照のみとする。
+
+### D. 仕様の完了フロー
 
 本仕様はプロセス支援仕様のため、通常のtasks→implementation フローではなく、以下で完了とする：
 
 1. **要件承認**: この requirements.md を承認
-2. **設計作成**: design.md でドキュメント構造とテンプレートを設計
+2. **設計作成**: design.md でドキュメント構造を設計
 3. **設計承認**: design.md を承認
-4. **成果物生成**: 設計で定義されたコマンドを実行
+4. **成果物生成**: 
    - `ROADMAP.md` を親仕様ディレクトリに作成
    - `/kiro-steering-custom focus` を実行
-   - `/kiro-steering-custom ai-guidelines` を実行
+   - P1-P3仕様を backlog フォルダに移動
 5. **完了**: spec.json の phase を `completed` に更新
 
-### D. 本仕様の経緯
+### E. 本仕様の経緯
 
 本仕様は `ukagaka-desktop-mascot` メタ仕様の設計レビュー（Issue #3）において、以下の議論から生まれた：
 
@@ -166,7 +173,7 @@
 
 この議論を受けて、プロセス支援仕様 `kiro-P0-roadmap-management` が追加された。
 
-### E. 優先度とTierの関係
+### F. 優先度とTierの関係
 
 ```
 優先度（ビジネス観点）
@@ -184,7 +191,7 @@ Tier（技術的依存関係）
 
 実装順序は「優先度で大枠を決定 → Tierで詳細順序を決定」の2段階で決まる。
 
-### F. 関連仕様
+### G. 関連仕様
 
 - **親仕様**: `ukagaka-desktop-mascot` - 本仕様の親メタ仕様
 - **参照**: `AGENTS.md` - kiro-style Spec Driven Development の概要
