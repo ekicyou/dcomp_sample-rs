@@ -52,12 +52,22 @@ wintfフレームワークに以下の拡張を行う：
 | 優先度 | 機能 | 現状 | 必要な実装 |
 |--------|------|------|-----------|
 | P0 | Image widget | 未実装 | WIC画像読み込み、D2D描画、透過PNG対応 |
+| P0 | アニメーション画像 | 未実装 | GIF/WebPフレーム抽出、タイマー駆動再生 |
 | P0 | イベントシステム | 設計のみ | ヒットテスト、マウスイベント配信 |
+| P0 | ドラッグ移動 | 未実装 | キャラクターウィンドウのドラッグ移動 |
+| P0 | タイプライター表示 | 未対応 | 文字単位の表示制御（現Labelの大幅拡張） |
 | P1 | クリックスルー | 未実装 | 透過領域のWM_NCHITTESTハンドリング |
+| ✅ | マルチモニタDPI | ほぼ完成 | 追加作業不要 |
+
+**アニメーション画像フォーマット**:
+- GIF: WIC標準対応、フレーム抽出可能
+- WebP: Windows 10以降WIC対応、アニメーション可能
+- APNG: WIC標準非対応（非採用）
 
 **実装順序**:
-1. wintf: Image widget（SurfaceRendererの前提）
-2. wintf: イベントシステム（EventDispatcherの前提）
+1. wintf: Image widget + アニメーション（SurfaceRendererの前提）
+2. wintf: イベントシステム + ドラッグ（EventDispatcherの前提）
+3. wintf: タイプライター表示（BalloonRendererの前提）
 3. 本プロジェクト: SurfaceRenderer, EventDispatcher, etc.
 
 ### MCP採用方針
