@@ -348,6 +348,24 @@ impl SetWindowPosCommand {
 - Validation: `hwnd`の有効性は呼び出し元で保証
 - Risks: flushタイミングを誤ると二重借用エラー発生
 
+**再帰呼び出しの安全性**
+
+`flush_window_pos_commands()`は再帰的に呼ばれる可能性があるが、安全である：
+
+```
+flush_window_pos_commands() [外側]
+  └─ SetWindowPos
+       └─ WM_WINDOWPOSCHANGED (同期)
+            ├─ ① WindowPosChanged=true
+            ├─ ② try_tick_on_vsync() → apply_window_pos_changes → フラグ=trueで抑制
+            ├─ ③ flush_window_pos_commands() [内側] → キュー空 → 何もしない
+            └─ ④ WindowPosChanged=false
+```
+
+- 内側の`WM_WINDOWPOSCHANGED`では`WindowPosChanged=true`のため、`apply_window_pos_changes`は`SetWindowPosCommand`を生成しない
+- よって内側の`flush_window_pos_commands()`呼び出し時、キューは常に空
+- 再帰ガードは不要
+
 ---
 
 ### ECS Component Layer
