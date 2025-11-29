@@ -408,6 +408,7 @@ pub struct WindowPosChanged(pub bool);
 
 **Implementation Notes**
 - Integration: `ecs/window.rs`に定義、`window_proc.rs`と`graphics/systems.rs`で使用
+- Initialization: Windowエンティティ作成時に`WindowPosChanged::default()`を追加（`WindowHandle`等と同タイミング）
 - Validation: なし（単純なbool）
 - Risks: 同一tick内のアプリ変更が1フレーム遅延する可能性（許容）
 
