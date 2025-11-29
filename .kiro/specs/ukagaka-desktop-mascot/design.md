@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | 伺的デスクトップマスコットアプリ アーキテクチャ設計書 |
-| **Version** | 1.0 |
+| **Version** | 2.0 |
 | **Date** | 2025-11-29 |
 | **Requirements Version** | 1.0 |
 
@@ -13,7 +13,9 @@
 
 ### Purpose
 
-本機能は、Windowsデスクトップ上で動作する伺的マスコットアプリケーションのコアプラットフォームを提供する。wintfフレームワーク（bevy_ecs + DirectComposition + Direct2D）を基盤とし、透過ウィンドウ上にキャラクターを表示、対話スクリプトを実行、LLMと連携した応答生成を実現する。
+本設計書は、Windowsデスクトップ上で動作する伺的マスコットアプリケーション「areka」のメタアーキテクチャを定義する。本仕様の目的は**全31要件＋NFR-6を子仕様に分解**し、今後数か月〜年単位の開発を駆動可能なロードマップを構築することである。
+
+本仕様は「メタ仕様」であり、直接プログラムコードに落とし込むものではない。各要件に対応する子仕様を段階的に作成・実装することで全体を実現する。
 
 ### Users
 
@@ -21,29 +23,27 @@
 - **ゴースト制作者**: 頭脳（スクリプト/LLM人格）を制作するコミュニティ
 - **シェル制作者**: キャラクター外見（画像/アニメーション）を制作するアーティスト
 - **バルーン制作者**: 会話UIスタイルをデザインするデザイナー
+- **プラットフォーム開発者**: wintf/arekaの開発・保守を行う開発者
 
 ### Impact
 
-wintfフレームワークに以下の拡張を行う：
-- 画像サーフェス表示機能（Imageウィジェット）
-- イベントシステムの完全実装
-- MCPサーバー機能の追加
-- スクリプトエンジンの統合
+- wintfフレームワークに複数の拡張仕様を追加
+- arekaアプリケーション層を新規構築
+- 25個の子仕様を管理するメタ仕様として機能
 
 ### Goals
 
-- wintfを基盤とした高パフォーマンス描画（60fps、CPU 1%未満）
-- MCPプロトコルによるプラットフォーム↔ゴースト分離
-- パッケージ（頭脳/シェル/バルーン）の独立配布・交換
-- 里々インスパイアDSLによる自然な会話記述
-- オフラインLLM/クラウドAPI両対応
+- **全要件カバレッジ**: 31要件＋NFR-6を漏れなく子仕様にマッピング
+- **段階的実現**: P0（MVP）→ P1 → P2 → P3 の優先度で実装
+- **責務分離**: プラットフォーム/ゴースト/パッケージの3層アーキテクチャ
+- **長期駆動**: 年単位の開発ロードマップを提供
 
 ### Non-Goals
 
+- 本仕様からの直接実装（子仕様を経由）
 - SHIORI DLL完全互換（SSPに委譲）
 - 32bit Windows対応
-- コンテンツ（ゴースト/シェル/バルーン）の国際化（作者責務）
-- コンテンツのアクセシビリティ強制（作者責務）
+- コンテンツの国際化・アクセシビリティ強制（作者責務）
 
 ### Implementation Prerequisites
 
@@ -97,7 +97,194 @@ MVP必須かは不明瞭だが、wintfの基盤レベルで必要になる可能
 
 ---
 
-## Architecture
+## Child Specifications Architecture
+
+本設計の中核は「全要件を子仕様に分解」することである。以下に子仕様の完全なリストとそのカバー範囲を示す。
+
+### 子仕様一覧（全25件）
+
+#### 既存子仕様（Phase 1作成済み: 8件）
+
+| 仕様名 | 対象要件 | 優先度 | 説明 | 状態 |
+|--------|---------|--------|------|------|
+| `wintf-image-widget` | 1.1, 1.3, 2.4 | P0 | WIC画像読み込み、D2D描画、GIF/WebPアニメ | requirements-draft |
+| `wintf-event-system` | 5.1, 5.2, 5.3, 5.8 | P0 | ヒットテスト、マウスイベント、ドラッグ | requirements-draft |
+| `wintf-typewriter` | 3.5, 4.7 | P0 | 文字単位表示、ウェイト制御 | requirements-draft |
+| `wintf-clickthrough` | 1.6, NFR-3 | P1 | 透過領域クリックスルー、WM_NCHITTEST | requirements-draft |
+| `areka-reference-ghost` | 4.1-4.6, 26.1-26.3 | P0 | 参照ゴースト、里々DSL、MCP通信 | requirements-draft |
+| `areka-reference-shell` | 2.2, 2.7, 8.1, 8.3, 27.10-27.13 | P0 | 参照シェル、サーフェス、アニメ定義 | requirements-draft |
+| `areka-reference-balloon` | 3.4, 3.6, 27.15, 27.16 | P0 | 参照バルーン、縦書き/横書き | requirements-draft |
+| `areka-window-placement` | 1.4, 1.5, 1.7, 9.3, 16.6 | P0 | 配置、タスクバー張り付き、マルチモニター | requirements-draft |
+
+#### 追加必要な子仕様（17件）
+
+| 仕様名 | 対象要件 | 優先度 | 説明 |
+|--------|---------|--------|------|
+| `wintf-animation-system` | 2.1-2.8 | P0 | フレームアニメ、トランジション、連動アニメ |
+| `wintf-balloon-system` | 3.1-3.10 | P0 | バルーンウィンドウ、選択肢UI、ルビ |
+| `wintf-dpi-scaling` | 15.1-15.5, NFR-1 | P1 | DPI対応、Per-Monitor DPI |
+| `areka-script-engine` | 4.1-4.10, 29.6-29.8 | P0 | DSL解析、変数、制御構文、さくらスクリプト互換 |
+| `areka-timer-events` | 6.1-6.8 | P1 | タイマー、システムイベント、スリープ復帰 |
+| `areka-package-manager` | 7.1-7.7, 8.1-8.5, 27.1-27.27, 31.1-31.9 | P0 | パッケージ管理、マニフェスト、メタ情報 |
+| `areka-persistence` | 9.1-9.6, 30.6-30.8 | P0 | 設定、状態保存、自動保存 |
+| `areka-mcp-server` | 10.1-10.5, 26.11-26.15 | P0 | MCP基盤、ツール、ゴースト間通信媒介 |
+| `areka-legacy-converter` | 11.1-11.6, 29.1-29.11 | P1 | フォーマット変換、互換プロトコル |
+| `areka-devtools` | 12.1-12.7, 28.1-28.10 | P1 | デバッグ、ホットリロード、イベントシミュレータ |
+| `areka-system-tray` | 13.1-13.5 | P0 | システムトレイ常駐、自動起動 |
+| `areka-presence-style` | 16.1-16.7 | P2 | 存在スタイル（控えめ〜活発）、フルスクリーン検出 |
+| `areka-memory-system` | 17.1-17.8 | P2 | 会話履歴、記憶、成長、RAG |
+| `areka-llm-integration` | 18.1-18.7, 26.7-26.10, 26.16-26.20 | P2 | LLMバックエンド、キャラ間LLM会話 |
+| `areka-voice-system` | 19.1-19.8 | P3 | TTS/STT、音声対話、ウェイクワード |
+| `areka-screen-awareness` | 20.1-20.8 | P3 | 画面認識、アクティブウィンドウ、離席検出 |
+| `areka-environment-sense` | 21.1-21.7, 22.1-22.7 | P3 | 外部連携、天気、季節、環境認識 |
+| `areka-cloud-sync` | 23.1-23.6 | P3 | マルチデバイス同期、エクスポート/インポート |
+| `areka-creator-tools` | 24.1-24.8 | P2 | 創作支援、テンプレート、AI人格生成 |
+| `areka-privacy-security` | 25.1-25.5, NFR-3 | P2 | プライバシー、暗号化、ローカルファースト |
+| `areka-character-communication` | 26.1-26.37 | P1 | キャラクター間会話（スクリプト/LLM/物理） |
+| `areka-ide-integration` | 28.11-28.20 | P3 | DAP/LSPサーバー、VS Code連携 |
+| `areka-error-recovery` | 30.1-30.10 | P1 | クラッシュログ、状態復元 |
+
+### 優先度別ロードマップ
+
+```
+P0 (MVP) - 最小限の動作に必須
+├── wintf-image-widget
+├── wintf-event-system
+├── wintf-typewriter
+├── wintf-animation-system
+├── wintf-balloon-system
+├── areka-window-placement
+├── areka-script-engine
+├── areka-package-manager
+├── areka-persistence
+├── areka-mcp-server
+├── areka-system-tray
+├── areka-reference-ghost
+├── areka-reference-shell
+└── areka-reference-balloon
+
+P1 (リリース必須) - 外部公開に必要
+├── wintf-clickthrough
+├── wintf-dpi-scaling
+├── areka-timer-events
+├── areka-legacy-converter
+├── areka-devtools
+├── areka-character-communication
+└── areka-error-recovery
+
+P2 (差別化) - 競合優位性を生む機能
+├── areka-presence-style
+├── areka-memory-system
+├── areka-llm-integration
+├── areka-creator-tools
+└── areka-privacy-security
+
+P3 (将来拡張) - 長期的なビジョン
+├── areka-voice-system
+├── areka-screen-awareness
+├── areka-environment-sense
+├── areka-cloud-sync
+└── areka-ide-integration
+```
+
+### 依存関係階層
+
+```
+Tier 0 (基盤)
+├── wintf-image-widget
+├── wintf-event-system
+├── wintf-typewriter
+└── wintf-clickthrough
+
+Tier 1 (描画・表示)
+├── wintf-animation-system (← Tier 0)
+├── wintf-balloon-system (← wintf-typewriter)
+├── wintf-dpi-scaling (← Tier 0)
+└── areka-window-placement (← wintf-event-system)
+
+Tier 2 (コア機能)
+├── areka-script-engine (← Tier 1)
+├── areka-package-manager (独立)
+├── areka-persistence (独立)
+├── areka-mcp-server (独立)
+├── areka-system-tray (独立)
+└── areka-error-recovery (独立)
+
+Tier 3 (参照実装)
+├── areka-reference-ghost (← areka-script-engine, areka-mcp-server)
+├── areka-reference-shell (← wintf-animation-system)
+└── areka-reference-balloon (← wintf-balloon-system)
+
+Tier 4 (高度機能)
+├── areka-timer-events (← areka-mcp-server)
+├── areka-devtools (← areka-script-engine)
+├── areka-legacy-converter (独立)
+├── areka-presence-style (← areka-mcp-server)
+├── areka-character-communication (← areka-mcp-server)
+└── areka-privacy-security (← areka-persistence)
+
+Tier 5 (拡張機能)
+├── areka-memory-system (← areka-persistence)
+├── areka-llm-integration (← areka-mcp-server)
+├── areka-creator-tools (← areka-package-manager)
+└── areka-ide-integration (← areka-devtools)
+
+Tier 6 (将来機能)
+├── areka-voice-system (← areka-llm-integration)
+├── areka-screen-awareness (← areka-mcp-server)
+├── areka-environment-sense (← areka-mcp-server)
+└── areka-cloud-sync (← areka-persistence)
+```
+
+---
+
+## Requirements Traceability
+
+全31要件＋NFR-6の子仕様へのマッピングを示す。
+
+### 完全トレーサビリティマトリクス
+
+| Req | 要件名 | 子仕様 | カバー状況 |
+|-----|--------|--------|-----------|
+| 1 | キャラクター表示基盤 | wintf-image-widget, areka-window-placement, wintf-clickthrough | 全項目 |
+| 2 | アニメーション | wintf-animation-system, wintf-image-widget, areka-reference-shell | 全項目 |
+| 3 | バルーンシステム | wintf-balloon-system, wintf-typewriter, areka-reference-balloon | 全項目 |
+| 4 | 対話エンジン | areka-script-engine, areka-reference-ghost, areka-llm-integration | 全項目 |
+| 5 | ユーザー入力 | wintf-event-system | 全項目 |
+| 6 | 時間・イベント | areka-timer-events | 全項目 |
+| 7 | ゴースト管理 | areka-package-manager | 全項目 |
+| 8 | シェル管理 | areka-package-manager, areka-reference-shell | 全項目 |
+| 9 | 設定・永続化 | areka-persistence, areka-window-placement | 全項目 |
+| 10 | 通信・連携 | areka-mcp-server | 全項目 |
+| 11 | レガシー資産 | areka-legacy-converter | 全項目 |
+| 12 | 開発者機能 | areka-devtools | 全項目 |
+| 13 | システムトレイ | areka-system-tray | 全項目 |
+| 14 | パフォーマンス | (各仕様に分散、NFR-6) | 全項目 |
+| 15 | 表示環境適応 | wintf-dpi-scaling | 全項目 |
+| 16 | 存在スタイル | areka-presence-style, areka-window-placement | 全項目 |
+| 17 | 記憶と成長 | areka-memory-system | 全項目 |
+| 18 | ローカルAI | areka-llm-integration | 全項目 |
+| 19 | 音声対話 | areka-voice-system | 全項目 |
+| 20 | 画面認識 | areka-screen-awareness | 全項目 |
+| 21 | 世界との繋がり | areka-environment-sense | 全項目 |
+| 22 | 環境認識 | areka-environment-sense | 全項目 |
+| 23 | マルチデバイス | areka-cloud-sync | 全項目 |
+| 24 | 創作エコシステム | areka-creator-tools | 全項目 |
+| 25 | プライバシー | areka-privacy-security | 全項目 |
+| 26 | キャラクター間通信 | areka-character-communication, areka-reference-ghost, areka-llm-integration | 全項目 |
+| 27 | パッケージアーキテクチャ | areka-package-manager | 全項目 |
+| 28 | 開発者体験 | areka-devtools, areka-ide-integration | 全項目 |
+| 29 | 互換性・マイグレーション | areka-legacy-converter | 全項目 |
+| 30 | エラーハンドリング | areka-error-recovery | 全項目 |
+| 31 | コンテンツメタ情報 | areka-package-manager | 全項目 |
+| NFR-1 | 互換性 | wintf-dpi-scaling, (全般) | 全項目 |
+| NFR-2 | 拡張性 | areka-mcp-server, (プラグイン設計) | 全項目 |
+| NFR-3 | セキュリティ | areka-privacy-security, wintf-clickthrough | 全項目 |
+| NFR-4 | ドキュメント | (各仕様に付随) | 全項目 |
+| NFR-5 | 国際化 | (リソース設計) | 全項目 |
+| NFR-6 | パフォーマンス | (各仕様のパフォーマンス目標) | 全項目 |
+
+---
 
 ### Existing Architecture Analysis
 
@@ -899,55 +1086,105 @@ pub struct HitTestPolicy {
 
 ---
 
-## Related Specifications
+## Related Specifications (Child Specs)
 
-本仕様の実装にあたり、以下の子仕様書・依存仕様書が必要となる。
+本仕様は「メタ仕様」として機能し、以下の子仕様群を統括する。
 
-### プリフィックス体系
+### プレフィックス体系
 
-| プリフィックス | 対象 | 説明 |
+| プレフィックス | 対象 | 説明 |
 |---------------|------|------|
-| `ukagaka-` | 本仕様 | プラットフォーム本体（この仕様書） |
-| `areka-` | 子仕様 | プロジェクト「areka」のコンポーネント |
-| `wintf-` | 依存仕様 | wintfフレームワーク拡張 |
+| `wintf-*` | 依存仕様 | wintfフレームワーク拡張（UIライブラリ層） |
+| `areka-*` | 子仕様 | アプリケーション層コンポーネント |
 
 > **Note**: プロジェクト名は「areka」（あれか！）。本仕様は経緯上 `ukagaka-desktop-mascot` だが、子仕様は `areka-*` を使用。
 
-### 子仕様書（areka-*）
+### 子仕様一覧（全25件）
 
-| 識別子 | 種別 | 内容 | MVP | 親要件 |
-|--------|------|------|-----|--------|
-| `ukagaka-desktop-mascot` | 親 | プラットフォーム本体 | ✅ | — |
-| `areka-reference-ghost` | 子 | MVP参照ゴースト、里々インスパイアDSL | ✅ | Req 4.x, 26.x |
-| `areka-reference-shell` | 子 | MVP参照シェル（立ち絵セット） | ✅ | Req 2.x, 3.x |
-| `areka-reference-balloon` | 子 | MVP参照バルーン | ✅ | Req 5.x |
+#### wintf-* （UIフレームワーク層: 5件）
 
-### 依存仕様書（wintf-*）
+| 識別子 | 内容 | MVP | 状態 |
+|--------|------|-----|------|
+| `wintf-image-widget` | 画像表示、GIF/WebPアニメーション | ✅ | requirements-draft |
+| `wintf-event-system` | イベントシステム、ヒットテスト、ドラッグ | ✅ | requirements-draft |
+| `wintf-typewriter` | 文字単位表示制御、ウェイト | ✅ | requirements-draft |
+| `wintf-clickthrough` | 透過領域クリックスルー | P1 | requirements-draft |
+| `wintf-animation-system` | フレームアニメーション、トランジション | ✅ | **未作成** |
+| `wintf-balloon-system` | バルーンウィンドウ、選択肢UI | ✅ | **未作成** |
+| `wintf-dpi-scaling` | DPI対応、Per-Monitor DPI | P1 | **未作成** |
 
-| 識別子 | 内容 | MVP | Prerequisites対応 |
-|--------|------|-----|-------------------|
-| `wintf-image-widget` | 画像表示 + アニメーション画像（GIF/WebP） | ✅ | P0: Image widget, アニメーション画像 |
-| `wintf-event-system` | イベントシステム + ドラッグ移動 | ✅ | P0: イベントシステム, ドラッグ移動 |
-| `wintf-typewriter` | 文字単位表示制御 | ✅ | P0: タイプライター表示 |
-| `wintf-animation-api` | Windows Animation API統合 | ❓ | P1?: Windows Animation API |
-| `wintf-clickthrough` | 透過領域クリックスルー | P1 | P1: クリックスルー |
+#### areka-* （アプリケーション層: 18件）
+
+| 識別子 | 内容 | MVP | 状態 |
+|--------|------|-----|------|
+| `areka-reference-ghost` | 参照ゴースト、里々DSL、MCP通信 | ✅ | requirements-draft |
+| `areka-reference-shell` | 参照シェル、サーフェス定義 | ✅ | requirements-draft |
+| `areka-reference-balloon` | 参照バルーン、縦書き/横書き | ✅ | requirements-draft |
+| `areka-window-placement` | 配置、タスクバー張り付き | ✅ | requirements-draft |
+| `areka-script-engine` | DSL解析、変数、制御構文 | ✅ | **未作成** |
+| `areka-timer-events` | タイマー、システムイベント | P1 | **未作成** |
+| `areka-package-manager` | パッケージ管理、マニフェスト | ✅ | **未作成** |
+| `areka-persistence` | 設定、状態保存 | ✅ | **未作成** |
+| `areka-mcp-server` | MCP基盤、ゴースト間通信 | ✅ | **未作成** |
+| `areka-legacy-converter` | フォーマット変換、互換プロトコル | P1 | **未作成** |
+| `areka-devtools` | デバッグ、ホットリロード | P1 | **未作成** |
+| `areka-system-tray` | システムトレイ常駐 | ✅ | **未作成** |
+| `areka-presence-style` | 存在スタイル（控えめ〜活発） | P2 | **未作成** |
+| `areka-memory-system` | 会話履歴、記憶、RAG | P2 | **未作成** |
+| `areka-llm-integration` | LLMバックエンド | P2 | **未作成** |
+| `areka-voice-system` | TTS/STT、音声対話 | P3 | **未作成** |
+| `areka-screen-awareness` | 画面認識、状況理解 | P3 | **未作成** |
+| `areka-environment-sense` | 外部連携、天気、環境認識 | P3 | **未作成** |
+| `areka-cloud-sync` | マルチデバイス同期 | P3 | **未作成** |
+| `areka-creator-tools` | 創作支援、テンプレート | P2 | **未作成** |
+| `areka-privacy-security` | プライバシー、暗号化 | P2 | **未作成** |
+| `areka-character-communication` | キャラクター間会話 | P1 | **未作成** |
+| `areka-ide-integration` | DAP/LSPサーバー | P3 | **未作成** |
+| `areka-error-recovery` | クラッシュログ、状態復元 | P1 | **未作成** |
 
 ### 関係図
 
 ```
-ukagaka-desktop-mascot (親・プラットフォーム)
+ukagaka-desktop-mascot (メタ仕様・プラットフォーム統括)
 │
-├── [子: areka パッケージ参照実装]
-│   ├── areka-reference-ghost      # 頭脳（DSL処理、会話生成）
-│   ├── areka-reference-shell      # シェル（立ち絵セット）
-│   └── areka-reference-balloon    # バルーン（吹き出しデザイン）
+├── [wintf-* UIフレームワーク層]
+│   ├── wintf-image-widget         # P0: 画像・アニメーション
+│   ├── wintf-event-system         # P0: イベント・ドラッグ
+│   ├── wintf-typewriter           # P0: タイプライター表示
+│   ├── wintf-animation-system     # P0: フレームアニメーション
+│   ├── wintf-balloon-system       # P0: バルーンUI
+│   ├── wintf-clickthrough         # P1: クリックスルー
+│   └── wintf-dpi-scaling          # P1: DPI対応
 │
-└── [依存: wintf拡張]
-    ├── wintf-image-widget         # P0: 画像・アニメーション
-    ├── wintf-event-system         # P0: イベント・ドラッグ
-    ├── wintf-typewriter           # P0: タイプライター表示
-    ├── wintf-animation-api        # P1?: Windows Animation
-    └── wintf-clickthrough         # P1: クリックスルー
+├── [areka-* アプリケーション層（コア）]
+│   ├── areka-script-engine        # P0: スクリプトエンジン
+│   ├── areka-package-manager      # P0: パッケージ管理
+│   ├── areka-persistence          # P0: 永続化
+│   ├── areka-mcp-server           # P0: MCP通信
+│   ├── areka-system-tray          # P0: システムトレイ
+│   ├── areka-window-placement     # P0: ウィンドウ配置
+│   ├── areka-timer-events         # P1: タイマー
+│   ├── areka-devtools             # P1: 開発者ツール
+│   ├── areka-legacy-converter     # P1: レガシー変換
+│   ├── areka-character-communication # P1: キャラ間会話
+│   └── areka-error-recovery       # P1: エラー復旧
+│
+├── [areka-* アプリケーション層（拡張）]
+│   ├── areka-presence-style       # P2: 存在スタイル
+│   ├── areka-memory-system        # P2: 記憶システム
+│   ├── areka-llm-integration      # P2: LLM連携
+│   ├── areka-creator-tools        # P2: 創作支援
+│   ├── areka-privacy-security     # P2: セキュリティ
+│   ├── areka-voice-system         # P3: 音声
+│   ├── areka-screen-awareness     # P3: 画面認識
+│   ├── areka-environment-sense    # P3: 環境認識
+│   ├── areka-cloud-sync           # P3: クラウド同期
+│   └── areka-ide-integration      # P3: IDE連携
+│
+└── [areka-* 参照実装]
+    ├── areka-reference-ghost      # P0: 参照ゴースト
+    ├── areka-reference-shell      # P0: 参照シェル
+    └── areka-reference-balloon    # P0: 参照バルーン
 ```
 
 ---
