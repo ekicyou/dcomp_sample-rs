@@ -1,9 +1,9 @@
 {
     "feature_name": "multimonitor-resize-flicker",
     "created_at": "2025-11-29T12:00:00+09:00",
-    "updated_at": "2025-11-30T13:30:00+09:00",
+    "updated_at": "2025-11-30T15:00:00+09:00",
     "language": "ja",
-    "phase": "tasks-approved",
+    "phase": "completed",
     "approvals": {
         "requirements": {
             "generated": true,

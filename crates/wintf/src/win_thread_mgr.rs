@@ -230,8 +230,15 @@ impl WinThreadMgrInner {
                     // カウンター比較によりスキップされ、重複実行が防止される
                     if msg.message == WM_VSYNC {
                         DEBUG_VSYNC_COUNT.fetch_add(1, Ordering::Relaxed);
-                        let mut world = self.world.borrow_mut();
-                        let ticked = world.try_tick_on_vsync();
+
+                        // World借用→tick→借用解放→flushの順で処理
+                        // VsyncTickトレイトのtry_tick_on_vsync()と同じ流れを維持
+                        let ticked = {
+                            let mut world = self.world.borrow_mut();
+                            world.try_tick_on_vsync()
+                        };
+                        // World借用解放後にSetWindowPosコマンドをフラッシュ
+                        crate::ecs::window::flush_window_pos_commands();
 
                         // デバッグビルドのみ: run()経由のtick回数をカウント
                         #[cfg(debug_assertions)]

@@ -37,7 +37,7 @@ impl VsyncTick for Rc<RefCell<EcsWorld>> {
     fn try_tick_on_vsync(&self) -> bool {
         // RefCellの借用を試みる
         // 既に借用されている場合（再入時）は安全にスキップ
-        match self.try_borrow_mut() {
+        let result = match self.try_borrow_mut() {
             Ok(mut world) => {
                 let result = world.try_tick_on_vsync();
 
@@ -56,7 +56,15 @@ impl VsyncTick for Rc<RefCell<EcsWorld>> {
                 // これは正常な動作であり、エラーではない
                 false
             }
-        }
+        };
+        // world借用スコープ終了
+
+        // World借用解放後にSetWindowPosコマンドをフラッシュ
+        // これにより、apply_window_pos_changesでキューに追加されたコマンドが
+        // 安全に実行される（WM_WINDOWPOSCHANGEDがWorldを借用しても競合しない）
+        crate::ecs::window::flush_window_pos_commands();
+
+        result
     }
 }
 

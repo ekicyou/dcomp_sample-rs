@@ -709,14 +709,18 @@ pub fn sync_window_pos(
     }
 }
 
-/// WindowPos変更時にSetWindowPos Win32 APIを呼び出し、エコーバック値を記録
-/// クライアント領域座標をウィンドウ全体座標に変換してからSetWindowPosを呼び出す
+/// WindowPos変更時にSetWindowPosコマンドをキューに追加
+///
+/// クライアント領域座標をウィンドウ全体座標に変換してからコマンドを生成する。
+/// `WindowPosChanged.0 == true` の場合は、WM_WINDOWPOSCHANGED由来の変更なので
+/// SetWindowPosコマンドを生成しない（フィードバックループ防止）。
 pub fn apply_window_pos_changes(
     mut query: Query<
         (
             Entity,
             &crate::ecs::window::WindowHandle,
             &mut crate::ecs::window::WindowPos,
+            &crate::ecs::window::WindowPosChanged,
             Option<&Name>,
         ),
         (
@@ -725,8 +729,18 @@ pub fn apply_window_pos_changes(
         ),
     >,
 ) {
-    for (entity, window_handle, mut window_pos, name) in query.iter_mut() {
+    for (entity, window_handle, mut window_pos, wpc, name) in query.iter_mut() {
         let entity_name = format_entity_name(entity, name);
+
+        // WindowPosChangedフラグがtrueの場合、WM_WINDOWPOSCHANGED由来の変更なのでスキップ
+        // これにより、フィードバックループを防止する
+        if wpc.0 {
+            eprintln!(
+                "[apply_window_pos_changes] Entity={}: WindowPosChanged=true, suppressing SetWindowPos",
+                entity_name
+            );
+            continue;
+        }
 
         // エコーバックチェック
         let position = window_pos.position.unwrap_or_default();
@@ -756,7 +770,7 @@ pub fn apply_window_pos_changes(
         let (x, y, width, height) = match window_pos.to_window_coords(window_handle) {
             Ok(coords) => coords,
             Err(e) => {
-                // 変換失敗時はフォールバック：元の座標でSetWindowPosを呼び出す
+                // 変換失敗時はフォールバック：元の座標を使用
                 eprintln!(
                     "[apply_window_pos_changes] Entity={}: Failed to transform window coordinates: {}. Using original values.",
                     entity_name, e
@@ -765,43 +779,36 @@ pub fn apply_window_pos_changes(
             }
         };
 
-        // SetWindowPos呼び出し（変換後の座標を使用）
+        // SetWindowPosコマンドを生成してキューに追加
+        // 直接SetWindowPosを呼び出さない（World借用競合防止）
         let flags = window_pos.build_flags_for_system();
         let hwnd_insert_after = window_pos.get_hwnd_insert_after();
 
         eprintln!(
-            "[apply_window_pos_changes] Entity={}: Calling SetWindowPos. client=({}, {}), size=({}, {}) -> window=({}, {}), size=({}, {})",
+            "[apply_window_pos_changes] Entity={}: Enqueueing SetWindowPosCommand. client=({}, {}), size=({}, {}) -> window=({}, {}), size=({}, {})",
             entity_name, position.x, position.y, size.cx, size.cy, x, y, width, height
         );
 
-        let result = unsafe {
-            windows::Win32::UI::WindowsAndMessaging::SetWindowPos(
-                window_handle.hwnd,
-                hwnd_insert_after,
-                x,
-                y,
-                width,
-                height,
-                flags,
-            )
-        };
+        let cmd = crate::ecs::window::SetWindowPosCommand::new(
+            window_handle.hwnd,
+            x,
+            y,
+            width,
+            height,
+            flags,
+            hwnd_insert_after,
+        );
+        crate::ecs::window::SetWindowPosCommand::enqueue(cmd);
 
-        if result.is_ok() {
-            // 成功時のみlast_sent値を記録（クライアント座標で記録）
-            // WM_WINDOWPOSCHANGEDでの比較時に逆変換して一致するため
-            let bypass = window_pos.bypass_change_detection();
-            bypass.last_sent_position = Some((position.x, position.y));
-            bypass.last_sent_size = Some((size.cx, size.cy));
-            eprintln!(
-                "[apply_window_pos_changes] Entity={}: SetWindowPos succeeded, recorded client coords ({}, {}), ({}, {})",
-                entity_name, position.x, position.y, size.cx, size.cy
-            );
-        } else {
-            eprintln!(
-                "[apply_window_pos_changes] Entity={}: SetWindowPos failed",
-                entity_name
-            );
-        }
+        // last_sent値を記録（クライアント座標で記録）
+        // WM_WINDOWPOSCHANGEDでの比較時に逆変換して一致するため
+        let bypass = window_pos.bypass_change_detection();
+        bypass.last_sent_position = Some((position.x, position.y));
+        bypass.last_sent_size = Some((size.cx, size.cy));
+        eprintln!(
+            "[apply_window_pos_changes] Entity={}: Command enqueued, recorded client coords ({}, {}), ({}, {})",
+            entity_name, position.x, position.y, size.cx, size.cy
+        );
     }
 }
 

@@ -19,12 +19,7 @@ pub fn set_ecs_world(world: Weak<RefCell<crate::ecs::world::EcsWorld>>) {
     let _ = ECS_WORLD.set(SendWeak(world));
 }
 
-/// EcsWorldへの参照を取得
-fn get_ecs_world() -> Option<Rc<RefCell<crate::ecs::world::EcsWorld>>> {
-    ECS_WORLD.get().and_then(|w| w.0.upgrade())
-}
-
-/// EcsWorldへの参照を取得
+/// EcsWorldへの参照を取得（try_borrow_mut可能な状態で）
 fn try_get_ecs_world() -> Option<Rc<RefCell<crate::ecs::world::EcsWorld>>> {
     ECS_WORLD.get().and_then(|weak| weak.0.upgrade())
 }
@@ -85,35 +80,72 @@ pub extern "system" fn ecs_wndproc(
             }
             WM_WINDOWPOSCHANGED => {
                 // ======================================================================
-                // VSYNC優先レンダリング: モーダルループ中のtick実行
-                // ウィンドウドラッグ等でDefWindowProcWがモーダルループを実行している間、
-                // run()メソッドのメッセージループはブロックされる。しかしWndProcは
-                // DefWindowProcWの内部ループから呼び出されるため、ここでVSYNC駆動の
-                // world tickを実行することで描画を継続できる。
+                // World借用区切り方式によるWM_WINDOWPOSCHANGED処理
                 //
-                // 拡張ポイント: 他のモーダルループ関連メッセージ（WM_ENTERSIZEMOVE等）
-                // で同様の問題が発見された場合、ここと同様のtry_tick_on_vsync()呼び出しを
-                // 追加するだけで対応可能。
+                // WM_WINDOWPOSCHANGED処理内でWorldを借用する際は、短く区切って都度解放する。
+                // これにより、try_tick_on_vsync()やflush_window_pos_commands()が
+                // 安全にWorldを借用できる。
+                //
+                // 処理フロー:
+                // ① World借用 → DPI更新, WindowPosChanged=true, WindowPos更新, BoxStyle更新 → 借用解放
+                // ② try_tick_on_vsync() (内部で借用→解放)
+                // ③ flush_window_pos_commands() (SetWindowPos実行)
+                // ④ World借用 → WindowPosChanged=false → 借用解放
                 // ======================================================================
-                if let Some(world) = try_get_ecs_world() {
-                    use crate::ecs::world::VsyncTick;
-                    // 借用失敗時（再入時）は安全にスキップ
-                    let _ = world.try_tick_on_vsync();
-                }
 
-                // ウィンドウの位置・サイズが変更された
+                // ------------------------------------------------------------------
+                // ① 第1借用セクション: DPI更新, WindowPosChanged=true, WindowPos/BoxStyle更新
+                // ------------------------------------------------------------------
                 if let Some(entity) = get_entity_from_hwnd(hwnd) {
                     if let Some(world) = try_get_ecs_world() {
-                        // RefCellが既に借用されている場合はスキップ（ウィンドウ作成中など）
+                        // DpiChangeContextを先に取得（try_tick_on_vsync前に消費する必要がある）
+                        let dpi_context = crate::ecs::window::DpiChangeContext::take();
+
+                        // RefCellが既に借用されている場合はスキップ（再入時）
                         if let Ok(mut world_borrow) = world.try_borrow_mut() {
                             let windowpos = lparam.0 as *const WINDOWPOS;
                             if !windowpos.is_null() {
                                 let wp = &*windowpos;
 
-                                // WindowPosコンポーネントとWindowHandleを更新
                                 if let Ok(mut entity_ref) =
                                     world_borrow.world_mut().get_entity_mut(entity)
                                 {
+                                    // DpiChangeContextが存在する場合、DPIコンポーネントを即時更新
+                                    // これにより、以降の物理→論理座標変換で新DPIが使用される
+                                    let dpi = if let Some(ref ctx) = dpi_context {
+                                        // 新DPIでDPIコンポーネントを更新
+                                        if let Some(mut dpi_comp) =
+                                            entity_ref.get_mut::<crate::ecs::window::DPI>()
+                                        {
+                                            let old_dpi = *dpi_comp;
+                                            *dpi_comp = ctx.new_dpi;
+                                            eprintln!(
+                                                "[WM_WINDOWPOSCHANGED] Entity {:?}: DPI updated from ({}, {}) to ({}, {}) via DpiChangeContext",
+                                                entity, old_dpi.dpi_x, old_dpi.dpi_y,
+                                                ctx.new_dpi.dpi_x, ctx.new_dpi.dpi_y
+                                            );
+                                        }
+                                        ctx.new_dpi
+                                    } else {
+                                        // コンテキストがない場合は既存のDPIを使用
+                                        entity_ref
+                                            .get::<crate::ecs::window::DPI>()
+                                            .copied()
+                                            .unwrap_or_default()
+                                    };
+
+                                    // WindowPosChangedフラグをtrueに設定
+                                    // apply_window_pos_changesでのSetWindowPos生成を抑制する
+                                    if let Some(mut wpc) =
+                                        entity_ref.get_mut::<crate::ecs::window::WindowPosChanged>()
+                                    {
+                                        wpc.0 = true;
+                                        eprintln!(
+                                            "[WM_WINDOWPOSCHANGED] Entity {:?}: WindowPosChanged set to true",
+                                            entity
+                                        );
+                                    }
+
                                     // WindowHandleを取得してウィンドウ座標→クライアント座標に変換
                                     let client_coords = entity_ref
                                         .get::<crate::ecs::window::WindowHandle>()
@@ -125,34 +157,23 @@ pub extern "system" fn ecs_wndproc(
 
                                     // クライアント座標が取得できた場合のみ処理
                                     if let Some((client_pos, client_size)) = client_coords {
-                                        // DPIを先に取得（BoxStyle更新前に不変借用を完了させる）
-                                        let dpi = entity_ref
-                                            .get::<crate::ecs::window::DPI>()
-                                            .copied()
-                                            .unwrap_or_default();
-
                                         if let Some(mut window_pos) =
                                             entity_ref.get_mut::<crate::ecs::window::WindowPos>()
                                         {
-                                            // エコーバックチェック（クライアント座標で比較）
-                                            if !window_pos.is_echo(client_pos, client_size) {
-                                                // エコーバックでない場合のみ更新（ユーザー操作による変更）
-                                                // 変更検知を発火させるため、通常の代入を使用
-                                                window_pos.position = Some(client_pos);
-                                                window_pos.size = Some(client_size);
-                                                // last_sentに現在値を設定（apply_window_pos_changesでのSetWindowPos呼び出しを抑制）
-                                                // これにより、ユーザー操作による変更はECS内で完結し、Win32への再通知を防ぐ
-                                                window_pos.last_sent_position =
-                                                    Some((client_pos.x, client_pos.y));
-                                                window_pos.last_sent_size =
-                                                    Some((client_size.cx, client_size.cy));
+                                            // WindowPosを更新
+                                            window_pos.position = Some(client_pos);
+                                            window_pos.size = Some(client_size);
+                                            // last_sentに現在値を設定（エコーバック判定用）
+                                            window_pos.last_sent_position =
+                                                Some((client_pos.x, client_pos.y));
+                                            window_pos.last_sent_size =
+                                                Some((client_size.cx, client_size.cy));
 
-                                                eprintln!(
-                                                    "[WM_WINDOWPOSCHANGED] Entity {:?}: User operation detected. window=({},{},{},{}) -> client=({},{},{},{})",
-                                                    entity, wp.x, wp.y, wp.cx, wp.cy,
-                                                    client_pos.x, client_pos.y, client_size.cx, client_size.cy
-                                                );
-                                            }
+                                            eprintln!(
+                                                "[WM_WINDOWPOSCHANGED] Entity {:?}: WindowPos updated. window=({},{},{},{}) -> client=({},{},{},{})",
+                                                entity, wp.x, wp.y, wp.cx, wp.cy,
+                                                client_pos.x, client_pos.y, client_size.cx, client_size.cy
+                                            );
                                         }
 
                                         // BoxStyleがあれば更新（なければスキップ）
@@ -165,10 +186,10 @@ pub extern "system" fn ecs_wndproc(
                                                 Rect,
                                             };
 
-                                            // 物理ピクセルサイズ→DIPサイズに変換
+                                            // 物理ピクセルサイズ→DIPサイズに変換（新DPIを使用）
                                             let (logical_width, logical_height) =
                                                 dpi.to_logical_size(client_size.cx, client_size.cy);
-                                            // 物理ピクセル位置→DIP位置に変換
+                                            // 物理ピクセル位置→DIP位置に変換（新DPIを使用）
                                             let (logical_x, logical_y) =
                                                 dpi.to_logical_point(client_pos.x, client_pos.y);
 
@@ -197,6 +218,40 @@ pub extern "system" fn ecs_wndproc(
                                 }
                             }
                         }
+                        // world_borrowスコープ終了: 借用解放
+
+                        // ------------------------------------------------------------------
+                        // ② try_tick_on_vsync() (内部で借用→解放)
+                        // ------------------------------------------------------------------
+                        {
+                            use crate::ecs::world::VsyncTick;
+                            let _ = world.try_tick_on_vsync();
+                        }
+
+                        // ------------------------------------------------------------------
+                        // ③ flush_window_pos_commands() (SetWindowPos実行)
+                        // World借用解放後なので安全
+                        // ------------------------------------------------------------------
+                        crate::ecs::window::flush_window_pos_commands();
+
+                        // ------------------------------------------------------------------
+                        // ④ 第2借用セクション: WindowPosChanged=false
+                        // ------------------------------------------------------------------
+                        if let Ok(mut world_borrow) = world.try_borrow_mut() {
+                            if let Ok(mut entity_ref) =
+                                world_borrow.world_mut().get_entity_mut(entity)
+                            {
+                                if let Some(mut wpc) =
+                                    entity_ref.get_mut::<crate::ecs::window::WindowPosChanged>()
+                                {
+                                    wpc.0 = false;
+                                    eprintln!(
+                                        "[WM_WINDOWPOSCHANGED] Entity {:?}: WindowPosChanged reset to false",
+                                        entity
+                                    );
+                                }
+                            }
+                        }
                     }
                 }
                 DefWindowProcW(hwnd, message, wparam, lparam)
@@ -217,41 +272,69 @@ pub extern "system" fn ecs_wndproc(
             }
             WM_DPICHANGED => {
                 // DPIが変更された（モニター間移動など）
-                // WM_DPICHANGEDはSetWindowPos等の処理中に同期的に送信されるため、
-                // Worldが借用中の可能性がある。PostMessageで遅延処理する。
+                // Per-Monitor DPI Aware (v2)では、アプリケーションが明示的にSetWindowPosを呼ぶ必要がある
+                // DefWindowProcWは自動的にSetWindowPosを呼ばない
+
                 let new_dpi = crate::ecs::window::DPI::from_WM_DPICHANGED(wparam, lparam);
 
+                // lparam から suggested_rect を取得
+                let suggested_rect_ptr = lparam.0 as *const RECT;
+                let suggested_rect = if !suggested_rect_ptr.is_null() {
+                    *suggested_rect_ptr
+                } else {
+                    RECT::default()
+                };
+
                 eprintln!(
-                    "[WM_DPICHANGED] hwnd {:?}: dpi=({}, {}), scale=({:.2}, {:.2}) -> posting deferred message",
+                    "[WM_DPICHANGED] hwnd {:?}: dpi=({}, {}), scale=({:.2}, {:.2}), suggested_rect=({},{},{},{})",
                     hwnd,
                     new_dpi.dpi_x,
                     new_dpi.dpi_y,
                     new_dpi.scale_x(),
-                    new_dpi.scale_y()
+                    new_dpi.scale_y(),
+                    suggested_rect.left,
+                    suggested_rect.top,
+                    suggested_rect.right,
+                    suggested_rect.bottom
                 );
 
-                // PostMessageで遅延処理（wparamをそのまま渡す）
-                crate::ecs::window::post_dpi_change(hwnd, wparam);
+                // DpiChangeContextをスレッドローカルに保存
+                // SetWindowPos → WM_WINDOWPOSCHANGED の流れで
+                // WM_WINDOWPOSCHANGEDがこのコンテキストを消費する
+                crate::ecs::window::DpiChangeContext::set(
+                    crate::ecs::window::DpiChangeContext::new(new_dpi, suggested_rect),
+                );
 
-                DefWindowProcW(hwnd, message, wparam, lparam)
-            }
-            crate::win_thread_mgr::WM_DPICHANGED_DEFERRED => {
-                // PostMessageで遅延されたDPI変更を処理
+                // 明示的にSetWindowPosを呼び出してsuggested_rectを適用
+                // これによりWM_WINDOWPOSCHANGEDが同期的に発火し、DpiChangeContextを消費する
+                let width = suggested_rect.right - suggested_rect.left;
+                let height = suggested_rect.bottom - suggested_rect.top;
                 eprintln!(
-                    "[WM_DPICHANGED_DEFERRED] hwnd {:?}: wparam={:?}",
-                    hwnd, wparam
+                    "[WM_DPICHANGED] Calling SetWindowPos with suggested_rect: pos=({},{}), size=({},{})",
+                    suggested_rect.left, suggested_rect.top, width, height
                 );
-
-                // EcsWorldを取得して処理
-                if let Some(world) = get_ecs_world() {
-                    let mut world = world.borrow_mut();
-                    crate::ecs::window::process_deferred_dpi_change(
-                        world.world_mut(),
-                        hwnd,
-                        wparam,
-                    );
+                let result = SetWindowPos(
+                    hwnd,
+                    None,
+                    suggested_rect.left,
+                    suggested_rect.top,
+                    width,
+                    height,
+                    SWP_NOZORDER | SWP_NOACTIVATE,
+                );
+                if let Err(e) = result {
+                    eprintln!("[WM_DPICHANGED] SetWindowPos failed: {:?}", e);
                 }
 
+                LRESULT(0)
+            }
+            crate::win_thread_mgr::WM_DPICHANGED_DEFERRED => {
+                // 非推奨: REQ-010により廃止予定
+                // 互換性のため残しているが、新しい同期型処理では使用されない
+                eprintln!(
+                    "[WM_DPICHANGED_DEFERRED] hwnd {:?}: wparam={:?} (deprecated, ignored)",
+                    hwnd, wparam
+                );
                 LRESULT(0)
             }
             _ => DefWindowProcW(hwnd, message, wparam, lparam),

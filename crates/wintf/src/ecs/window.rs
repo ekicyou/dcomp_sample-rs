@@ -2,6 +2,7 @@ use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::prelude::*;
 use bevy_ecs::world::DeferredWorld;
+use std::cell::RefCell;
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow};
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -10,77 +11,190 @@ use crate::api::*;
 use crate::ecs::layout::LayoutRoot;
 use crate::ecs::Visual;
 
-/// WM_DPICHANGED_DEFERRED メッセージを PostMessage で送信
+// ============================================================================
+// DpiChangeContext - WM_DPICHANGED → WM_WINDOWPOSCHANGED 間の DPI 同期伝達
+// ============================================================================
+
+/// DPI変更コンテキスト
 ///
-/// WM_DPICHANGED は SetWindowPos などの処理中に同期的に送信されるため、
-/// World が既に借用されている場合がある。PostMessage で遅延処理することで
-/// World 借用競合を回避する。
-///
-/// # パッキング形式
-/// - wparam: WM_DPICHANGED の wparam をそのまま渡す (HIWORD=dpi_y, LOWORD=dpi_x)
-/// - lparam: 未使用 (0)
-///
-/// hwnd から Entity を取得するため、Entity の再エンコードは不要。
-pub fn post_dpi_change(hwnd: HWND, wparam: WPARAM) {
-    unsafe {
-        let _ = PostMessageW(
-            Some(hwnd),
-            crate::win_thread_mgr::WM_DPICHANGED_DEFERRED,
-            wparam,
-            LPARAM(0),
-        );
-    }
-    eprintln!(
-        "[DPI PostMessage] Posted deferred DPI change for hwnd {:?}",
-        hwnd
-    );
+/// `WM_DPICHANGED`と`WM_WINDOWPOSCHANGED`間で新DPIを同期的に受け渡す。
+/// `DefWindowProcW`内から`SetWindowPos`が呼ばれ、その中で`WM_WINDOWPOSCHANGED`が
+/// 同期的に発火するため、スレッドローカルコンテキストで情報を渡す。
+#[derive(Debug, Clone)]
+pub struct DpiChangeContext {
+    /// 新しいDPI値
+    pub new_dpi: DPI,
+    /// Windowsが推奨するウィンドウRECT（物理座標）
+    pub suggested_rect: RECT,
 }
 
-/// WM_DPICHANGED_DEFERRED メッセージを処理
-///
-/// メッセージループから呼び出され、World が借用されていない状態で DPI コンポーネントを更新する。
-pub fn process_deferred_dpi_change(world: &mut World, hwnd: HWND, wparam: WPARAM) {
-    // hwnd から Entity を取得
-    let Some(entity) = crate::ecs::window_proc::get_entity_from_hwnd(hwnd) else {
-        eprintln!(
-            "[DPI Deferred] hwnd {:?}: get_entity_from_hwnd failed",
-            hwnd
-        );
-        return;
-    };
+thread_local! {
+    /// DPI変更コンテキストのスレッドローカルストレージ
+    static DPI_CHANGE_CONTEXT: RefCell<Option<DpiChangeContext>> = const { RefCell::new(None) };
+}
 
-    // WM_DPICHANGED の wparam から DPI を取得
-    let new_dpi = DPI::from_WM_DPICHANGED(wparam, LPARAM(0));
-
-    eprintln!(
-        "[DPI Deferred] Processing deferred DPI change for entity {:?}: dpi=({}, {})",
-        entity, new_dpi.dpi_x, new_dpi.dpi_y
-    );
-
-    // DPI コンポーネントを更新
-    if let Ok(mut entity_ref) = world.get_entity_mut(entity) {
-        if let Some(mut dpi) = entity_ref.get_mut::<DPI>() {
-            let old_dpi = *dpi;
-            dpi.set_if_neq(new_dpi);
-            eprintln!(
-                "[DPI Deferred] Entity {:?}: DPI updated from ({}, {}) to ({}, {})",
-                entity, old_dpi.dpi_x, old_dpi.dpi_y, new_dpi.dpi_x, new_dpi.dpi_y
-            );
-        } else {
-            // DPI コンポーネントがない場合は挿入（通常は on_window_handle_add で追加済み）
-            entity_ref.insert(new_dpi);
-            eprintln!(
-                "[DPI Deferred] Entity {:?}: DPI component inserted (unexpected)",
-                entity
-            );
+impl DpiChangeContext {
+    /// 新しいDpiChangeContextを作成
+    pub fn new(new_dpi: DPI, suggested_rect: RECT) -> Self {
+        Self {
+            new_dpi,
+            suggested_rect,
         }
-    } else {
+    }
+
+    /// コンテキストをスレッドローカルに設定
+    ///
+    /// `WM_DPICHANGED`ハンドラから`DefWindowProcW`を呼ぶ前に呼び出す。
+    pub fn set(ctx: DpiChangeContext) {
         eprintln!(
-            "[DPI Deferred] Entity {:?}: get_entity_mut failed (entity may have been despawned)",
-            entity
+            "[DpiChangeContext::set] new_dpi=({}, {}), suggested_rect=({},{},{},{})",
+            ctx.new_dpi.dpi_x,
+            ctx.new_dpi.dpi_y,
+            ctx.suggested_rect.left,
+            ctx.suggested_rect.top,
+            ctx.suggested_rect.right,
+            ctx.suggested_rect.bottom
         );
+        DPI_CHANGE_CONTEXT.with(|cell| {
+            *cell.borrow_mut() = Some(ctx);
+        });
+    }
+
+    /// コンテキストを取得・消費
+    ///
+    /// `WM_WINDOWPOSCHANGED`ハンドラから呼び出し、コンテキストが存在すれば
+    /// 取得して消費（Noneにリセット）する。
+    pub fn take() -> Option<DpiChangeContext> {
+        DPI_CHANGE_CONTEXT.with(|cell| {
+            let ctx = cell.borrow_mut().take();
+            if let Some(ref c) = ctx {
+                eprintln!(
+                    "[DpiChangeContext::take] Consumed context: new_dpi=({}, {})",
+                    c.new_dpi.dpi_x, c.new_dpi.dpi_y
+                );
+            }
+            ctx
+        })
     }
 }
+
+// ============================================================================
+// SetWindowPosCommand - SetWindowPos 遅延実行キュー
+// ============================================================================
+
+/// SetWindowPosコマンド
+///
+/// `apply_window_pos_changes`システムから直接`SetWindowPos`を呼び出さず、
+/// キューに追加して`tick`後に遅延実行することで、World借用競合を防止する。
+#[derive(Debug, Clone)]
+pub struct SetWindowPosCommand {
+    pub hwnd: HWND,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub flags: SET_WINDOW_POS_FLAGS,
+    pub hwnd_insert_after: Option<HWND>,
+}
+
+thread_local! {
+    /// SetWindowPosコマンドキュー
+    static WINDOW_POS_COMMANDS: RefCell<Vec<SetWindowPosCommand>> = const { RefCell::new(Vec::new()) };
+}
+
+impl SetWindowPosCommand {
+    /// 新しいSetWindowPosCommandを作成
+    pub fn new(
+        hwnd: HWND,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        flags: SET_WINDOW_POS_FLAGS,
+        hwnd_insert_after: Option<HWND>,
+    ) -> Self {
+        Self {
+            hwnd,
+            x,
+            y,
+            width,
+            height,
+            flags,
+            hwnd_insert_after,
+        }
+    }
+
+    /// コマンドをキューに追加
+    pub fn enqueue(cmd: SetWindowPosCommand) {
+        eprintln!(
+            "[SetWindowPosCommand::enqueue] hwnd={:?}, pos=({}, {}), size=({}, {})",
+            cmd.hwnd, cmd.x, cmd.y, cmd.width, cmd.height
+        );
+        WINDOW_POS_COMMANDS.with(|cell| {
+            cell.borrow_mut().push(cmd);
+        });
+    }
+
+    /// キュー内の全コマンドを実行し、キューをクリア
+    ///
+    /// World借用解放後に呼び出すこと。
+    pub fn flush() {
+        WINDOW_POS_COMMANDS.with(|cell| {
+            let commands: Vec<_> = cell.borrow_mut().drain(..).collect();
+            if commands.is_empty() {
+                return;
+            }
+            eprintln!("[SetWindowPosCommand::flush] Processing {} commands", commands.len());
+            for cmd in commands {
+                eprintln!(
+                    "[SetWindowPosCommand::flush] Executing SetWindowPos: hwnd={:?}, hwnd_insert_after={:?}, pos=({}, {}), size=({}, {}), flags={:?}",
+                    cmd.hwnd, cmd.hwnd_insert_after, cmd.x, cmd.y, cmd.width, cmd.height, cmd.flags
+                );
+                let result = unsafe {
+                    SetWindowPos(
+                        cmd.hwnd,
+                        cmd.hwnd_insert_after,
+                        cmd.x,
+                        cmd.y,
+                        cmd.width,
+                        cmd.height,
+                        cmd.flags,
+                    )
+                };
+                if let Err(e) = result {
+                    eprintln!(
+                        "[SetWindowPosCommand::flush] SetWindowPos failed: {:?}",
+                        e
+                    );
+                } else {
+                    eprintln!(
+                        "[SetWindowPosCommand::flush] SetWindowPos succeeded"
+                    );
+                }
+            }
+        });
+    }
+}
+
+/// SetWindowPosコマンドキューをフラッシュする便利関数
+pub fn flush_window_pos_commands() {
+    SetWindowPosCommand::flush();
+}
+
+// ============================================================================
+// WindowPosChanged - WM_WINDOWPOSCHANGED 由来の SetWindowPos 抑制フラグ
+// ============================================================================
+
+/// WM_WINDOWPOSCHANGED発生フラグ
+///
+/// `WM_WINDOWPOSCHANGED`由来の`BoxStyle`変更に対して`SetWindowPos`を
+/// 発行しないよう制御するためのマーカーコンポーネント。
+///
+/// - `true`: `WM_WINDOWPOSCHANGED`処理中（SetWindowPos抑制）
+/// - `false`: 通常状態
+#[derive(Component, Default, Debug, Clone, Copy)]
+#[component(storage = "SparseSet")]
+pub struct WindowPosChanged(pub bool);
 
 /// Windowコンポーネント - ウィンドウ作成に必要な基本パラメータを保持
 /// スタイルや位置・サイズは WindowStyle, WindowPos コンポーネントで指定
@@ -308,6 +422,16 @@ fn on_window_handle_add(
             dpi_component.scale_y()
         );
         world.commands().entity(entity).insert(dpi_component);
+
+        // WindowPosChangedコンポーネントを挿入（フィードバックループ抑制用）
+        world
+            .commands()
+            .entity(entity)
+            .insert(WindowPosChanged::default());
+        eprintln!(
+            "[Hook] WindowPosChanged component inserted for entity {:?}",
+            entity
+        );
 
         // アプリに通知
         if let Some(mut app) = world.get_resource_mut::<crate::ecs::app::App>() {
