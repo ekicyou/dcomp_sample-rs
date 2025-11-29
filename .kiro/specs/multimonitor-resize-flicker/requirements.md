@@ -62,16 +62,11 @@
 
 **理由:** REQ-009 の`WindowPosChanged`コンポーネントによる物理座標比較により、ドラッグ中かどうかに関係なく`WM_WINDOWPOSCHANGED`由来の変更は自動的に抑制される。ドラッグ中フラグは不要。
 
-### Requirement 4: エコーバック判定の改善
+### ~~Requirement 4: エコーバック判定の改善~~ [REQ-009に統合]
 
-**Objective:** As a フレームワーク開発者, I want エコーバック判定を丸め誤差を考慮したものにしたい, so that 不要なSetWindowPos呼び出しを防止する。
+**Status:** 廃止 - REQ-009「WM_WINDOWPOSCHANGED由来のSetWindowPos抑制」に統合
 
-#### Acceptance Criteria
-
-1. The `WindowPos::is_echo()`メソッド shall 完全一致ではなく、許容誤差（例: ±1ピクセル）を考慮した比較を行う。
-2. When 座標の差が許容誤差内のとき, the `is_echo()` shall `true`を返す。
-3. The 許容誤差 shall DPIスケールに応じて調整可能とする（高DPIでは大きめの許容誤差）。
-4. When エコーバックと判定されたとき, the `apply_window_pos_changes` shall SetWindowPosを呼び出さない。
+**理由:** REQ-009 の`WindowPosChanged(bool)`フラグにより、`WM_WINDOWPOSCHANGED`由来の変更は完全に抑制される。許容誤差ベースのエコーバック判定は不要。
 
 ### ~~Requirement 5: WndProc内tickとSetWindowPosの競合防止~~ [REQ-011に統合]
 
@@ -152,37 +147,46 @@ Requirement 8 により、DPIコンポーネントの更新は`WM_WINDOWPOSCHANG
 4. The `WM_DPICHANGED`ハンドラ shall `PostMessage`を呼び出さない。
 5. The DPIコンポーネント更新 shall `WM_WINDOWPOSCHANGED`処理内で完結する。
 
-### Requirement 9: 物理座標ベースのエコーバック検知
+### Requirement 9: WM_WINDOWPOSCHANGED由来のSetWindowPos抑制
 
-**Objective:** As a フレームワーク開発者, I want エコーバック判定を物理座標ベースで行いたい, so that DPI変更時でも正確に判定できる。
+**Objective:** As a フレームワーク開発者, I want `WM_WINDOWPOSCHANGED`由来の`BoxStyle`変更に対して`SetWindowPos`を発行しないようにしたい, so that 不要なフィードバックループを防止する。
 
 #### Background
 
-現在の`is_echo()`は論理座標で比較している。DPI変更時、同じ物理サイズでも論理サイズが変わるため、エコーバック検知が機能しない。
+`WM_WINDOWPOSCHANGED`由来の`BoxStyle`更新は、Windowsが既にウィンドウを正しい位置/サイズに設定済みであるため、`SetWindowPosCommand`を生成すべきではない。シンプルなフラグで変更の発生源を区別する。
 
 ```
-[DPI=120] 物理 (800, 600) → 論理 (666.7, 500)
-[DPI=192] 物理 (800, 600) → 論理 (416.7, 312.5)  ← 論理サイズが異なる！
-```
+WM_WINDOWPOSCHANGED
+  └─ WindowPosChanged.0 = true
+  └─ BoxStyle更新
 
-また、`WM_WINDOWPOSCHANGED`由来の`BoxStyle`更新は、Windowsが既にウィンドウを正しい位置/サイズに設定済みであるため、`SetWindowPosCommand`を生成すべきではない。変更の発生源を区別するために専用コンポーネントを使用する。
+apply_window_pos_changes (同tick)
+  ├─ Changed<BoxStyle>検知
+  ├─ if WindowPosChanged.0 == true → 抑制、WindowPosChanged.0 = false
+  └─ else → SetWindowPosCommand生成
+```
 
 #### Acceptance Criteria
 
-1. The フレームワーク shall `WM_WINDOWPOSCHANGED`で受信した物理座標を記録する`WindowPosChanged`コンポーネントを提供する。
-2. The `WindowPosChanged`コンポーネント shall 以下の情報を保持する：
-   - `x`: X位置（物理座標）
-   - `y`: Y位置（物理座標）
-   - `width`: 幅（物理座標）
-   - `height`: 高さ（物理座標）
-3. The `WindowPosChanged`コンポーネント shall `#[component(storage = "SparseSet")]`属性を持ち、Windowエンティティのみに効率的に割り当てられる。
-4. When `WM_WINDOWPOSCHANGED`を処理するとき, the フレームワーク shall `WindowPosChanged`コンポーネントを更新する。
-5. The `WindowPos`コンポーネント shall 送信した物理座標を記録するフィールドを持つ：
-   - `last_sent_physical_position: Option<(i32, i32)>`
-   - `last_sent_physical_size: Option<(i32, i32)>`
-6. When `SetWindowPosCommand`をキューに追加するとき, the `apply_window_pos_changes` shall 送信予定の物理座標を`last_sent_physical_*`に記録する。
-7. The `apply_window_pos_changes`システム shall `WindowPosChanged`の物理座標と計算した物理座標を比較し、一致する場合は`SetWindowPosCommand`を生成しない（Windowsが既に正しい位置/サイズを設定済み）。
-8. The 既存の論理座標ベース`is_echo()` shall 互換性のため残すが、主要な判定は`WindowPosChanged`との物理座標比較で行う。
+1. The フレームワーク shall `WM_WINDOWPOSCHANGED`の発生を記録する`WindowPosChanged(bool)`コンポーネントを提供する。
+2. The `WindowPosChanged`コンポーネント shall `#[component(storage = "SparseSet")]`属性を持ち、Windowエンティティのみに効率的に割り当てられる。
+3. When `WM_WINDOWPOSCHANGED`を処理するとき, the フレームワーク shall `WindowPosChanged.0 = true`に設定する。
+4. The `apply_window_pos_changes`システム shall `WindowPosChanged.0 == true`の場合、`SetWindowPosCommand`を生成せずにフラグを`false`にリセットする。
+5. When `WindowPosChanged.0 == false`のとき, the `apply_window_pos_changes` shall 通常通り`SetWindowPosCommand`を生成する。
+6. The `apply_window_pos_changes` shall 処理後に必ず`WindowPosChanged.0 = false`にリセットする。
+
+#### Implementation Notes
+
+```rust
+#[derive(Component, Default)]
+#[component(storage = "SparseSet")]
+pub struct WindowPosChanged(pub bool);
+```
+
+#### Known Limitations
+
+- 同一tick内で`WM_WINDOWPOSCHANGED`→アプリによる`BoxStyle`変更が発生した場合、アプリの変更が1フレーム遅延する可能性がある
+- これは稀なケースであり、次tickで正しく適用されるため許容する
 
 ### Requirement 11: SetWindowPos遅延実行によるWorld借用競合の防止
 
