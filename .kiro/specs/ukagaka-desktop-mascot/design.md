@@ -60,6 +60,21 @@ wintfフレームワークに以下の拡張を行う：
 2. wintf: イベントシステム（EventDispatcherの前提）
 3. 本プロジェクト: SurfaceRenderer, EventDispatcher, etc.
 
+### MCP採用方針
+
+**決定**: MCPを採用する（rmcp優先、必要に応じて独自実装へフォールバック）
+
+**根拠**:
+- MCPの本質は「JSON-RPCの亜種」であり、仕様変更への追従コストは許容範囲
+- SHIORI/SSTPが25年前に同等の概念を実現しており、技術的に枯れた領域
+- LLMとの連携（頭脳パッケージ）を考慮すると、MCP準拠が将来的に有利
+- 「MCPを無視する積極的理由がない」
+
+**実装戦略**:
+1. rmcpで基本実装を試行
+2. 問題があれば、MCPサブセットを独自JSON-RPCで実装
+3. いずれの場合も、MCPメッセージ形式（JSON-RPC 2.0ベース）は維持
+
 ---
 
 ## Architecture
