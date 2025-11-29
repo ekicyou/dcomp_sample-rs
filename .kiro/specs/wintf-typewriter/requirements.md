@@ -1,0 +1,198 @@
+# Requirements Document
+
+| 項目 | 内容 |
+|------|------|
+| **Document Title** | wintf-typewriter 要件定義書 |
+| **Version** | 0.1 (Draft) |
+| **Date** | 2025-11-29 |
+| **Parent Spec** | ukagaka-desktop-mascot |
+| **Author** | AI-DLC System |
+
+---
+
+## Introduction
+
+本仕様書は wintf フレームワークにおけるタイプライター表示機能の要件を定義する。親仕様「伺的デスクトップマスコットアプリ」の実装前提条件（P0）として、文字単位の表示制御とウェイト制御機能を提供する。
+
+### 背景
+
+wintf フレームワークの既存 Label ウィジェットは静的テキスト表示のみをサポートしている。デスクトップマスコットアプリケーションでは、キャラクターの発言を一文字ずつ表示する「タイプライター効果」が伝統的かつ重要なUI要素である。これにより、キャラクターが「話している」という臨場感を演出できる。
+
+### スコープ
+
+**含まれるもの**:
+- 文字単位の表示制御（一文字ずつ追加表示）
+- ウェイト制御（文字間の待機時間）
+- さくらスクリプト互換のウェイトコマンド（\w, \_w）
+- 表示完了コールバック
+
+**含まれないもの**:
+- テキストのフェードイン/アウト効果
+- テキストアニメーション（揺れ、拡大縮小等）
+- 音声同期
+
+### 親仕様からの要件マッピング
+
+本仕様は以下の親要件に対応する：
+- **Requirement 3.5**: 一文字ずつタイプライター風に表示できる
+- **Requirement 4.7**: ウェイト処理（タイミング制御）
+
+---
+
+## Requirements
+
+### Requirement 1: 文字単位表示
+
+**Objective:** 開発者として、テキストを一文字ずつ順番に表示したい。それによりキャラクターが話しているような演出が可能になる。
+
+#### Acceptance Criteria
+
+1. **The** Typewriter widget **shall** テキストを一文字ずつ順番に表示できる
+2. **When** 新しい文字が追加された時, **the** Typewriter widget **shall** 既存のテキストに文字を追加して再描画する
+3. **The** Typewriter widget **shall** Unicode文字（日本語、絵文字等）を正しく1文字として扱う
+4. **The** Typewriter widget **shall** 改行文字を正しく処理する
+5. **When** 全文字の表示が完了した時, **the** Typewriter widget **shall** 完了イベントを発火する
+
+---
+
+### Requirement 2: ウェイト制御
+
+**Objective:** 開発者として、文字間の待機時間を制御したい。それにより自然な会話リズムを表現できる。
+
+#### Acceptance Criteria
+
+1. **The** Typewriter widget **shall** デフォルトの文字間ウェイト時間を設定できる（例: 50ms）
+2. **The** Typewriter widget **shall** 個別の文字に対してウェイト時間を指定できる
+3. **When** ウェイト時間が経過した時, **the** Typewriter widget **shall** 次の文字を表示する
+4. **The** Typewriter widget **shall** ウェイト時間0（瞬時表示）をサポートする
+5. **The** Typewriter widget **shall** ウェイト中に表示をスキップできる
+
+---
+
+### Requirement 3: さくらスクリプト互換ウェイト
+
+**Objective:** 開発者として、さくらスクリプトのウェイトコマンドを使用したい。それにより既存のゴーストスクリプトとの互換性が保てる。
+
+#### Acceptance Criteria
+
+1. **The** Typewriter widget **shall** `\w[n]` コマンド（nミリ秒待機）を解釈できる
+2. **The** Typewriter widget **shall** `\_w[n]` コマンド（n×50ミリ秒待機）を解釈できる
+3. **When** ウェイトコマンドが検出された時, **the** Typewriter widget **shall** 指定時間だけ次の文字表示を遅延する
+4. **The** Typewriter widget **shall** ウェイトコマンド自体は画面に表示しない
+5. **The** Typewriter widget **shall** ウェイトコマンドをエスケープして表示する手段を提供する
+
+---
+
+### Requirement 4: 表示制御
+
+**Objective:** 開発者として、タイプライター表示の開始・停止・リセットを制御したい。それにより会話の流れを適切に管理できる。
+
+#### Acceptance Criteria
+
+1. **The** Typewriter widget **shall** 表示開始（start）操作を提供する
+2. **The** Typewriter widget **shall** 表示停止（pause）操作を提供する
+3. **The** Typewriter widget **shall** 表示再開（resume）操作を提供する
+4. **The** Typewriter widget **shall** 全文即時表示（skip）操作を提供する
+5. **The** Typewriter widget **shall** テキストクリア（clear）操作を提供する
+6. **When** 新しいテキストがセットされた時, **the** Typewriter widget **shall** 表示位置をリセットする
+
+---
+
+### Requirement 5: コールバック・イベント
+
+**Objective:** 開発者として、表示の進行状況を監視したい。それにより表示完了後の処理やプログレス表示が可能になる。
+
+#### Acceptance Criteria
+
+1. **When** 文字が表示された時, **the** Typewriter widget **shall** 文字表示イベントを発火する
+2. **When** 全文字の表示が完了した時, **the** Typewriter widget **shall** 完了イベントを発火する
+3. **When** ウェイト中にスキップされた時, **the** Typewriter widget **shall** スキップイベントを発火する
+4. **The** Typewriter widget **shall** 現在の表示進行度（0.0〜1.0）を取得できる
+5. **The** Typewriter widget **shall** 残り表示時間（ウェイト含む）を推定できる
+
+---
+
+### Requirement 6: Label互換性
+
+**Objective:** 開発者として、既存のLabelウィジェットと互換性のあるAPIを使用したい。それにより学習コストを抑えられる。
+
+#### Acceptance Criteria
+
+1. **The** Typewriter widget **shall** Labelと同様のテキスト設定APIを提供する
+2. **The** Typewriter widget **shall** Labelと同様のスタイル設定（フォント、色、サイズ）をサポートする
+3. **The** Typewriter widget **shall** 縦書き/横書きの両方をサポートする
+4. **The** Typewriter widget **shall** Labelと同様にレイアウトシステムと統合される
+5. **When** タイプライター効果が不要な場合, **the** Typewriter widget **shall** 即時全文表示モードで動作する
+
+---
+
+### Requirement 7: ECS統合
+
+**Objective:** 開発者として、Typewriterウィジェットをbevy_ecsと統合したい。それにより既存のwintfアーキテクチャと一貫性を保てる。
+
+#### Acceptance Criteria
+
+1. **The** Typewriter widget **shall** ECSコンポーネントとして実装される
+2. **The** Typewriter widget **shall** ECSシステムによってタイマー駆動される
+3. **The** Typewriter widget **shall** ECSイベントを通じて進行状況を通知する
+4. **When** エンティティが削除された時, **the** Typewriter widget **shall** 関連するタイマーをクリーンアップする
+5. **The** Typewriter widget **shall** 他のコンポーネント（Visual、Layout等）と同様のライフサイクルを持つ
+
+---
+
+## Non-Functional Requirements
+
+### NFR-1: パフォーマンス
+
+- 文字表示間隔: 1ms精度でのウェイト制御
+- 描画更新: 文字追加ごとに16ms以内で再描画
+- メモリ: 表示テキスト長に比例した適切なメモリ使用量
+
+### NFR-2: 精度
+
+- タイミング精度: 指定ウェイト時間の±5%以内
+- Unicode対応: サロゲートペア、結合文字の正しい処理
+
+### NFR-3: 互換性
+
+- さくらスクリプトの基本ウェイトコマンド（\w, \_w）との互換性
+- 既存Labelウィジェットとの共存
+
+---
+
+## Glossary
+
+| 用語 | 説明 |
+|------|------|
+| タイプライター効果 | テキストを一文字ずつ表示する演出 |
+| ウェイト | 文字表示間の待機時間 |
+| さくらスクリプト | 伺かで使用されるスクリプト言語 |
+| \w[n] | nミリ秒待機するコマンド |
+| \_w[n] | n×50ミリ秒待機するコマンド |
+
+---
+
+## Appendix
+
+### A. 関連ドキュメント
+
+- 親仕様: `.kiro/specs/ukagaka-desktop-mascot/requirements.md`
+- Labelウィジェット実装: `crates/wintf/src/ecs/widget/label.rs`
+
+### B. さくらスクリプト ウェイトコマンド例
+
+```
+こんにちは\w[500]、今日も\w[200]いい天気ですね。
+```
+
+上記は「こんにちは」の後に500ms、「今日も」の後に200msの待機を入れる例。
+
+```
+おはよう\_w[3]ございます。
+```
+
+上記は「おはよう」の後に150ms（3×50ms）の待機を入れる例。
+
+---
+
+_Document generated by AI-DLC System on 2025-11-29_

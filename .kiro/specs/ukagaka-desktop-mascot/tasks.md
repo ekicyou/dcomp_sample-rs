@@ -8,44 +8,59 @@
 
 ## Phase 1: 子仕様書の作成
 
-- [ ] 1. 子仕様書の初期化と要件定義
-- [ ] 1.1 (P) wintf-image-widget 仕様書を作成する
+- [x] 1. 子仕様書の初期化と要件定義
+- [x] 1.1 (P) wintf-image-widget 仕様書を作成する
   - WIC画像読み込み、D2D描画、透過PNG対応の要件定義
   - GIF/WebPアニメーション画像のフレーム抽出要件
   - タイマー駆動再生の要件
   - _Requirements: 1.1, 1.3, 2.4_
 
-- [ ] 1.2 (P) wintf-event-system 仕様書を作成する
+- [x] 1.2 (P) wintf-event-system 仕様書を作成する
   - ヒットテストシステムの要件定義
   - マウスイベント（クリック、ドラッグ、ホバー）配信の要件
   - キャラクターウィンドウのドラッグ移動要件
   - _Requirements: 5.1, 5.2, 5.3, 5.8_
 
-- [ ] 1.3 (P) wintf-typewriter 仕様書を作成する
+- [x] 1.3 (P) wintf-typewriter 仕様書を作成する
   - 文字単位の表示制御要件
   - 現Labelからの拡張範囲定義
   - ウェイト制御の要件
   - _Requirements: 3.5, 4.7_
 
-- [ ] 1.4 (P) areka-reference-ghost 仕様書を作成する
+- [x] 1.4 (P) areka-reference-ghost 仕様書を作成する
   - MVP参照ゴーストの要件定義
   - 里々インスパイアDSLの基本構文定義
   - 2体キャラクター掛け合い会話の要件
   - MCP通信インターフェースの要件
   - _Requirements: 4.1, 4.2, 4.4, 4.5, 4.6, 26.1, 26.2, 26.3_
 
-- [ ] 1.5 (P) areka-reference-shell 仕様書を作成する
+- [x] 1.5 (P) areka-reference-shell 仕様書を作成する
   - MVP参照シェルの要件定義
   - サーフェス画像仕様
   - アニメーション定義仕様
   - ヒット領域定義仕様
   - _Requirements: 2.2, 2.7, 8.1, 8.3, 27.10, 27.11, 27.12, 27.13_
 
-- [ ] 1.6 (P) areka-reference-balloon 仕様書を作成する
+- [x] 1.6 (P) areka-reference-balloon 仕様書を作成する
   - MVP参照バルーンの要件定義
   - スタイル定義仕様（フォント、色、背景）
   - 縦書き/横書き対応要件
   - _Requirements: 3.4, 3.6, 27.15, 27.16_
+
+- [x] 1.7 (P) wintf-clickthrough 仕様書を作成する
+  - 透過領域のクリックスルー（マウスイベント透過）
+  - 不透明領域のヒット判定
+  - WM_NCHITTESTハンドリング
+  - レイヤードウィンドウとの統合
+  - _Requirements: 1.6_
+
+- [x] 1.8 (P) areka-window-placement 仕様書を作成する
+  - キャラクターウィンドウの配置ルール
+  - タスクバー張り付き、画面端配置
+  - マルチモニター対応
+  - 複数キャラクター間の相対位置管理
+  - 配置の保存・復元
+  - _Requirements: 1.4, 1.5, 1.7, 9.3, 16.6_
 
 ---
 
