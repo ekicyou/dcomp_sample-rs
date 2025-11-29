@@ -155,13 +155,13 @@ Requirement 8 により、DPIコンポーネントの更新は`WM_WINDOWPOSCHANG
 
 ```
 WM_WINDOWPOSCHANGED
-  └─ WindowPosChanged.0 = true
-  └─ BoxStyle更新
-
-apply_window_pos_changes (同tick)
-  ├─ Changed<BoxStyle>検知
-  ├─ if WindowPosChanged.0 == true → 抑制、WindowPosChanged.0 = false
-  └─ else → SetWindowPosCommand生成
+  ├─ WindowPosChanged.0 = true
+  ├─ BoxStyle更新
+  ├─ try_tick_on_vsync()
+  │     └─ apply_window_pos_changes
+  │           └─ if WindowPosChanged.0 == true → 抑制
+  │           └─ else → SetWindowPosCommand生成
+  └─ WindowPosChanged.0 = false  ← tick後に明示的リセット
 ```
 
 #### Acceptance Criteria
@@ -169,9 +169,9 @@ apply_window_pos_changes (同tick)
 1. The フレームワーク shall `WM_WINDOWPOSCHANGED`の発生を記録する`WindowPosChanged(bool)`コンポーネントを提供する。
 2. The `WindowPosChanged`コンポーネント shall `#[component(storage = "SparseSet")]`属性を持ち、Windowエンティティのみに効率的に割り当てられる。
 3. When `WM_WINDOWPOSCHANGED`を処理するとき, the フレームワーク shall `WindowPosChanged.0 = true`に設定する。
-4. The `apply_window_pos_changes`システム shall `WindowPosChanged.0 == true`の場合、`SetWindowPosCommand`を生成せずにフラグを`false`にリセットする。
+4. The `apply_window_pos_changes`システム shall `WindowPosChanged.0 == true`の場合、`SetWindowPosCommand`を生成しない。
 5. When `WindowPosChanged.0 == false`のとき, the `apply_window_pos_changes` shall 通常通り`SetWindowPosCommand`を生成する。
-6. The `apply_window_pos_changes` shall 処理後に必ず`WindowPosChanged.0 = false`にリセットする。
+6. The `WM_WINDOWPOSCHANGED`処理 shall `try_tick_on_vsync()`呼び出し後に`WindowPosChanged.0 = false`にリセットする。
 
 #### Implementation Notes
 
