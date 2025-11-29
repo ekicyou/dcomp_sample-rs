@@ -10,52 +10,52 @@
 
 ### 1.A 既存子仕様（作成済み: 8件）
 
-- [x] 1.1 (P0) wintf-image-widget 仕様書を作成する
+- [x] 1.1 (P0) wintf-P0-image-widget 仕様書を作成する
   - WIC画像読み込み、D2D描画、透過PNG対応の要件定義
   - GIF/WebPアニメーション画像のフレーム抽出要件
   - タイマー駆動再生の要件
   - _Requirements: 1.1, 1.3, 2.4_
 
-- [x] 1.2 (P0) wintf-event-system 仕様書を作成する
+- [x] 1.2 (P0) wintf-P0-event-system 仕様書を作成する
   - ヒットテストシステムの要件定義
   - マウスイベント（クリック、ドラッグ、ホバー）配信の要件
   - キャラクターウィンドウのドラッグ移動要件
   - _Requirements: 5.1, 5.2, 5.3, 5.8_
 
-- [x] 1.3 (P0) wintf-typewriter 仕様書を作成する
+- [x] 1.3 (P0) wintf-P0-typewriter 仕様書を作成する
   - 文字単位の表示制御要件
   - 現Labelからの拡張範囲定義
   - ウェイト制御の要件
   - _Requirements: 3.5, 4.7_
 
-- [x] 1.4 (P0) areka-reference-ghost 仕様書を作成する
+- [x] 1.4 (P0) areka-P0-reference-ghost 仕様書を作成する
   - MVP参照ゴーストの要件定義
   - 里々インスパイアDSLの基本構文定義
   - 2体キャラクター掛け合い会話の要件
   - MCP通信インターフェースの要件
   - _Requirements: 4.1, 4.2, 4.4, 4.5, 4.6, 26.1, 26.2, 26.3_
 
-- [x] 1.5 (P0) areka-reference-shell 仕様書を作成する
+- [x] 1.5 (P0) areka-P0-reference-shell 仕様書を作成する
   - MVP参照シェルの要件定義
   - サーフェス画像仕様
   - アニメーション定義仕様
   - ヒット領域定義仕様
   - _Requirements: 2.2, 2.7, 8.1, 8.3, 27.10, 27.11, 27.12, 27.13_
 
-- [x] 1.6 (P0) areka-reference-balloon 仕様書を作成する
+- [x] 1.6 (P0) areka-P0-reference-balloon 仕様書を作成する
   - MVP参照バルーンの要件定義
   - スタイル定義仕様（フォント、色、背景）
   - 縦書き/横書き対応要件
   - _Requirements: 3.4, 3.6, 27.15, 27.16_
 
-- [x] 1.7 (P1) wintf-clickthrough 仕様書を作成する
+- [x] 1.7 (P1) wintf-P1-clickthrough 仕様書を作成する
   - 透過領域のクリックスルー（マウスイベント透過）
   - 不透明領域のヒット判定
   - WM_NCHITTESTハンドリング
   - レイヤードウィンドウとの統合
   - _Requirements: 1.6, NFR-3_
 
-- [x] 1.8 (P0) areka-window-placement 仕様書を作成する
+- [x] 1.8 (P0) areka-P0-window-placement 仕様書を作成する
   - キャラクターウィンドウの配置ルール
   - タスクバー張り付き、画面端配置
   - マルチモニター対応
@@ -67,21 +67,21 @@
 
 #### wintf-* 層（3件）
 
-- [ ] 1.9 (P0) wintf-animation-system 仕様書を作成する
+- [ ] 1.9 (P0) wintf-P0-animation-system 仕様書を作成する
   - フレームアニメーション定義と再生
   - サーフェス切り替えトランジション
   - 連動アニメーション（複数キャラクター同期）
   - アイドルアニメーション自動再生
   - _Requirements: 2.1, 2.3, 2.5, 2.6, 2.8_
 
-- [ ] 1.10 (P0) wintf-balloon-system 仕様書を作成する
+- [ ] 1.10 (P0) wintf-P0-balloon-system 仕様書を作成する
   - バルーンウィンドウ生成・配置
   - テキスト表示（縦書き/横書き）
   - 選択肢UI、入力ボックス
   - ルビ表示、リンククリック
   - _Requirements: 3.1, 3.2, 3.3, 3.7, 3.8, 3.9, 3.10_
 
-- [ ] 1.11 (P1) wintf-dpi-scaling 仕様書を作成する
+- [ ] 1.11 (P1) wintf-P1-dpi-scaling 仕様書を作成する
   - 高DPI環境でのスケーリング
   - Per-Monitor DPI対応
   - DPI変更時の動的更新
@@ -89,63 +89,63 @@
 
 #### areka-* コア層（9件）
 
-- [ ] 1.12 (P0) areka-script-engine 仕様書を作成する
+- [ ] 1.12 (P0) areka-P0-script-engine 仕様書を作成する
   - さくらスクリプト互換コマンド解析
   - 変数管理（グローバル/ローカル）
   - 条件分岐、ループ、関数呼び出し
   - 2体キャラクター会話制御（スコープ切替）
   - _Requirements: 4.1, 4.3, 4.4, 4.5, 4.6, 4.7, 29.6, 29.7, 29.8_
 
-- [ ] 1.13 (P1) areka-timer-events 仕様書を作成する
+- [ ] 1.13 (P1) areka-P1-timer-events 仕様書を作成する
   - システム時刻イベント（朝/昼/夜等）
   - 予約イベント（誕生日、記念日）
   - スリープ復帰、ネットワーク変化
   - カスタムタイマー、アイドル検出
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8_
 
-- [ ] 1.14 (P0) areka-package-manager 仕様書を作成する
+- [ ] 1.14 (P0) areka-P0-package-manager 仕様書を作成する
   - パッケージ（頭脳/シェル/バルーン）インストール/アンインストール
   - manifest.toml解析、依存関係解決
   - アップデート検知、保護フォルダ対応
   - メタ情報（作者、ライセンス）表示
   - _Requirements: 7.1-7.7, 8.1-8.5, 27.1-27.27, 31.1-31.9_
 
-- [ ] 1.15 (P0) areka-persistence 仕様書を作成する
+- [ ] 1.15 (P0) areka-P0-persistence 仕様書を作成する
   - アプリケーション設定の保存/読み込み
   - ゴースト状態（変数、記憶）の永続化
   - 定期的自動保存
   - エクスポート/インポート
   - _Requirements: 9.1, 9.2, 9.4, 9.5, 9.6, 30.6, 30.7, 30.8_
 
-- [ ] 1.16 (P0) areka-mcp-server 仕様書を作成する
+- [ ] 1.16 (P0) areka-P0-mcp-server 仕様書を作成する
   - MCPサーバー基盤（JSON-RPC 2.0）
   - MCPツール定義（display_text, switch_surface等）
   - イベント通知（OnMouseClick, OnTimer等）
   - ゴースト間通信の媒介
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 26.11, 26.12, 26.13, 26.14, 26.15_
 
-- [ ] 1.17 (P1) areka-legacy-converter 仕様書を作成する
+- [ ] 1.17 (P1) areka-P1-legacy-converter 仕様書を作成する
   - 旧シェル定義（descript.txt, surfaces.txt）変換
   - 座標ベースレイアウトから現代的レイアウトへの変換
   - さくらスクリプト互換出力
   - SHIORI互換プロトコル
   - _Requirements: 11.1-11.6, 29.1-29.11_
 
-- [ ] 1.18 (P1) areka-devtools 仕様書を作成する
+- [ ] 1.18 (P1) areka-P1-devtools 仕様書を作成する
   - リアルタイムログ表示
   - デバッグモード切替、エラー詳細表示
   - ホットリロード、イベントシミュレーター
   - パッケージバリデーション
   - _Requirements: 12.1-12.7, 28.1-28.10_
 
-- [ ] 1.19 (P0) areka-system-tray 仕様書を作成する
+- [ ] 1.19 (P0) areka-P0-system-tray 仕様書を作成する
   - システムトレイアイコン表示
   - トレイメニュー
   - 最小化時のトレイ格納
   - Windows起動時の自動起動
   - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
 
-- [ ] 1.20 (P1) areka-error-recovery 仕様書を作成する
+- [ ] 1.20 (P1) areka-P1-error-recovery 仕様書を作成する
   - クラッシュログ（会話ログ、イベント履歴、MCP log）
   - スタックトレース記録
   - 状態復元（表示位置、起動ゴースト）
@@ -154,14 +154,14 @@
 
 #### areka-* 拡張層（5件）
 
-- [ ] 1.21 (P2) areka-presence-style 仕様書を作成する
+- [ ] 1.21 (P2) areka-P2-presence-style 仕様書を作成する
   - 存在スタイル（控えめ/標準/活発）選択
   - 時間帯・作業状況による自動調整
   - フルスクリーン時の自動非表示
   - 移動範囲制限
   - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.5, 16.7_
 
-- [ ] 1.22 (P2) areka-memory-system 仕様書を作成する
+- [ ] 1.22 (P2) areka-P2-memory-system 仕様書を作成する
   - 会話履歴の永続保存
   - ユーザー情報記憶（名前、好み）
   - 過去の文脈参照
@@ -169,7 +169,7 @@
   - 成長パラメータ（好感度、親密度）
   - _Requirements: 17.1-17.8_
 
-- [ ] 1.23 (P2) areka-llm-integration 仕様書を作成する
+- [ ] 1.23 (P2) areka-P2-llm-integration 仕様書を作成する
   - ローカルLLM（llama.cpp, Ollama）連携
   - クラウドAPI（OpenAI, Claude）連携
   - 人格設定（システムプロンプト）
@@ -177,7 +177,7 @@
   - キャラクター間LLM会話
   - _Requirements: 18.1-18.7, 4.8, 4.9, 4.10, 26.7-26.10, 26.16-26.20_
 
-- [ ] 1.24 (P2) areka-creator-tools 仕様書を作成する
+- [ ] 1.24 (P2) areka-P2-creator-tools 仕様書を作成する
   - 新規パッケージテンプレート生成
   - 人格テンプレート（LLMプロンプト）共有
   - AI人格自動生成
@@ -185,7 +185,7 @@
   - クリエイター支援リンク
   - _Requirements: 24.1-24.8_
 
-- [ ] 1.25 (P2) areka-privacy-security 仕様書を作成する
+- [ ] 1.25 (P2) areka-P2-privacy-security 仕様書を作成する
   - ローカルファースト設計
   - 外部API送信時の同意確認
   - 会話履歴暗号化
@@ -195,21 +195,21 @@
 
 #### areka-* 将来層（4件）
 
-- [ ] 1.26 (P3) areka-voice-system 仕様書を作成する
+- [ ] 1.26 (P3) areka-P3-voice-system 仕様書を作成する
   - 音声合成（VOICEVOX, Style-BERT-VITS2等）連携
   - キャラクターごとの音声設定
   - 音声認識、ウェイクワード
   - 連続音声対話
   - _Requirements: 19.1-19.8_
 
-- [ ] 1.27 (P3) areka-screen-awareness 仕様書を作成する
+- [ ] 1.27 (P3) areka-P3-screen-awareness 仕様書を作成する
   - アクティブウィンドウ認識
   - スクリーンショット認識（オプション）
   - エラー/ビルドエラー検知
   - 離席検出、「おかえり」機能
   - _Requirements: 20.1-20.8_
 
-- [ ] 1.28 (P3) areka-environment-sense 仕様書を作成する
+- [ ] 1.28 (P3) areka-P3-environment-sense 仕様書を作成する
   - 時刻、曜日、季節
   - 天気情報取得
   - 祝日、イベント
@@ -217,7 +217,7 @@
   - MCPサーバー連携（外部ツール）
   - _Requirements: 21.1-21.7, 22.1-22.7_
 
-- [ ] 1.29 (P3) areka-cloud-sync 仕様書を作成する
+- [ ] 1.29 (P3) areka-P3-cloud-sync 仕様書を作成する
   - ゴースト状態エクスポート/インポート
   - クラウド同期
   - デバイス間認識
@@ -226,7 +226,7 @@
 
 #### areka-* IDE層（1件）
 
-- [ ] 1.30 (P3) areka-ide-integration 仕様書を作成する
+- [ ] 1.30 (P3) areka-P3-ide-integration 仕様書を作成する
   - DAP（Debug Adapter Protocol）サーバー
   - LSP（Language Server Protocol）サーバー
   - ブレークポイント、ステップ実行
@@ -235,7 +235,7 @@
 
 #### キャラクター間通信（1件）
 
-- [ ] 1.31 (P1) areka-character-communication 仕様書を作成する
+- [ ] 1.31 (P1) areka-P1-character-communication 仕様書を作成する
   - ゴースト内キャラクター間会話（スクリプトベース）
   - 関係性パラメータ（親密度、ライバル度）
   - ゴースト間LLM会話（オプション）
@@ -245,7 +245,7 @@
 
 #### 開発プロセス支援（1件）
 
-- [ ] 1.32 (P1) kiro-roadmap-management 仕様書を作成する
+- [ ] 1.32 (P2) kiro-P2-roadmap-management 仕様書を作成する
   - 全体計画の駆動文書（ロードマップ管理）の作成
   - steering ドキュメントへの開発フォーカス記載
   - 複数子仕様の進捗追跡の仕組み
@@ -265,10 +265,10 @@
 
 | 優先度 | 分類 | 子仕様群 | 目標 |
 |--------|------|----------|------|
-| **P0** | MVP必須 | wintf-image-widget, wintf-event-system, wintf-typewriter, wintf-balloon-system, wintf-animation-system, areka-script-engine, areka-package-manager, areka-persistence, areka-mcp-server, areka-system-tray, areka-reference-ghost, areka-reference-shell, areka-reference-balloon, areka-window-placement | 2体キャラクター掛け合い会話可能 |
-| **P1** | リリース品質 | wintf-clickthrough, wintf-dpi-scaling, areka-legacy-converter, areka-devtools, areka-error-recovery, areka-timer-events, areka-character-communication | 互換性・安定性・開発支援 |
-| **P2** | 差別化機能 | areka-presence-style, areka-memory-system, areka-llm-integration, areka-creator-tools, areka-privacy-security | 独自価値の創出 |
-| **P3** | 将来展望 | areka-voice-system, areka-screen-awareness, areka-environment-sense, areka-cloud-sync, areka-ide-integration | 長期ロードマップ |
+| **P0** | MVP必須 | wintf-P0-image-widget, wintf-P0-event-system, wintf-P0-typewriter, wintf-P0-balloon-system, wintf-P0-animation-system, areka-P0-script-engine, areka-P0-package-manager, areka-P0-persistence, areka-P0-mcp-server, areka-P0-system-tray, areka-P0-reference-ghost, areka-P0-reference-shell, areka-P0-reference-balloon, areka-P0-window-placement | 2体キャラクター掛け合い会話可能 |
+| **P1** | リリース品質 | wintf-P1-clickthrough, wintf-P1-dpi-scaling, areka-P1-legacy-converter, areka-P1-devtools, areka-P1-error-recovery, areka-P1-timer-events, areka-P1-character-communication | 互換性・安定性・開発支援 |
+| **P2** | 差別化機能 | areka-P2-presence-style, areka-P2-memory-system, areka-P2-llm-integration, areka-P2-creator-tools, areka-P2-privacy-security, kiro-P2-roadmap-management | 独自価値の創出 |
+| **P3** | 将来展望 | areka-P3-voice-system, areka-P3-screen-awareness, areka-P3-environment-sense, areka-P3-cloud-sync, areka-P3-ide-integration | 長期ロードマップ |
 
 ---
 
