@@ -320,55 +320,58 @@ Phase 1で作成した31件の子仕様原案について、順次レビュー�
 ### 4.1 P0実装（MVP達成）
 
 - [ ] 4.1.1 wintf基盤層の実装
-  - `/kiro-spec-impl wintf-image-widget`
-  - `/kiro-spec-impl wintf-event-system`
-  - `/kiro-spec-impl wintf-typewriter`
-  - `/kiro-spec-impl wintf-balloon-system`
-  - `/kiro-spec-impl wintf-animation-system`
+  - `/kiro-spec-impl wintf-P0-image-widget`
+  - `/kiro-spec-impl wintf-P0-event-system`
+  - `/kiro-spec-impl wintf-P0-typewriter`
+  - `/kiro-spec-impl wintf-P0-balloon-system`
+  - `/kiro-spec-impl wintf-P0-animation-system`
 
 - [ ] 4.1.2 arekaコア層の実装
-  - `/kiro-spec-impl areka-script-engine`
-  - `/kiro-spec-impl areka-package-manager`
-  - `/kiro-spec-impl areka-persistence`
-  - `/kiro-spec-impl areka-mcp-server`
-  - `/kiro-spec-impl areka-system-tray`
+  - `/kiro-spec-impl areka-P0-script-engine`
+  - `/kiro-spec-impl areka-P0-package-manager`
+  - `/kiro-spec-impl areka-P0-persistence`
+  - `/kiro-spec-impl areka-P0-mcp-server`
+  - `/kiro-spec-impl areka-P0-system-tray`
 
 - [ ] 4.1.3 参照実装の完成
-  - `/kiro-spec-impl areka-reference-ghost`
-  - `/kiro-spec-impl areka-reference-shell`
-  - `/kiro-spec-impl areka-reference-balloon`
-  - `/kiro-spec-impl areka-window-placement`
+  - `/kiro-spec-impl areka-P0-reference-ghost`
+  - `/kiro-spec-impl areka-P0-reference-shell`
+  - `/kiro-spec-impl areka-P0-reference-balloon`
+  - `/kiro-spec-impl areka-P0-window-placement`
 
 ### 4.2 P1実装（リリース品質）
 
 - [ ] 4.2.1 安定性・互換性の実装
-  - `/kiro-spec-impl wintf-clickthrough`
-  - `/kiro-spec-impl wintf-dpi-scaling`
-  - `/kiro-spec-impl areka-legacy-converter`
-  - `/kiro-spec-impl areka-error-recovery`
+  - `/kiro-spec-impl wintf-P1-clickthrough`
+  - `/kiro-spec-impl wintf-P1-dpi-scaling`
+  - `/kiro-spec-impl areka-P1-legacy-converter`
+  - `/kiro-spec-impl areka-P1-error-recovery`
 
 - [ ] 4.2.2 開発支援・拡張の実装
-  - `/kiro-spec-impl areka-devtools`
-  - `/kiro-spec-impl areka-timer-events`
-  - `/kiro-spec-impl areka-character-communication`
+  - `/kiro-spec-impl areka-P1-devtools`
+  - `/kiro-spec-impl areka-P1-timer-events`
+  - `/kiro-spec-impl areka-P1-character-communication`
 
 ### 4.3 P2実装（差別化機能）
 
 - [ ] 4.3.1 独自機能の実装
-  - `/kiro-spec-impl areka-presence-style`
-  - `/kiro-spec-impl areka-memory-system`
-  - `/kiro-spec-impl areka-llm-integration`
-  - `/kiro-spec-impl areka-creator-tools`
-  - `/kiro-spec-impl areka-privacy-security`
+  - `/kiro-spec-impl areka-P2-presence-style`
+  - `/kiro-spec-impl areka-P2-memory-system`
+  - `/kiro-spec-impl areka-P2-llm-integration`
+  - `/kiro-spec-impl areka-P2-creator-tools`
+  - `/kiro-spec-impl areka-P2-privacy-security`
+
+- [ ] 4.3.2 開発プロセス支援の実装
+  - `/kiro-spec-impl kiro-P2-roadmap-management`
 
 ### 4.4 P3実装（将来展望）
 
 - [ ] 4.4.1 長期機能の実装
-  - `/kiro-spec-impl areka-voice-system`
-  - `/kiro-spec-impl areka-screen-awareness`
-  - `/kiro-spec-impl areka-environment-sense`
-  - `/kiro-spec-impl areka-cloud-sync`
-  - `/kiro-spec-impl areka-ide-integration`
+  - `/kiro-spec-impl areka-P3-voice-system`
+  - `/kiro-spec-impl areka-P3-screen-awareness`
+  - `/kiro-spec-impl areka-P3-environment-sense`
+  - `/kiro-spec-impl areka-P3-cloud-sync`
+  - `/kiro-spec-impl areka-P3-ide-integration`
 
 ---
 
@@ -419,38 +422,39 @@ Phase 1で作成した31件の子仕様原案について、順次レビュー�
 
 ## 要件カバレッジ（子仕様分担表）
 
-全31要件グループは、31件の子仕様によって完全にカバーされる。
+全31要件グループは、32件の子仕様によって完全にカバーされる（31件機能仕様 + 1件プロセス支援）。
 
 | 要件グループ | 子仕様 | 優先度 |
 |-------------|--------|--------|
-| Req 1 (ウィンドウ表示) | wintf-image-widget, wintf-clickthrough, areka-window-placement | P0/P1 |
-| Req 2 (サーフェス) | wintf-image-widget, wintf-animation-system, areka-reference-shell | P0 |
-| Req 3 (バルーン) | wintf-typewriter, wintf-balloon-system, areka-reference-balloon | P0 |
-| Req 4 (対話) | areka-script-engine, areka-reference-ghost, areka-llm-integration | P0/P2 |
-| Req 5 (入力) | wintf-event-system, wintf-balloon-system | P0 |
-| Req 6 (時間イベント) | areka-timer-events | P1 |
-| Req 7-8 (パッケージ管理) | areka-package-manager | P0 |
-| Req 9 (設定) | areka-persistence | P0 |
-| Req 10 (MCP) | areka-mcp-server | P0 |
-| Req 11 (互換性) | areka-legacy-converter | P1 |
-| Req 12 (開発者支援) | areka-devtools | P1 |
-| Req 13 (システムトレイ) | areka-system-tray | P0 |
+| Req 1 (ウィンドウ表示) | wintf-P0-image-widget, wintf-P1-clickthrough, areka-P0-window-placement | P0/P1 |
+| Req 2 (サーフェス) | wintf-P0-image-widget, wintf-P0-animation-system, areka-P0-reference-shell | P0 |
+| Req 3 (バルーン) | wintf-P0-typewriter, wintf-P0-balloon-system, areka-P0-reference-balloon | P0 |
+| Req 4 (対話) | areka-P0-script-engine, areka-P0-reference-ghost, areka-P2-llm-integration | P0/P2 |
+| Req 5 (入力) | wintf-P0-event-system, wintf-P0-balloon-system | P0 |
+| Req 6 (時間イベント) | areka-P1-timer-events | P1 |
+| Req 7-8 (パッケージ管理) | areka-P0-package-manager | P0 |
+| Req 9 (設定) | areka-P0-persistence | P0 |
+| Req 10 (MCP) | areka-P0-mcp-server | P0 |
+| Req 11 (互換性) | areka-P1-legacy-converter | P1 |
+| Req 12 (開発者支援) | areka-P1-devtools | P1 |
+| Req 13 (システムトレイ) | areka-P0-system-tray | P0 |
 | Req 14 (パフォーマンス) | 全子仕様のNFR | - |
-| Req 15 (DPI) | wintf-dpi-scaling | P1 |
-| Req 16 (存在スタイル) | areka-presence-style | P2 |
-| Req 17 (記憶) | areka-memory-system | P2 |
-| Req 18 (LLM) | areka-llm-integration | P2 |
-| Req 19 (音声) | areka-voice-system | P3 |
-| Req 20 (画面認識) | areka-screen-awareness | P3 |
-| Req 21-22 (環境認識) | areka-environment-sense | P3 |
-| Req 23 (同期) | areka-cloud-sync | P3 |
-| Req 24 (クリエイター) | areka-creator-tools | P2 |
-| Req 25 (プライバシー) | areka-privacy-security | P2 |
-| Req 26 (キャラクター間) | areka-character-communication, areka-llm-integration | P1/P2 |
-| Req 27 (パッケージ詳細) | areka-package-manager, areka-reference-* | P0 |
-| Req 28 (デバッグ) | areka-devtools, areka-ide-integration | P1/P3 |
-| Req 29 (さくらスクリプト) | areka-script-engine, areka-legacy-converter | P0/P1 |
-| Req 30 (エラー処理) | areka-error-recovery | P1 |
-| Req 31 (インストーラ) | areka-package-manager | P0 |
+| Req 15 (DPI) | wintf-P1-dpi-scaling | P1 |
+| Req 16 (存在スタイル) | areka-P2-presence-style | P2 |
+| Req 17 (記憶) | areka-P2-memory-system | P2 |
+| Req 18 (LLM) | areka-P2-llm-integration | P2 |
+| Req 19 (音声) | areka-P3-voice-system | P3 |
+| Req 20 (画面認識) | areka-P3-screen-awareness | P3 |
+| Req 21-22 (環境認識) | areka-P3-environment-sense | P3 |
+| Req 23 (同期) | areka-P3-cloud-sync | P3 |
+| Req 24 (クリエイター) | areka-P2-creator-tools | P2 |
+| Req 25 (プライバシー) | areka-P2-privacy-security | P2 |
+| Req 26 (キャラクター間) | areka-P1-character-communication, areka-P2-llm-integration | P1/P2 |
+| Req 27 (パッケージ詳細) | areka-P0-package-manager, areka-P0-reference-* | P0 |
+| Req 28 (デバッグ) | areka-P1-devtools, areka-P3-ide-integration | P1/P3 |
+| Req 29 (さくらスクリプト) | areka-P0-script-engine, areka-P1-legacy-converter | P0/P1 |
+| Req 30 (エラー処理) | areka-P1-error-recovery | P1 |
+| Req 31 (インストーラ) | areka-P0-package-manager | P0 |
+| (プロセス支援) | kiro-P2-roadmap-management | P2 |
 
 > **Note**: 本仕様は「メタ仕様」として全31要件を子仕様に分解し、今後数か月〜年単位での開発を駆動する。各子仕様は独立して要件定義→設計→タスク→実装のサイクルを回す。

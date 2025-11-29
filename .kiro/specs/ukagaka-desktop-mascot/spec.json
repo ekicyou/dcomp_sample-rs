@@ -1,9 +1,9 @@
 {
   "feature_name": "ukagaka-desktop-mascot",
   "created_at": "2025-11-27T00:00:00Z",
-  "updated_at": "2025-11-29T12:00:00Z",
+  "updated_at": "2025-11-29T13:00:00Z",
   "language": "ja",
-  "phase": "design-approved",
+  "phase": "tasks-generated",
   "approvals": {
     "requirements": {
       "generated": true,
@@ -18,7 +18,8 @@
     "tasks": {
       "generated": true,
       "approved": false,
-      "note": "Phase 1で32子仕様作成、Phase 2以降は子仕様実装フェーズ"
+      "generated_at": "2025-11-29T13:00:00Z",
+      "note": "Phase 1: 32子仕様作成、Phase 2-6: 子仕様実装・統合・リリースフェーズ"
     }
   },
   "ready_for_implementation": false,
