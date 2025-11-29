@@ -82,8 +82,9 @@
       "areka-P0-reference-ghost",
       "areka-P0-reference-shell",
       "areka-P0-reference-balloon",
-      "areka-P0-window-placement"
+      "areka-P0-window-placement",
+      "kiro-P2-roadmap-management"
     ],
-    "pending": 24
+    "pending": 23
   }
 }
