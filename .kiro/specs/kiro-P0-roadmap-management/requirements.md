@@ -78,7 +78,7 @@
 3. **The** Folder System **shall** 完了した仕様を `.kiro/specs/completed/` に移動する
 4. **The** Folder System **shall** メタ仕様（ukagaka-desktop-mascot）を常に `.kiro/specs/` 直下に配置する
 5. **When** 仕様が完了した時, **the** AI Agent **shall** 該当仕様を completed フォルダに移動する
-6. **When** P1仕様がアクティブ化される時, **the** AI Agent **shall** 該当仕様を backlog から specs 直下に移動する
+6. **When** P1仕様がアクティブ化される時, **the** 開発者 **shall** 該当仕様を backlog から specs 直下に移動する
 
 ---
 
