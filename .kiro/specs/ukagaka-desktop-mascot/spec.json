@@ -1,9 +1,9 @@
 {
   "feature_name": "ukagaka-desktop-mascot",
   "created_at": "2025-11-27T00:00:00Z",
-  "updated_at": "2025-11-30T12:00:00Z",
+  "updated_at": "2025-11-29T12:00:00Z",
   "language": "ja",
-  "phase": "design-generated",
+  "phase": "design-approved",
   "approvals": {
     "requirements": {
       "generated": true,
@@ -11,74 +11,78 @@
     },
     "design": {
       "generated": true,
-      "approved": false,
-      "note": "全31要件の子仕様分解アーキテクチャに更新（MVP→長期開発駆動）"
+      "approved": true,
+      "approved_at": "2025-11-29T12:00:00Z",
+      "note": "全31要件の子仕様分解アーキテクチャ（長期開発駆動型メタ仕様）"
     },
     "tasks": {
       "generated": true,
       "approved": false,
-      "note": "Phase 1で31子仕様作成、Phase 2以降は子仕様実装フェーズ"
+      "note": "Phase 1で32子仕様作成、Phase 2以降は子仕様実装フェーズ"
     }
   },
   "ready_for_implementation": false,
   "child_specifications": {
     "total": 32,
-    "note": "31件（機能仕様）+ 1件（開発プロセス支援: kiro-roadmap-management）",
+    "note": "31件（機能仕様）+ 1件（開発プロセス支援: kiro-P2-roadmap-management）",
     "categories": {
       "wintf_base": [
-        "wintf-image-widget",
-        "wintf-event-system",
-        "wintf-typewriter",
-        "wintf-clickthrough",
-        "wintf-balloon-system",
-        "wintf-animation-system",
-        "wintf-dpi-scaling"
+        "wintf-P0-image-widget",
+        "wintf-P0-event-system",
+        "wintf-P0-typewriter",
+        "wintf-P1-clickthrough",
+        "wintf-P0-balloon-system",
+        "wintf-P0-animation-system",
+        "wintf-P1-dpi-scaling"
       ],
       "areka_core": [
-        "areka-script-engine",
-        "areka-package-manager",
-        "areka-persistence",
-        "areka-mcp-server",
-        "areka-system-tray",
-        "areka-timer-events",
-        "areka-error-recovery"
+        "areka-P0-script-engine",
+        "areka-P0-package-manager",
+        "areka-P0-persistence",
+        "areka-P0-mcp-server",
+        "areka-P0-system-tray",
+        "areka-P1-timer-events",
+        "areka-P1-error-recovery"
       ],
       "areka_reference": [
-        "areka-reference-ghost",
-        "areka-reference-shell",
-        "areka-reference-balloon",
-        "areka-window-placement"
+        "areka-P0-reference-ghost",
+        "areka-P0-reference-shell",
+        "areka-P0-reference-balloon",
+        "areka-P0-window-placement"
       ],
       "areka_advanced": [
-        "areka-presence-style",
-        "areka-memory-system",
-        "areka-llm-integration",
-        "areka-creator-tools",
-        "areka-privacy-security",
-        "areka-character-communication"
+        "areka-P2-presence-style",
+        "areka-P2-memory-system",
+        "areka-P2-llm-integration",
+        "areka-P2-creator-tools",
+        "areka-P2-privacy-security",
+        "areka-P1-character-communication"
       ],
       "areka_future": [
-        "areka-voice-system",
-        "areka-screen-awareness",
-        "areka-environment-sense",
-        "areka-cloud-sync"
+        "areka-P3-voice-system",
+        "areka-P3-screen-awareness",
+        "areka-P3-environment-sense",
+        "areka-P3-cloud-sync"
       ],
       "areka_ide": [
-        "areka-devtools",
-        "areka-ide-integration",
-        "areka-legacy-converter"
+        "areka-P1-devtools",
+        "areka-P3-ide-integration",
+        "areka-P1-legacy-converter"
+      ],
+      "kiro_process": [
+        "kiro-P2-roadmap-management"
       ]
     },
     "created": [
-      "wintf-image-widget",
-      "wintf-event-system",
-      "wintf-typewriter",
-      "wintf-clickthrough",
-      "areka-reference-ghost",
-      "areka-reference-shell",
-      "areka-reference-balloon",
-      "areka-window-placement"
+      "wintf-P0-image-widget",
+      "wintf-P0-event-system",
+      "wintf-P0-typewriter",
+      "wintf-P1-clickthrough",
+      "areka-P0-reference-ghost",
+      "areka-P0-reference-shell",
+      "areka-P0-reference-balloon",
+      "areka-P0-window-placement"
     ],
-    "pending": 23
+    "pending": 24
   }
 }
