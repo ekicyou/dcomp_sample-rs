@@ -169,9 +169,9 @@ WM_WINDOWPOSCHANGED
 1. The フレームワーク shall `WM_WINDOWPOSCHANGED`の発生を記録する`WindowPosChanged(bool)`コンポーネントを提供する。
 2. The `WindowPosChanged`コンポーネント shall `#[component(storage = "SparseSet")]`属性を持ち、Windowエンティティのみに効率的に割り当てられる。
 3. When `WM_WINDOWPOSCHANGED`を処理するとき, the フレームワーク shall `WindowPosChanged.0 = true`に設定する。
-4. The `apply_window_pos_changes`システム shall `WindowPosChanged.0 == true`の場合、`SetWindowPosCommand`を生成しない。
+4. The `apply_window_pos_changes`システム shall `&WindowPosChanged`（不変参照）でフラグを参照し、`WindowPosChanged.0 == true`の場合は`SetWindowPosCommand`を生成しない。
 5. When `WindowPosChanged.0 == false`のとき, the `apply_window_pos_changes` shall 通常通り`SetWindowPosCommand`を生成する。
-6. The `WM_WINDOWPOSCHANGED`処理 shall `try_tick_on_vsync()`呼び出し後に`WindowPosChanged.0 = false`にリセットする。
+6. The `WM_WINDOWPOSCHANGED`処理 shall `try_tick_on_vsync()`呼び出し後に`WindowPosChanged.0 = false`にリセットする（フラグの設定・リセット責務はWndProc側に完全移譲）。
 
 #### Implementation Notes
 

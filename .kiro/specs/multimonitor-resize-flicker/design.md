@@ -66,7 +66,7 @@ flowchart TB
     subgraph ECS["ECS Schedule (World借用中)"]
         APPLY[apply_window_pos_changes]
         APPLY --> CHECK_FLAG{WindowPosChanged?}
-        CHECK_FLAG -->|true| SKIP[抑制 + フラグリセット]
+        CHECK_FLAG -->|true| SKIP[抑制（参照のみ）]
         CHECK_FLAG -->|false| QUEUE[SetWindowPosCommand追加]
     end
     
@@ -308,14 +308,15 @@ impl SetWindowPosCommand {
 | Requirements | 6, 9 |
 
 **Responsibilities & Constraints**
-- `WM_WINDOWPOSCHANGED`受信時に`true`に設定
-- `apply_window_pos_changes`で`true`の場合は抑制（リセットはしない）
+- フラグの設定・リセットは**WM_WINDOWPOSCHANGED処理側が完全に責任を持つ**
+- `WM_WINDOWPOSCHANGED`受信時に`true`に設定（tick前）
 - `WM_WINDOWPOSCHANGED`の`try_tick_on_vsync()`後に`false`にリセット
+- `apply_window_pos_changes`は`&WindowPosChanged`（不変参照）で参照のみ
 - Windowエンティティのみに配置（SparseSetストレージ）
 
 **Dependencies**
-- Inbound: WndProc — フラグ設定・リセット (P0)
-- Outbound: apply_window_pos_changes — フラグ参照 (P0)
+- Inbound: WndProc — フラグ設定・リセット（完全責任） (P0)
+- Outbound: apply_window_pos_changes — フラグ参照のみ（`&WindowPosChanged`） (P0)
 
 **Contracts**: State [x]
 
