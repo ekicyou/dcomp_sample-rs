@@ -10,6 +10,7 @@
 
 ---
 
+
 ## Introduction
 
 本仕様書は wintf フレームワークにおける Image ウィジェット機能の要件を定義する。親仕様「伺的デスクトップマスコットアプリ」の実装前提条件（P0）として、WIC画像読み込み、D2D描画、透過PNG対応、アニメーション画像（GIF/WebP）のフレーム再生機能を提供する。
@@ -21,9 +22,9 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 ### スコープ
 
 **含まれるもの**:
-- WIC (Windows Imaging Component) による画像読み込み
+- WIC (Windows Imaging Component) による画像読み込み（Windows 11標準サポート形式）
 - Direct2D による画像描画
-- 透過PNG対応（アルファチャンネル処理）
+- αチャンネル必須（透過処理が必須）
 - GIF/WebP アニメーション画像のフレーム抽出
 - タイマー駆動によるアニメーション再生
 
@@ -43,62 +44,80 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 
 ## Requirements
 
-### Requirement 1: 静止画像読み込み
+### Requirement 1: 非同期画像読み込み
 
-**Objective:** 開発者として、PNG/JPEG/BMP等の静止画像ファイルを読み込みたい。それによりキャラクター画像をウィジェットとして表示できる。
+**Objective:** 開発者として、画像読み込み中にWorldをブロックしたくない。それによりUIの応答性を維持できる。
 
 #### Acceptance Criteria
 
-1. **The** Image widget **shall** WICを使用してPNG形式の画像を読み込める
-2. **The** Image widget **shall** WICを使用してJPEG形式の画像を読み込める
-3. **The** Image widget **shall** WICを使用してBMP形式の画像を読み込める
-4. **When** 画像ファイルが存在しない場合, **the** Image widget **shall** 明確なエラーを返す
-5. **When** 画像形式がサポート外の場合, **the** Image widget **shall** 明確なエラーを返す
+1. **The** Image widget **shall** WintfTaskPool（専用TaskPool）を使用して画像を非同期に読み込む
+2. **The** Image widget **shall** Bevyの標準タスクプール（ComputeTaskPool, IoTaskPool等）をブロックしない
+3. **While** 画像読み込み中, **the** World **shall** 他の処理を継続できる
+4. **When** 非同期読み込みが完了した時, **the** Image widget **shall** ImageResourceコンポーネントを更新する
+5. **The** WintfTaskPool **shall** アプリケーション起動時にResourceとして初期化される
 
 ---
 
-### Requirement 2: 透過処理
+### Requirement 2: 静止画像読み込み
 
-**Objective:** 開発者として、透過PNG画像を正しく表示したい。それによりキャラクターの輪郭が自然に表示される。
+**Objective:** 開発者として、αチャンネルを持つ画像ファイルを読み込みたい。それによりキャラクター画像をウィジェットとして表示できる。
 
 #### Acceptance Criteria
 
-1. **The** Image widget **shall** アルファチャンネル付きPNG画像を正しく読み込める
+1. **The** Image widget **shall** WICを使用してWindows 11標準でサポートされる画像形式を読み込める（PNG, TIFF, BMP, GIF, JPEG XR, ICO, WebP等）
+2. **The** Image widget **shall** アルファチャンネルを持つ画像のみをサポートする
+3. **The** Image widget **shall** WICオブジェクト（IWICBitmapSource）をImageResourceコンポーネントに保持する
+4. **The** Image widget **shall** BGRAへの展開を行わず、WICからD2Dへの直接パスを使用する
+5. **When** 画像にアルファチャンネルがない場合, **the** Image widget **shall** 明確なエラーを返す
+6. **When** 画像ファイルが存在しない場合, **the** Image widget **shall** 明確なエラーを返す
+7. **When** WICでデコードできない形式の場合, **the** Image widget **shall** 明確なエラーを返す
+
+---
+
+### Requirement 3: 透過処理
+
+**Objective:** 開発者として、αチャンネル付き画像を正しく表示したい。それによりキャラクターの輪郭が自然に表示される。
+
+#### Acceptance Criteria
+
+1. **The** Image widget **shall** すべてのサポート形式でアルファチャンネルを正しく読み込める
 2. **When** 画像に透明領域がある場合, **the** Image widget **shall** その領域を背景として透過表示する
 3. **The** Image widget **shall** プリマルチプライドアルファを正しく処理する
-4. **The** Image widget **shall** 32bit BGRA形式で画像データを保持する
 
 ---
 
-### Requirement 3: Direct2D描画
+### Requirement 4: Direct2D描画
 
 **Objective:** 開発者として、読み込んだ画像をDirect2Dで高速に描画したい。それにより60fps以上の滑らかな表示が実現できる。
 
 #### Acceptance Criteria
 
-1. **The** Image widget **shall** ID2D1Bitmap として画像をGPUにアップロードできる
-2. **The** Image widget **shall** DrawBitmap を使用して画像を描画できる
-3. **When** ウィジェットサイズと画像サイズが異なる場合, **the** Image widget **shall** 指定されたストレッチモード（None/Fill/Uniform/UniformToFill）で描画する
-4. **The** Image widget **shall** デバイスロスト時に画像を再作成できる
-5. **While** 描画中, **the** Image widget **shall** 他のウィジェットと同様にレイアウトシステムと統合される
+1. **The** Image widget **shall** CreateBitmapFromWicBitmapを使用してWICからID2D1Bitmapを直接作成する
+2. **The** Image widget **shall** ImageGraphicsコンポーネントにID2D1Bitmapを保持する
+3. **When** ImageResourceが変更された時, **the** システム **shall** ImageGraphicsを自動的に更新する（Changed検知）
+4. **The** Image widget **shall** DrawBitmap を使用して画像を描画できる
+5. **When** ウィジェットサイズと画像サイズが異なる場合, **the** Image widget **shall** 指定されたストレッチモード（None/Fill/Uniform/UniformToFill）で描画する
+6. **The** Image widget **shall** デバイスロスト時にImageResourceからImageGraphicsを再作成できる
+7. **While** 描画中, **the** Image widget **shall** 他のウィジェットと同様にレイアウトシステムと統合される
 
 ---
 
-### Requirement 4: アニメーション画像読み込み
+### Requirement 5: アニメーション画像読み込み
 
 **Objective:** 開発者として、GIF/WebPアニメーション画像のフレームを抽出したい。それによりキャラクターのアイドルアニメーションを実現できる。
 
 #### Acceptance Criteria
 
 1. **The** Image widget **shall** アニメーションGIF画像を読み込める
-2. **The** Image widget **shall** アニメーションWebP画像を読み込める（Windows 10以降）
+2. **The** Image widget **shall** アニメーションWebP画像を読み込める
 3. **The** Image widget **shall** アニメーション画像から個別フレームを抽出できる
 4. **The** Image widget **shall** 各フレームの表示時間（delay）を取得できる
 5. **When** 単一フレームの画像の場合, **the** Image widget **shall** 静止画像として扱う
+6. **When** アニメーション画像にαチャンネルがない場合, **the** Image widget **shall** 明確なエラーを返す
 
 ---
 
-### Requirement 5: アニメーション再生
+### Requirement 6: アニメーション再生
 
 **Objective:** 開発者として、アニメーション画像を自動再生したい。それによりキャラクターが生き生きと動く。
 
@@ -113,17 +132,19 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 
 ---
 
-### Requirement 6: ECS統合
+### Requirement 7: ECS統合
 
 **Objective:** 開発者として、Image ウィジェットをECSコンポーネントとして使用したい。それにより既存のwintfアーキテクチャと統合できる。
 
 #### Acceptance Criteria
 
-1. **The** Image widget **shall** ECSコンポーネントとして実装される
-2. **The** Image widget **shall** 既存のレイアウトシステム（taffy）と統合される
-3. **The** Image widget **shall** Visual/Surface階層に正しく統合される
-4. **When** エンティティが削除された時, **the** Image widget **shall** 関連リソース（ID2D1Bitmap等）を正しく解放する
-5. **The** Image widget **shall** 他のウィジェット（Label、Rectangle）と同様のAPI設計を持つ
+1. **The** Image widget **shall** ImageResource（CPUリソース）とImageGraphics（GPUリソース）の2コンポーネント構成で実装される
+2. **The** ImageResource **shall** WICオブジェクトを保持し、Send/Syncを実装する（WICはスレッドフリー）
+3. **The** ImageGraphics **shall** ID2D1Bitmapとgenerationフィールドでデバイスロストに対応する
+4. **The** Image widget **shall** 既存のレイアウトシステム（taffy）と統合される
+5. **The** Image widget **shall** Visual/Surface階層に正しく統合される
+6. **When** エンティティが削除された時, **the** Image widget **shall** 関連リソース（WICオブジェクト、ID2D1Bitmap等）を正しく解放する
+7. **The** Image widget **shall** 他のウィジェット（Label、Rectangle）と同様のAPI設計を持つ
 
 ---
 
@@ -137,9 +158,9 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 
 ### NFR-2: 互換性
 
-- Windows 10 バージョン1809以降をサポート
+- Windows 11以降をサポート
 - Direct2D 1.1 以降を使用
-- WIC標準コーデック（PNG, JPEG, BMP, GIF, WebP）をサポート
+- WIC標準コーデック（Windows 11でサポートされるすべてのαチャンネル対応形式）をサポート
 
 ### NFR-3: エラーハンドリング
 
@@ -156,6 +177,10 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 | D2D | Direct2D - ハードウェアアクセラレーション2D描画API |
 | プリマルチプライドアルファ | RGBにアルファ値が乗算済みの形式 |
 | サーフェス | キャラクターの表情・ポーズを表す画像 |
+| WintfTaskPool | wintf専用のバックグラウンドタスクプール（Bevyの標準プールとは独立） |
+| ImageResource | WICオブジェクトを保持するCPUリソースコンポーネント |
+| ImageGraphics | ID2D1Bitmapを保持するGPUリソースコンポーネント |
+| スレッドフリー | COMのスレッドモデルで、どのスレッドからでもアクセス可能 |
 
 ---
 
