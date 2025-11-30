@@ -101,6 +101,7 @@ graph TB
 
 | Spec | Description | Parent Req | Tier |
 |------|-------------|------------|------|
+| `wintf-P1-image-rendering` | 画像描画オプション（ストレッチ、切り抜き、補間） | 1.1 | 1 |
 | `wintf-P1-clickthrough` | 透過領域クリックスルー | 1.6, NFR-3 | 0 |
 | `wintf-P1-dpi-scaling` | DPI対応、Per-Monitor DPI | 15.1-15.5 | 1 |
 | `areka-P1-timer-events` | タイマー、システムイベント | 6.1-6.8 | 4 |
@@ -158,5 +159,6 @@ graph TB
 
 | Date | Update |
 |------|--------|
+| 2025-11-29 | wintf-P1-image-rendering を P1 backlog に追加（P0 image-widget から分離） |
 | 2025-11-29 | kiro-P0-roadmap-management 完了、P1-P3 を backlog に移動 |
 | 2025-11-29 | 初版作成（32子仕様、全 requirements-draft） |

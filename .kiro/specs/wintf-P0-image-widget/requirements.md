@@ -23,9 +23,14 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 
 **含まれるもの**:
 - WIC (Windows Imaging Component) による静止画像読み込み（Windows 11標準サポート形式）
-- Direct2D による画像描画
+- Direct2D による基本画像描画（1:1、変換なし）
 - αチャンネル必須（透過処理が必須）
 - 非同期画像読み込み（WintfTaskPool）
+
+**含まれないもの（P1 wintf-P1-image-rendering で対応）**:
+- ストレッチモード（None/Fill/Uniform/UniformToFill）
+- ソース矩形（画像の一部切り抜き表示）
+- 補間モード
 
 **含まれないもの（将来対応）**:
 - GIF/WebP アニメーション画像のフレーム抽出・再生
@@ -103,10 +108,11 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 1. **The** Image widget **shall** CreateBitmapFromWicBitmapを使用してWICからID2D1Bitmapを直接作成する
 2. **The** Image widget **shall** ImageGraphicsコンポーネントにID2D1Bitmapを保持する
 3. **When** ImageResourceが変更された時, **the** システム **shall** ImageGraphicsを自動的に更新する（Changed検知）
-4. **The** Image widget **shall** DrawBitmap を使用して画像を描画できる
-5. **When** ウィジェットサイズと画像サイズが異なる場合, **the** Image widget **shall** 指定されたストレッチモード（None/Fill/Uniform/UniformToFill）で描画する
-6. **The** Image widget **shall** デバイスロスト時にImageResourceからImageGraphicsを再作成できる
-7. **While** 描画中, **the** Image widget **shall** 他のウィジェットと同様にレイアウトシステムと統合される
+4. **The** Image widget **shall** DrawBitmap を使用して画像を1:1（元サイズ）で描画する
+5. **The** Image widget **shall** デバイスロスト時にImageResourceからImageGraphicsを再作成できる
+6. **While** 描画中, **the** Image widget **shall** 他のウィジェットと同様にレイアウトシステムと統合される
+
+> **Note**: ストレッチモード、ソース矩形、補間モードは P1（wintf-P1-image-rendering）で対応予定
 
 ---
 
@@ -172,6 +178,7 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 | ImageResource | WICオブジェクトを保持するCPUリソースコンポーネント |
 | ImageGraphics | ID2D1Bitmapを保持するGPUリソースコンポーネント |
 | スレッドフリー | COMのスレッドモデルで、どのスレッドからでもアクセス可能 |
+| wintf-P1-image-rendering | 本仕様の次フェーズ。描画オプション（ストレッチモード等）を追加 |
 
 ---
 

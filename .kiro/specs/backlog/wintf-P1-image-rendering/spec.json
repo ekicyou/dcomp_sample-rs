@@ -1,0 +1,28 @@
+{
+  "feature": "wintf-P1-image-rendering",
+  "description": "Image ウィジェットの描画オプション - ストレッチモード、ソース矩形、補間モード、Visual変換連携",
+  "phase": "not-started",
+  "priority": "P1",
+  "language": "ja",
+  "approvals": {
+    "requirements": {
+      "generated": false,
+      "reviewed": false,
+      "comments": []
+    },
+    "design": {
+      "generated": false,
+      "reviewed": false,
+      "comments": []
+    },
+    "tasks": {
+      "generated": false,
+      "reviewed": false,
+      "comments": []
+    }
+  },
+  "dependencies": [
+    "wintf-P0-image-widget"
+  ],
+  "parentSpec": "ukagaka-desktop-mascot"
+}
