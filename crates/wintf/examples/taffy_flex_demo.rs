@@ -155,13 +155,11 @@ fn main() -> Result<()> {
 
             // 赤ボックスの子として画像を追加（BitmapSourceデモ）
             // CARGO_MANIFEST_DIR からの絶対パスを使用（開発時の利便性のため）
-            const CHECKER_IMAGE_PATH: &str = concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/tests/assets/demo_checker_64x64.png"
-            );
+            const SEIKATU_IMAGE_PATH: &str =
+                concat!(env!("CARGO_MANIFEST_DIR"), "/tests/assets/seikatu_0_0.webp");
             world.spawn((
-                Name::new("CheckerImage"),
-                BitmapSource::new(CHECKER_IMAGE_PATH),
+                Name::new("SeikatuImage"),
+                BitmapSource::new(SEIKATU_IMAGE_PATH),
                 BoxStyle {
                     size: Some(BoxSize {
                         width: Some(Dimension::Px(64.0)),
