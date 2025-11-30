@@ -922,6 +922,7 @@ pub fn invalidate_dependent_components(
     mut window_graphics_query: Query<&mut WindowGraphics>,
     mut visual_query: Query<&mut VisualGraphics>,
     mut surface_query: Query<&mut SurfaceGraphics>,
+    mut bitmap_source_query: Query<&mut crate::ecs::widget::bitmap_source::BitmapSourceGraphics>,
 ) {
     if let Some(gc) = graphics {
         if !gc.is_valid() {
@@ -937,6 +938,9 @@ pub fn invalidate_dependent_components(
             }
             for mut s in surface_query.iter_mut() {
                 s.invalidate();
+            }
+            for mut bsg in bitmap_source_query.iter_mut() {
+                bsg.invalidate();
             }
         }
     }

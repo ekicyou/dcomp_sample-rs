@@ -189,6 +189,14 @@ impl EcsWorld {
         // Surface生成統計リソース（Req 5.3）
         world.insert_resource(crate::ecs::graphics::SurfaceCreationStats::default());
 
+        // WicCore初期化（Device Lostの影響を受けない独立リソース）
+        if let Ok(wic_core) = crate::ecs::widget::bitmap_source::WicCore::new() {
+            world.insert_resource(wic_core);
+        }
+
+        // WintfTaskPool初期化（非同期タスク実行基盤）
+        world.insert_resource(crate::ecs::widget::bitmap_source::WintfTaskPool::new());
+
         // LayoutRootとMonitor階層を初期化（Window spawnより前に必要）
         crate::ecs::layout::initialize_layout_root(&mut world);
 
@@ -221,6 +229,12 @@ impl EcsWorld {
         // デフォルトシステムの登録
         {
             let mut schedules = world.resource_mut::<Schedules>();
+
+            // Inputスケジュール: 非同期タスク完了コマンドのドレイン
+            schedules.add_systems(
+                Input,
+                crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands,
+            );
 
             // UISetupスケジュール：ウィンドウ作成とWindowPos反映
             schedules.add_systems(UISetup, crate::ecs::window_system::create_windows);
@@ -321,9 +335,10 @@ impl EcsWorld {
                     crate::ecs::graphics::cleanup_graphics_needs_init,
                     crate::ecs::widget::shapes::rectangle::draw_rectangles,
                     crate::ecs::widget::text::draw_labels,
+                    crate::ecs::widget::bitmap_source::draw_bitmap_sources,
                     // 遅延Surface作成（GraphicsCommandList存在時、GlobalArrangementベース）
                     crate::ecs::graphics::deferred_surface_creation_system
-                        .after(crate::ecs::widget::text::draw_labels),
+                        .after(crate::ecs::widget::bitmap_source::draw_bitmap_sources),
                     // GraphicsCommandList削除時のSurface解放（Req 1.3, 1.4）
                     crate::ecs::graphics::cleanup_surface_on_commandlist_removed
                         .after(crate::ecs::graphics::deferred_surface_creation_system),

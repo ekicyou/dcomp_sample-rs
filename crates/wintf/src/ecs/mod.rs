@@ -18,6 +18,10 @@ pub use graphics::*;
 pub use layout::*;
 pub use monitor::*;
 pub use transform::*;
+pub use widget::{
+    draw_bitmap_sources, BitmapSource, BitmapSourceGraphics, BitmapSourceResource, BoxedCommand,
+    CommandSender, WicCore, WintfTaskPool,
+};
 pub use window::{
     flush_window_pos_commands, DpiChangeContext, SetWindowPosCommand, Window, WindowHandle,
     WindowPos, WindowPosChanged, WindowStyle, ZOrder, DPI,

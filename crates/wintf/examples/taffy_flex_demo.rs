@@ -12,6 +12,7 @@ use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use wintf::ecs::layout::{
     BoxInset, BoxMargin, BoxPosition, BoxSize, BoxStyle, Dimension, LengthPercentageAuto, Opacity,
 };
+use wintf::ecs::widget::bitmap_source::BitmapSource;
 use wintf::ecs::widget::shapes::Rectangle;
 use wintf::ecs::Window;
 use wintf::ecs::WindowPos;
@@ -125,29 +126,56 @@ fn main() -> Result<()> {
                     ChildOf(window_entity),
                 ))
                 .id(); // Flexアイテム1（赤、固定200px幅）
+            let red_box = world
+                .spawn((
+                    Name::new("RedBox"), // R1.3: RedBoxエンティティに名前を付与
+                    RedBox,              // マーカー追加
+                    Opacity(0.5),        // 50%透明度
+                    Rectangle {
+                        color: D2D1_COLOR_F {
+                            r: 1.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 1.0,
+                        }, // 赤
+                    },
+                    BoxStyle {
+                        size: Some(BoxSize {
+                            width: Some(Dimension::Px(200.0)),
+                            height: Some(Dimension::Px(100.0)), // 150 → 100に修正
+                        }),
+                        flex_grow: Some(0.0),
+                        flex_shrink: Some(0.0),
+                        flex_basis: Some(Dimension::Px(200.0)),
+                        ..Default::default()
+                    },
+                    ChildOf(flex_container),
+                ))
+                .id();
+
+            // 赤ボックスの子として画像を追加（BitmapSourceデモ）
+            // CARGO_MANIFEST_DIR からの絶対パスを使用（開発時の利便性のため）
+            const CHECKER_IMAGE_PATH: &str = concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/assets/demo_checker_64x64.png"
+            );
             world.spawn((
-                Name::new("RedBox"), // R1.3: RedBoxエンティティに名前を付与
-                RedBox,              // マーカー追加
-                Opacity(0.5),        // 50%透明度
-                Rectangle {
-                    color: D2D1_COLOR_F {
-                        r: 1.0,
-                        g: 0.0,
-                        b: 0.0,
-                        a: 1.0,
-                    }, // 赤
-                },
+                Name::new("CheckerImage"),
+                BitmapSource::new(CHECKER_IMAGE_PATH),
                 BoxStyle {
                     size: Some(BoxSize {
-                        width: Some(Dimension::Px(200.0)),
-                        height: Some(Dimension::Px(100.0)), // 150 → 100に修正
+                        width: Some(Dimension::Px(64.0)),
+                        height: Some(Dimension::Px(64.0)),
                     }),
-                    flex_grow: Some(0.0),
-                    flex_shrink: Some(0.0),
-                    flex_basis: Some(Dimension::Px(200.0)),
+                    margin: Some(BoxMargin(wintf::ecs::layout::Rect {
+                        left: wintf::ecs::layout::LengthPercentageAuto::Px(68.0),
+                        right: wintf::ecs::layout::LengthPercentageAuto::Auto,
+                        top: wintf::ecs::layout::LengthPercentageAuto::Px(18.0),
+                        bottom: wintf::ecs::layout::LengthPercentageAuto::Px(18.0),
+                    })),
                     ..Default::default()
                 },
-                ChildOf(flex_container),
+                ChildOf(red_box),
             ));
 
             // Flexアイテム2（緑、growで伸縮）
