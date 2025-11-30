@@ -71,11 +71,11 @@ classDiagram
     
     class BitmapSourceGraphics {
         -bitmap: Option~ID2D1Bitmap1~
-        -generation: u64
         +new() Self
         +bitmap() Option~&ID2D1Bitmap1~
-        +set_bitmap(bitmap, gen)
-        +needs_recreate(current_gen) bool
+        +set_bitmap(bitmap)
+        +invalidate()
+        +is_valid() bool
     }
     
     class WintfTaskPool {
@@ -171,13 +171,13 @@ sequenceDiagram
     
     Layout->>Draw: Arrangement changed or BitmapSourceResource changed
     Draw->>BSR: check exists
-    Draw->>BSG: check generation
-    alt needs_recreate
+    Draw->>BSG: check is_valid()
+    alt !is_valid() && source exists
         Draw->>GC: device_context()
         GC-->>Draw: &ID2D1DeviceContext
         Draw->>D2D: create_bitmap_from_wic_bitmap
         D2D-->>Draw: ID2D1Bitmap1
-        Draw->>BSG: set_bitmap(bitmap, gen)
+        Draw->>BSG: set_bitmap(bitmap)
     end
     Draw->>D2D: draw_bitmap at (0,0)
     Draw->>ECS: insert GraphicsCommandList
@@ -268,11 +268,14 @@ impl BitmapSourceResource {
 /// 
 /// BitmapSourceのon_add時にOption::Noneで作成され、
 /// BitmapSourceResourceが追加されたらD2D Bitmapを生成する。
+/// 
+/// # Device Lost対応
+/// 既存のVisualGraphics/SurfaceGraphicsと同じパターン:
+/// - invalidate_dependent_componentsシステムがDevice Lost時にinvalidate()を呼ぶ
+/// - 次フレームでis_valid() == falseを検出しBitmapを再生成
 #[derive(Component)]
 pub struct BitmapSourceGraphics {
     bitmap: Option<ID2D1Bitmap1>,
-    /// Device Lost検出用generation
-    generation: u64,
 }
 
 unsafe impl Send for BitmapSourceGraphics {}
@@ -281,10 +284,7 @@ unsafe impl Sync for BitmapSourceGraphics {}
 impl BitmapSourceGraphics {
     /// 空のBitmapSourceGraphicsを作成
     pub fn new() -> Self {
-        Self {
-            bitmap: None,
-            generation: 0,
-        }
+        Self { bitmap: None }
     }
     
     /// Bitmapへの参照を取得
@@ -293,14 +293,18 @@ impl BitmapSourceGraphics {
     }
     
     /// Bitmapを設定
-    pub fn set_bitmap(&mut self, bitmap: ID2D1Bitmap1, generation: u64) {
+    pub fn set_bitmap(&mut self, bitmap: ID2D1Bitmap1) {
         self.bitmap = Some(bitmap);
-        self.generation = generation;
     }
     
-    /// 再作成が必要か判定
-    pub fn needs_recreate(&self, current_generation: u64) -> bool {
-        self.bitmap.is_none() || self.generation != current_generation
+    /// Device Lost時にBitmapを無効化
+    pub fn invalidate(&mut self) {
+        self.bitmap = None;
+    }
+    
+    /// Bitmapが有効か判定
+    pub fn is_valid(&self) -> bool {
+        self.bitmap.is_some()
     }
 }
 ```
@@ -426,7 +430,7 @@ stateDiagram-v2
 |----------|---|------|
 | ファイルエラー | 不存在、権限なし | eprintln + BitmapSourceResource未生成 |
 | フォーマットエラー | 非対応形式、破損 | eprintln + BitmapSourceResource未生成 |
-| GPUエラー | Device Lost | generation比較で再生成 |
+| GPUエラー | Device Lost | invalidate_dependent_componentsで無効化、次フレームで再生成 |
 
 > **Note**: 元画像にαチャネルがない場合はエラーではなく、100%不透明として処理される。
 

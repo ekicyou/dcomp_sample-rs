@@ -79,7 +79,7 @@ BitmapSourceResource (Component) - CPU側
 
 BitmapSourceGraphics (Component) - GPU側
   └─ bitmap: Option<ID2D1Bitmap1>  // on_add時はNone
-  └─ generation: u64 (device lost対応)
+  └─ invalidate() + is_valid() (Device Lost対応)
 ```
 
 **Decision**: 
@@ -110,7 +110,7 @@ CommandSender = mpsc::Sender<BoxedCommand>
 |------------|--------------|
 | ファイル不存在 | BitmapSourceResource未生成 + eprintln |
 | フォーマット非対応 | BitmapSourceResource未生成 + eprintln |
-| Device Lost | BitmapSourceGraphics再生成（generation比較） |
+| Device Lost | invalidate_dependent_componentsで無効化→次フレームで再生成 |
 
 **Decision**: 
 - エラー時は「無表示 + ログ出力」方式
@@ -125,7 +125,7 @@ CommandSender = mpsc::Sender<BoxedCommand>
 | リスク | 影響度 | 軽減策 |
 |--------|--------|--------|
 | WIC Send/Sync | 中 | Thread-free marshaling確認済み |
-| Device Lost競合 | 低 | generation比較パターン |
+| Device Lost競合 | 低 | invalidate_dependent_componentsパターン |
 | 非同期タイミング | 低 | Input schedule drain |
 
 ### 5.2 Integration Risks
