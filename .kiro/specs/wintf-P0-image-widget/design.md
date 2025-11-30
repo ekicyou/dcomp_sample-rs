@@ -191,14 +191,15 @@ flowchart TD
     B -->|No| C[eprintln error]
     B -->|Yes| D{Decodable?}
     D -->|No| C
-    D -->|Yes| E{Has α-channel?}
-    E -->|No| C
-    E -->|Yes| F[Create BitmapSourceResource]
+    D -->|Yes| E[Convert to PBGRA32]
+    E --> F[Create BitmapSourceResource]
     F --> G[Insert to Entity]
     
     C --> H[No BitmapSourceResource]
     H --> I[Entity renders nothing]
 ```
+
+> **Note**: 元画像にαチャネルがない場合も、WIC FormatConverterでPBGRA32に変換され、100%不透明として扱われる。
 
 ---
 
@@ -425,8 +426,9 @@ stateDiagram-v2
 |----------|---|------|
 | ファイルエラー | 不存在、権限なし | eprintln + BitmapSourceResource未生成 |
 | フォーマットエラー | 非対応形式、破損 | eprintln + BitmapSourceResource未生成 |
-| αチャネルエラー | 32bppPBGRA変換失敗 | eprintln + BitmapSourceResource未生成 |
 | GPUエラー | Device Lost | generation比較で再生成 |
+
+> **Note**: 元画像にαチャネルがない場合はエラーではなく、100%不透明として処理される。
 
 ### 7.2 Error Messages
 
@@ -436,9 +438,6 @@ eprintln!("[BitmapSource] Failed to load '{}': file not found", path);
 
 // デコード失敗
 eprintln!("[BitmapSource] Failed to decode '{}': {:?}", path, error);
-
-// αチャネル変換失敗
-eprintln!("[BitmapSource] Failed to convert '{}' to PBGRA32: {:?}", path, error);
 
 // D2D bitmap作成失敗
 eprintln!("[draw_bitmap_sources] Failed to create D2D bitmap for Entity={}: {:?}", entity, error);
@@ -482,7 +481,8 @@ crates/wintf/tests/assets/
 ### 9.1 WIC Format Conversion
 
 ```rust
-// GUID_WICPixelFormat32bppPBGRA への変換（αチャネル必須）
+// GUID_WICPixelFormat32bppPBGRA への変換
+// 元画像にαチャネルがない場合も100%不透明として変換される
 let converter = wic_factory.create_format_converter()?;
 converter.init(
     &frame,

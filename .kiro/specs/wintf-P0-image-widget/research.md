@@ -110,10 +110,11 @@ CommandSender = mpsc::Sender<BoxedCommand>
 |------------|--------------|
 | ファイル不存在 | BitmapSourceResource未生成 + eprintln |
 | フォーマット非対応 | BitmapSourceResource未生成 + eprintln |
-| αチャネル欠落 | WIC読み込み時に拒否 + eprintln |
 | Device Lost | BitmapSourceGraphics再生成（generation比較） |
 
-**Decision**: エラー時は「無表示 + ログ出力」方式
+**Decision**: 
+- エラー時は「無表示 + ログ出力」方式
+- 元画像にαチャネルがない場合はエラーではなく、100%不透明として変換される
 
 ---
 
