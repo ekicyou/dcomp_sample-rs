@@ -517,7 +517,31 @@ fn drain_task_pool_commands(world: &mut World) {
 }
 ```
 
-### 9.3 on_add Hook Pattern
+### 9.3 Path Resolution (System-wide Policy)
+
+```rust
+/// パス解決: 実行ファイル基準
+///
+/// wintfシステム全体の思想として、相対パスは実行ファイルの
+/// ディレクトリを基準とする。カレントディレクトリは実行時に
+/// 変動する可能性があるため、使用しない。
+fn resolve_path(path: &str) -> std::io::Result<std::path::PathBuf> {
+    let path = std::path::Path::new(path);
+    
+    if path.is_absolute() {
+        Ok(path.to_path_buf())
+    } else {
+        // 実行ファイルのディレクトリを基準に解決
+        let exe_path = std::env::current_exe()?;
+        let exe_dir = exe_path.parent().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::NotFound, "exe directory not found")
+        })?;
+        Ok(exe_dir.join(path))
+    }
+}
+```
+
+### 9.4 on_add Hook Pattern
 
 ```rust
 fn on_bitmap_source_add(mut world: DeferredWorld, hook: HookContext) {
@@ -536,13 +560,22 @@ fn on_bitmap_source_add(mut world: DeferredWorld, hook: HookContext) {
         let path = world.get::<BitmapSource>(entity).unwrap().path.clone();
         
         task_pool.spawn(|tx| async move {
-            match load_bitmap_source_async(&path).await {
+            // パス解決: 実行ファイル基準
+            let resolved = match resolve_path(&path) {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("[BitmapSource] Failed to resolve path '{}': {:?}", path, e);
+                    return;
+                }
+            };
+            
+            match load_bitmap_source_async(&resolved).await {
                 Ok(source) => {
                     let cmd: BoxedCommand = Box::new(InsertBitmapSourceResource { entity, source });
                     let _ = tx.send(cmd);
                 }
                 Err(e) => {
-                    eprintln!("[BitmapSource] Failed to load '{}': {:?}", path, e);
+                    eprintln!("[BitmapSource] Failed to load '{}': {:?}", resolved.display(), e);
                 }
             }
         });

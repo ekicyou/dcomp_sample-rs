@@ -116,6 +116,14 @@ CommandSender = mpsc::Sender<BoxedCommand>
 - エラー時は「無表示 + ログ出力」方式
 - 元画像にαチャネルがない場合はエラーではなく、100%不透明として変換される
 
+### 4.4 Path Resolution (System-wide Policy)
+
+**Decision**:
+- 相対パスは**実行ファイルのディレクトリ**を基準に解決
+- カレントディレクトリは実行時に変動する可能性があるため使用しない
+- これはwintfシステム全体の共通思想として採用
+- `std::env::current_exe().parent()` + 相対パス で解決
+
 ---
 
 ## 5. Risk Assessment
