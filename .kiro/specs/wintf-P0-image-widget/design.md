@@ -475,10 +475,25 @@ eprintln!("[draw_bitmap_sources] Failed to create D2D bitmap for Entity={}: {:?}
 
 ```
 crates/wintf/tests/assets/
-├── test_rgba.png      # αチャネルあり
-├── test_rgb.png       # αチャネルなし（変換テスト）
-├── test_jpeg.jpg      # JPEG形式
-└── invalid.bin        # 不正フォーマット
+├── test_8x8_rgba.png      # 8x8, αチャネル付きグラデーション（左上透明→右下不透明）
+├── test_8x8_rgb.bmp       # 8x8, αチャネルなし（PBGRA32変換テスト）
+├── test_16x16_rgba.png    # 16x16, 半透明チェッカーパターン
+└── invalid.bin            # 不正バイナリ（エラーハンドリングテスト）
+```
+
+### 8.4 Test Path Resolution
+
+```rust
+/// テスト用アセットパス解決（CARGO_MANIFEST_DIR基準）
+/// 本番コードの実行ファイル基準とは異なる
+#[cfg(test)]
+fn test_asset_path(name: &str) -> std::path::PathBuf {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    std::path::PathBuf::from(manifest_dir)
+        .join("tests")
+        .join("assets")
+        .join(name)
+}
 ```
 
 ---
