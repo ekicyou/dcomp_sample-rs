@@ -140,7 +140,7 @@ sequenceDiagram
     participant App
     participant ECS as Bevy ECS
     participant Hook as on_bitmap_source_add
-    participant GC as GraphicsCore
+    participant WicCore as WicCore
     participant TP as WintfTaskPool
     participant WIC as WIC Factory
     participant Sys as drain_task_pool_commands
@@ -148,9 +148,9 @@ sequenceDiagram
     App->>ECS: spawn(BitmapSource { path })
     ECS->>Hook: on_add triggered
     Hook->>ECS: insert BitmapSourceGraphics (empty)
-    Hook->>GC: wic_factory().clone()
-    GC-->>Hook: IWICImagingFactory2
-    Hook->>TP: spawn async task (move wic_factory)
+    Hook->>WicCore: clone()
+    WicCore-->>Hook: WicCore (Clone)
+    Hook->>TP: spawn async task (move wic_core)
     Note over TP: Background thread
     TP->>WIC: CreateDecoderFromFilename
     WIC-->>TP: IWICBitmapSource (PBGRA32)
@@ -159,7 +159,6 @@ sequenceDiagram
     Note over Sys: Input schedule
     Sys->>TP: drain_and_apply()
     Sys->>ECS: InsertBitmapSourceResource.apply()
-```
 ```
 
 ### 4.2 BitmapSource Rendering Flow
@@ -486,34 +485,46 @@ crates/wintf/tests/assets/
 
 ## 9. Implementation Notes
 
-### 9.1 GraphicsCore Extension
+### 9.1 WicCore Resource (Independent from GraphicsCore)
 
 ```rust
-// GraphicsCoreInnerにWICファクトリを追加
-struct GraphicsCoreInner {
-    // ... existing fields ...
-    pub wic_factory: IWICImagingFactory2,
+use windows::Win32::Graphics::Imaging::*;
+use windows::Win32::System::Com::*;
+use windows::core::Result;
+use bevy_ecs::prelude::*;
+
+/// WIC関連リソース（Device Lostの影響を受けない）
+/// 
+/// WICはCPUベースのイメージ処理のため、GPUのDevice Lostとは独立。
+/// GraphicsCore.invalidate()時もWicCoreは有効なまま。
+#[derive(Resource, Clone)]
+pub struct WicCore {
+    factory: IWICImagingFactory2,
 }
 
-impl GraphicsCore {
+unsafe impl Send for WicCore {}
+unsafe impl Sync for WicCore {}
+
+impl WicCore {
+    /// WicCoreを作成
     pub fn new() -> Result<Self> {
-        // ... existing initialization ...
-        
-        // WICファクトリ作成
-        let wic_factory: IWICImagingFactory2 = unsafe {
+        let factory: IWICImagingFactory2 = unsafe {
             CoCreateInstance(&CLSID_WICImagingFactory2, None, CLSCTX_INPROC_SERVER)?
         };
-        
-        // ...
+        Ok(Self { factory })
     }
     
     /// WICファクトリへの参照を取得
-    /// COM interfaceはClone可能（参照カウント増加）
-    pub fn wic_factory(&self) -> Option<&IWICImagingFactory2> {
-        self.inner.as_ref().map(|i| &i.wic_factory)
+    pub fn factory(&self) -> &IWICImagingFactory2 {
+        &self.factory
     }
 }
 ```
+
+**設計理由**:
+- WICはCPUベース、D2D/D3D/DCompはGPUベース
+- Device Lost時にGraphicsCoreが無効化されても、WicCoreは影響を受けない
+- 責務分離: GPUグラフィックス vs CPU画像処理
 
 ### 9.2 WIC Format Conversion
 
@@ -588,17 +599,11 @@ fn on_bitmap_source_add(mut world: DeferredWorld, hook: HookContext) {
         ));
     }
     
-    // GraphicsCoreからWIC Factoryをcloneして取得
-    let wic_factory = match world.get_resource::<GraphicsCore>() {
-        Some(gc) => match gc.wic_factory() {
-            Some(wic) => wic.clone(),  // COM interfaceはClone可能（参照カウント）
-            None => {
-                eprintln!("[BitmapSource] GraphicsCore not valid");
-                return;
-            }
-        },
+    // WicCoreをcloneして取得（Device Lostと独立）
+    let wic_core = match world.get_resource::<WicCore>() {
+        Some(wic) => wic.clone(),  // Clone実装済み
         None => {
-            eprintln!("[BitmapSource] GraphicsCore not found");
+            eprintln!("[BitmapSource] WicCore not found");
             return;
         }
     };
@@ -607,7 +612,7 @@ fn on_bitmap_source_add(mut world: DeferredWorld, hook: HookContext) {
     if let Some(task_pool) = world.get_resource::<WintfTaskPool>() {
         let path = world.get::<BitmapSource>(entity).unwrap().path.clone();
         
-        // wic_factoryをmoveしてタスクに渡す
+        // wic_coreをmoveしてタスクに渡す
         task_pool.spawn(move |tx| async move {
             // パス解決: 実行ファイル基準
             let resolved = match resolve_path(&path) {
@@ -618,7 +623,7 @@ fn on_bitmap_source_add(mut world: DeferredWorld, hook: HookContext) {
                 }
             };
             
-            match load_bitmap_source(&wic_factory, &resolved) {
+            match load_bitmap_source(wic_core.factory(), &resolved) {
                 Ok(source) => {
                     let cmd: BoxedCommand = Box::new(InsertBitmapSourceResource { entity, source });
                     let _ = tx.send(cmd);

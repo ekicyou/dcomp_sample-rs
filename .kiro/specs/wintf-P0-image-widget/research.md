@@ -127,10 +127,10 @@ CommandSender = mpsc::Sender<BoxedCommand>
 ### 4.5 WIC Factory Management
 
 **Decision**:
-- WICファクトリは`GraphicsCore`に追加（`IWICImagingFactory2`）
-- 非同期タスク起動時に`.clone()`して`move`（COM参照カウント）
-- 毎回`CoCreateInstance`するオーバーヘッドを回避
-- GraphicsCore初期化時に一度だけ作成
+- WICファクトリは独立Resource `WicCore` として管理（GraphicsCoreとは分離）
+- `WicCore`は`Clone + Send + Sync`を実装
+- 非同期タスク起動時に`.clone()`して`move`
+- **理由**: WICはCPUベースでDevice Lostの影響を受けない。GraphicsCoreと分離することで、GPU Device Lost時もWIC処理を継続可能
 
 ---
 
