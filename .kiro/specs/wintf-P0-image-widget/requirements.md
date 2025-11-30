@@ -67,6 +67,8 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 3. **While** 画像読み込み中, **the** World **shall** 他の処理を継続できる
 4. **When** 非同期読み込みが完了した時, **the** Image widget **shall** ImageResourceコンポーネントを更新する
 5. **The** WintfTaskPool **shall** EcsWorldの初期化時にResourceとして初期化される
+6. **The** WintfTaskPool **shall** 非同期処理完了時に`std::sync::mpsc`チャンネル経由でCommandをWorldに送信する
+7. **The** WintfTaskPool **shall** Inputスケジュールで受信したCommandをドレインして適用する
 
 ---
 
