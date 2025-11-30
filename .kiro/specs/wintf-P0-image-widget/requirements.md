@@ -109,11 +109,13 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 1. **The** Image widget **shall** CreateBitmapFromWicBitmapを使用してWICからID2D1Bitmapを直接作成する
 2. **The** Image widget **shall** ImageGraphicsコンポーネントにID2D1Bitmapを保持する
 3. **When** ImageResourceが変更された時, **the** システム **shall** ImageGraphicsを自動的に更新する（Changed検知）
-4. **The** Image widget **shall** DrawBitmap を使用して画像を1:1（元サイズ）で描画する
-5. **The** Image widget **shall** デバイスロスト時にImageResourceからImageGraphicsを再作成できる
-6. **While** 描画中, **the** Image widget **shall** 他のウィジェットと同様にレイアウトシステムと統合される
+4. **The** Image widget **shall** BoxStyleからのレイアウト計算結果に従って描画する
+5. **The** Image widget **shall** 画像をOFFSET(0,0)からレイアウト指定サイズでクリッピングして描画する
+6. **The** Image widget **shall** 描画開始OFFSETや描画域RECTのパラメータを持たない（P1で対応）
+7. **The** Image widget **shall** デバイスロスト時にImageResourceからImageGraphicsを再作成できる
+8. **While** 描画中, **the** Image widget **shall** 他のウィジェットと同様にレイアウトシステムと統合される
 
-> **Note**: ストレッチモード、ソース矩形、補間モードは P1（wintf-P1-image-rendering）で対応予定
+> **Note**: ストレッチモード、ソース矩形、補間モード、描画開始OFFSETは P1（wintf-P1-image-rendering）で対応予定
 
 ---
 
@@ -126,8 +128,9 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 1. **The** Image widget **shall** ImageResource（CPUリソース）とImageGraphics（GPUリソース）の2コンポーネント構成で実装される
 2. **The** ImageResource **shall** WICオブジェクトを保持し、Send/Syncを実装する（WICはスレッドフリー）
 3. **The** ImageGraphics **shall** ID2D1Bitmapとgenerationフィールドでデバイスロストに対応する
-4. **The** Image widget **shall** 既存のレイアウトシステム（taffy）と統合される
-5. **The** Image widget **shall** Visual/Surface階層に正しく統合される
+4. **The** Image widget **shall** 画像サイズに関わらずレイアウトサイズを持つ（BoxStyleによる指定）
+5. **The** Image widget **shall** 既存のレイアウトシステム（taffy）と統合される
+6. **The** Image widget **shall** Visual/Surface階層に正しく統合される
 6. **When** エンティティが削除された時, **the** Image widget **shall** 関連リソース（WICオブジェクト、ID2D1Bitmap等）を正しく解放する
 7. **The** Image widget **shall** 他のウィジェット（Label、Rectangle）と同様のAPI設計を持つ
 
