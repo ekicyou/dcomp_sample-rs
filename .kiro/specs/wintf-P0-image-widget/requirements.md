@@ -13,7 +13,7 @@
 
 ## Introduction
 
-本仕様書は wintf フレームワークにおける Image ウィジェット機能の要件を定義する。親仕様「伺的デスクトップマスコットアプリ」の実装前提条件（P0）として、WIC画像読み込み、D2D描画、透過PNG対応、アニメーション画像（GIF/WebP）のフレーム再生機能を提供する。
+本仕様書は wintf フレームワークにおける Image ウィジェット機能の要件を定義する。親仕様「伺的デスクトップマスコットアプリ」の実装前提条件（P0）として、WIC画像読み込み、D2D描画、透過PNG対応機能を提供する。
 
 ### 背景
 
@@ -22,23 +22,24 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 ### スコープ
 
 **含まれるもの**:
-- WIC (Windows Imaging Component) による画像読み込み（Windows 11標準サポート形式）
+- WIC (Windows Imaging Component) による静止画像読み込み（Windows 11標準サポート形式）
 - Direct2D による画像描画
 - αチャンネル必須（透過処理が必須）
-- GIF/WebP アニメーション画像のフレーム抽出
-- タイマー駆動によるアニメーション再生
+- 非同期画像読み込み（WintfTaskPool）
 
-**含まれないもの**:
+**含まれないもの（将来対応）**:
+- GIF/WebP アニメーション画像のフレーム抽出・再生
+- 連番画像アニメーション
 - 画像の動的生成・編集
 - 画像フィルター・エフェクト
-- 画像キャッシュ管理（将来の最適化として検討）
+- 画像キャッシュ管理
 
 ### 親仕様からの要件マッピング
 
 本仕様は以下の親要件に対応する：
 - **Requirement 1.1**: デスクトップ上に透過背景を持つキャラクター画像を表示する
 - **Requirement 1.3**: 画像の透明部分を正しく透過処理して表示する
-- **Requirement 2.4**: フレームアニメーション（連番画像）を再生できる
+- **Requirement 2.4**: フレームアニメーション（連番画像）を再生できる **（将来対応）**
 
 ---
 
@@ -102,37 +103,7 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 
 ---
 
-### Requirement 5: アニメーション画像読み込み
-
-**Objective:** 開発者として、GIF/WebPアニメーション画像のフレームを抽出したい。それによりキャラクターのアイドルアニメーションを実現できる。
-
-#### Acceptance Criteria
-
-1. **The** Image widget **shall** アニメーションGIF画像を読み込める
-2. **The** Image widget **shall** アニメーションWebP画像を読み込める
-3. **The** Image widget **shall** アニメーション画像から個別フレームを抽出できる
-4. **The** Image widget **shall** 各フレームの表示時間（delay）を取得できる
-5. **When** 単一フレームの画像の場合, **the** Image widget **shall** 静止画像として扱う
-6. **When** アニメーション画像にαチャンネルがない場合, **the** Image widget **shall** 明確なエラーを返す
-
----
-
-### Requirement 6: アニメーション再生
-
-**Objective:** 開発者として、アニメーション画像を自動再生したい。それによりキャラクターが生き生きと動く。
-
-#### Acceptance Criteria
-
-1. **The** Image widget **shall** タイマー駆動でフレームを自動切り替えできる
-2. **The** Image widget **shall** アニメーションのループ再生をサポートする
-3. **When** アニメーションが開始された時, **the** Image widget **shall** フレーム間隔に従って自動的に次のフレームを表示する
-4. **The** Image widget **shall** アニメーションの再生/停止を制御できる
-5. **The** Image widget **shall** 現在のフレーム番号を取得・設定できる
-6. **While** アニメーション再生中, **the** Image widget **shall** 60fps以上の描画パフォーマンスを維持する
-
----
-
-### Requirement 7: ECS統合
+### Requirement 5: ECS統合
 
 **Objective:** 開発者として、Image ウィジェットをECSコンポーネントとして使用したい。それにより既存のwintfアーキテクチャと統合できる。
 
@@ -145,6 +116,19 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 5. **The** Image widget **shall** Visual/Surface階層に正しく統合される
 6. **When** エンティティが削除された時, **the** Image widget **shall** 関連リソース（WICオブジェクト、ID2D1Bitmap等）を正しく解放する
 7. **The** Image widget **shall** 他のウィジェット（Label、Rectangle）と同様のAPI設計を持つ
+
+---
+
+### Requirement 6: 将来拡張性（アニメーション対応）
+
+**Objective:** 開発者として、将来のアニメーション対応が容易な設計を確保したい。それにより「アニメーションできない設計」を回避できる。
+
+#### Acceptance Criteria
+
+1. **The** ImageResource **shall** 将来的にフレームカウントとフレーム遅延情報を追加できる設計とする
+2. **The** ImageResource **shall** WICデコーダー（IWICBitmapDecoder）を保持できる構造とする（アニメーションフレーム切り替え用）
+3. **The** ImageGraphics **shall** 現在フレームを動的に切り替えできる設計とする
+4. **The** Image widget **shall** 画像の動的差し替え（ImageResourceの変更）に対応できる設計とする
 
 ---
 
