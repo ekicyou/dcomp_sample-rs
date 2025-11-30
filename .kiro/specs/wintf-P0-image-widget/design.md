@@ -79,16 +79,21 @@ classDiagram
     
     class WintfTaskPool {
         -pool: TaskPool
-        -sender: Sender~ImageCommand~
-        -receiver: Receiver~ImageCommand~
-        +spawn(future)
-        +sender() &Sender
-        +drain() Vec~ImageCommand~
+        -sender: Sender~BoxedCommand~
+        -receiver: Receiver~BoxedCommand~
+        +spawn(f: FnOnce~CommandSender~ -> Future)
+        +drain_and_apply(world)
+    }
+    
+    class BoxedCommand {
+        <<type alias>>
+        Box~dyn Command + Send~
     }
     
     Image --> ImageResource : "async creates"
     ImageResource --> ImageGraphics : "D2D conversion"
     Image ..> WintfTaskPool : "uses for async"
+    WintfTaskPool --> BoxedCommand : "sends/receives"
 ```
 
 ### 2.3 Directory Structure
@@ -297,17 +302,34 @@ impl ImageGraphics {
 ### 5.4 WintfTaskPool Resource
 
 ```rust
+use bevy_ecs::world::Command;
+use std::sync::mpsc;
+
+/// Box化されたECSコマンド型
+pub type BoxedCommand = Box<dyn Command + Send>;
+/// コマンド送信用チャネル型
+pub type CommandSender = mpsc::Sender<BoxedCommand>;
+
 /// 非同期タスク実行用リソース
 /// 
 /// # Design
 /// - TaskPoolでバックグラウンド実行
-/// - mpsc channelでECS Commandへ変換
-/// - Input scheduleでdrain
+/// - mpsc channelでBox<dyn Command>をECSへ送信
+/// - Input scheduleでdrain_and_apply
+/// 
+/// # Example
+/// ```rust
+/// task_pool.spawn(|tx| async move {
+///     let result = some_async_work().await;
+///     let cmd: BoxedCommand = Box::new(MyCommand { result });
+///     let _ = tx.send(cmd);
+/// });
+/// ```
 #[derive(Resource)]
 pub struct WintfTaskPool {
     pool: TaskPool,
-    sender: mpsc::Sender<ImageCommand>,
-    receiver: mpsc::Receiver<ImageCommand>,
+    sender: mpsc::Sender<BoxedCommand>,
+    receiver: mpsc::Receiver<BoxedCommand>,
 }
 
 impl WintfTaskPool {
@@ -318,41 +340,42 @@ impl WintfTaskPool {
         Self { pool, sender, receiver }
     }
     
-    /// Senderのクローンを取得
-    pub fn sender(&self) -> mpsc::Sender<ImageCommand> {
-        self.sender.clone()
-    }
-    
-    /// 受信したコマンドをすべて取得
-    pub fn drain(&self) -> Vec<ImageCommand> {
-        self.receiver.try_iter().collect()
-    }
-    
-    /// 非同期タスクを生成
-    pub fn spawn<F>(&self, future: F)
+    /// 非同期タスクを生成（CommandSenderが自動で渡される）
+    pub fn spawn<F, Fut>(&self, f: F)
     where
-        F: Future<Output = ()> + Send + 'static,
+        F: FnOnce(CommandSender) -> Fut + Send + 'static,
+        Fut: Future<Output = ()> + Send,
     {
-        self.pool.spawn(future).detach();
+        let tx = self.sender.clone();
+        self.pool.spawn(async move {
+            f(tx).await;
+        }).detach();
+    }
+    
+    /// 受信したコマンドをすべてWorldに適用
+    pub fn drain_and_apply(&self, world: &mut World) {
+        for cmd in self.receiver.try_iter() {
+            cmd.apply(world);
+        }
     }
 }
 ```
 
-### 5.5 ImageCommand
+### 5.5 InsertImageResource Command
 
 ```rust
-/// 非同期完了後のECSコマンド
-pub enum ImageCommand {
-    /// 画像読み込み成功
-    Loaded {
-        entity: Entity,
-        source: IWICBitmapSource,
-    },
-    /// 画像読み込み失敗
-    Failed {
-        entity: Entity,
-        error: String,
-    },
+/// 画像読み込み完了時にImageResourceを挿入するCommand
+struct InsertImageResource {
+    entity: Entity,
+    source: IWICBitmapSource,
+}
+
+impl Command for InsertImageResource {
+    fn apply(self, world: &mut World) {
+        if let Some(mut entity_ref) = world.get_entity_mut(self.entity) {
+            entity_ref.insert(ImageResource::new(self.source));
+        }
+    }
 }
 ```
 
@@ -468,11 +491,20 @@ converter.init(
 ### 9.2 Schedule Integration
 
 ```rust
-// Input schedule での process_image_commands 登録
-app.add_systems(Input, process_image_commands);
+// Input schedule での drain_and_apply システム登録
+app.add_systems(Input, drain_task_pool_commands);
 
 // PostLayout schedule での draw_images 登録
 app.add_systems(PostLayout, draw_images.after(calculate_arrangement));
+
+/// WintfTaskPoolからコマンドをドレインしてWorldに適用
+fn drain_task_pool_commands(world: &mut World) {
+    // ResourceをWorldから一時的に取り出して処理
+    if let Some(task_pool) = world.remove_resource::<WintfTaskPool>() {
+        task_pool.drain_and_apply(world);
+        world.insert_resource(task_pool);
+    }
+}
 ```
 
 ### 9.3 on_add Hook Pattern
@@ -489,19 +521,15 @@ fn on_image_add(mut world: DeferredWorld, hook: HookContext) {
     if let Some(task_pool) = world.get_resource::<WintfTaskPool>() {
         let path = world.get::<Image>(hook.entity).unwrap().path.clone();
         let entity = hook.entity;
-        let sender = task_pool.sender();
         
-        task_pool.spawn(async move {
+        task_pool.spawn(|tx| async move {
             match load_image_async(&path).await {
                 Ok(source) => {
-                    let _ = sender.send(ImageCommand::Loaded { entity, source });
+                    let cmd: BoxedCommand = Box::new(InsertImageResource { entity, source });
+                    let _ = tx.send(cmd);
                 }
                 Err(e) => {
                     eprintln!("[Image] Failed to load '{}': {:?}", path, e);
-                    let _ = sender.send(ImageCommand::Failed { 
-                        entity, 
-                        error: e.to_string() 
-                    });
                 }
             }
         });

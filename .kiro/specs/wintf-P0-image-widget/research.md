@@ -89,11 +89,17 @@ ImageGraphics (Component) - GPU側
 ```
 WintfTaskPool (Resource)
   └─ pool: TaskPool
-  └─ sender: mpsc::Sender<ImageCommand>
-  └─ receiver: mpsc::Receiver<ImageCommand>
+  └─ sender: mpsc::Sender<BoxedCommand>
+  └─ receiver: mpsc::Receiver<BoxedCommand>
+
+BoxedCommand = Box<dyn Command + Send>
+CommandSender = mpsc::Sender<BoxedCommand>
 ```
 
-**Decision**: `std::sync::mpsc` を使用し、Input scheduleで `drain` してCommandを発行
+**Decision**: 
+- `Box<dyn Command + Send>` で汎用化（ImageCommand enum廃止）
+- `spawn(|tx| async move { ... })` 形式でCommandSenderを自動渡し
+- 将来の他の非同期処理（TextLayout等）も同じパターンで対応可能
 
 ### 4.3 Error Handling
 
