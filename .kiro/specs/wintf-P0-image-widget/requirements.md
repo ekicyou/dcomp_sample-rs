@@ -34,6 +34,12 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 - 画像フィルター・エフェクト
 - 画像キャッシュ管理
 
+### 設計原則
+
+- **1ウィジェット = 1画像ファイル**: Imageウィジェットは単一の画像ファイルのみを担当する
+- **組み合わせによる拡張**: 連番画像アニメーションやレイヤー合成は、複数のImageウィジェットを組み合わせて実現する
+- **Single Responsibility**: 各ウィジェットは単一の責務のみを持つ
+
 ### 親仕様からの要件マッピング
 
 本仕様は以下の親要件に対応する：
@@ -65,13 +71,14 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 
 #### Acceptance Criteria
 
-1. **The** Image widget **shall** WICを使用してWindows 11標準でサポートされる画像形式を読み込める（PNG, TIFF, BMP, GIF, JPEG XR, ICO, WebP等）
-2. **The** Image widget **shall** アルファチャンネルを持つ画像のみをサポートする
-3. **The** Image widget **shall** WICオブジェクト（IWICBitmapSource）をImageResourceコンポーネントに保持する
-4. **The** Image widget **shall** BGRAへの展開を行わず、WICからD2Dへの直接パスを使用する
-5. **When** 画像にアルファチャンネルがない場合, **the** Image widget **shall** 明確なエラーを返す
-6. **When** 画像ファイルが存在しない場合, **the** Image widget **shall** 明確なエラーを返す
-7. **When** WICでデコードできない形式の場合, **the** Image widget **shall** 明確なエラーを返す
+1. **The** Image widget **shall** 1つの画像ファイルのみを担当する（連番画像や組み合わせはウィジェットの組み合わせで実現）
+2. **The** Image widget **shall** WICを使用してWindows 11標準でサポートされる画像形式を読み込める（PNG, TIFF, BMP, GIF, JPEG XR, ICO, WebP等）
+3. **The** Image widget **shall** アルファチャンネルを持つ画像のみをサポートする
+4. **The** Image widget **shall** WICオブジェクト（IWICBitmapSource）をImageResourceコンポーネントに保持する
+5. **The** Image widget **shall** BGRAへの展開を行わず、WICからD2Dへの直接パスを使用する
+6. **When** 画像にアルファチャンネルがない場合, **the** Image widget **shall** 明確なエラーを返す
+7. **When** 画像ファイルが存在しない場合, **the** Image widget **shall** 明確なエラーを返す
+8. **When** WICでデコードできない形式の場合, **the** Image widget **shall** 明確なエラーを返す
 
 ---
 
