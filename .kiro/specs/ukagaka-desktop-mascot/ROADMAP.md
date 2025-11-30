@@ -1,18 +1,19 @@
 # ROADMAP - ukagaka-desktop-mascot
 
-> 最終更新: 2025-11-29
+> 最終更新: 2025-11-30
 
 ---
 
 ## Current Focus
 
-🎯 **現在取り組むべき仕様**: Tier 0 基盤仕様から選定
+🎯 **現在取り組むべき仕様**: Tier 0 残り2仕様 または Tier 1 解放済み仕様
 
 ### 推奨: 次のアクション
-1. Tier 0 仕様（image-widget / event-system / typewriter）から1つ選定
-2. 選定した仕様の要件承認 → 設計 → タスク → 実装
+1. Tier 0 残り（event-system / typewriter）から1つ選定
+2. または Tier 1 の animation-system（image-widget 完了で解放済み）
+3. 選定した仕様の要件承認 → 設計 → タスク → 実装
 
-**並行実行可能**: Tier 0 の3仕様は相互依存がないため、並行して進められます
+**並行実行可能**: Tier 0 の2仕様は相互依存がないため、並行して進められます
 
 ---
 
@@ -20,9 +21,9 @@
 
 | Status | Count | 割合 |
 |--------|-------|------|
-| 🟢 Completed | 1 | 3% |
+| 🟢 Completed | 2 | 6% |
 | 🔵 In Progress | 0 | 0% |
-| ⚪ Not Started | 31 | 97% |
+| ⚪ Not Started | 30 | 94% |
 | **Total** | **32** | 100% |
 
 ---
@@ -74,10 +75,10 @@ graph TB
 
 | Tier | Spec | Phase | Parallel | Dependencies |
 |------|------|-------|----------|--------------|
-| 0 | `wintf-P0-image-widget` | ⚪ requirements-draft | ○ | - |
+| 0 | `wintf-P0-image-widget` | 🟢 completed | ○ | - |
 | 0 | `wintf-P0-event-system` | ⚪ requirements-draft | ○ | - |
 | 0 | `wintf-P0-typewriter` | ⚪ requirements-draft | ○ | - |
-| 1 | `wintf-P0-animation-system` | ⚪ requirements-draft | ○ | image-widget |
+| 1 | `wintf-P0-animation-system` | ⚪ requirements-draft | ○ | ✅ image-widget |
 | 1 | `wintf-P0-balloon-system` | ⚪ requirements-draft | ○ | typewriter |
 | 1 | `areka-P0-window-placement` | ⚪ requirements-draft | ○ | event-system |
 | 2 | `areka-P0-script-engine` | ⚪ requirements-draft | - | animation, balloon |
@@ -159,6 +160,7 @@ graph TB
 
 | Date | Update |
 |------|--------|
+| 2025-11-30 | **wintf-P0-image-widget 完了** - BitmapSource実装、completed/ へ移動 |
 | 2025-11-29 | wintf-P1-image-rendering を P1 backlog に追加（P0 image-widget から分離） |
 | 2025-11-29 | kiro-P0-roadmap-management 完了、P1-P3 を backlog に移動 |
 | 2025-11-29 | 初版作成（32子仕様、全 requirements-draft） |
