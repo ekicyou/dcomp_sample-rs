@@ -140,6 +140,7 @@ sequenceDiagram
     participant App
     participant ECS as Bevy ECS
     participant Hook as on_bitmap_source_add
+    participant GC as GraphicsCore
     participant TP as WintfTaskPool
     participant WIC as WIC Factory
     participant Sys as drain_task_pool_commands
@@ -147,7 +148,9 @@ sequenceDiagram
     App->>ECS: spawn(BitmapSource { path })
     ECS->>Hook: on_add triggered
     Hook->>ECS: insert BitmapSourceGraphics (empty)
-    Hook->>TP: spawn async task
+    Hook->>GC: wic_factory().clone()
+    GC-->>Hook: IWICImagingFactory2
+    Hook->>TP: spawn async task (move wic_factory)
     Note over TP: Background thread
     TP->>WIC: CreateDecoderFromFilename
     WIC-->>TP: IWICBitmapSource (PBGRA32)
@@ -156,6 +159,7 @@ sequenceDiagram
     Note over Sys: Input schedule
     Sys->>TP: drain_and_apply()
     Sys->>ECS: InsertBitmapSourceResource.apply()
+```
 ```
 
 ### 4.2 BitmapSource Rendering Flow
@@ -482,7 +486,36 @@ crates/wintf/tests/assets/
 
 ## 9. Implementation Notes
 
-### 9.1 WIC Format Conversion
+### 9.1 GraphicsCore Extension
+
+```rust
+// GraphicsCoreInnerにWICファクトリを追加
+struct GraphicsCoreInner {
+    // ... existing fields ...
+    pub wic_factory: IWICImagingFactory2,
+}
+
+impl GraphicsCore {
+    pub fn new() -> Result<Self> {
+        // ... existing initialization ...
+        
+        // WICファクトリ作成
+        let wic_factory: IWICImagingFactory2 = unsafe {
+            CoCreateInstance(&CLSID_WICImagingFactory2, None, CLSCTX_INPROC_SERVER)?
+        };
+        
+        // ...
+    }
+    
+    /// WICファクトリへの参照を取得
+    /// COM interfaceはClone可能（参照カウント増加）
+    pub fn wic_factory(&self) -> Option<&IWICImagingFactory2> {
+        self.inner.as_ref().map(|i| &i.wic_factory)
+    }
+}
+```
+
+### 9.2 WIC Format Conversion
 
 ```rust
 // GUID_WICPixelFormat32bppPBGRA への変換
@@ -498,7 +531,7 @@ converter.init(
 )?;
 ```
 
-### 9.2 Schedule Integration
+### 9.3 Schedule Integration
 
 ```rust
 // Input schedule での drain_and_apply システム登録
@@ -517,7 +550,7 @@ fn drain_task_pool_commands(world: &mut World) {
 }
 ```
 
-### 9.3 Path Resolution (System-wide Policy)
+### 9.4 Path Resolution (System-wide Policy)
 
 ```rust
 /// パス解決: 実行ファイル基準
@@ -541,7 +574,7 @@ fn resolve_path(path: &str) -> std::io::Result<std::path::PathBuf> {
 }
 ```
 
-### 9.4 on_add Hook Pattern
+### 9.5 on_add Hook Pattern
 
 ```rust
 fn on_bitmap_source_add(mut world: DeferredWorld, hook: HookContext) {
@@ -555,11 +588,27 @@ fn on_bitmap_source_add(mut world: DeferredWorld, hook: HookContext) {
         ));
     }
     
+    // GraphicsCoreからWIC Factoryをcloneして取得
+    let wic_factory = match world.get_resource::<GraphicsCore>() {
+        Some(gc) => match gc.wic_factory() {
+            Some(wic) => wic.clone(),  // COM interfaceはClone可能（参照カウント）
+            None => {
+                eprintln!("[BitmapSource] GraphicsCore not valid");
+                return;
+            }
+        },
+        None => {
+            eprintln!("[BitmapSource] GraphicsCore not found");
+            return;
+        }
+    };
+    
     // 非同期読み込みタスク起動
     if let Some(task_pool) = world.get_resource::<WintfTaskPool>() {
         let path = world.get::<BitmapSource>(entity).unwrap().path.clone();
         
-        task_pool.spawn(|tx| async move {
+        // wic_factoryをmoveしてタスクに渡す
+        task_pool.spawn(move |tx| async move {
             // パス解決: 実行ファイル基準
             let resolved = match resolve_path(&path) {
                 Ok(p) => p,
@@ -569,7 +618,7 @@ fn on_bitmap_source_add(mut world: DeferredWorld, hook: HookContext) {
                 }
             };
             
-            match load_bitmap_source_async(&resolved).await {
+            match load_bitmap_source(&wic_factory, &resolved) {
                 Ok(source) => {
                     let cmd: BoxedCommand = Box::new(InsertBitmapSourceResource { entity, source });
                     let _ = tx.send(cmd);

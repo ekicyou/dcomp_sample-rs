@@ -124,6 +124,14 @@ CommandSender = mpsc::Sender<BoxedCommand>
 - これはwintfシステム全体の共通思想として採用
 - `std::env::current_exe().parent()` + 相対パス で解決
 
+### 4.5 WIC Factory Management
+
+**Decision**:
+- WICファクトリは`GraphicsCore`に追加（`IWICImagingFactory2`）
+- 非同期タスク起動時に`.clone()`して`move`（COM参照カウント）
+- 毎回`CoCreateInstance`するオーバーヘッドを回避
+- GraphicsCore初期化時に一度だけ作成
+
 ---
 
 ## 5. Risk Assessment
