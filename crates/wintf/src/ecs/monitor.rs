@@ -18,13 +18,14 @@
 //! // 全モニターを列挙
 //! let monitors = enumerate_monitors();
 //! for monitor in monitors {
-//!     println!("Monitor: {:?}, DPI: {}, Primary: {}", 
+//!     println!("Monitor: {:?}, DPI: {}, Primary: {}",
 //!              monitor.bounds, monitor.dpi, monitor.is_primary);
 //! }
 //! ```
 
 use bevy_ecs::prelude::*;
 use std::fmt;
+use tracing::warn;
 use windows::Win32::Foundation::{LPARAM, RECT};
 use windows::Win32::Graphics::Gdi::{
     EnumDisplayMonitors, GetMonitorInfoW, HMONITOR, MONITORINFOEXW,
@@ -90,10 +91,8 @@ impl Monitor {
             let mut monitor_info: MONITORINFOEXW = std::mem::zeroed();
             monitor_info.monitorInfo.cbSize = std::mem::size_of::<MONITORINFOEXW>() as u32;
 
-            let success = GetMonitorInfoW(
-                hmonitor,
-                &mut monitor_info.monitorInfo as *mut _ as *mut _,
-            );
+            let success =
+                GetMonitorInfoW(hmonitor, &mut monitor_info.monitorInfo as *mut _ as *mut _);
             if !success.as_bool() {
                 return Err(MonitorError::GetMonitorInfoFailed);
             }
@@ -163,7 +162,7 @@ pub fn enumerate_monitors() -> Vec<Monitor> {
             if let Ok(monitor) = Monitor::from_hmonitor(hmonitor) {
                 monitors.push(monitor);
             } else {
-                eprintln!("[enumerate_monitors] Failed to get monitor info for HMONITOR={:?}", hmonitor);
+                warn!(hmonitor = ?hmonitor, "Failed to get monitor info");
             }
             BOOL(1)
         }
@@ -172,7 +171,7 @@ pub fn enumerate_monitors() -> Vec<Monitor> {
         let result = EnumDisplayMonitors(None, None, Some(enum_proc), LPARAM(monitors_ptr));
 
         if !result.as_bool() {
-            eprintln!("[enumerate_monitors] EnumDisplayMonitors failed");
+            warn!("EnumDisplayMonitors failed");
             return Vec::new();
         }
     }

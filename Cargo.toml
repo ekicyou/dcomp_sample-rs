@@ -22,6 +22,8 @@ taffy = "0.9.1"
 nonmax = "0.5.5"
 bevy_tasks = "0.17.2"
 bevy_utils = "0.17.2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [workspace.dependencies.bevy_app]
 version = "0.17.2"

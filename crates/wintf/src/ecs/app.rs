@@ -1,6 +1,7 @@
 //! アプリケーション全体の状態を管理するリソース
 
 use bevy_ecs::prelude::*;
+use tracing::{debug, info};
 use windows::Win32::{
     Foundation::{HWND, LPARAM, WPARAM},
     UI::WindowsAndMessaging::PostMessageW,
@@ -38,7 +39,7 @@ impl App {
     /// ディスプレイ構成が変更されたことをマーク
     pub fn mark_display_change(&mut self) {
         self.display_configuration_changed = true;
-        eprintln!("[App] Display configuration changed");
+        info!("[App] Display configuration changed");
     }
 
     /// ディスプレイ構成変更フラグをリセット
@@ -54,9 +55,10 @@ impl App {
     /// ウィンドウが作成されたときに呼ばれる
     pub fn on_window_created(&mut self, entity: Entity) {
         self.window_count += 1;
-        eprintln!(
-            "[App] Window created. Entity: {:?}, Total windows: {}",
-            entity, self.window_count
+        debug!(
+            entity = ?entity,
+            total_windows = self.window_count,
+            "[App] Window created"
         );
     }
 
@@ -64,13 +66,14 @@ impl App {
     /// 最後のウィンドウが閉じられた場合はtrueを返す
     pub fn on_window_destroyed(&mut self, entity: Entity) -> bool {
         self.window_count = self.window_count.saturating_sub(1);
-        eprintln!(
-            "[App] Window destroyed. Entity: {:?}, Remaining windows: {}",
-            entity, self.window_count
+        debug!(
+            entity = ?entity,
+            remaining_windows = self.window_count,
+            "[App] Window destroyed"
         );
 
         if self.window_count == 0 {
-            eprintln!("[App] Last window closed. Quitting application...");
+            info!("[App] Last window closed. Quitting application...");
             if let Some(hwnd_raw) = self.message_window {
                 unsafe {
                     let _ = PostMessageW(

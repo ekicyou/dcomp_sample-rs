@@ -6,6 +6,7 @@ use std::sync::mpsc::channel;
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
+use tracing_subscriber::EnvFilter;
 use windows::core::Result;
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use wintf::ecs::layout::{
@@ -40,6 +41,15 @@ pub struct BlueBox;
 
 fn main() -> Result<()> {
     human_panic::setup_panic!();
+
+    // tracing-subscriber 初期化
+    // RUST_LOG環境変数で制御: 例 RUST_LOG=wintf=debug,info
+    // 環境変数未設定時はデフォルトでinfoレベル
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .init();
 
     let mgr = WinThreadMgr::new()?;
     let world = mgr.world();

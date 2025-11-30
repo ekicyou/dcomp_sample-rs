@@ -5,6 +5,7 @@
 use crate::win_message_handler::*;
 use std::ffi::c_void;
 use std::sync::*;
+use tracing::{debug, info};
 use windows::Win32::{Foundation::*, UI::WindowsAndMessaging::*};
 
 pub(crate) trait WinMessageHandlerIntoBoxedPtr {
@@ -54,7 +55,7 @@ pub(crate) extern "system" fn wndproc(
     let rc = unsafe {
         match message {
             WM_NCCREATE => {
-                eprintln!("WM_NCCREATE");
+                debug!(hwnd = ?hwnd, "WM_NCCREATE");
                 let cs = lparam.0 as *const CREATESTRUCTW;
                 if cs.is_null() {
                     return LRESULT(0);
@@ -67,7 +68,7 @@ pub(crate) extern "system" fn wndproc(
                 LRESULT(1)
             }
             WM_NCDESTROY => {
-                eprintln!("WM_NCDESTROY");
+                debug!(hwnd = ?hwnd, "WM_NCDESTROY");
                 let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as _;
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
                 let _ = from_boxed_ptr(ptr);
@@ -75,7 +76,7 @@ pub(crate) extern "system" fn wndproc(
             }
             crate::win_thread_mgr::WM_LAST_WINDOW_DESTROYED => {
                 // 最後のウィンドウが閉じられた通知を受け取ったらアプリケーションを終了
-                eprintln!("[WinProc] Received WM_LAST_WINDOW_DESTROYED, posting quit message");
+                info!("Received WM_LAST_WINDOW_DESTROYED, posting quit message");
                 PostQuitMessage(0);
                 LRESULT(0)
             }

@@ -4,6 +4,7 @@ use bevy_ecs::system::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
+use tracing::trace;
 use windows::Win32::Foundation::HWND;
 
 // ============================================================
@@ -415,12 +416,12 @@ impl EcsWorld {
             if elapsed.as_secs() >= 10 {
                 let fps = self.frame_count as f64 / elapsed.as_secs_f64();
                 let avg_frame_time = elapsed.as_secs_f64() * 1000.0 / self.frame_count as f64;
-                eprintln!(
-                    "[ECS] Frame rate: {:.2} fps ({} frames in {:.2}s, avg {:.2}ms/frame)",
+                trace!(
                     fps,
-                    self.frame_count,
-                    elapsed.as_secs_f64(),
-                    avg_frame_time
+                    frame_count = self.frame_count,
+                    elapsed_secs = format_args!("{:.2}", elapsed.as_secs_f64()),
+                    avg_frame_time_ms = format_args!("{:.2}", avg_frame_time),
+                    "Frame rate measurement"
                 );
                 self.frame_count = 0;
                 self.last_log_time = Some(now);

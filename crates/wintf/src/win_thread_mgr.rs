@@ -12,6 +12,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::*;
 use std::thread;
 use std::time::Instant;
+use tracing::{debug, info, trace};
 use windows::core::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Dwm::*;
@@ -152,7 +153,7 @@ impl WinThreadMgrInner {
         let boxed_ptr = handler.into_boxed_ptr();
 
         unsafe {
-            eprintln!("Window creation...");
+            debug!("Window creation...");
             let rc = CreateWindowExW(
                 style.ex_style,
                 singleton.window_class_name(),
@@ -167,7 +168,7 @@ impl WinThreadMgrInner {
                 None,
                 Some(boxed_ptr),
             );
-            eprintln!("Window created {:?}", rc);
+            debug!(hwnd = ?rc, "Window created");
             rc
         }
     }
@@ -207,15 +208,23 @@ impl WinThreadMgrInner {
                     {
                         let wndproc_tick = DEBUG_WNDPROC_TICK_COUNT.swap(0, Ordering::Relaxed);
                         let run_tick = DEBUG_RUN_TICK_COUNT.swap(0, Ordering::Relaxed);
-                        eprintln!(
-                            "[STATS] loop={}, vsync={}, other_msg={}, no_msg={}, tick(wndproc={}, run={})",
-                            loop_count, vsync_count, other_msg_count, no_msg_count, wndproc_tick, run_tick
+                        trace!(
+                            loop_count,
+                            vsync_count,
+                            other_msg_count,
+                            no_msg_count,
+                            wndproc_tick,
+                            run_tick,
+                            "Message loop stats"
                         );
                     }
                     #[cfg(not(debug_assertions))]
-                    eprintln!(
-                        "[STATS] loop={}, vsync={}, other_msg={}, no_msg={}",
-                        loop_count, vsync_count, other_msg_count, no_msg_count
+                    trace!(
+                        loop_count,
+                        vsync_count,
+                        other_msg_count,
+                        no_msg_count,
+                        "Message loop stats"
                     );
                     last_stats_time = now;
                 }
@@ -251,7 +260,7 @@ impl WinThreadMgrInner {
 
                     // WM_LAST_WINDOW_DESTROYEDメッセージでアプリ終了
                     if msg.message == WM_LAST_WINDOW_DESTROYED {
-                        eprintln!("[WinThreadMgr] WM_LAST_WINDOW_DESTROYED received. Calling PostQuitMessage(0).");
+                        info!("WM_LAST_WINDOW_DESTROYED received, calling PostQuitMessage(0)");
                         PostQuitMessage(0);
                         continue;
                     }
@@ -263,9 +272,10 @@ impl WinThreadMgrInner {
 
                     // デバッグ: WM_USER ベースのメッセージを監視
                     if msg.message >= 0x0400 && msg.message <= 0x040F {
-                        eprintln!(
-                            "[MessageLoop] WM_USER range message: msg=0x{:04X}, hwnd={:?}",
-                            msg.message, msg.hwnd
+                        trace!(
+                            msg = format_args!("0x{:04X}", msg.message),
+                            hwnd = ?msg.hwnd,
+                            "WM_USER range message"
                         );
                     }
 

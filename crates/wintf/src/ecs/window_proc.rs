@@ -1,4 +1,5 @@
 use bevy_ecs::prelude::*;
+use tracing::{debug, trace, warn};
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -119,10 +120,13 @@ pub extern "system" fn ecs_wndproc(
                                         {
                                             let old_dpi = *dpi_comp;
                                             *dpi_comp = ctx.new_dpi;
-                                            eprintln!(
-                                                "[WM_WINDOWPOSCHANGED] Entity {:?}: DPI updated from ({}, {}) to ({}, {}) via DpiChangeContext",
-                                                entity, old_dpi.dpi_x, old_dpi.dpi_y,
-                                                ctx.new_dpi.dpi_x, ctx.new_dpi.dpi_y
+                                            trace!(
+                                                entity = ?entity,
+                                                old_dpi_x = old_dpi.dpi_x,
+                                                old_dpi_y = old_dpi.dpi_y,
+                                                new_dpi_x = ctx.new_dpi.dpi_x,
+                                                new_dpi_y = ctx.new_dpi.dpi_y,
+                                                "DPI updated via DpiChangeContext"
                                             );
                                         }
                                         ctx.new_dpi
@@ -140,9 +144,9 @@ pub extern "system" fn ecs_wndproc(
                                         entity_ref.get_mut::<crate::ecs::window::WindowPosChanged>()
                                     {
                                         wpc.0 = true;
-                                        eprintln!(
-                                            "[WM_WINDOWPOSCHANGED] Entity {:?}: WindowPosChanged set to true",
-                                            entity
+                                        trace!(
+                                            entity = ?entity,
+                                            "WindowPosChanged set to true"
                                         );
                                     }
 
@@ -169,10 +173,17 @@ pub extern "system" fn ecs_wndproc(
                                             window_pos.last_sent_size =
                                                 Some((client_size.cx, client_size.cy));
 
-                                            eprintln!(
-                                                "[WM_WINDOWPOSCHANGED] Entity {:?}: WindowPos updated. window=({},{},{},{}) -> client=({},{},{},{})",
-                                                entity, wp.x, wp.y, wp.cx, wp.cy,
-                                                client_pos.x, client_pos.y, client_size.cx, client_size.cy
+                                            trace!(
+                                                entity = ?entity,
+                                                window_x = wp.x,
+                                                window_y = wp.y,
+                                                window_cx = wp.cx,
+                                                window_cy = wp.cy,
+                                                client_x = client_pos.x,
+                                                client_y = client_pos.y,
+                                                client_cx = client_size.cx,
+                                                client_cy = client_size.cy,
+                                                "WindowPos updated"
                                             );
                                         }
 
@@ -207,11 +218,19 @@ pub extern "system" fn ecs_wndproc(
                                                 bottom: LengthPercentageAuto::Auto,
                                             }));
 
-                                            eprintln!(
-                                                "[WM_WINDOWPOSCHANGED] Entity {:?}: BoxStyle updated (DIP). physical=({},{},{},{}) -> logical=({:.1},{:.1},{:.1},{:.1}), scale=({:.2},{:.2})",
-                                                entity, client_pos.x, client_pos.y, client_size.cx, client_size.cy,
-                                                logical_x, logical_y, logical_width, logical_height,
-                                                dpi.scale_x(), dpi.scale_y()
+                                            trace!(
+                                                entity = ?entity,
+                                                physical_x = client_pos.x,
+                                                physical_y = client_pos.y,
+                                                physical_cx = client_size.cx,
+                                                physical_cy = client_size.cy,
+                                                logical_x = format_args!("{:.1}", logical_x),
+                                                logical_y = format_args!("{:.1}", logical_y),
+                                                logical_width = format_args!("{:.1}", logical_width),
+                                                logical_height = format_args!("{:.1}", logical_height),
+                                                scale_x = format_args!("{:.2}", dpi.scale_x()),
+                                                scale_y = format_args!("{:.2}", dpi.scale_y()),
+                                                "BoxStyle updated (DIP)"
                                             );
                                         }
                                     }
@@ -245,9 +264,9 @@ pub extern "system" fn ecs_wndproc(
                                     entity_ref.get_mut::<crate::ecs::window::WindowPosChanged>()
                                 {
                                     wpc.0 = false;
-                                    eprintln!(
-                                        "[WM_WINDOWPOSCHANGED] Entity {:?}: WindowPosChanged reset to false",
-                                        entity
+                                    trace!(
+                                        entity = ?entity,
+                                        "WindowPosChanged reset to false"
                                     );
                                 }
                             }
@@ -285,17 +304,17 @@ pub extern "system" fn ecs_wndproc(
                     RECT::default()
                 };
 
-                eprintln!(
-                    "[WM_DPICHANGED] hwnd {:?}: dpi=({}, {}), scale=({:.2}, {:.2}), suggested_rect=({},{},{},{})",
-                    hwnd,
-                    new_dpi.dpi_x,
-                    new_dpi.dpi_y,
-                    new_dpi.scale_x(),
-                    new_dpi.scale_y(),
-                    suggested_rect.left,
-                    suggested_rect.top,
-                    suggested_rect.right,
-                    suggested_rect.bottom
+                debug!(
+                    hwnd = ?hwnd,
+                    dpi_x = new_dpi.dpi_x,
+                    dpi_y = new_dpi.dpi_y,
+                    scale_x = format_args!("{:.2}", new_dpi.scale_x()),
+                    scale_y = format_args!("{:.2}", new_dpi.scale_y()),
+                    suggested_left = suggested_rect.left,
+                    suggested_top = suggested_rect.top,
+                    suggested_right = suggested_rect.right,
+                    suggested_bottom = suggested_rect.bottom,
+                    "WM_DPICHANGED"
                 );
 
                 // DpiChangeContextをスレッドローカルに保存
@@ -309,9 +328,13 @@ pub extern "system" fn ecs_wndproc(
                 // これによりWM_WINDOWPOSCHANGEDが同期的に発火し、DpiChangeContextを消費する
                 let width = suggested_rect.right - suggested_rect.left;
                 let height = suggested_rect.bottom - suggested_rect.top;
-                eprintln!(
-                    "[WM_DPICHANGED] Calling SetWindowPos with suggested_rect: pos=({},{}), size=({},{})",
-                    suggested_rect.left, suggested_rect.top, width, height
+                trace!(
+                    hwnd = ?hwnd,
+                    x = suggested_rect.left,
+                    y = suggested_rect.top,
+                    width,
+                    height,
+                    "Calling SetWindowPos with suggested_rect"
                 );
                 let result = SetWindowPos(
                     hwnd,
@@ -323,7 +346,7 @@ pub extern "system" fn ecs_wndproc(
                     SWP_NOZORDER | SWP_NOACTIVATE,
                 );
                 if let Err(e) = result {
-                    eprintln!("[WM_DPICHANGED] SetWindowPos failed: {:?}", e);
+                    warn!(hwnd = ?hwnd, error = ?e, "SetWindowPos failed in WM_DPICHANGED");
                 }
 
                 LRESULT(0)
@@ -331,9 +354,10 @@ pub extern "system" fn ecs_wndproc(
             crate::win_thread_mgr::WM_DPICHANGED_DEFERRED => {
                 // 非推奨: REQ-010により廃止予定
                 // 互換性のため残しているが、新しい同期型処理では使用されない
-                eprintln!(
-                    "[WM_DPICHANGED_DEFERRED] hwnd {:?}: wparam={:?} (deprecated, ignored)",
-                    hwnd, wparam
+                trace!(
+                    hwnd = ?hwnd,
+                    wparam = ?wparam,
+                    "WM_DPICHANGED_DEFERRED (deprecated, ignored)"
                 );
                 LRESULT(0)
             }

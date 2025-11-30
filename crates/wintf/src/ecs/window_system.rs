@@ -3,6 +3,7 @@ use crate::process_singleton::*;
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemState;
+use tracing::{debug, error};
 use windows::core::*;
 use windows::Win32::UI::HiDpi::GetDpiForSystem;
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -66,9 +67,11 @@ pub fn create_windows(world: &mut World) {
             Some(n) => n.clone(),
             None => format!("Entity({:?})", entity),
         };
-        eprintln!(
-            "[Frame {}] [create_windows] ウィンドウ作成開始 (Entity: {}, title: {})",
-            frame, entity_name, title
+        debug!(
+            frame,
+            entity = %entity_name,
+            title = %title,
+            "Window creation starting"
         );
 
         let title_hstring = HSTRING::from(&title);
@@ -103,9 +106,11 @@ pub fn create_windows(world: &mut World) {
 
         match result {
             Ok(hwnd) => {
-                eprintln!(
-                    "[Frame {}] [create_windows] HWND作成成功 (Entity: {}, hwnd: {:?})",
-                    frame, entity_name, hwnd
+                debug!(
+                    frame,
+                    entity = %entity_name,
+                    hwnd = ?hwnd,
+                    "HWND created successfully"
                 );
 
                 // 即時にWindowHandleを追加（排他システムなので即時反映）
@@ -117,24 +122,28 @@ pub fn create_windows(world: &mut World) {
                     crate::ecs::graphics::HasGraphicsResources::default(),
                 ));
 
-                eprintln!(
-                    "[Frame {}] [create_windows] WindowHandle即時追加完了 (Entity: {})",
-                    frame, entity_name
+                debug!(
+                    frame,
+                    entity = %entity_name,
+                    "WindowHandle added"
                 );
 
                 unsafe {
                     let _ = ShowWindow(hwnd, SW_SHOW);
                 }
 
-                eprintln!(
-                    "[Frame {}] [create_windows] ShowWindow完了 (Entity: {})",
-                    frame, entity_name
+                debug!(
+                    frame,
+                    entity = %entity_name,
+                    "ShowWindow completed"
                 );
             }
             Err(e) => {
-                eprintln!(
-                    "[Frame {}] [create_windows] エラー: Entity {}, {:?}",
-                    frame, entity_name, e
+                error!(
+                    frame,
+                    entity = %entity_name,
+                    error = ?e,
+                    "Failed to create window"
                 );
             }
         }

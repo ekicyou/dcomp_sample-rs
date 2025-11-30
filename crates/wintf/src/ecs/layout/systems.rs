@@ -4,6 +4,7 @@ use crate::ecs::common::tree_system::{
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
+use tracing::{debug, error, info, trace, warn};
 
 use super::metrics::{LayoutScale, Offset, Size};
 use super::taffy::{TaffyComputedLayout, TaffyLayoutResource, TaffyStyle};
@@ -63,18 +64,28 @@ pub fn propagate_global_arrangements(
 ) {
     // デバッグログ: ルートエンティティの情報
     for (entity, arr, global, _) in roots.iter() {
-        eprintln!(
-            "[propagate_global_arrangements] Root Entity={:?}, Arrangement: offset=({}, {}), scale=({}, {})",
-            entity, arr.offset.x, arr.offset.y, arr.scale.x, arr.scale.y
+        trace!(
+            entity = ?entity,
+            offset_x = arr.offset.x,
+            offset_y = arr.offset.y,
+            scale_x = arr.scale.x,
+            scale_y = arr.scale.y,
+            "[propagate_global_arrangements] Root Entity Arrangement"
         );
-        eprintln!(
-            "[propagate_global_arrangements] Root Entity={:?}, GlobalArrangement: transform=[{},{},{},{}],bounds=({},{},{},{})",
-            entity, 
-            global.transform.M11, global.transform.M12, global.transform.M31, global.transform.M32,
-            global.bounds.left, global.bounds.top, global.bounds.right, global.bounds.bottom
+        trace!(
+            entity = ?entity,
+            m11 = global.transform.M11,
+            m12 = global.transform.M12,
+            m31 = global.transform.M31,
+            m32 = global.transform.M32,
+            bounds_left = global.bounds.left,
+            bounds_top = global.bounds.top,
+            bounds_right = global.bounds.right,
+            bounds_bottom = global.bounds.bottom,
+            "[propagate_global_arrangements] Root Entity GlobalArrangement"
         );
     }
-    
+
     propagate_parent_transforms::<Arrangement, GlobalArrangement, ArrangementTreeChanged>(
         queue, roots, nodes,
     );
@@ -100,10 +111,7 @@ pub fn build_taffy_styles_system(
     // LayoutRootのみの場合はBoxStyle::default()相当のスタイルを適用
     without_style: Query<
         (Entity, Option<&BoxStyle>),
-        (
-            Or<(With<LayoutRoot>, With<BoxStyle>)>,
-            Without<TaffyStyle>,
-        ),
+        (Or<(With<LayoutRoot>, With<BoxStyle>)>, Without<TaffyStyle>),
     >,
     // BoxStyleが変更されたエンティティ
     mut changed: Query<(&BoxStyle, &mut TaffyStyle), Changed<BoxStyle>>,
@@ -111,9 +119,7 @@ pub fn build_taffy_styles_system(
     // TaffyStyle自動挿入
     for (entity, box_style) in without_style.iter() {
         // BoxStyleがない場合（LayoutRootのみ）はデフォルトスタイル
-        let taffy_style: taffy::Style = box_style
-            .map(|s| s.into())
-            .unwrap_or_default();
+        let taffy_style: taffy::Style = box_style.map(|s| s.into()).unwrap_or_default();
         commands.entity(entity).insert((
             TaffyStyle(taffy_style),
             TaffyComputedLayout::default(),
@@ -197,20 +203,19 @@ pub fn compute_taffy_layout_system(
                 let available_space = if let Some(style) = box_style {
                     if let Some(size) = &style.size {
                         taffy::Size {
-                            width: size.width.as_ref().map_or(
-                                AvailableSpace::MaxContent,
-                                |d| match d {
+                            width: size.width.as_ref().map_or(AvailableSpace::MaxContent, |d| {
+                                match d {
                                     Dimension::Px(px) => AvailableSpace::Definite(*px),
                                     _ => AvailableSpace::MaxContent,
-                                },
-                            ),
-                            height: size.height.as_ref().map_or(
-                                AvailableSpace::MaxContent,
-                                |d| match d {
+                                }
+                            }),
+                            height: size
+                                .height
+                                .as_ref()
+                                .map_or(AvailableSpace::MaxContent, |d| match d {
                                     Dimension::Px(px) => AvailableSpace::Definite(*px),
                                     _ => AvailableSpace::MaxContent,
-                                },
-                            ),
+                                }),
                         }
                     } else {
                         taffy::Size {
@@ -259,23 +264,34 @@ pub fn compute_taffy_layout_system(
 pub fn update_arrangements_system(
     mut commands: Commands,
     mut query: Query<
-        (Entity, &TaffyComputedLayout, Option<&mut Arrangement>, Option<&Name>, Option<Ref<DPI>>),
-        (Or<(Changed<TaffyComputedLayout>, Changed<DPI>)>, With<TaffyStyle>),
+        (
+            Entity,
+            &TaffyComputedLayout,
+            Option<&mut Arrangement>,
+            Option<&Name>,
+            Option<Ref<DPI>>,
+        ),
+        (
+            Or<(Changed<TaffyComputedLayout>, Changed<DPI>)>,
+            With<TaffyStyle>,
+        ),
     >,
 ) {
     for (entity, computed_layout, arrangement, name, dpi) in query.iter_mut() {
         let layout = &computed_layout.0;
 
         // DPIが存在する場合はスケールファクターを使用、なければデフォルト(1.0, 1.0)
-        let scale = dpi.as_ref().map_or(
-            LayoutScale::default(),
-            |d| LayoutScale { x: d.scale_x(), y: d.scale_y() }
-        );
-        
+        let scale = dpi
+            .as_ref()
+            .map_or(LayoutScale::default(), |d| LayoutScale {
+                x: d.scale_x(),
+                y: d.scale_y(),
+            });
+
         // デバッグ: DPI変更検知の確認
         if let Some(ref d) = dpi {
             if d.is_changed() {
-                eprintln!("[update_arrangements] DPI is_changed=true for Entity={:?}", entity);
+                debug!(entity = ?entity, "[update_arrangements] DPI is_changed=true");
             }
         }
 
@@ -292,15 +308,23 @@ pub fn update_arrangements_system(
         };
 
         let entity_name = format_entity_name(entity, name);
-        eprintln!(
-            "[update_arrangements] Entity={}, TaffyLayout: location=({}, {}), size=({}, {})",
-            entity_name, layout.location.x, layout.location.y, layout.size.width, layout.size.height
+        trace!(
+            entity = %entity_name,
+            location_x = layout.location.x,
+            location_y = layout.location.y,
+            size_width = layout.size.width,
+            size_height = layout.size.height,
+            "[update_arrangements] TaffyLayout"
         );
-        eprintln!(
-            "[update_arrangements] Entity={}, Arrangement: offset=({}, {}), scale=({}, {}), size=({}, {})",
-            entity_name, new_arrangement.offset.x, new_arrangement.offset.y, 
-            new_arrangement.scale.x, new_arrangement.scale.y,
-            new_arrangement.size.width, new_arrangement.size.height
+        trace!(
+            entity = %entity_name,
+            offset_x = new_arrangement.offset.x,
+            offset_y = new_arrangement.offset.y,
+            scale_x = new_arrangement.scale.x,
+            scale_y = new_arrangement.scale.y,
+            size_width = new_arrangement.size.width,
+            size_height = new_arrangement.size.height,
+            "[update_arrangements] Arrangement"
         );
 
         if let Some(mut arr) = arrangement {
@@ -333,7 +357,7 @@ pub fn update_window_pos_system(
     for (global_arrangement, mut window_pos) in query.iter_mut() {
         // GlobalArrangementのboundsからWindowPosに変換
         let bounds = &global_arrangement.bounds;
-        
+
         // boundsの位置とサイズをWindowPosに反映
         // Windowは LayoutRoot の子であり、Taffy が BoxInset を考慮した
         // location を計算済み
@@ -352,8 +376,7 @@ pub fn update_window_pos_system(
 
 use super::{BoxInset, BoxPosition, BoxSize, LengthPercentageAuto};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
-    SM_YVIRTUALSCREEN,
+    GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
 };
 
 /// 仮想デスクトップの矩形を取得
@@ -374,18 +397,24 @@ pub fn get_virtual_desktop_bounds() -> (i32, i32, i32, i32) {
 /// world.rsのEcsWorld::new()から直接呼び出される
 pub fn initialize_layout_root(world: &mut World) {
     // 既にLayoutRootが存在する場合はスキップ
-    let existing = world.query_filtered::<Entity, With<LayoutRoot>>().iter(world).next();
+    let existing = world
+        .query_filtered::<Entity, With<LayoutRoot>>()
+        .iter(world)
+        .next();
     if existing.is_some() {
         return;
     }
 
-    eprintln!("[initialize_layout_root] Creating LayoutRoot singleton");
+    info!("[initialize_layout_root] Creating LayoutRoot singleton");
 
     // 仮想デスクトップの矩形を取得
     let (vx, vy, vw, vh) = get_virtual_desktop_bounds();
-    eprintln!(
-        "[initialize_layout_root] Virtual desktop bounds: x={}, y={}, width={}, height={}",
-        vx, vy, vw, vh
+    debug!(
+        x = vx,
+        y = vy,
+        width = vw,
+        height = vh,
+        "[initialize_layout_root] Virtual desktop bounds"
     );
 
     // LayoutRootエンティティを作成（仮想デスクトップ矩形を設定）
@@ -415,16 +444,16 @@ pub fn initialize_layout_root(world: &mut World) {
     {
         let mut taffy_res = world.resource_mut::<TaffyLayoutResource>();
         if let Err(e) = taffy_res.create_node(layout_root) {
-            eprintln!("[initialize_layout_root] Failed to create Taffy node for LayoutRoot: {:?}", e);
+            error!(error = ?e, "[initialize_layout_root] Failed to create Taffy node for LayoutRoot");
             return;
         }
     }
 
     // 全モニターを列挙
     let monitors = crate::ecs::monitor::enumerate_monitors();
-    eprintln!(
-        "[initialize_layout_root] Enumerated {} monitors",
-        monitors.len()
+    debug!(
+        count = monitors.len(),
+        "[initialize_layout_root] Enumerated monitors"
     );
 
     // 各Monitorエンティティを生成
@@ -432,10 +461,14 @@ pub fn initialize_layout_root(world: &mut World) {
         let (width, height) = monitor.physical_size();
         let (left, top) = monitor.top_left();
 
-        eprintln!(
-            "[initialize_layout_root] Creating Monitor entity: bounds=({},{},{},{}), dpi={}, primary={}",
-            monitor.bounds.left, monitor.bounds.top, monitor.bounds.right, monitor.bounds.bottom,
-            monitor.dpi, monitor.is_primary
+        debug!(
+            bounds_left = monitor.bounds.left,
+            bounds_top = monitor.bounds.top,
+            bounds_right = monitor.bounds.right,
+            bounds_bottom = monitor.bounds.bottom,
+            dpi = monitor.dpi,
+            is_primary = monitor.is_primary,
+            "[initialize_layout_root] Creating Monitor entity"
         );
 
         let monitor_entity = world
@@ -464,9 +497,9 @@ pub fn initialize_layout_root(world: &mut World) {
         // Monitor用のTaffyノード作成
         let mut taffy_res = world.resource_mut::<TaffyLayoutResource>();
         if let Err(e) = taffy_res.create_node(monitor_entity) {
-            eprintln!(
-                "[initialize_layout_root] Failed to create Taffy node for Monitor: {:?}",
-                e
+            error!(
+                error = ?e,
+                "[initialize_layout_root] Failed to create Taffy node for Monitor"
             );
         }
     }
@@ -480,9 +513,12 @@ pub fn update_monitor_layout_system(
         let (width, height) = monitor.physical_size();
         let (left, top) = monitor.top_left();
 
-        eprintln!(
-            "[update_monitor_layout_system] Updating Monitor layout: size=({}, {}), position=({}, {})",
-            width, height, left, top
+        debug!(
+            width = width,
+            height = height,
+            left = left,
+            top = top,
+            "[update_monitor_layout_system] Updating Monitor layout"
         );
 
         box_style.size = Some(BoxSize {
@@ -511,20 +547,20 @@ pub fn detect_display_change_system(
         return;
     }
 
-    eprintln!("[detect_display_change_system] Display configuration changed, updating monitors");
+    info!("[detect_display_change_system] Display configuration changed, updating monitors");
 
     // LayoutRootを取得
     let Ok(root_entity) = layout_root.single() else {
-        eprintln!("[detect_display_change_system] LayoutRoot not found, skipping");
+        warn!("[detect_display_change_system] LayoutRoot not found, skipping");
         app.reset_display_change();
         return;
     };
 
     // 新しいモニターリストを取得
     let new_monitors = crate::ecs::monitor::enumerate_monitors();
-    eprintln!(
-        "[detect_display_change_system] Found {} monitors",
-        new_monitors.len()
+    debug!(
+        count = new_monitors.len(),
+        "[detect_display_change_system] Found monitors"
     );
 
     // 既存のMonitorエンティティをマップに変換（handle → entity）
@@ -539,9 +575,9 @@ pub fn detect_display_change_system(
         if let Some((entity, existing_monitor)) = existing_map.remove(&new_monitor.handle) {
             // 既存Monitorの更新
             if existing_monitor != new_monitor {
-                eprintln!(
-                    "[detect_display_change_system] Updating Monitor entity {:?}",
-                    entity
+                debug!(
+                    entity = ?entity,
+                    "[detect_display_change_system] Updating Monitor entity"
                 );
                 if let Ok((_, mut monitor)) = existing_monitors.get_mut(entity) {
                     *monitor = new_monitor;
@@ -549,9 +585,9 @@ pub fn detect_display_change_system(
             }
         } else {
             // 新規Monitorの追加
-            eprintln!(
-                "[detect_display_change_system] Adding new Monitor: handle={}",
-                new_monitor.handle
+            debug!(
+                handle = new_monitor.handle,
+                "[detect_display_change_system] Adding new Monitor"
             );
 
             let (width, height) = new_monitor.physical_size();
@@ -581,9 +617,9 @@ pub fn detect_display_change_system(
                 .id();
 
             if let Err(e) = taffy_res.create_node(monitor_entity) {
-                eprintln!(
-                    "[detect_display_change_system] Failed to create Taffy node for new Monitor: {:?}",
-                    e
+                error!(
+                    error = ?e,
+                    "[detect_display_change_system] Failed to create Taffy node for new Monitor"
                 );
             }
         }
@@ -591,14 +627,15 @@ pub fn detect_display_change_system(
 
     // 削除されたMonitorの処理
     for (entity, monitor) in existing_map.values() {
-        eprintln!(
-            "[detect_display_change_system] Removing Monitor entity {:?} (handle={})",
-            entity, monitor.handle
+        debug!(
+            entity = ?entity,
+            handle = monitor.handle,
+            "[detect_display_change_system] Removing Monitor entity"
         );
         if let Err(e) = taffy_res.remove_node(*entity) {
-            eprintln!(
-                "[detect_display_change_system] Failed to remove Taffy node: {:?}",
-                e
+            error!(
+                error = ?e,
+                "[detect_display_change_system] Failed to remove Taffy node"
             );
         }
         commands.entity(*entity).despawn();

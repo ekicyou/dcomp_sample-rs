@@ -1,4 +1,5 @@
 use std::sync::*;
+use tracing::{debug, info};
 use windows::core::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::System::LibraryLoader::*;
@@ -44,7 +45,7 @@ impl WinProcessSingleton {
 
     pub(crate) fn get_or_init() -> &'static Self {
         WIN_PROCESS_SINGLETON.get_or_init(|| {
-            eprintln!("window class creation...");
+            debug!("Window class creation starting...");
             let instance = unsafe { GetModuleHandleW(None).unwrap().into() };
             let window_class_name = HSTRING::from(WINTF_CLASS_NAME);
             let ecs_window_class_name = HSTRING::from(WINTF_ECS_CLASS_NAME);
@@ -82,7 +83,7 @@ impl WinProcessSingleton {
                 }
             }
 
-            eprintln!("window classes created");
+            info!("Window classes created");
             Self {
                 instance,
                 window_class_name,

@@ -5,6 +5,7 @@ use crate::ecs::graphics::{
 };
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
+use tracing::{debug, error, trace};
 use windows::Win32::Graphics::DirectComposition::*;
 
 use super::format_entity_name;
@@ -68,13 +69,13 @@ fn create_visual_only(
                 SurfaceGraphicsDirty::default(),
             ));
 
-            eprintln!(
-                "[visual_creation_system] Visual created for Entity={:?} (Surface deferred, SurfaceGraphics pre-allocated)",
-                entity
+            debug!(
+                entity = ?entity,
+                "Visual created (Surface deferred, SurfaceGraphics pre-allocated)"
             );
         }
         Err(e) => {
-            eprintln!("Failed to create visual: {:?}", e);
+            error!(error = ?e, "Failed to create visual");
         }
     }
 }
@@ -100,14 +101,16 @@ pub fn visual_resource_management_system(
 
     for (entity, visual, name) in query.iter() {
         let entity_name = format_entity_name(entity, name);
-        eprintln!(
-            "[Frame {}] [visual_resource_management] VisualGraphics作成開始 (Entity: {})",
-            frame_count.0, entity_name
+        trace!(
+            frame = frame_count.0,
+            entity = %entity_name,
+            "VisualGraphics creation starting"
         );
         create_visual_only(&mut commands, entity, visual, dcomp);
-        eprintln!(
-            "[Frame {}] [visual_resource_management] VisualGraphics作成完了 (Entity: {})",
-            frame_count.0, entity_name
+        trace!(
+            frame = frame_count.0,
+            entity = %entity_name,
+            "VisualGraphics creation completed"
         );
     }
 }
@@ -152,9 +155,10 @@ pub fn window_visual_integration_system(
         if let Some(target) = window_graphics.get_target() {
             if let Some(visual) = visual_graphics.visual() {
                 let entity_name = format_entity_name(entity, name);
-                eprintln!(
-                    "[Frame {}] [window_visual_integration] SetRoot実行 (Entity: {})",
-                    frame_count.0, entity_name
+                trace!(
+                    frame = frame_count.0,
+                    entity = %entity_name,
+                    "SetRoot executing"
                 );
                 unsafe {
                     let _ = target.SetRoot(visual);

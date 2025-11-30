@@ -1,4 +1,5 @@
 use bevy_ecs::prelude::*;
+use tracing::warn;
 
 /// テキストレイアウトの物理サイズ
 #[derive(Component, Debug, Clone, Copy, PartialEq, Default)]
@@ -36,10 +37,10 @@ impl Size {
     /// これはmayレベルの推奨事項であり、実行時エラーとはしません。
     pub fn validate(&self) {
         if self.width < 0.0 {
-            eprintln!("Warning: Size.width is negative: {}", self.width);
+            warn!(width = self.width, "Size.width is negative");
         }
         if self.height < 0.0 {
-            eprintln!("Warning: Size.height is negative: {}", self.height);
+            warn!(height = self.height, "Size.height is negative");
         }
     }
 }
@@ -71,10 +72,10 @@ impl LayoutScale {
     /// これはmayレベルの推奨事項であり、実行時エラーとはしません。
     pub fn validate(&self) {
         if self.x == 0.0 {
-            eprintln!("Warning: LayoutScale.x is zero, which may cause layout issues");
+            warn!("LayoutScale.x is zero, which may cause layout issues");
         }
         if self.y == 0.0 {
-            eprintln!("Warning: LayoutScale.y is zero, which may cause layout issues");
+            warn!("LayoutScale.y is zero, which may cause layout issues");
         }
     }
 }
@@ -114,9 +115,9 @@ impl Opacity {
     /// 範囲外の値が検出された場合は警告ログを出力します。
     pub fn validate(&self) {
         if self.0 < 0.0 || self.0 > 1.0 {
-            eprintln!(
-                "Warning: Opacity value {} is outside valid range [0.0, 1.0]",
-                self.0
+            warn!(
+                value = self.0,
+                "Opacity value is outside valid range [0.0, 1.0]"
             );
         }
     }

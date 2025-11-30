@@ -4,6 +4,7 @@ use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::component::Component;
 use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::world::DeferredWorld;
+use tracing::trace;
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use windows::Win32::Graphics::DirectWrite::IDWriteTextLayout;
 
@@ -112,5 +113,5 @@ impl TextLayoutResource {
 /// COMオブジェクトはDropで自動解放されるため、ログ出力のみ
 fn on_text_layout_remove(_world: DeferredWorld, hook: bevy_ecs::lifecycle::HookContext) {
     #[cfg(debug_assertions)]
-    println!("[TextLayoutResource] Removed from Entity={:?}", hook.entity);
+    trace!(entity = ?hook.entity, "[TextLayoutResource] Removed");
 }

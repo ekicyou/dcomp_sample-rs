@@ -3,6 +3,7 @@ use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::prelude::*;
 use bevy_ecs::world::DeferredWorld;
 use std::cell::RefCell;
+use tracing::{debug, trace, warn};
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow};
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -46,14 +47,14 @@ impl DpiChangeContext {
     ///
     /// `WM_DPICHANGED`ハンドラから`DefWindowProcW`を呼ぶ前に呼び出す。
     pub fn set(ctx: DpiChangeContext) {
-        eprintln!(
-            "[DpiChangeContext::set] new_dpi=({}, {}), suggested_rect=({},{},{},{})",
-            ctx.new_dpi.dpi_x,
-            ctx.new_dpi.dpi_y,
-            ctx.suggested_rect.left,
-            ctx.suggested_rect.top,
-            ctx.suggested_rect.right,
-            ctx.suggested_rect.bottom
+        trace!(
+            dpi_x = ctx.new_dpi.dpi_x,
+            dpi_y = ctx.new_dpi.dpi_y,
+            suggested_left = ctx.suggested_rect.left,
+            suggested_top = ctx.suggested_rect.top,
+            suggested_right = ctx.suggested_rect.right,
+            suggested_bottom = ctx.suggested_rect.bottom,
+            "DpiChangeContext::set"
         );
         DPI_CHANGE_CONTEXT.with(|cell| {
             *cell.borrow_mut() = Some(ctx);
@@ -68,9 +69,10 @@ impl DpiChangeContext {
         DPI_CHANGE_CONTEXT.with(|cell| {
             let ctx = cell.borrow_mut().take();
             if let Some(ref c) = ctx {
-                eprintln!(
-                    "[DpiChangeContext::take] Consumed context: new_dpi=({}, {})",
-                    c.new_dpi.dpi_x, c.new_dpi.dpi_y
+                trace!(
+                    dpi_x = c.new_dpi.dpi_x,
+                    dpi_y = c.new_dpi.dpi_y,
+                    "DpiChangeContext::take consumed"
                 );
             }
             ctx
@@ -126,9 +128,13 @@ impl SetWindowPosCommand {
 
     /// コマンドをキューに追加
     pub fn enqueue(cmd: SetWindowPosCommand) {
-        eprintln!(
-            "[SetWindowPosCommand::enqueue] hwnd={:?}, pos=({}, {}), size=({}, {})",
-            cmd.hwnd, cmd.x, cmd.y, cmd.width, cmd.height
+        trace!(
+            hwnd = ?cmd.hwnd,
+            x = cmd.x,
+            y = cmd.y,
+            width = cmd.width,
+            height = cmd.height,
+            "SetWindowPosCommand::enqueue"
         );
         WINDOW_POS_COMMANDS.with(|cell| {
             cell.borrow_mut().push(cmd);
@@ -144,11 +150,20 @@ impl SetWindowPosCommand {
             if commands.is_empty() {
                 return;
             }
-            eprintln!("[SetWindowPosCommand::flush] Processing {} commands", commands.len());
+            trace!(
+                count = commands.len(),
+                "SetWindowPosCommand::flush processing"
+            );
             for cmd in commands {
-                eprintln!(
-                    "[SetWindowPosCommand::flush] Executing SetWindowPos: hwnd={:?}, hwnd_insert_after={:?}, pos=({}, {}), size=({}, {}), flags={:?}",
-                    cmd.hwnd, cmd.hwnd_insert_after, cmd.x, cmd.y, cmd.width, cmd.height, cmd.flags
+                trace!(
+                    hwnd = ?cmd.hwnd,
+                    hwnd_insert_after = ?cmd.hwnd_insert_after,
+                    x = cmd.x,
+                    y = cmd.y,
+                    width = cmd.width,
+                    height = cmd.height,
+                    flags = ?cmd.flags,
+                    "Executing SetWindowPos"
                 );
                 let result = unsafe {
                     SetWindowPos(
@@ -162,14 +177,13 @@ impl SetWindowPosCommand {
                     )
                 };
                 if let Err(e) = result {
-                    eprintln!(
-                        "[SetWindowPosCommand::flush] SetWindowPos failed: {:?}",
-                        e
+                    warn!(
+                        hwnd = ?cmd.hwnd,
+                        error = ?e,
+                        "SetWindowPos failed"
                     );
                 } else {
-                    eprintln!(
-                        "[SetWindowPosCommand::flush] SetWindowPos succeeded"
-                    );
+                    trace!(hwnd = ?cmd.hwnd, "SetWindowPos succeeded");
                 }
             }
         });
@@ -401,9 +415,10 @@ fn on_window_handle_add(
     let entity = hook.entity;
     if let Some(handle) = world.get::<WindowHandle>(entity) {
         let hwnd = handle.hwnd;
-        println!(
-            "[Hook] WindowHandle added to entity {:?}, hwnd {:?}",
-            entity, hwnd
+        debug!(
+            entity = ?entity,
+            hwnd = ?hwnd,
+            "WindowHandle added"
         );
 
         // DPIコンポーネントを挿入
@@ -413,13 +428,13 @@ fn on_window_handle_add(
         } else {
             DPI::default() // 取得失敗時はデフォルト96
         };
-        println!(
-            "[Hook] DPI component inserted for entity {:?}: dpi=({}, {}), scale=({:.2}, {:.2})",
-            entity,
-            dpi_component.dpi_x,
-            dpi_component.dpi_y,
-            dpi_component.scale_x(),
-            dpi_component.scale_y()
+        debug!(
+            entity = ?entity,
+            dpi_x = dpi_component.dpi_x,
+            dpi_y = dpi_component.dpi_y,
+            scale_x = format_args!("{:.2}", dpi_component.scale_x()),
+            scale_y = format_args!("{:.2}", dpi_component.scale_y()),
+            "DPI component inserted"
         );
         world.commands().entity(entity).insert(dpi_component);
 
@@ -428,9 +443,9 @@ fn on_window_handle_add(
             .commands()
             .entity(entity)
             .insert(WindowPosChanged::default());
-        eprintln!(
-            "[Hook] WindowPosChanged component inserted for entity {:?}",
-            entity
+        debug!(
+            entity = ?entity,
+            "WindowPosChanged component inserted"
         );
 
         // アプリに通知
@@ -449,9 +464,10 @@ fn on_window_handle_remove(
     // このタイミングではまだWindowHandleにアクセスできる
     if let Some(handle) = world.get::<WindowHandle>(entity) {
         let hwnd = handle.hwnd;
-        println!(
-            "[Hook] Entity {:?} being removed, sending WM_CLOSE to hwnd {:?}",
-            entity, hwnd
+        debug!(
+            entity = ?entity,
+            hwnd = ?hwnd,
+            "Entity being removed, sending WM_CLOSE"
         );
 
         // アプリに通知（ウィンドウカウント更新 & 必要ならメッセージ送信）
@@ -991,9 +1007,9 @@ impl WindowPos {
 
         if result.is_err() {
             // 変換失敗時は元の座標を返す
-            eprintln!(
-                "AdjustWindowRectExForDpi failed during window creation: {:?}. Using original values.",
-                result
+            warn!(
+                error = ?result,
+                "AdjustWindowRectExForDpi failed during window creation, using original values"
             );
             return (position.x, position.y, size.cx, size.cy);
         }
@@ -1022,9 +1038,10 @@ impl Command for SetWindowParentToLayoutRoot {
             // Windowエンティティがまだ親を持っていない場合のみChildOfを設定
             if let Ok(mut entity_mut) = world.get_entity_mut(self.entity) {
                 if !entity_mut.contains::<ChildOf>() {
-                    eprintln!(
-                        "[on_window_add] Setting ChildOf({:?}) for Window entity {:?}",
-                        root, self.entity
+                    debug!(
+                        root = ?root,
+                        entity = ?self.entity,
+                        "Setting ChildOf for Window entity"
                     );
                     entity_mut.insert(ChildOf(root));
                 }

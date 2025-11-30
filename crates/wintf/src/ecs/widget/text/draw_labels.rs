@@ -6,6 +6,7 @@ use crate::ecs::widget::text::label::TextDirection;
 use crate::ecs::widget::text::{Label, TextLayoutResource};
 use crate::ecs::TextLayoutMetrics;
 use bevy_ecs::prelude::*;
+use tracing::{debug, warn};
 use windows::Win32::Graphics::Direct2D::D2D1_DRAW_TEXT_OPTIONS_NONE;
 use windows::Win32::Graphics::DirectWrite::*;
 use windows_numerics::Vector2;
@@ -21,26 +22,29 @@ pub fn draw_labels(
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
     let Some(graphics_core) = graphics_core else {
-        eprintln!("[draw_labels] GraphicsCore not available, skipping");
+        warn!("GraphicsCore not available, skipping draw_labels");
         return;
     };
 
     let Some(dwrite_factory) = graphics_core.dwrite_factory() else {
-        eprintln!("[draw_labels] DirectWrite factory not available");
+        warn!("DirectWrite factory not available");
         return;
     };
 
     // グローバル共有DeviceContextを取得
     let Some(dc) = graphics_core.device_context() else {
-        eprintln!("[draw_labels] DeviceContext not available");
+        warn!("DeviceContext not available");
         return;
     };
 
     for (entity, label) in query.iter() {
         #[cfg(debug_assertions)]
-        eprintln!(
-            "[draw_labels] Entity={:?}, text='{}', font='{}', size={}pt",
-            entity, label.text, label.font_family, label.font_size
+        debug!(
+            entity = ?entity,
+            text = %label.text,
+            font = %label.font_family,
+            size_pt = label.font_size,
+            "Drawing label"
         );
 
         // TextFormat作成
@@ -57,9 +61,10 @@ pub fn draw_labels(
         ) {
             Ok(fmt) => fmt,
             Err(err) => {
-                eprintln!(
-                    "[draw_labels] Failed to create TextFormat for Entity={:?}: {:?}",
-                    entity, err
+                warn!(
+                    entity = ?entity,
+                    error = ?err,
+                    "Failed to create TextFormat"
                 );
                 continue;
             }
@@ -96,15 +101,14 @@ pub fn draw_labels(
             match dwrite_factory.create_text_layout(&text_hstring, &text_format, 0.0, 0.0) {
                 Ok(layout) => layout,
                 Err(err) => {
-                    eprintln!(
-                        "[draw_labels] Failed to create TextLayout for Entity={:?}: {:?}",
-                        entity, err
+                    warn!(
+                        entity = ?entity,
+                        error = ?err,
+                        "Failed to create TextLayout"
                     );
                     continue;
                 }
-            };
-
-        // 折り返しなしに設定
+            }; // 折り返しなしに設定
         unsafe {
             let _ = text_layout.SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
         }
@@ -119,9 +123,10 @@ pub fn draw_labels(
         let command_list = match unsafe { dc.CreateCommandList() } {
             Ok(cl) => cl,
             Err(err) => {
-                eprintln!(
-                    "[draw_labels] Failed to create CommandList for Entity={:?}: {:?}",
-                    entity, err
+                warn!(
+                    entity = ?entity,
+                    error = ?err,
+                    "Failed to create CommandList"
                 );
                 continue;
             }
@@ -144,9 +149,10 @@ pub fn draw_labels(
         let brush = match dc.create_solid_color_brush(&label.color, None) {
             Ok(b) => b,
             Err(err) => {
-                eprintln!(
-                    "[draw_labels] Failed to create brush for Entity={:?}: {:?}",
-                    entity, err
+                warn!(
+                    entity = ?entity,
+                    error = ?err,
+                    "Failed to create brush"
                 );
                 unsafe {
                     let _ = dc.EndDraw(None, None);
@@ -169,18 +175,20 @@ pub fn draw_labels(
 
         // 描画終了
         if let Err(err) = unsafe { dc.EndDraw(None, None) } {
-            eprintln!(
-                "[draw_labels] EndDraw failed for Entity={:?}: {:?}",
-                entity, err
+            warn!(
+                entity = ?entity,
+                error = ?err,
+                "EndDraw failed"
             );
             continue;
         }
 
         // CommandListを閉じる
         if let Err(err) = command_list.close() {
-            eprintln!(
-                "[draw_labels] Failed to close CommandList for Entity={:?}: {:?}",
-                entity, err
+            warn!(
+                entity = ?entity,
+                error = ?err,
+                "Failed to close CommandList"
             );
             continue;
         }

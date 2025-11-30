@@ -3,6 +3,7 @@ use crate::com::d3d11::*;
 use crate::com::dcomp::*;
 use crate::com::dwrite::*;
 use bevy_ecs::prelude::*;
+use tracing::{debug, info};
 use windows::core::{Interface, Result};
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Direct2D::*;
@@ -34,7 +35,7 @@ unsafe impl Sync for GraphicsCore {}
 
 impl GraphicsCore {
     pub fn new() -> Result<Self> {
-        eprintln!("[GraphicsCore] 初期化開始");
+        info!("[GraphicsCore] Initialization started");
 
         let d3d = create_device_3d()?;
         let dxgi = d3d.cast()?;
@@ -43,13 +44,13 @@ impl GraphicsCore {
 
         // グローバル共有DeviceContextを作成
         let d2d_device_context = d2d.create_device_context(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
-        eprintln!("[GraphicsCore] グローバルDeviceContext作成完了");
+        debug!("[GraphicsCore] Global DeviceContext created");
 
         let dwrite_factory = dwrite_create_factory(DWRITE_FACTORY_TYPE_SHARED)?;
         let desktop = dcomp_create_desktop_device(&d2d)?;
         let dcomp: IDCompositionDevice3 = desktop.cast()?;
 
-        eprintln!("[GraphicsCore] 初期化完了");
+        info!("[GraphicsCore] Initialization completed");
 
         Ok(Self {
             inner: Some(GraphicsCoreInner {

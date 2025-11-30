@@ -7,6 +7,7 @@ use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use bevy_ecs::world::DeferredWorld;
+use tracing::{trace, warn};
 use windows::Win32::Graphics::Direct2D::Common::{D2D1_COLOR_F, D2D_RECT_F};
 
 /// 色の型エイリアス（D2D1_COLOR_Fをそのまま使用）
@@ -112,15 +113,17 @@ pub fn draw_rectangles(
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
     let Some(graphics_core) = graphics_core else {
-        eprintln!("[draw_rectangles] GraphicsCore not available, skipping");
+        warn!("GraphicsCore not available, skipping draw_rectangles");
         return;
     };
 
     for (entity, rectangle, arrangement, cmd_list_opt, name) in query.iter() {
         let entity_name = format_entity_name(entity, name);
-        eprintln!(
-            "[draw_rectangles] Entity={}, size=({}, {})",
-            entity_name, arrangement.size.width, arrangement.size.height
+        trace!(
+            entity = %entity_name,
+            width = arrangement.size.width,
+            height = arrangement.size.height,
+            "Drawing rectangle"
         );
 
         // DeviceContextとCommandList生成
@@ -128,9 +131,9 @@ pub fn draw_rectangles(
         let dc = match graphics_core.device_context() {
             Some(dc) => dc,
             None => {
-                eprintln!(
-                    "[draw_rectangles] DeviceContext not available for Entity={}",
-                    entity_name
+                warn!(
+                    entity = %entity_name,
+                    "DeviceContext not available"
                 );
                 continue;
             }
@@ -139,9 +142,10 @@ pub fn draw_rectangles(
         let command_list = match unsafe { dc.CreateCommandList() } {
             Ok(cl) => cl,
             Err(err) => {
-                eprintln!(
-                    "[draw_rectangles] Failed to create CommandList for Entity={}: {:?}",
-                    entity_name, err
+                warn!(
+                    entity = %entity_name,
+                    error = ?err,
+                    "Failed to create CommandList"
                 );
                 continue;
             }
@@ -167,19 +171,27 @@ pub fn draw_rectangles(
                 bottom: arrangement.size.height,
             };
 
-            eprintln!(
-                "[draw_rectangles] Entity={}, rect=({},{},{},{}), color=({:.2},{:.2},{:.2},{:.2})",
-                entity_name, rect.left, rect.top, rect.right, rect.bottom,
-                rectangle.color.r, rectangle.color.g, rectangle.color.b, rectangle.color.a
+            trace!(
+                entity = %entity_name,
+                left = rect.left,
+                top = rect.top,
+                right = rect.right,
+                bottom = rect.bottom,
+                r = format_args!("{:.2}", rectangle.color.r),
+                g = format_args!("{:.2}", rectangle.color.g),
+                b = format_args!("{:.2}", rectangle.color.b),
+                a = format_args!("{:.2}", rectangle.color.a),
+                "Rectangle details"
             );
 
             // ソリッドカラーブラシ作成
             let brush = match dc.create_solid_color_brush(&rectangle.color, None) {
                 Ok(b) => b,
                 Err(err) => {
-                    eprintln!(
-                        "[draw_rectangles] Failed to create brush for Entity={}: {:?}",
-                        entity_name, err
+                    warn!(
+                        entity = %entity_name,
+                        error = ?err,
+                        "Failed to create brush"
                     );
                     let _ = dc.EndDraw(None, None);
                     continue;
@@ -189,9 +201,10 @@ pub fn draw_rectangles(
             dc.fill_rectangle(&rect, &brush);
 
             if let Err(err) = dc.EndDraw(None, None) {
-                eprintln!(
-                    "[draw_rectangles] EndDraw failed for Entity={}: {:?}",
-                    entity_name, err
+                warn!(
+                    entity = %entity_name,
+                    error = ?err,
+                    "EndDraw failed"
                 );
                 continue;
             }
@@ -199,9 +212,10 @@ pub fn draw_rectangles(
 
         // CommandListを閉じる
         if let Err(err) = command_list.close() {
-            eprintln!(
-                "[draw_rectangles] Failed to close CommandList for Entity={}: {:?}",
-                entity_name, err
+            warn!(
+                entity = %entity_name,
+                error = ?err,
+                "Failed to close CommandList"
             );
             continue;
         }
@@ -211,22 +225,22 @@ pub fn draw_rectangles(
         match cmd_list_opt {
             Some(existing) if *existing != new_cmd_list => {
                 commands.entity(entity).insert(new_cmd_list);
-                eprintln!(
-                    "[draw_rectangles] CommandList updated for Entity={}",
-                    entity_name
+                trace!(
+                    entity = %entity_name,
+                    "CommandList updated"
                 );
             }
             None => {
                 commands.entity(entity).insert(new_cmd_list);
-                eprintln!(
-                    "[draw_rectangles] CommandList created for Entity={}",
-                    entity_name
+                trace!(
+                    entity = %entity_name,
+                    "CommandList created"
                 );
             }
             _ => {
-                eprintln!(
-                    "[draw_rectangles] CommandList unchanged for Entity={}",
-                    entity_name
+                trace!(
+                    entity = %entity_name,
+                    "CommandList unchanged"
                 );
             }
         }
