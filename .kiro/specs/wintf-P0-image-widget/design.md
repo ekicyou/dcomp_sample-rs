@@ -13,11 +13,11 @@ wintf ECSフレームワークに静止画像表示機能を追加し、非同�
 
 | 要件ID | 要件名 | 関連コンポーネント | 関連システム |
 |--------|--------|-------------------|--------------|
-| R1 | 非同期読み込み | WintfTaskPool, Image | process_image_commands |
-| R2 | 静止画像読み込み | ImageResource | load_image_async |
-| R3 | 透過処理 | ImageResource | load_image_async (WIC変換) |
-| R4 | D2D描画 | ImageGraphics | draw_images |
-| R5 | ECS統合 | Image | on_image_add, on_image_remove |
+| R1 | 非同期読み込み | WintfTaskPool, BitmapSource | drain_task_pool_commands |
+| R2 | 静止画像読み込み | BitmapSourceResource | load_bitmap_source_async |
+| R3 | 透過処理 | BitmapSourceResource | load_bitmap_source_async (WIC変換) |
+| R4 | D2D描画 | BitmapSourceGraphics | draw_bitmap_sources |
+| R5 | ECS統合 | BitmapSource | on_bitmap_source_add, on_bitmap_source_remove |
 | R6 | 将来拡張性 | モジュール構造 | - |
 
 ---
@@ -33,9 +33,9 @@ graph TB
     end
     
     subgraph "ECS Widget Layer"
-        IMG[Image Component]
-        IR[ImageResource]
-        IG[ImageGraphics]
+        BS[BitmapSource Component]
+        BSR[BitmapSourceResource]
+        BSG[BitmapSourceGraphics]
     end
     
     subgraph "Infrastructure"
@@ -44,31 +44,32 @@ graph TB
         D2D[D2D DeviceContext]
     end
     
-    APP -->|spawn entity| IMG
-    IMG -->|on_add trigger| TP
+    APP -->|spawn entity| BS
+    BS -->|on_add trigger| TP
+    BS -->|on_add| BSG
     TP -->|async load| WIC
-    WIC -->|IWICBitmapSource| IR
-    IR -->|D2D bitmap creation| IG
-    IG -->|draw| D2D
+    WIC -->|IWICBitmapSource| BSR
+    BSR -->|D2D bitmap creation| BSG
+    BSG -->|draw| D2D
 ```
 
 ### 2.2 Component Diagram
 
 ```mermaid
 classDiagram
-    class Image {
+    class BitmapSource {
         +path: String
         +on_add() hook
         +on_remove() hook
     }
     
-    class ImageResource {
+    class BitmapSourceResource {
         -source: IWICBitmapSource
         +new(source) Self
         +source() &IWICBitmapSource
     }
     
-    class ImageGraphics {
+    class BitmapSourceGraphics {
         -bitmap: Option~ID2D1Bitmap1~
         -generation: u64
         +new() Self
@@ -90,9 +91,10 @@ classDiagram
         Box~dyn Command + Send~
     }
     
-    Image --> ImageResource : "async creates"
-    ImageResource --> ImageGraphics : "D2D conversion"
-    Image ..> WintfTaskPool : "uses for async"
+    BitmapSource --> BitmapSourceResource : "async creates"
+    BitmapSource --> BitmapSourceGraphics : "on_add creates (empty)"
+    BitmapSourceResource --> BitmapSourceGraphics : "D2D conversion"
+    BitmapSource ..> WintfTaskPool : "uses for async"
     WintfTaskPool --> BoxedCommand : "sends/receives"
 ```
 
@@ -102,11 +104,11 @@ classDiagram
 crates/wintf/src/
 ├── ecs/
 │   ├── widget/
-│   │   ├── mod.rs              # pub mod image 追加
-│   │   └── image/
+│   │   ├── mod.rs              # pub mod bitmap_source 追加
+│   │   └── bitmap_source/
 │   │       ├── mod.rs          # モジュール公開
-│   │       ├── image.rs        # Image component
-│   │       ├── resource.rs     # ImageResource, ImageGraphics
+│   │       ├── bitmap_source.rs # BitmapSource component
+│   │       ├── resource.rs     # BitmapSourceResource, BitmapSourceGraphics
 │   │       ├── task_pool.rs    # WintfTaskPool
 │   │       └── systems.rs      # systems
 │   └── mod.rs                  # widget re-export
@@ -131,51 +133,51 @@ crates/wintf/src/
 
 ## 4. System Flows
 
-### 4.1 Image Loading Flow
+### 4.1 BitmapSource Loading Flow
 
 ```mermaid
 sequenceDiagram
     participant App
     participant ECS as Bevy ECS
-    participant Hook as on_image_add
+    participant Hook as on_bitmap_source_add
     participant TP as WintfTaskPool
     participant WIC as WIC Factory
-    participant Sys as process_image_commands
+    participant Sys as drain_task_pool_commands
     
-    App->>ECS: spawn(Image { path })
+    App->>ECS: spawn(BitmapSource { path })
     ECS->>Hook: on_add triggered
+    Hook->>ECS: insert BitmapSourceGraphics (empty)
     Hook->>TP: spawn async task
     Note over TP: Background thread
     TP->>WIC: CreateDecoderFromFilename
     WIC-->>TP: IWICBitmapSource (PBGRA32)
-    TP->>TP: sender.send(ImageCommand)
+    TP->>TP: tx.send(Box<dyn Command>)
     
     Note over Sys: Input schedule
-    Sys->>TP: drain()
-    TP-->>Sys: Vec<ImageCommand>
-    Sys->>ECS: commands.entity(e).insert(ImageResource)
+    Sys->>TP: drain_and_apply()
+    Sys->>ECS: InsertBitmapSourceResource.apply()
 ```
 
-### 4.2 Image Rendering Flow
+### 4.2 BitmapSource Rendering Flow
 
 ```mermaid
 sequenceDiagram
     participant Layout as Layout System
-    participant Draw as draw_images
-    participant IR as ImageResource
-    participant IG as ImageGraphics
+    participant Draw as draw_bitmap_sources
+    participant BSR as BitmapSourceResource
+    participant BSG as BitmapSourceGraphics
     participant GC as GraphicsCore
     participant D2D as D2D DeviceContext
     
-    Layout->>Draw: Arrangement changed
-    Draw->>IR: check exists
-    Draw->>IG: check generation
+    Layout->>Draw: Arrangement changed or BitmapSourceResource changed
+    Draw->>BSR: check exists
+    Draw->>BSG: check generation
     alt needs_recreate
         Draw->>GC: device_context()
         GC-->>Draw: &ID2D1DeviceContext
         Draw->>D2D: create_bitmap_from_wic_bitmap
         D2D-->>Draw: ID2D1Bitmap1
-        Draw->>IG: set_bitmap(bitmap, gen)
+        Draw->>BSG: set_bitmap(bitmap, gen)
     end
     Draw->>D2D: draw_bitmap at (0,0)
     Draw->>ECS: insert GraphicsCommandList
@@ -185,16 +187,16 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[Image path] --> B{File exists?}
+    A[BitmapSource path] --> B{File exists?}
     B -->|No| C[eprintln error]
     B -->|Yes| D{Decodable?}
     D -->|No| C
     D -->|Yes| E{Has α-channel?}
     E -->|No| C
-    E -->|Yes| F[Create ImageResource]
+    E -->|Yes| F[Create BitmapSourceResource]
     F --> G[Insert to Entity]
     
-    C --> H[No ImageResource]
+    C --> H[No BitmapSourceResource]
     H --> I[Entity renders nothing]
 ```
 
@@ -202,34 +204,34 @@ flowchart TD
 
 ## 5. Components & Interfaces
 
-### 5.1 Image Component
+### 5.1 BitmapSource Component
 
 ```rust
-/// 画像表示ウィジェット
+/// 画像表示ウィジェット（WIC BitmapSourceベース）
 /// 
 /// # Example
 /// ```rust
 /// commands.spawn((
-///     Image::new("assets/logo.png"),
+///     BitmapSource::new("assets/logo.png"),
 ///     BoxSize::fixed(200.0, 100.0),
 /// ));
 /// ```
 #[derive(Component, Debug, Clone)]
-#[component(on_add = on_image_add, on_remove = on_image_remove)]
-pub struct Image {
+#[component(on_add = on_bitmap_source_add, on_remove = on_bitmap_source_remove)]
+pub struct BitmapSource {
     /// 画像ファイルパス（相対または絶対）
     pub path: String,
 }
 
-impl Image {
-    /// 新しいImageコンポーネントを作成
+impl BitmapSource {
+    /// 新しいBitmapSourceコンポーネントを作成
     pub fn new<S: Into<String>>(path: S) -> Self {
         Self { path: path.into() }
     }
 }
 ```
 
-### 5.2 ImageResource Component
+### 5.2 BitmapSourceResource Component
 
 ```rust
 /// CPU側画像リソース（WIC BitmapSource）
@@ -238,14 +240,14 @@ impl Image {
 /// IWICBitmapSourceはthread-free marshaling対応のため
 /// Send + Syncを手動実装する。
 #[derive(Component)]
-pub struct ImageResource {
+pub struct BitmapSourceResource {
     source: IWICBitmapSource,
 }
 
-unsafe impl Send for ImageResource {}
-unsafe impl Sync for ImageResource {}
+unsafe impl Send for BitmapSourceResource {}
+unsafe impl Sync for BitmapSourceResource {}
 
-impl ImageResource {
+impl BitmapSourceResource {
     /// WIC BitmapSourceから作成
     pub fn new(source: IWICBitmapSource) -> Self {
         Self { source }
@@ -258,22 +260,25 @@ impl ImageResource {
 }
 ```
 
-### 5.3 ImageGraphics Component
+### 5.3 BitmapSourceGraphics Component
 
 ```rust
 /// GPU側画像リソース（D2D Bitmap）
+/// 
+/// BitmapSourceのon_add時にOption::Noneで作成され、
+/// BitmapSourceResourceが追加されたらD2D Bitmapを生成する。
 #[derive(Component)]
-pub struct ImageGraphics {
+pub struct BitmapSourceGraphics {
     bitmap: Option<ID2D1Bitmap1>,
     /// Device Lost検出用generation
     generation: u64,
 }
 
-unsafe impl Send for ImageGraphics {}
-unsafe impl Sync for ImageGraphics {}
+unsafe impl Send for BitmapSourceGraphics {}
+unsafe impl Sync for BitmapSourceGraphics {}
 
-impl ImageGraphics {
-    /// 空のImageGraphicsを作成
+impl BitmapSourceGraphics {
+    /// 空のBitmapSourceGraphicsを作成
     pub fn new() -> Self {
         Self {
             bitmap: None,
@@ -361,19 +366,19 @@ impl WintfTaskPool {
 }
 ```
 
-### 5.5 InsertImageResource Command
+### 5.5 InsertBitmapSourceResource Command
 
 ```rust
-/// 画像読み込み完了時にImageResourceを挿入するCommand
-struct InsertImageResource {
+/// 画像読み込み完了時にBitmapSourceResourceを挿入するCommand
+struct InsertBitmapSourceResource {
     entity: Entity,
     source: IWICBitmapSource,
 }
 
-impl Command for InsertImageResource {
+impl Command for InsertBitmapSourceResource {
     fn apply(self, world: &mut World) {
         if let Some(mut entity_ref) = world.get_entity_mut(self.entity) {
-            entity_ref.insert(ImageResource::new(self.source));
+            entity_ref.insert(BitmapSourceResource::new(self.source));
         }
     }
 }
@@ -387,27 +392,28 @@ impl Command for InsertImageResource {
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Spawned: spawn(Image)
-    Spawned --> Loading: on_add (async task)
-    Loading --> Loaded: ImageCommand::Loaded
-    Loading --> Failed: ImageCommand::Failed
-    Loaded --> Drawing: ImageGraphics created
+    [*] --> Spawned: spawn(BitmapSource)
+    Spawned --> Loading: on_add (async task + BitmapSourceGraphics)
+    Loading --> Loaded: InsertBitmapSourceResource
+    Loading --> Failed: async error
+    Loaded --> Drawing: D2D Bitmap created
     Drawing --> [*]: entity despawn
     Failed --> [*]: entity despawn
     
     note right of Loading: Background thread
-    note right of Drawing: Has ImageResource + ImageGraphics
+    note right of Loaded: Has BitmapSourceResource
+    note right of Drawing: BitmapSourceGraphics.bitmap = Some
 ```
 
 ### 6.2 Entity Component Mapping
 
-| 状態 | Image | Visual | ImageResource | ImageGraphics | GraphicsCommandList |
-|------|-------|--------|---------------|---------------|---------------------|
+| 状態 | BitmapSource | Visual | BitmapSourceGraphics | BitmapSourceResource | GraphicsCommandList |
+|------|--------------|--------|----------------------|----------------------|---------------------|
 | Spawned | ✓ | - | - | - | - |
-| Loading | ✓ | ✓ | - | - | - |
-| Loaded | ✓ | ✓ | ✓ | - | - |
-| Drawing | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Failed | ✓ | ✓ | - | - | - |
+| Loading | ✓ | ✓ | ✓ (None) | - | - |
+| Loaded | ✓ | ✓ | ✓ (None) | ✓ | - |
+| Drawing | ✓ | ✓ | ✓ (Some) | ✓ | ✓ |
+| Failed | ✓ | ✓ | ✓ (None) | - | - |
 
 ---
 
@@ -417,25 +423,25 @@ stateDiagram-v2
 
 | カテゴリ | 例 | 対応 |
 |----------|---|------|
-| ファイルエラー | 不存在、権限なし | eprintln + ImageResource未生成 |
-| フォーマットエラー | 非対応形式、破損 | eprintln + ImageResource未生成 |
-| αチャネルエラー | 32bppPBGRA変換失敗 | eprintln + ImageResource未生成 |
+| ファイルエラー | 不存在、権限なし | eprintln + BitmapSourceResource未生成 |
+| フォーマットエラー | 非対応形式、破損 | eprintln + BitmapSourceResource未生成 |
+| αチャネルエラー | 32bppPBGRA変換失敗 | eprintln + BitmapSourceResource未生成 |
 | GPUエラー | Device Lost | generation比較で再生成 |
 
 ### 7.2 Error Messages
 
 ```rust
 // ファイル不存在
-eprintln!("[Image] Failed to load '{}': file not found", path);
+eprintln!("[BitmapSource] Failed to load '{}': file not found", path);
 
 // デコード失敗
-eprintln!("[Image] Failed to decode '{}': {:?}", path, error);
+eprintln!("[BitmapSource] Failed to decode '{}': {:?}", path, error);
 
 // αチャネル変換失敗
-eprintln!("[Image] Failed to convert '{}' to PBGRA32: {:?}", path, error);
+eprintln!("[BitmapSource] Failed to convert '{}' to PBGRA32: {:?}", path, error);
 
 // D2D bitmap作成失敗
-eprintln!("[draw_images] Failed to create D2D bitmap for Entity={}: {:?}", entity, error);
+eprintln!("[draw_bitmap_sources] Failed to create D2D bitmap for Entity={}: {:?}", entity, error);
 ```
 
 ---
@@ -446,18 +452,18 @@ eprintln!("[draw_images] Failed to create D2D bitmap for Entity={}: {:?}", entit
 
 | テスト | 対象 | 検証内容 |
 |--------|------|----------|
-| `test_image_component_creation` | Image | path保持確認 |
-| `test_image_resource_send_sync` | ImageResource | Send/Sync trait確認 |
+| `test_bitmap_source_component_creation` | BitmapSource | path保持確認 |
+| `test_bitmap_source_resource_send_sync` | BitmapSourceResource | Send/Sync trait確認 |
 | `test_wintf_task_pool_drain` | WintfTaskPool | channelドレイン動作 |
 
 ### 8.2 Integration Tests
 
 | テスト | 対象 | 検証内容 |
 |--------|------|----------|
-| `test_image_on_add_visual_insertion` | on_image_add | Visual自動挿入 |
-| `test_image_loading_success` | load_image_async | 正常読み込み |
-| `test_image_loading_error` | load_image_async | エラー時の状態 |
-| `test_draw_images_with_arrangement` | draw_images | レイアウト統合 |
+| `test_bitmap_source_on_add_visual_insertion` | on_bitmap_source_add | Visual + BitmapSourceGraphics自動挿入 |
+| `test_bitmap_source_loading_success` | load_bitmap_source_async | 正常読み込み |
+| `test_bitmap_source_loading_error` | load_bitmap_source_async | エラー時の状態 |
+| `test_draw_bitmap_sources_with_arrangement` | draw_bitmap_sources | レイアウト統合 |
 
 ### 8.3 Test Resources
 
@@ -494,8 +500,8 @@ converter.init(
 // Input schedule での drain_and_apply システム登録
 app.add_systems(Input, drain_task_pool_commands);
 
-// PostLayout schedule での draw_images 登録
-app.add_systems(PostLayout, draw_images.after(calculate_arrangement));
+// PostLayout schedule での draw_bitmap_sources 登録
+app.add_systems(PostLayout, draw_bitmap_sources.after(calculate_arrangement));
 
 /// WintfTaskPoolからコマンドをドレインしてWorldに適用
 fn drain_task_pool_commands(world: &mut World) {
@@ -510,26 +516,29 @@ fn drain_task_pool_commands(world: &mut World) {
 ### 9.3 on_add Hook Pattern
 
 ```rust
-fn on_image_add(mut world: DeferredWorld, hook: HookContext) {
-    // Visual自動挿入（Rectangle/Labelパターン踏襲）
-    if world.get::<Visual>(hook.entity).is_some() {
-        return;
+fn on_bitmap_source_add(mut world: DeferredWorld, hook: HookContext) {
+    let entity = hook.entity;
+    
+    // Visual + BitmapSourceGraphics 自動挿入（Rectangle/Labelパターン踏襲）
+    if world.get::<Visual>(entity).is_none() {
+        world.commands().entity(entity).insert((
+            Visual::default(),
+            BitmapSourceGraphics::new(),  // Option<ID2D1Bitmap1> = None
+        ));
     }
-    world.commands().entity(hook.entity).insert(Visual::default());
     
     // 非同期読み込みタスク起動
     if let Some(task_pool) = world.get_resource::<WintfTaskPool>() {
-        let path = world.get::<Image>(hook.entity).unwrap().path.clone();
-        let entity = hook.entity;
+        let path = world.get::<BitmapSource>(entity).unwrap().path.clone();
         
         task_pool.spawn(|tx| async move {
-            match load_image_async(&path).await {
+            match load_bitmap_source_async(&path).await {
                 Ok(source) => {
-                    let cmd: BoxedCommand = Box::new(InsertImageResource { entity, source });
+                    let cmd: BoxedCommand = Box::new(InsertBitmapSourceResource { entity, source });
                     let _ = tx.send(cmd);
                 }
                 Err(e) => {
-                    eprintln!("[Image] Failed to load '{}': {:?}", path, e);
+                    eprintln!("[BitmapSource] Failed to load '{}': {:?}", path, e);
                 }
             }
         });

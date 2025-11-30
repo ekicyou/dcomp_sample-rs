@@ -47,9 +47,9 @@ wintf ECSフレームワークに静止画像表示ウィジェットを追加�
 - **短所**: 責務混在、将来拡張困難
 - **評価**: ❌ 不採用
 
-### 3.2 Option B: 新規 `image/` モジュール（推奨）
-- **概要**: `ecs/widget/image/` ディレクトリを新設
-- **長所**: 明確な責務分離、Rectangle/Labelと一貫したパターン
+### 3.2 Option B: 新規 `bitmap_source/` モジュール（推奨）
+- **概要**: `ecs/widget/bitmap_source/` ディレクトリを新設
+- **長所**: 明確な責務分離、Rectangle/Labelと一貫したパターン、WIC用語と一致
 - **短所**: ファイル数増加（許容範囲）
 - **評価**: ✅ 採用
 
@@ -68,21 +68,24 @@ wintf ECSフレームワークに静止画像表示ウィジェットを追加�
 ### 4.1 Component Architecture
 
 ```
-Image (Component)
+BitmapSource (Component) - 論理コンポーネント
   └─ path: String
-  └─ on_add → spawn async task
+  └─ on_add → Visual + BitmapSourceGraphics挿入 + spawn async task
   └─ on_remove → cleanup
 
-ImageResource (Component) - CPU側
+BitmapSourceResource (Component) - CPU側
   └─ source: IWICBitmapSource
   └─ Send + Sync (WIC thread-free marshaling)
 
-ImageGraphics (Component) - GPU側
-  └─ bitmap: ID2D1Bitmap1
+BitmapSourceGraphics (Component) - GPU側
+  └─ bitmap: Option<ID2D1Bitmap1>  // on_add時はNone
   └─ generation: u64 (device lost対応)
 ```
 
-**Decision**: CPU/GPUリソース分離パターンを採用（Label/TextLayoutResourceパターンと一致）
+**Decision**: 
+- CPU/GPUリソース分離パターンを採用（Label/TextLayoutResourceパターンと一致）
+- BitmapSourceGraphicsはon_add時にOption::Noneで作成（Changedパターン対応）
+- 名前はWICのIWICBitmapSourceに由来
 
 ### 4.2 Async Integration
 
@@ -104,11 +107,11 @@ CommandSender = mpsc::Sender<BoxedCommand>
 ### 4.3 Error Handling
 
 | エラー種別 | 対応 |
-|------------|------|
-| ファイル不存在 | ImageResource未生成 + eprintln |
-| フォーマット非対応 | ImageResource未生成 + eprintln |
+|------------|--------------|
+| ファイル不存在 | BitmapSourceResource未生成 + eprintln |
+| フォーマット非対応 | BitmapSourceResource未生成 + eprintln |
 | αチャネル欠落 | WIC読み込み時に拒否 + eprintln |
-| Device Lost | ImageGraphics再生成（generation比較） |
+| Device Lost | BitmapSourceGraphics再生成（generation比較） |
 
 **Decision**: エラー時は「無表示 + ログ出力」方式
 
@@ -141,21 +144,21 @@ CommandSender = mpsc::Sender<BoxedCommand>
 crates/wintf/src/
 ├── ecs/
 │   └── widget/
-│       └── image/          # 新規モジュール
+│       └── bitmap_source/      # 新規モジュール
 │           ├── mod.rs
-│           ├── image.rs    # Image component
-│           ├── resource.rs # ImageResource, ImageGraphics
-│           └── systems.rs  # load_images, draw_images
+│           ├── bitmap_source.rs  # BitmapSource component
+│           ├── resource.rs       # BitmapSourceResource, BitmapSourceGraphics
+│           └── systems.rs        # load_bitmap_sources, draw_bitmap_sources
 ├── com/
-│   ├── wic.rs             # 既存利用
-│   └── d2d/mod.rs         # 既存利用
+│   ├── wic.rs               # 既存利用
+│   └── d2d/mod.rs           # 既存利用
 ```
 
 ### 6.2 Public API Surface
 
-- `Image` component (public)
-- `ImageResource` component (pub(crate))
-- `ImageGraphics` component (pub(crate))
+- `BitmapSource` component (public)
+- `BitmapSourceResource` component (pub(crate))
+- `BitmapSourceGraphics` component (pub(crate))
 - `WintfTaskPool` resource (pub(crate))
 
 ---
