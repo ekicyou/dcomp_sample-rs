@@ -66,7 +66,7 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 2. **The** Image widget **shall** Bevyの標準タスクプール（ComputeTaskPool, IoTaskPool等）をブロックしない
 3. **While** 画像読み込み中, **the** World **shall** 他の処理を継続できる
 4. **When** 非同期読み込みが完了した時, **the** Image widget **shall** ImageResourceコンポーネントを更新する
-5. **The** WintfTaskPool **shall** アプリケーション起動時にResourceとして初期化される
+5. **The** WintfTaskPool **shall** EcsWorldの初期化時にResourceとして初期化される
 
 ---
 
@@ -84,6 +84,7 @@ wintf フレームワークは現在、Rectangle と Label ウィジェットを
 6. **When** 画像にアルファチャンネルがない場合, **the** Image widget **shall** 明確なエラーを返す
 7. **When** 画像ファイルが存在しない場合, **the** Image widget **shall** 明確なエラーを返す
 8. **When** WICでデコードできない形式の場合, **the** Image widget **shall** 明確なエラーを返す
+9. **When** エラー状態の場合, **the** Image widget **shall** 何も表示しない（プレースホルダー表示なし）
 
 ---
 
