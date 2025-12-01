@@ -59,7 +59,7 @@ LayoutRoot (仮想デスクトップ: 物理ピクセル)
 
 ### Requirement 1: ヒットテストタイプ定義
 
-**Objective:** 開発者として、Visualのヒットテスト動作を設定したい。それによりウィジェットごとに適切なヒット判定を行える。
+**Objective:** 開発者として、エンティティのヒットテスト動作を設定したい。それによりウィジェットごとに適切なヒット判定を行える。
 
 #### Acceptance Criteria
 
@@ -67,8 +67,15 @@ LayoutRoot (仮想デスクトップ: 物理ピクセル)
    - `None`: ヒットテスト対象外（透過）
    - `Bounds`: 矩形領域（GlobalArrangement.bounds）でヒットテスト
 2. The HitTest System shall 将来の拡張に備え、`HitTestMode` enumに新しいバリアントを追加可能な設計とする
-3. The `Visual` component shall `hit_test_mode: HitTestMode` フィールドを持つ
-4. When `Visual` componentが作成された時, the HitTest System shall デフォルト値として `HitTestMode::Bounds` を設定する
+3. The HitTest System shall `HitTest` コンポーネントを `ecs::layout` モジュールに配置する
+4. The `HitTest` component shall `mode: HitTestMode` フィールドを持つ
+5. When `HitTest` componentが作成された時, the HitTest System shall デフォルト値として `HitTestMode::Bounds` を設定する
+
+#### 設計決定
+
+- **コンポーネント名**: `HitTest`（`Visual` とは独立）
+- **名前空間**: `ecs::layout`（`GlobalArrangement.bounds` に依存するため）
+- **理由**: ユニットテストで `Visual` のライフサイクルイベントによる副作用を回避
 
 ---
 
@@ -159,9 +166,9 @@ fn hit_test_recursive(entity: Entity, point: Point) -> Option<Entity> {
 #### Acceptance Criteria
 
 1. The HitTest System shall ヒットテストクエリを実行するための関数を提供する
-2. The HitTest System shall `GlobalArrangement` コンポーネントを持つエンティティのみをヒットテスト対象とする
-3. The HitTest System shall `Visual` コンポーネントを持つエンティティのみをヒットテスト対象とする
-4. When エンティティに `GlobalArrangement` が存在しない時, the HitTest System shall そのエンティティをスキップする
+2. The HitTest System shall `GlobalArrangement` と `HitTest` コンポーネントを持つエンティティのみをヒットテスト対象とする
+3. When エンティティに `GlobalArrangement` または `HitTest` が存在しない時, the HitTest System shall そのエンティティをスキップする
+4. The HitTest System shall `HitTest` コンポーネントを持たないエンティティの子孫は引き続き調査する（ツリー走査は継続）
 
 ---
 
@@ -296,6 +303,13 @@ pub enum HitTestMode {
     // AlphaMask,     // αマスクによるピクセル単位判定（event-hit-test-alpha-mask）
     // Polygon(..),   // 多角形によるヒットテスト
     // Custom(..),    // カスタムヒットテスト関数
+}
+
+/// ヒットテスト設定コンポーネント
+/// 名前空間: ecs::layout
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct HitTest {
+    pub mode: HitTestMode,
 }
 ```
 
