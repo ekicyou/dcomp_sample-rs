@@ -165,6 +165,56 @@ fn hit_test_recursive(entity: Entity, point: Point) -> Option<Entity> {
 
 ---
 
+### Requirement 7: ヒットテスト呼び出しタイミング
+
+**Objective:** 開発者として、適切なタイミングでヒットテストを実行したい。それによりホバー状態やさわり反応などのインタラクションを実現できる。
+
+#### Acceptance Criteria
+
+1. The HitTest System shall `WM_MOUSEMOVE` メッセージ受信時にヒットテストを実行する
+2. The HitTest System shall マウス座標が変化していない場合、前回のヒット結果をキャッシュから返す
+3. The HitTest System shall `WM_LBUTTONDOWN`、`WM_RBUTTONDOWN` 等のボタンイベント時にもヒットテストを実行する
+4. The HitTest System shall `WM_NCHITTEST` でカーソル形状決定に使用できる
+
+#### キャッシュ戦略
+
+- 前回のマウス座標とヒット結果を保持
+- 座標が同一の場合は再計算をスキップ
+- レイアウト変更時（`ArrangementTreeChanged`）にキャッシュを無効化
+
+---
+
+### Requirement 8: ヒットテストAPI
+
+**Objective:** 開発者として、関数呼び出しでヒットテストを実行したい。それによりユニットテストやデモでの検証が可能になる。
+
+#### Acceptance Criteria
+
+1. The HitTest System shall 同期関数としてヒットテストAPIを提供する
+2. The HitTest System shall `hit_test(world: &World, point: Point) -> Option<Entity>` シグネチャの関数を提供する
+3. The HitTest System shall ヒット結果として `Entity` を返す（ヒットなしの場合は `None`）
+4. The HitTest System shall Windowエンティティを指定してスコープを限定できるオーバーロードを提供する
+
+#### API設計
+
+```rust
+/// 指定座標でヒットテストを実行（グローバル座標）
+pub fn hit_test(world: &World, point: PhysicalPoint) -> Option<Entity>;
+
+/// 指定Window内でヒットテストを実行
+pub fn hit_test_in_window(world: &World, window: Entity, point: PhysicalPoint) -> Option<Entity>;
+
+/// ヒットテスト結果（詳細情報付き）
+pub struct HitTestResult {
+    pub entity: Entity,
+    pub local_point: Point,  // エンティティローカル座標
+}
+
+pub fn hit_test_detailed(world: &World, point: PhysicalPoint) -> Option<HitTestResult>;
+```
+
+---
+
 ## Non-Functional Requirements
 
 ### NFR-1: パフォーマンス
@@ -173,6 +223,7 @@ fn hit_test_recursive(entity: Entity, point: Point) -> Option<Entity> {
 - 初期実装: O(n) 線形ツリー走査（数百エンティティ規模では十分な性能）
 - 将来的な最適化として空間分割（Quadtree等）を検討可能な設計とする
 - 検索アルゴリズムを差し替え可能な trait ベースの設計とする
+- キャッシュにより連続した同一座標でのヒットテストを最適化
 
 ### NFR-2: 精度
 
@@ -183,6 +234,12 @@ fn hit_test_recursive(entity: Entity, point: Point) -> Option<Entity> {
 
 - `HitTestMode` enumは将来のバリアント追加を容易にする
 - 孫仕様（`event-hit-test-alpha-mask`等）との統合を考慮した設計
+
+### NFR-4: テスト容易性
+
+- ヒットテストAPIは関数呼び出しで直接実行可能
+- デモ・テストコードから任意のタイミングでヒットテストを実行できる
+- ヒット結果をログ出力して検証可能
 
 ---
 
@@ -262,4 +319,32 @@ impl HitTestStrategy for TreeTraversalHitTest {
 // 将来の拡張例:
 // pub struct SpatialIndexHitTest { quadtree: Quadtree }
 // pub struct CachedHitTest { cache: HitTestCache, inner: Box<dyn HitTestStrategy> }
+```
+
+### E. テスト方法（taffy_flex_demo）
+
+```rust
+// デモ内でのヒットテスト検証例
+// 表示1秒後、6秒後にヒットテストAPIを呼び出し、結果をログ出力
+
+fn test_hit_test_delayed(world: &mut World) {
+    // 1秒後に実行
+    schedule_delayed(Duration::from_secs(1), move |world| {
+        let test_point = PhysicalPoint { x: 500.0, y: 400.0 };
+        if let Some(entity) = hit_test(world, test_point) {
+            if let Some(name) = world.get::<Name>(entity) {
+                info!("[HitTest @1s] Hit: {:?} at {:?}", name.as_str(), test_point);
+            } else {
+                info!("[HitTest @1s] Hit: Entity {:?} (no name) at {:?}", entity, test_point);
+            }
+        } else {
+            info!("[HitTest @1s] No hit at {:?}", test_point);
+        }
+    });
+
+    // 6秒後に実行
+    schedule_delayed(Duration::from_secs(6), move |world| {
+        // 同様のテスト
+    });
+}
 ```
