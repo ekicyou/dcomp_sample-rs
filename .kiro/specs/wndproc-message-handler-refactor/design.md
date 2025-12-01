@@ -275,6 +275,7 @@ pub(crate) fn get_entity_from_hwnd(hwnd: HWND) -> Option<Entity> {
 
 #![allow(non_snake_case)]
 
+use tracing::{debug, trace, warn};
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -351,8 +352,23 @@ pub(super) unsafe fn WM_WINDOWPOSCHANGED(
     _wparam: WPARAM,
     lparam: LPARAM,
 ) -> HandlerResult {
-    // DPI更新、WindowPos更新、BoxStyle更新、Vsync Tick、flush
-    // ... (既存ロジック、約180行)
+    // ハンドラ内でECS Worldを取得するパターン
+    // 統一シグネチャを維持しつつ、必要な場合のみWorldにアクセス
+    let entity = super::get_entity_from_hwnd(hwnd)?;
+    let world = super::try_get_ecs_world()?;
+    
+    // ① 第1借用セクション: DPI更新, WindowPosChanged=true, WindowPos/BoxStyle更新
+    // ... (既存ロジック)
+    
+    // ② try_tick_on_vsync() (内部で借用→解放)
+    let _ = world.try_tick_on_vsync();
+    
+    // ③ flush_window_pos_commands() (SetWindowPos実行)
+    crate::ecs::window::flush_window_pos_commands();
+    
+    // ④ 第2借用セクション: WindowPosChanged=false
+    // ... (既存ロジック)
+    
     None // DefWindowProcWに委譲
 }
 
