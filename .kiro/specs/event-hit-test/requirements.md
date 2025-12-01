@@ -198,18 +198,23 @@ fn hit_test_recursive(entity: Entity, point: Point) -> Option<Entity> {
 #### Acceptance Criteria
 
 1. The HitTest System shall 同期関数としてヒットテストAPIを提供する
-2. The HitTest System shall `hit_test(world: &World, point: Point) -> Option<Entity>` シグネチャの関数を提供する
+2. The HitTest System shall `hit_test(world: &World, root: Entity, screen_point: PhysicalPoint) -> Option<Entity>` シグネチャの関数を提供する
 3. The HitTest System shall ヒット結果として `Entity` を返す（ヒットなしの場合は `None`）
-4. The HitTest System shall Windowエンティティを指定してスコープを限定できるオーバーロードを提供する
+4. The HitTest System shall `hit_test_in_window` でWindow内クライアント座標からのヒットテストを提供する
 
 #### API設計
 
 ```rust
-/// 指定座標でヒットテストを実行（グローバル座標）
-pub fn hit_test(world: &World, point: PhysicalPoint) -> Option<Entity>;
+/// 指定ルートエンティティ配下でスクリーン座標によるヒットテストを実行
+/// root: 検索ルート（LayoutRoot, Window, 任意のエンティティ）
+/// screen_point: スクリーン座標（物理ピクセル）
+pub fn hit_test(world: &World, root: Entity, screen_point: PhysicalPoint) -> Option<Entity>;
 
-/// 指定Window内でヒットテストを実行
-pub fn hit_test_in_window(world: &World, window: Entity, point: PhysicalPoint) -> Option<Entity>;
+/// 指定Window内でクライアント座標によるヒットテストを実行
+/// window: WindowエンティティまたはWindowHandleを持つエンティティ
+/// client_point: ウィンドウクライアント座標（物理ピクセル）
+/// 内部でWindowPosを使用してスクリーン座標に変換後、hit_testを呼び出す
+pub fn hit_test_in_window(world: &World, window: Entity, client_point: PhysicalPoint) -> Option<Entity>;
 
 /// ヒットテスト結果（詳細情報付き）
 pub struct HitTestResult {
@@ -217,8 +222,14 @@ pub struct HitTestResult {
     pub local_point: Point,  // エンティティローカル座標
 }
 
-pub fn hit_test_detailed(world: &World, point: PhysicalPoint) -> Option<HitTestResult>;
+pub fn hit_test_detailed(world: &World, root: Entity, screen_point: PhysicalPoint) -> Option<HitTestResult>;
 ```
+
+#### 実装順序（ギャップ分析結果）
+
+1. **Phase 1**: `hit_test(world, root, screen_point)` - 基本API
+2. **Phase 2**: `hit_test_in_window(world, window, client_point)` - WindowPos利用ラッパー
+3. **Phase 3**: `hit_test_detailed` - ローカル座標付き結果（オプション）
 
 ---
 
