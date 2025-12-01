@@ -419,6 +419,34 @@ impl EcsWorld {
         &mut self.world
     }
 
+    /// 非同期タスクを生成（WintfTaskPool経由）
+    ///
+    /// タスク内で`CommandSender`を使ってECSコマンドを送信できる。
+    /// コマンドはInputスケジュールで自動的にWorldに適用される。
+    ///
+    /// # Example
+    /// ```ignore
+    /// ecs_world.spawn(|tx| async move {
+    ///     let result = some_async_work().await;
+    ///     let cmd: BoxedCommand = Box::new(move |world: &mut World| {
+    ///         // worldを操作
+    ///     });
+    ///     let _ = tx.send(cmd);
+    /// });
+    /// ```
+    pub fn spawn<F, Fut>(&self, f: F)
+    where
+        F: FnOnce(crate::ecs::widget::bitmap_source::CommandSender) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send,
+    {
+        if let Some(task_pool) = self
+            .world
+            .get_resource::<crate::ecs::widget::bitmap_source::WintfTaskPool>()
+        {
+            task_pool.spawn(f);
+        }
+    }
+
     /// フレームレート計測とログ出力（デバッグ用）
     /// 10秒ごとにフレームレートをログ出力
     fn measure_and_log_framerate(&mut self) {
