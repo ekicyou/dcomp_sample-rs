@@ -90,51 +90,25 @@ mod graphics_core_tests {
 }
 
 // Task 3.1: HasGraphicsResources メソッドのユニットテスト
+// Note: HasGraphicsResources は空マーカーに変更されたため、
+// 古いテスト（needs_init, request_init, mark_initialized）は削除
+// Changed<HasGraphicsResources> で再初期化トリガーを検知する設計に移行
 #[cfg(test)]
 mod has_graphics_resources_tests {
     use crate::ecs::graphics::HasGraphicsResources;
 
     #[test]
-    fn test_default_does_not_need_init() {
-        let res = HasGraphicsResources::default();
-        assert!(!res.needs_init(), "デフォルト状態では初期化不要");
+    fn test_default_is_unit_struct() {
+        // 空マーカーコンポーネントとして機能することを確認
+        let _res = HasGraphicsResources::default();
+        // HasGraphicsResources は () と同等の空構造体
     }
 
     #[test]
-    fn test_request_init_sets_needs_init() {
-        let mut res = HasGraphicsResources::default();
-        res.request_init();
-        assert!(res.needs_init(), "request_init後は初期化が必要");
-    }
-
-    #[test]
-    fn test_mark_initialized_clears_needs_init() {
-        let mut res = HasGraphicsResources::default();
-        res.request_init();
-        res.mark_initialized();
-        assert!(!res.needs_init(), "mark_initialized後は初期化不要");
-    }
-
-    #[test]
-    fn test_multiple_request_init() {
-        let mut res = HasGraphicsResources::default();
-        res.request_init();
-        res.mark_initialized();
-        res.request_init();
-        assert!(res.needs_init(), "再度request_init後は初期化が必要");
-    }
-
-    #[test]
-    fn test_wrapping_overflow() {
-        let mut res = HasGraphicsResources::default();
-        // 世代番号をmax近くに設定してラッピング動作を確認
-        for _ in 0..5 {
-            res.request_init();
-            res.mark_initialized();
-        }
-        assert!(!res.needs_init(), "複数回のサイクル後も正常動作");
-        res.request_init();
-        assert!(res.needs_init(), "ラッピング後もneeds_initが正常動作");
+    fn test_clone_and_partial_eq() {
+        let res1 = HasGraphicsResources::default();
+        let res2 = res1.clone();
+        assert_eq!(res1, res2, "クローンは同一");
     }
 }
 

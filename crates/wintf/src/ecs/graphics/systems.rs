@@ -361,9 +361,7 @@ pub fn commit_composition(
 /// GraphicsCore初期化・再初期化・一括マーキング
 ///
 /// GraphicsCoreが無効な場合に再作成し、HasGraphicsResourcesを持つ全エンティティに
-/// 初期化リクエストを発行する。
-///
-/// Changed: GraphicsNeedsInitマーカー挿入から、HasGraphicsResources.request_init()に移行
+/// Changed<HasGraphicsResources>をトリガーして再初期化を促す。
 pub fn init_graphics_core(
     graphics: Option<ResMut<GraphicsCore>>,
     mut query: Query<&mut HasGraphicsResources>,
@@ -392,10 +390,10 @@ pub fn init_graphics_core(
                     debug!(
                         frame = frame_count.0,
                         count = count,
-                        "[init_graphics_core] Calling request_init() on entities (re-init)"
+                        "[init_graphics_core] Triggering set_changed() on entities (re-init)"
                     );
                     for mut res in query.iter_mut() {
-                        res.request_init();
+                        res.set_changed();
                     }
                 }
                 Err(e) => {
@@ -424,10 +422,10 @@ pub fn init_graphics_core(
                     debug!(
                         frame = frame_count.0,
                         count = count,
-                        "[init_graphics_core] Calling request_init() on entities (init)"
+                        "[init_graphics_core] Triggering set_changed() on entities (init)"
                     );
                     for mut res in query.iter_mut() {
-                        res.request_init();
+                        res.set_changed();
                     }
                 }
                 Err(e) => {
@@ -464,7 +462,7 @@ pub fn init_window_graphics(
         return;
     }
 
-    for (entity, handle, res, window_graphics, name) in query.iter_mut() {
+    for (entity, handle, _res, window_graphics, name) in query.iter_mut() {
         let entity_name = format_entity_name(entity, name);
         match window_graphics {
             None => {
@@ -493,8 +491,8 @@ pub fn init_window_graphics(
                 }
             }
             Some(mut wg) => {
-                // needs_init()がtrueの場合のみ再初期化
-                if res.needs_init() && !wg.is_valid() {
+                // Changed<HasGraphicsResources>でトリガーされ、!is_valid()の場合に再初期化
+                if !wg.is_valid() {
                     debug!(
                         frame = frame_count.0,
                         entity = %entity_name,
@@ -911,47 +909,30 @@ pub fn apply_window_pos_changes(
 
 /// GraphicsNeedsInitマーカー削除・初期化完了判定
 ///
-/// Changed: GraphicsNeedsInitマーカー削除から、mark_initialized()に移行
+/// Deprecated: HasGraphicsResources が空マーカーに変更されたため、このシステムは不要
+/// 次回削除予定（Phase 4）
 pub fn cleanup_graphics_needs_init(
-    mut query: Query<(
+    _query: Query<(
         Entity,
-        &mut HasGraphicsResources,
+        &HasGraphicsResources,
         &WindowGraphics,
         &VisualGraphics,
         &SurfaceGraphics,
     )>,
 ) {
-    for (entity, mut res, window_graphics, visual, surface) in query.iter_mut() {
-        // needs_init()がtrueで、すべてのリソースが有効な場合に初期化完了をマーク
-        if res.needs_init() && window_graphics.is_valid() && visual.is_valid() && surface.is_valid()
-        {
-            debug!(
-                entity = ?entity,
-                "[cleanup_graphics_needs_init] mark_initialized()"
-            );
-            res.mark_initialized();
-        }
-    }
+    // No-op: HasGraphicsResources は空マーカーなので mark_initialized() は不要
 }
 
 /// 再初期化時に古いGraphicsCommandListを削除
 ///
-/// Changed: GraphicsNeedsInitマーカーから、needs_init()条件に移行
+/// Deprecated: HasGraphicsResources が空マーカーに変更されたため、このシステムは不要
+/// 次回削除予定（Phase 4）
+/// TODO: Changed<HasGraphicsResources> + GraphicsCommandList ありの組み合わせで動作させる場合は再検討
 pub fn cleanup_command_list_on_reinit(
-    query: Query<(Entity, &HasGraphicsResources), With<crate::ecs::graphics::GraphicsCommandList>>,
-    mut commands: Commands,
+    _query: Query<(Entity, &HasGraphicsResources), With<crate::ecs::graphics::GraphicsCommandList>>,
+    _commands: Commands,
 ) {
-    for (entity, res) in query.iter() {
-        if res.needs_init() {
-            commands
-                .entity(entity)
-                .remove::<crate::ecs::graphics::GraphicsCommandList>();
-            debug!(
-                entity = ?entity,
-                "[cleanup_command_list_on_reinit] GraphicsCommandList removed"
-            );
-        }
-    }
+    // No-op: needs_init() は廃止、再初期化トリガーは Changed<HasGraphicsResources> で検知
 }
 
 /// 依存コンポーネント無効化

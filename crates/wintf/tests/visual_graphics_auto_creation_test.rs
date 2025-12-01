@@ -129,7 +129,8 @@ fn test_multiple_entities_get_visual_graphics() -> Result<()> {
     Ok(())
 }
 
-/// GraphicsCore が無効（invalidate済み）の場合は VisualGraphics が作成されないことを確認
+/// GraphicsCore が無効（invalidate済み）の場合は VisualGraphics のGPUリソースが作成されないことを確認
+/// Note: Visual.on_add で VisualGraphics::default() は挿入されるが、GPUリソースは作成されない
 #[test]
 fn test_no_visual_graphics_with_invalid_graphics_core() -> Result<()> {
     let mut graphics = setup_graphics()?;
@@ -146,10 +147,17 @@ fn test_no_visual_graphics_with_invalid_graphics_core() -> Result<()> {
     schedule.add_systems(visual_resource_management_system);
     schedule.run(&mut world);
 
-    // VisualGraphics は作成されない（GraphicsCoreが無効なため）
+    // VisualGraphics コンポーネント自体は Visual.on_add で作成される
+    let vg = world.get::<VisualGraphics>(entity);
     assert!(
-        world.get::<VisualGraphics>(entity).is_none(),
-        "VisualGraphics should not be created with invalid GraphicsCore"
+        vg.is_some(),
+        "VisualGraphics component should exist (created by Visual.on_add)"
+    );
+
+    // ただし、GPUリソースは作成されない（GraphicsCoreが無効なため）
+    assert!(
+        !vg.unwrap().is_valid(),
+        "VisualGraphics should not have GPU resources with invalid GraphicsCore"
     );
 
     Ok(())

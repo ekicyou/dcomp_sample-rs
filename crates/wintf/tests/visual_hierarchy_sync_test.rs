@@ -169,7 +169,8 @@ fn test_children_order_change_syncs_zorder() -> Result<()> {
     Ok(())
 }
 
-/// VisualGraphicsがないエンティティは階層同期をスキップすることを確認
+/// VisualGraphicsにGPUリソースがないエンティティは階層同期をスキップすることを確認
+/// Note: Visual.on_add で VisualGraphics::default() は挿入されるが、GPUリソースがなければスキップ
 #[test]
 fn test_entities_without_visual_graphics_are_skipped() -> Result<()> {
     let graphics = setup_graphics()?;
@@ -178,7 +179,7 @@ fn test_entities_without_visual_graphics_are_skipped() -> Result<()> {
     let mut world = World::new();
     world.insert_resource(graphics);
 
-    // 親を作成（VisualGraphicsあり）
+    // 親を作成（VisualGraphicsあり、GPUリソースあり）
     let parent_visual = dcomp.create_visual()?;
     let parent_entity = world
         .spawn((
@@ -187,7 +188,7 @@ fn test_entities_without_visual_graphics_are_skipped() -> Result<()> {
         ))
         .id();
 
-    // 子を作成（VisualGraphicsなし）
+    // 子を作成（Visual.on_addでVisualGraphics::default()が挿入されるがGPUリソースなし）
     let child_entity = world
         .spawn((Visual::default(), ChildOf(parent_entity)))
         .id();
@@ -197,8 +198,16 @@ fn test_entities_without_visual_graphics_are_skipped() -> Result<()> {
     schedule.add_systems(visual_hierarchy_sync_system);
     schedule.run(&mut world);
 
-    // 子エンティティにはVisualGraphicsがないまま
-    assert!(world.get::<VisualGraphics>(child_entity).is_none());
+    // 子エンティティにはVisualGraphicsコンポーネントは存在するが、GPUリソースは無い
+    let child_vg = world.get::<VisualGraphics>(child_entity);
+    assert!(
+        child_vg.is_some(),
+        "VisualGraphics component should exist (created by Visual.on_add)"
+    );
+    assert!(
+        !child_vg.unwrap().is_valid(),
+        "VisualGraphics should not have GPU resources"
+    );
 
     Ok(())
 }

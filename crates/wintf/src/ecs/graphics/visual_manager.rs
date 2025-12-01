@@ -1,7 +1,6 @@
 use crate::com::dcomp::DCompositionDeviceExt;
 use crate::ecs::graphics::{
-    GraphicsCore, HasGraphicsResources, SurfaceGraphics, SurfaceGraphicsDirty, Visual,
-    VisualGraphics, WindowGraphics,
+    GraphicsCore, HasGraphicsResources, Visual, VisualGraphics, WindowGraphics,
 };
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
@@ -42,36 +41,25 @@ pub fn insert_visual_with(world: &mut World, entity: Entity, visual: Visual) {
 /// Phase 6リファクタリング: Visual作成をPreLayoutに移動し、
 /// Surface作成はDrawスケジュールでCommandList存在時に遅延実行する。
 ///
-/// 同時に空のSurfaceGraphicsとSurfaceGraphicsDirtyを配置し、
-/// 後で直接更新できるようにする（commands.insert問題の回避）。
+/// Note: SurfaceGraphicsとSurfaceGraphicsDirtyはVisual.on_addで事前配置されている
 fn create_visual_only(
-    commands: &mut Commands,
+    _commands: &mut Commands,
     entity: Entity,
-    _visual: &Visual,
+    vg: &mut VisualGraphics,
     dcomp: &IDCompositionDevice3,
 ) {
     let visual_res = dcomp.create_visual();
     match visual_res {
         Ok(v3) => {
-            // FIXME: SetOpacity and SetVisible not found on IDCompositionVisual in windows 0.62?
-            // if let Ok(visual_base) = v3.cast::<IDCompositionVisual>() {
-            //     unsafe {
-            //         let _ = visual_base.SetOpacity(visual.opacity);
-            //         let _ = visual_base.SetVisible(visual.is_visible.into());
-            //     }
-            // }
+            // VisualGraphicsを直接更新（既にVisual.on_addで配置済み）
+            *vg = VisualGraphics::new(v3.clone());
 
-            // VisualGraphicsと同時に空のSurfaceGraphics/SurfaceGraphicsDirtyも配置
-            // これにより後で直接更新でき、commands.insert()の遅延問題を回避
-            commands.entity(entity).insert((
-                VisualGraphics::new(v3.clone()),
-                SurfaceGraphics::default(),
-                SurfaceGraphicsDirty::default(),
-            ));
+            // SurfaceGraphicsとSurfaceGraphicsDirtyはVisual.on_addで事前配置済み
+            // 明示的なset_changed()は不要（VisualGraphicsの更新でChanged検知される）
 
             debug!(
                 entity = ?entity,
-                "Visual created (Surface deferred, SurfaceGraphics pre-allocated)"
+                "Visual created (VisualGraphics initialized)"
             );
         }
         Err(e) => {
@@ -84,10 +72,13 @@ fn create_visual_only(
 ///
 /// Phase 6: Visualのみを作成し、Surfaceは作成しない。
 /// SurfaceはDrawスケジュールでCommandList存在時に遅延作成される。
+///
+/// Changed: Added<Visual> から Changed<VisualGraphics> + !is_valid() パターンに移行
+/// Visual.on_add で VisualGraphics::default() が挿入され、このシステムがGPUリソースを作成
 pub fn visual_resource_management_system(
     mut commands: Commands,
     graphics: Res<GraphicsCore>,
-    query: Query<(Entity, &Visual, Option<&Name>), Added<Visual>>,
+    mut query: Query<(Entity, &Visual, &mut VisualGraphics, Option<&Name>), Changed<VisualGraphics>>,
     frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     if !graphics.is_valid() {
@@ -99,45 +90,38 @@ pub fn visual_resource_management_system(
         None => return,
     };
 
-    for (entity, visual, name) in query.iter() {
-        let entity_name = format_entity_name(entity, name);
-        trace!(
-            frame = frame_count.0,
-            entity = %entity_name,
-            "VisualGraphics creation starting"
-        );
-        create_visual_only(&mut commands, entity, visual, dcomp);
-        trace!(
-            frame = frame_count.0,
-            entity = %entity_name,
-            "VisualGraphics creation completed"
-        );
+    for (entity, _visual, mut vg, name) in query.iter_mut() {
+        // VisualGraphicsが無効な場合のみGPUリソースを作成
+        if !vg.is_valid() {
+            let entity_name = format_entity_name(entity, name);
+            trace!(
+                frame = frame_count.0,
+                entity = %entity_name,
+                "VisualGraphics initialization starting (Changed + !is_valid)"
+            );
+            create_visual_only(&mut commands, entity, &mut vg, dcomp);
+            trace!(
+                frame = frame_count.0,
+                entity = %entity_name,
+                "VisualGraphics initialization completed"
+            );
+        }
     }
 }
 
-/// Visualリソースの再初期化システム
+/// Visualリソースの再初期化システム (Deprecated)
 ///
-/// Phase 6: Visualのみを作成し、Surfaceは作成しない。
-/// Changed: GraphicsNeedsInitマーカーから、Changed<HasGraphicsResources> + needs_init()に移行
+/// Note: visual_resource_management_system が Changed<VisualGraphics> + !is_valid() で
+/// 初期化と再初期化の両方を処理するようになったため、このシステムは不要
+/// HasGraphicsResources.set_changed() → VisualGraphics.invalidate() → Changed<VisualGraphics> の流れ
+///
+/// TODO: 次回削除予定（Phase 4）
 pub fn visual_reinit_system(
-    mut commands: Commands,
-    graphics: Res<GraphicsCore>,
-    query: Query<(Entity, &Visual, &HasGraphicsResources), Changed<HasGraphicsResources>>,
+    _commands: Commands,
+    _graphics: Res<GraphicsCore>,
+    _query: Query<(Entity, &Visual, &VisualGraphics), Changed<HasGraphicsResources>>,
 ) {
-    if !graphics.is_valid() {
-        return;
-    }
-
-    let dcomp = match graphics.dcomp() {
-        Some(d) => d,
-        None => return,
-    };
-
-    for (entity, visual, res) in query.iter() {
-        if res.needs_init() {
-            create_visual_only(&mut commands, entity, visual, dcomp);
-        }
-    }
+    // No-op: visual_resource_management_system が統一的に処理
 }
 
 /// WindowGraphicsとVisualGraphicsを紐付けるシステム

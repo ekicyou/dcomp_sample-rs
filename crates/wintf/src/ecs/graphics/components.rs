@@ -7,44 +7,17 @@ use windows_numerics::Vector2;
 
 use crate::com::dcomp::DCompositionVisualExt;
 
-/// グラフィックスリソースを使用するエンティティを宣言 + 初期化状態管理
+/// GPUリソースを使用するエンティティを宣言するマーカーコンポーネント
 ///
-/// このコンポーネントは以下の2つの役割を持つ：
+/// このコンポーネントは以下の役割を持つ：
 /// 1. GPUリソースを使用するエンティティを宣言（存在自体がマーカー）
-/// 2. 初期化/再初期化が必要かどうかの状態を世代番号で管理
+/// 2. `Changed<HasGraphicsResources>` でGPUリソース再初期化をトリガー
 ///
-/// `Changed<HasGraphicsResources>` でグラフィックス初期化トリガーを検出し、
-/// `needs_init()` で実際に初期化が必要かを判定する。
-#[derive(Component, Default, Debug, Clone, PartialEq)]
-pub struct HasGraphicsResources {
-    /// 初期化が必要な世代番号
-    needs_init_generation: u32,
-    /// 処理済みの世代番号
-    processed_generation: u32,
-}
-
-impl HasGraphicsResources {
-    /// 初期化をリクエスト（ダーティにする）
-    ///
-    /// 世代番号をインクリメントし、`Changed` フラグを発火させる。
-    pub fn request_init(&mut self) {
-        self.needs_init_generation = self.needs_init_generation.wrapping_add(1);
-    }
-
-    /// 初期化が必要か判定
-    ///
-    /// 世代番号が不一致の場合は初期化が必要。
-    pub fn needs_init(&self) -> bool {
-        self.needs_init_generation != self.processed_generation
-    }
-
-    /// 初期化完了をマーク（クリーンにする）
-    ///
-    /// 処理済み世代番号を更新し、`needs_init()` が `false` になる。
-    pub fn mark_initialized(&mut self) {
-        self.processed_generation = self.needs_init_generation;
-    }
-}
+/// デバイスロスト時は `set_changed()` を呼び出すことで、
+/// 各GPUリソースコンポーネント（VisualGraphics, WindowGraphics等）の
+/// 再初期化システムをトリガーする。
+#[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HasGraphicsResources;
 
 #[derive(Debug)]
 struct WindowGraphicsInner {
@@ -129,6 +102,17 @@ impl std::fmt::Debug for VisualGraphics {
             .field("inner", &self.inner.is_some())
             .field("parent_visual", &self.parent_visual.is_some())
             .finish()
+    }
+}
+
+impl Default for VisualGraphics {
+    /// 空のVisualGraphicsを作成（GPUリソースなし）
+    /// Changed<VisualGraphics> + !is_valid() でシステムが検知してGPUリソースを作成
+    fn default() -> Self {
+        Self {
+            inner: None,
+            parent_visual: None,
+        }
     }
 }
 
@@ -257,19 +241,42 @@ pub struct Visual {
 }
 
 /// Visualコンポーネントが追加されたときに呼ばれるフック
-/// Arrangementを自動挿入する（既に存在する場合はスキップ）
+/// - Arrangementを自動挿入（既に存在する場合はスキップ）
+/// - VisualGraphics::default()を自動挿入（GPUリソースはシステムで作成）
+/// - SurfaceGraphics::default()とSurfaceGraphicsDirty::default()を自動挿入
 fn on_visual_add(mut world: DeferredWorld, context: HookContext) {
     let entity = context.entity;
+
+    // 先に全てのチェックを行う（借用の問題を回避）
+    let needs_arrangement = world
+        .get::<crate::ecs::layout::Arrangement>(entity)
+        .is_none();
+    let needs_visual_graphics = world.get::<VisualGraphics>(entity).is_none();
+    let needs_surface_graphics = world.get::<SurfaceGraphics>(entity).is_none();
+    let needs_surface_dirty = world.get::<SurfaceGraphicsDirty>(entity).is_none();
+
+    // コマンドを発行
+    let mut cmds = world.commands();
+    let mut entity_cmds = cmds.entity(entity);
+
     // Arrangementがまだ存在しない場合のみ挿入
     // Arrangementのon_addフックがGlobalArrangementとArrangementTreeChangedを自動挿入する
-    if world
-        .get::<crate::ecs::layout::Arrangement>(entity)
-        .is_none()
-    {
-        world
-            .commands()
-            .entity(entity)
-            .insert(crate::ecs::layout::Arrangement::default());
+    if needs_arrangement {
+        entity_cmds.insert(crate::ecs::layout::Arrangement::default());
+    }
+
+    // VisualGraphics::default()を挿入（GPUリソースなし）
+    // Changed<VisualGraphics> + !is_valid() でシステムがGPUリソースを作成
+    if needs_visual_graphics {
+        entity_cmds.insert(VisualGraphics::default());
+    }
+
+    // SurfaceGraphicsとSurfaceGraphicsDirtyも事前配置
+    if needs_surface_graphics {
+        entity_cmds.insert(SurfaceGraphics::default());
+    }
+    if needs_surface_dirty {
+        entity_cmds.insert(SurfaceGraphicsDirty::default());
     }
 }
 
