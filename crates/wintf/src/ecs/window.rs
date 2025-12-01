@@ -448,15 +448,7 @@ fn on_window_handle_add(
             "WindowPosChanged component inserted"
         );
 
-        // WindowPosコンポーネントを挿入（まだ存在しない場合のみ）
-        // WindowPosはwintfの内部コンポーネントで、ウィンドウ位置・サイズ管理に使用
-        if world.get::<WindowPos>(entity).is_none() {
-            world.commands().entity(entity).insert(WindowPos::default());
-            debug!(
-                entity = ?entity,
-                "WindowPos component inserted (default)"
-            );
-        }
+        // Note: WindowPosは on_window_add で挿入済み（CreateWindow前に必要なため）
 
         // アプリに通知
         if let Some(mut app) = world.get_resource_mut::<crate::ecs::app::App>() {
@@ -1063,7 +1055,7 @@ impl Command for SetWindowParentToLayoutRoot {
 }
 
 /// Windowコンポーネントが追加されたときに呼ばれるフック
-/// WindowをLayoutRootの子として自動的に設定し、Visualコンポーネントを自動挿入する
+/// WindowをLayoutRootの子として自動的に設定し、Visual/WindowPosコンポーネントを自動挿入する
 fn on_window_add(mut world: DeferredWorld, context: HookContext) {
     let entity = context.entity;
 
@@ -1075,5 +1067,15 @@ fn on_window_add(mut world: DeferredWorld, context: HookContext) {
     // Visual自動挿入（既に存在する場合はスキップ）
     if world.get::<Visual>(entity).is_none() {
         world.commands().entity(entity).insert(Visual::default());
+    }
+
+    // WindowPos自動挿入（既に存在する場合はスキップ）
+    // CreateWindow実行前にWindowPosが存在する必要があるため、on_window_addで追加
+    if world.get::<WindowPos>(entity).is_none() {
+        world.commands().entity(entity).insert(WindowPos::default());
+        debug!(
+            entity = ?entity,
+            "WindowPos component inserted in on_window_add"
+        );
     }
 }

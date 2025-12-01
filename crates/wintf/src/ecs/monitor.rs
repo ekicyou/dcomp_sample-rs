@@ -40,7 +40,10 @@ use windows_core::BOOL;
 fn on_monitor_add(mut world: DeferredWorld, context: HookContext) {
     let entity = context.entity;
     // Arrangementがまだ存在しない場合のみ挿入
-    if world.get::<crate::ecs::layout::Arrangement>(entity).is_none() {
+    if world
+        .get::<crate::ecs::layout::Arrangement>(entity)
+        .is_none()
+    {
         world
             .commands()
             .entity(entity)

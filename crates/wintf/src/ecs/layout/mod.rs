@@ -117,7 +117,10 @@ pub struct LayoutRoot;
 
 /// LayoutRootコンポーネントが追加されたときに呼ばれるフック
 /// Arrangementを自動挿入する（既に存在する場合はスキップ）
-fn on_layout_root_add(mut world: bevy_ecs::world::DeferredWorld, context: bevy_ecs::lifecycle::HookContext) {
+fn on_layout_root_add(
+    mut world: bevy_ecs::world::DeferredWorld,
+    context: bevy_ecs::lifecycle::HookContext,
+) {
     let entity = context.entity;
     // Arrangementがまだ存在しない場合のみ挿入
     if world.get::<Arrangement>(entity).is_none() {

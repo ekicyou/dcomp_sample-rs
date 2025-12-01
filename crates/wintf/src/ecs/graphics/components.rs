@@ -262,7 +262,10 @@ fn on_visual_add(mut world: DeferredWorld, context: HookContext) {
     let entity = context.entity;
     // Arrangementがまだ存在しない場合のみ挿入
     // Arrangementのon_addフックがGlobalArrangementとArrangementTreeChangedを自動挿入する
-    if world.get::<crate::ecs::layout::Arrangement>(entity).is_none() {
+    if world
+        .get::<crate::ecs::layout::Arrangement>(entity)
+        .is_none()
+    {
         world
             .commands()
             .entity(entity)
