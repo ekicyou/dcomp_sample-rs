@@ -3,10 +3,11 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | event-hit-test 要件定義書 |
-| **Version** | 0.1 (Draft) |
+| **Version** | 1.0 (Approved) |
 | **Date** | 2025-12-01 |
 | **Parent Spec** | wintf-P0-event-system |
 | **Author** | AI-DLC System |
+| **Approved** | 2025-12-01 |
 
 ---
 
