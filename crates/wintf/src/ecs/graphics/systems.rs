@@ -907,34 +907,6 @@ pub fn apply_window_pos_changes(
     }
 }
 
-/// GraphicsNeedsInitマーカー削除・初期化完了判定
-///
-/// Deprecated: HasGraphicsResources が空マーカーに変更されたため、このシステムは不要
-/// 次回削除予定（Phase 4）
-pub fn cleanup_graphics_needs_init(
-    _query: Query<(
-        Entity,
-        &HasGraphicsResources,
-        &WindowGraphics,
-        &VisualGraphics,
-        &SurfaceGraphics,
-    )>,
-) {
-    // No-op: HasGraphicsResources は空マーカーなので mark_initialized() は不要
-}
-
-/// 再初期化時に古いGraphicsCommandListを削除
-///
-/// Deprecated: HasGraphicsResources が空マーカーに変更されたため、このシステムは不要
-/// 次回削除予定（Phase 4）
-/// TODO: Changed<HasGraphicsResources> + GraphicsCommandList ありの組み合わせで動作させる場合は再検討
-pub fn cleanup_command_list_on_reinit(
-    _query: Query<(Entity, &HasGraphicsResources), With<crate::ecs::graphics::GraphicsCommandList>>,
-    _commands: Commands,
-) {
-    // No-op: needs_init() は廃止、再初期化トリガーは Changed<HasGraphicsResources> で検知
-}
-
 /// 依存コンポーネント無効化
 pub fn invalidate_dependent_components(
     graphics: Option<Res<GraphicsCore>>,

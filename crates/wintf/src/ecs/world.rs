@@ -266,13 +266,12 @@ impl EcsWorld {
                 (
                     crate::ecs::graphics::init_graphics_core,
                     // Visualリソース作成（Surfaceは作成しない）
+                    // Changed<VisualGraphics> + !is_valid() で初期化と再初期化を統一処理
                     crate::ecs::graphics::visual_resource_management_system
                         .after(crate::ecs::graphics::init_graphics_core),
-                    crate::ecs::graphics::visual_reinit_system
-                        .after(crate::ecs::graphics::visual_resource_management_system),
                     // Visual階層同期（parent_visual==Noneで未同期を検出）
                     crate::ecs::graphics::visual_hierarchy_sync_system
-                        .after(crate::ecs::graphics::visual_reinit_system),
+                        .after(crate::ecs::graphics::visual_resource_management_system),
                 ),
             );
 
@@ -317,9 +316,7 @@ impl EcsWorld {
             schedules.add_systems(
                 GraphicsSetup,
                 (
-                    crate::ecs::graphics::cleanup_command_list_on_reinit,
-                    crate::ecs::graphics::init_window_graphics
-                        .after(crate::ecs::graphics::cleanup_command_list_on_reinit),
+                    crate::ecs::graphics::init_window_graphics,
                     crate::ecs::graphics::window_visual_integration_system
                         .after(crate::ecs::graphics::init_window_graphics),
                 )
@@ -331,7 +328,6 @@ impl EcsWorld {
             schedules.add_systems(
                 Draw,
                 (
-                    crate::ecs::graphics::cleanup_graphics_needs_init,
                     crate::ecs::widget::shapes::rectangle::draw_rectangles,
                     crate::ecs::widget::text::draw_labels,
                     crate::ecs::widget::bitmap_source::draw_bitmap_sources,

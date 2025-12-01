@@ -1,7 +1,5 @@
 use crate::com::dcomp::DCompositionDeviceExt;
-use crate::ecs::graphics::{
-    GraphicsCore, HasGraphicsResources, Visual, VisualGraphics, WindowGraphics,
-};
+use crate::ecs::graphics::{GraphicsCore, Visual, VisualGraphics, WindowGraphics};
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use tracing::{debug, error, trace};
@@ -78,7 +76,10 @@ fn create_visual_only(
 pub fn visual_resource_management_system(
     mut commands: Commands,
     graphics: Res<GraphicsCore>,
-    mut query: Query<(Entity, &Visual, &mut VisualGraphics, Option<&Name>), Changed<VisualGraphics>>,
+    mut query: Query<
+        (Entity, &Visual, &mut VisualGraphics, Option<&Name>),
+        Changed<VisualGraphics>,
+    >,
     frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     if !graphics.is_valid() {
@@ -107,21 +108,6 @@ pub fn visual_resource_management_system(
             );
         }
     }
-}
-
-/// Visualリソースの再初期化システム (Deprecated)
-///
-/// Note: visual_resource_management_system が Changed<VisualGraphics> + !is_valid() で
-/// 初期化と再初期化の両方を処理するようになったため、このシステムは不要
-/// HasGraphicsResources.set_changed() → VisualGraphics.invalidate() → Changed<VisualGraphics> の流れ
-///
-/// TODO: 次回削除予定（Phase 4）
-pub fn visual_reinit_system(
-    _commands: Commands,
-    _graphics: Res<GraphicsCore>,
-    _query: Query<(Entity, &Visual, &VisualGraphics), Changed<HasGraphicsResources>>,
-) {
-    // No-op: visual_resource_management_system が統一的に処理
 }
 
 /// WindowGraphicsとVisualGraphicsを紐付けるシステム
