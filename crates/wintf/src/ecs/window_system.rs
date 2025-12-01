@@ -79,10 +79,29 @@ pub fn create_windows(world: &mut World) {
         let pos_comp = opt_pos.unwrap_or_default();
         let system_dpi = unsafe { GetDpiForSystem() };
 
+        debug!(
+            frame,
+            entity = %entity_name,
+            has_window_pos = opt_pos.is_some(),
+            pos_position = ?pos_comp.position,
+            pos_size = ?pos_comp.size,
+            "[create_windows] WindowPos before CreateWindow"
+        );
+
         let (x, y, width, height) = pos_comp.to_window_coords_for_creation(
             style_comp.style,
             style_comp.ex_style,
             system_dpi,
+        );
+
+        debug!(
+            frame,
+            entity = %entity_name,
+            x = x,
+            y = y,
+            width = width,
+            height = height,
+            "[create_windows] CreateWindow coordinates"
         );
 
         let entity_bits = entity.to_bits() as *mut std::ffi::c_void;
