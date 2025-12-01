@@ -293,13 +293,12 @@ impl EcsWorld {
             );
 
             // PostLayoutスケジュール: 論理計算系（Arrangement伝播まで）
+            // Note: Arrangementは各コンポーネントのon_addフックで自動挿入されるため、
+            //       init_window_arrangementシステムは廃止されました。
             schedules.add_systems(
                 PostLayout,
                 (
-                    // init_window_arrangement: Arrangementコンポーネントの初期化
-                    crate::ecs::window_system::init_window_arrangement,
-                    crate::ecs::layout::sync_simple_arrangements
-                        .after(crate::ecs::window_system::init_window_arrangement),
+                    crate::ecs::layout::sync_simple_arrangements,
                     crate::ecs::layout::mark_dirty_arrangement_trees
                         .after(crate::ecs::layout::sync_simple_arrangements),
                     crate::ecs::layout::propagate_global_arrangements

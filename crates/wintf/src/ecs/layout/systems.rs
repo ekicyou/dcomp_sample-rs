@@ -418,6 +418,7 @@ pub fn initialize_layout_root(world: &mut World) {
     );
 
     // LayoutRootエンティティを作成（仮想デスクトップ矩形を設定）
+    // Note: Arrangement/GlobalArrangementはLayoutRoot::on_addフックで自動挿入される
     let layout_root = world
         .spawn((
             LayoutRoot,
@@ -435,8 +436,6 @@ pub fn initialize_layout_root(world: &mut World) {
                 })),
                 ..Default::default()
             },
-            Arrangement::default(),
-            GlobalArrangement::default(),
         ))
         .id();
 
@@ -471,6 +470,7 @@ pub fn initialize_layout_root(world: &mut World) {
             "[initialize_layout_root] Creating Monitor entity"
         );
 
+        // Note: Arrangement/GlobalArrangementはMonitor::on_addフックで自動挿入される
         let monitor_entity = world
             .spawn((
                 monitor,
@@ -489,8 +489,6 @@ pub fn initialize_layout_root(world: &mut World) {
                     })),
                     ..Default::default()
                 },
-                Arrangement::default(),
-                GlobalArrangement::default(),
             ))
             .id();
 
@@ -593,6 +591,7 @@ pub fn detect_display_change_system(
             let (width, height) = new_monitor.physical_size();
             let (left, top) = new_monitor.top_left();
 
+            // Note: Arrangement/GlobalArrangementはMonitor::on_addフックで自動挿入される
             let monitor_entity = commands
                 .spawn((
                     new_monitor,
@@ -611,8 +610,6 @@ pub fn detect_display_change_system(
                         })),
                         ..Default::default()
                     },
-                    Arrangement::default(),
-                    GlobalArrangement::default(),
                 ))
                 .id();
 

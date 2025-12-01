@@ -8,19 +8,12 @@ use windows::core::*;
 use windows::Win32::UI::HiDpi::GetDpiForSystem;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-/// Window EntityにArrangementコンポーネントを自動追加するシステム
-pub fn init_window_arrangement(
-    mut commands: Commands,
-    query: Query<Entity, (With<Window>, Without<Arrangement>)>,
-) {
-    for entity in query.iter() {
-        commands.entity(entity).insert((
-            Arrangement::default(),
-            GlobalArrangement::default(),
-            ArrangementTreeChanged,
-        ));
-    }
-}
+// Note: init_window_arrangement システムは廃止されました。
+// Arrangementは以下のライフタイムフックで自動挿入されます：
+// - Visual::on_add (Window は on_window_add で Visual を挿入)
+// - LayoutRoot::on_add
+// - Monitor::on_add
+// Arrangement::on_add が GlobalArrangement と ArrangementTreeChanged を自動挿入します。
 
 /// 未作成のWindowを検出して作成する排他システム
 ///

@@ -16,38 +16,44 @@ fn test_sync_window_pos() {
 
     // WorldとScheduleを準備
     let mut world = World::new();
+    world.insert_resource(wintf::ecs::world::FrameCount(1)); // sync_window_posに必要
     let mut schedule = Schedule::default();
     schedule.add_systems(wintf::ecs::sync_window_pos);
 
-    // Window、Arrangement、Visual、WindowPosを持つエンティティを作成
-    // Note: Arrangementのon_addフックがGlobalArrangement::default()を自動挿入するので、
-    //       スポーン後にGlobalArrangementを明示的に設定する必要がある
+    // Window、Visual、WindowPosを持つエンティティを作成
+    // Note: Visual::on_addがArrangement::default()を自動挿入し、
+    //       Arrangement::on_addがGlobalArrangement::default()を自動挿入する
     let entity = world
         .spawn((
             Window::default(),
-            layout::Arrangement {
-                offset: layout::Offset { x: 100.0, y: 50.0 },
-                scale: layout::LayoutScale::default(),
-                size: layout::Size {
-                    width: 800.0,
-                    height: 600.0,
-                },
-            },
             Visual::default(),
             WindowPos::default(),
         ))
         .id();
 
-    // on_addフックがデフォルト値を挿入した後、正しい値で上書き
-    world.entity_mut(entity).insert(layout::GlobalArrangement {
-        transform: windows_numerics::Matrix3x2::identity(),
-        bounds: layout::D2DRect {
-            left: 100.0,
-            top: 50.0,
-            right: 900.0,
-            bottom: 650.0,
+    // Commands適用のためにflush
+    world.flush();
+
+    // 自動挿入されたArrangementとGlobalArrangementを上書き
+    world.entity_mut(entity).insert((
+        layout::Arrangement {
+            offset: layout::Offset { x: 100.0, y: 50.0 },
+            scale: layout::LayoutScale::default(),
+            size: layout::Size {
+                width: 800.0,
+                height: 600.0,
+            },
         },
-    });
+        layout::GlobalArrangement {
+            transform: windows_numerics::Matrix3x2::identity(),
+            bounds: layout::D2DRect {
+                left: 100.0,
+                top: 50.0,
+                right: 900.0,
+                bottom: 650.0,
+            },
+        },
+    ));
 
     // スケジュールを実行（GlobalArrangementがChangedとして検出される）
     schedule.run(&mut world);
@@ -119,38 +125,44 @@ fn test_echo_back_flow() {
 
     // WorldとScheduleを準備
     let mut world = World::new();
+    world.insert_resource(wintf::ecs::world::FrameCount(1)); // sync_window_posに必要
     let mut schedule = Schedule::default();
     schedule.add_systems(wintf::ecs::sync_window_pos);
 
-    // Window、Arrangement、Visual、WindowPosを持つエンティティを作成
-    // Note: Arrangementのon_addフックがGlobalArrangement::default()を自動挿入するので、
-    //       スポーン後にGlobalArrangementを明示的に設定する必要がある
+    // Window、Visual、WindowPosを持つエンティティを作成
+    // Note: Visual::on_addがArrangement::default()を自動挿入し、
+    //       Arrangement::on_addがGlobalArrangement::default()を自動挿入する
     let entity = world
         .spawn((
             Window::default(),
-            layout::Arrangement {
-                offset: layout::Offset { x: 100.0, y: 50.0 },
-                scale: layout::LayoutScale::default(),
-                size: layout::Size {
-                    width: 800.0,
-                    height: 600.0,
-                },
-            },
             Visual::default(),
             WindowPos::default(),
         ))
         .id();
 
-    // on_addフックがデフォルト値を挿入した後、正しい値で上書き
-    world.entity_mut(entity).insert(layout::GlobalArrangement {
-        transform: windows_numerics::Matrix3x2::identity(),
-        bounds: layout::D2DRect {
-            left: 100.0,
-            top: 50.0,
-            right: 900.0,
-            bottom: 650.0,
+    // Commands適用のためにflush
+    world.flush();
+
+    // 自動挿入されたArrangementとGlobalArrangementを上書き
+    world.entity_mut(entity).insert((
+        layout::Arrangement {
+            offset: layout::Offset { x: 100.0, y: 50.0 },
+            scale: layout::LayoutScale::default(),
+            size: layout::Size {
+                width: 800.0,
+                height: 600.0,
+            },
         },
-    });
+        layout::GlobalArrangement {
+            transform: windows_numerics::Matrix3x2::identity(),
+            bounds: layout::D2DRect {
+                left: 100.0,
+                top: 50.0,
+                right: 900.0,
+                bottom: 650.0,
+            },
+        },
+    ));
 
     // スケジュールを実行してWindowPosを更新
     schedule.run(&mut world);

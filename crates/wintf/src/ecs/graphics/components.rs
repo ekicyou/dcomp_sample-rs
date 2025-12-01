@@ -244,11 +244,30 @@ pub struct SurfaceGraphicsDirty {
 
 /// 論理的なVisualコンポーネント
 /// サイズ情報はArrangementから取得する（Single Source of Truth）
+///
+/// # ライフタイムイベント
+/// - `on_add`: `Arrangement::default()`を自動挿入
+///   - これにより`Arrangement`の`on_add`が連鎖的に`GlobalArrangement`と`ArrangementTreeChanged`を挿入
 #[derive(Component, Debug, Clone, PartialEq)]
+#[component(on_add = on_visual_add)]
 pub struct Visual {
     pub is_visible: bool,
     pub opacity: f32,
     pub transform_origin: Vector2,
+}
+
+/// Visualコンポーネントが追加されたときに呼ばれるフック
+/// Arrangementを自動挿入する（既に存在する場合はスキップ）
+fn on_visual_add(mut world: DeferredWorld, context: HookContext) {
+    let entity = context.entity;
+    // Arrangementがまだ存在しない場合のみ挿入
+    // Arrangementのon_addフックがGlobalArrangementとArrangementTreeChangedを自動挿入する
+    if world.get::<crate::ecs::layout::Arrangement>(entity).is_none() {
+        world
+            .commands()
+            .entity(entity)
+            .insert(crate::ecs::layout::Arrangement::default());
+    }
 }
 
 impl Default for Visual {

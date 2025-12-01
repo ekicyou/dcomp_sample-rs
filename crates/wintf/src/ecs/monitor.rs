@@ -23,7 +23,9 @@
 //! }
 //! ```
 
+use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::prelude::*;
+use bevy_ecs::world::DeferredWorld;
 use std::fmt;
 use tracing::warn;
 use windows::Win32::Foundation::{LPARAM, RECT};
@@ -33,6 +35,19 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows_core::BOOL;
 
+/// Monitorコンポーネントが追加されたときに呼ばれるフック
+/// Arrangementを自動挿入する（既に存在する場合はスキップ）
+fn on_monitor_add(mut world: DeferredWorld, context: HookContext) {
+    let entity = context.entity;
+    // Arrangementがまだ存在しない場合のみ挿入
+    if world.get::<crate::ecs::layout::Arrangement>(entity).is_none() {
+        world
+            .commands()
+            .entity(entity)
+            .insert(crate::ecs::layout::Arrangement::default());
+    }
+}
+
 /// モニターコンポーネント
 ///
 /// 物理モニターの情報を保持します。
@@ -41,7 +56,12 @@ use windows_core::BOOL;
 /// - `work_area`: タスクバーなどを除いた作業領域
 /// - `dpi`: モニターのDPI値
 /// - `is_primary`: プライマリモニターかどうか
+///
+/// # ライフタイムイベント
+/// - `on_add`: `Arrangement::default()`を自動挿入
+///   - これにより`Arrangement`の`on_add`が連鎖的に`GlobalArrangement`と`ArrangementTreeChanged`を挿入
 #[derive(Component, Clone)]
+#[component(on_add = on_monitor_add)]
 pub struct Monitor {
     pub handle: isize,
     pub bounds: RECT,
