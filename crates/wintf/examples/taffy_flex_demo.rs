@@ -15,7 +15,6 @@ use wintf::ecs::layout::{
 use wintf::ecs::widget::bitmap_source::BitmapSource;
 use wintf::ecs::widget::shapes::Rectangle;
 use wintf::ecs::Window;
-use wintf::ecs::WindowPos;
 use wintf::*;
 
 /// バックグラウンドスレッドから送信するコマンド
@@ -65,12 +64,10 @@ fn main() -> Result<()> {
         let _ = tx.send(Box::new(|world: &mut World| {
             // Window Entity (ルート)
             // BoxPosition::Absolute + BoxInset でクライアント領域の位置を指定
-            // Note: LayoutRootマーカーは不要 - Window追加時に自動的にLayoutRootの子になる
             let window_entity = world
                 .spawn((
                     Name::new("FlexDemo-Window"), // R1.1: Windowエンティティに名前を付与
                     FlexDemoWindow,
-                    // LayoutRoot削除: on_window_addフックでChildOf(layout_root)が自動設定される
                     BoxStyle {
                         position: Some(BoxPosition::Absolute),
                         inset: Some(BoxInset(wintf::ecs::layout::Rect {
@@ -89,8 +86,6 @@ fn main() -> Result<()> {
                         title: "wintf - Taffy Flexbox Demo".to_string(),
                         ..Default::default()
                     },
-                    WindowPos::default(), // レイアウトシステムが更新
-                                          // Visual は Window の on_add フックで自動挿入される
                 ))
                 .id();
 

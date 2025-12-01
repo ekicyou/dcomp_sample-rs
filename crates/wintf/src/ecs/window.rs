@@ -448,6 +448,16 @@ fn on_window_handle_add(
             "WindowPosChanged component inserted"
         );
 
+        // WindowPosコンポーネントを挿入（まだ存在しない場合のみ）
+        // WindowPosはwintfの内部コンポーネントで、ウィンドウ位置・サイズ管理に使用
+        if world.get::<WindowPos>(entity).is_none() {
+            world.commands().entity(entity).insert(WindowPos::default());
+            debug!(
+                entity = ?entity,
+                "WindowPos component inserted (default)"
+            );
+        }
+
         // アプリに通知
         if let Some(mut app) = world.get_resource_mut::<crate::ecs::app::App>() {
             app.on_window_created(entity);
