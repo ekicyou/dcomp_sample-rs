@@ -351,16 +351,6 @@ pub extern "system" fn ecs_wndproc(
 
                 LRESULT(0)
             }
-            crate::win_thread_mgr::WM_DPICHANGED_DEFERRED => {
-                // 非推奨: REQ-010により廃止予定
-                // 互換性のため残しているが、新しい同期型処理では使用されない
-                trace!(
-                    hwnd = ?hwnd,
-                    wparam = ?wparam,
-                    "WM_DPICHANGED_DEFERRED (deprecated, ignored)"
-                );
-                LRESULT(0)
-            }
             _ => DefWindowProcW(hwnd, message, wparam, lparam),
         }
     }

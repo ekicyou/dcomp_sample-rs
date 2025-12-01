@@ -50,10 +50,6 @@ pub(crate) static DEBUG_RUN_TICK_COUNT: AtomicU64 = AtomicU64::new(0);
 // WM_APP (0x8000) はアプリケーション側で自由に使用可能
 const WM_VSYNC: u32 = WM_USER + 1;
 pub(crate) const WM_LAST_WINDOW_DESTROYED: u32 = WM_USER + 2;
-/// WM_DPICHANGEDは同期的に送信されるため、world借用中に受信することがある。
-/// PostMessageで遅延処理することでworld借用競合を回避する。
-/// wparam: EntityのIDビット(u64の下位32ビット), lparam: EntityのGenerationビット + packed DPI
-pub(crate) const WM_DPICHANGED_DEFERRED: u32 = WM_USER + 3;
 
 #[derive(Clone)]
 pub struct WinThreadMgr(Arc<WinThreadMgrInner>);
@@ -264,8 +260,6 @@ impl WinThreadMgrInner {
                         PostQuitMessage(0);
                         continue;
                     }
-
-                    // WM_DPICHANGED_DEFERRED は DispatchMessageW → WndProc で処理される
 
                     // デバッグ: 全メッセージをカウント
                     DEBUG_OTHER_MSG_COUNT.fetch_add(1, Ordering::Relaxed);
