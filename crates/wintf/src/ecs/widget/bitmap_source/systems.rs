@@ -276,10 +276,22 @@ fn create_d2d_bitmap(
 /// WintfTaskPoolからコマンドをドレインしてWorldに適用
 ///
 /// Inputスケジュールで実行される。
+///
+/// # 重要な設計
+/// コマンド実行中も`WintfTaskPool`がWorld内に存在する必要がある。
+/// なぜなら、コマンド内で`BitmapSource`をspawnした場合、
+/// `on_bitmap_source_add`フックが`WintfTaskPool.spawn()`を呼び出すため。
+/// リソースが取り除かれていると、画像読み込みタスクが起動されない。
 pub fn drain_task_pool_commands(world: &mut World) {
-    // ResourceをWorldから一時的に取り出して処理
-    if let Some(task_pool) = world.remove_resource::<WintfTaskPool>() {
-        task_pool.drain_and_apply(world);
-        world.insert_resource(task_pool);
+    // まずコマンドをVecに収集（WintfTaskPoolをWorld内に保持したまま）
+    let commands: Vec<_> = if let Some(task_pool) = world.get_resource::<WintfTaskPool>() {
+        task_pool.drain_commands()
+    } else {
+        Vec::new()
+    };
+
+    // コマンドを実行（WintfTaskPoolはWorld内に存在する）
+    for cmd in commands {
+        cmd(world);
     }
 }

@@ -73,6 +73,19 @@ impl WintfTaskPool {
         }
     }
 
+    /// 受信したコマンドをすべて収集して返す（Worldに適用しない）
+    ///
+    /// `drain_task_pool_commands`で使用。
+    /// コマンド実行中もWintfTaskPoolがWorld内に存在する必要があるため、
+    /// コマンドを収集してから別途実行する。
+    pub fn drain_commands(&self) -> Vec<BoxedCommand> {
+        if let Ok(receiver) = self.receiver.lock() {
+            receiver.try_iter().collect()
+        } else {
+            Vec::new()
+        }
+    }
+
     /// コマンドを直接送信（テスト用）
     #[cfg(test)]
     pub fn send_command(&self, cmd: BoxedCommand) {
