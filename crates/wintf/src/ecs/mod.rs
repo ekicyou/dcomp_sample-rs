@@ -26,7 +26,7 @@ pub use window::{
     flush_window_pos_commands, DpiChangeContext, SetWindowPosCommand, Window, WindowHandle,
     WindowPos, WindowPosChanged, WindowStyle, ZOrder, DPI,
 };
-pub use window_proc::{ecs_wndproc, get_entity_from_hwnd, set_ecs_world};
+pub(crate) use window_proc::{ecs_wndproc, set_ecs_world};
 pub use world::{
     FrameCount, Input, Layout, PostLayout, PreLayout, PreRenderSurface, UISetup, Update,
 };
