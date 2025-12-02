@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | event-mouse-basic 要件定義書 |
-| **Version** | 1.0 (Draft) |
+| **Version** | 1.1 (Draft) |
 | **Date** | 2025-12-02 |
 | **Parent Spec** | wintf-P0-event-system |
 | **Author** | AI-DLC System |
@@ -16,15 +16,16 @@
 
 ### 背景
 
-デスクトップマスコットアプリケーションでは、キャラクターへのクリック、ホバー、撫でる操作などのユーザーインタラクションが必須である。`event-hit-test` 仕様で実装されたヒットテストAPIを活用し、Win32メッセージからECSイベントへの変換を行う。
+デスクトップマスコットアプリケーションでは、キャラクターへのクリック、ホバー、撫でる操作などのユーザーインタラクションが必須である。`event-hit-test` 仕様で実装されたヒットテストAPIを活用し、Win32メッセージからECSコンポーネントへの変換を行う。
 
 ### スコープ
 
 **含まれるもの**:
-- マウスクリックイベント（左クリック、右クリック、ダブルクリック）
-- マウスホバーイベント（Enter/Leave/Move）
+- `MouseState` コンポーネントによるマウス状態のECS表現
+- ヒットテストで当たった子エンティティへのコンポーネント付与
+- Enter/Leave パターンによる状態変化検出
 - Win32メッセージハンドラとヒットテストAPIの統合
-- ローカル座標変換（`hit_test_detailed` API）
+- ローカル座標変換
 - カーソル移動速度の計算（撫でる操作検出用）
 
 **含まれないもの**:
@@ -34,9 +35,10 @@
 - イベントバブリング・キャプチャ → `event-dispatch` 仕様で対応
 
 **設計方針**:
-本仕様は「Win32マウスメッセージをECSに持ち込む」ことに集中する。
-Click判定（MouseDown→MouseUpの対応付け）は親への伝播が必要な高度なシナリオであり、
-`event-dispatch` 仕様でバブリング機構と共に実装する。
+- 本仕様は「Win32マウスメッセージをECSコンポーネントとして持ち込む」ことに集中
+- `MouseState` コンポーネントがあるエンティティ = ホバー中（マウスは1つ）
+- `Added<MouseState>` で Enter、`MouseLeave` マーカーで Leave を検出
+- Click判定（MouseDown→MouseUpの対応付け）は `event-dispatch` に委譲
 
 ### event-hit-test からの引き継ぎ事項
 
@@ -44,61 +46,127 @@ Click判定（MouseDown→MouseUpの対応付け）は親への伝播が必要�
 
 | 引き継ぎ項目 | 説明 | 対応Requirement |
 |-------------|------|-----------------|
-| **ecs_wndproc 統合** | `WM_MOUSEMOVE`, `WM_LBUTTONDOWN` 等のハンドラから `hit_test` API を呼び出す | Req 6 |
-| **ローカル座標変換** | `GlobalArrangement.bounds` を使用したエンティティローカル座標への変換 | Req 4 |
-| **hit_test_detailed** | ローカル座標付きヒット結果を返す関数 | Req 4 |
-| **キャッシュ機構** | 座標が同一の場合は前回結果を返す | Req 7 (オプション) |
+| **ecs_wndproc 統合** | `WM_MOUSEMOVE`, `WM_LBUTTONDOWN` 等のハンドラから `hit_test` API を呼び出す | Req 5 |
+| **ローカル座標変換** | `GlobalArrangement.bounds` を使用したエンティティローカル座標への変換 | Req 1 |
+| **hit_test_detailed** | ローカル座標付きヒット結果を返す関数 | Req 1 |
+| **キャッシュ機構** | 座標が同一の場合は前回結果を返す | Req 6 (オプション) |
 
 ---
 
 ## Requirements
 
-### Requirement 1: マウスボタンイベント
+### Requirement 1: MouseState コンポーネント
 
-**Objective:** ユーザーとして、キャラクターをクリックして反応を得たい。それによりキャラクターとのインタラクションが可能になる。
+**Objective:** 開発者として、マウス状態をECSコンポーネントとして取得したい。それによりECSパターンで一貫したマウス処理ができる。
 
 #### Acceptance Criteria
 
-1. When ユーザーが左マウスボタンを押した時, the Mouse Event System shall `MouseDown { button: Left }` イベントを発火する
-2. When ユーザーが左マウスボタンを離した時, the Mouse Event System shall `MouseUp { button: Left }` イベントを発火する
-3. When ユーザーが右マウスボタンを押した時, the Mouse Event System shall `MouseDown { button: Right }` イベントを発火する
-4. When ユーザーが右マウスボタンを離した時, the Mouse Event System shall `MouseUp { button: Right }` イベントを発火する
-5. When ユーザーがダブルクリックした時, the Mouse Event System shall `DoubleClick` イベントを発火する
-6. The Mouse Event System shall ボタンイベントにターゲットエンティティを含める
-7. The Mouse Event System shall ボタンイベントにスクリーン座標（物理ピクセル）を含める
+1. The Mouse Event System shall ヒットテストでヒットしたエンティティに `MouseState` コンポーネントを付与する
+2. The Mouse Event System shall マウスがエンティティから離れた時に `MouseState` を削除する
+3. The Mouse Event System shall `MouseState` にスクリーン座標（物理ピクセル）を含める
+4. The Mouse Event System shall `MouseState` にエンティティローカル座標を含める
+5. The Mouse Event System shall `MouseState` に各ボタンの押下状態（`left_down`, `right_down`, `middle_down`）を含める
+6. The Mouse Event System shall `MouseState` にタイムスタンプを含める
+7. The Mouse Event System shall `MouseState` にカーソル移動速度を含める
+8. The Mouse Event System shall ダブルクリック検出時に `MouseState.double_click` を `true` に設定する
 
-#### 設計決定
+#### コンポーネント定義
 
-- **ダブルクリック検出**: Win32 の `WM_LBUTTONDBLCLK` / `WM_RBUTTONDBLCLK` メッセージを使用
-- **Click/RightClick 判定**: `event-dispatch` 仕様に委譲（バブリング対応が必要なため）
+```rust
+/// マウス状態コンポーネント
+/// 
+/// hit_test がヒットしたエンティティに付与される。
+/// コンポーネントの存在 = ホバー中。
+/// Added<MouseState> で Enter を検出。
+/// 
+/// マウスは1つなので、同時に1エンティティのみが持つ。
+/// 
+/// メモリ戦略: SparseSet - 頻繁な挿入/削除
+#[derive(Component, Debug, Clone)]
+#[component(storage = "SparseSet")]
+pub struct MouseState {
+    /// スクリーン座標（物理ピクセル）
+    pub screen_point: PhysicalPoint,
+    /// エンティティローカル座標（物理ピクセル）
+    pub local_point: PhysicalPoint,
+    /// 左ボタン押下中
+    pub left_down: bool,
+    /// 右ボタン押下中
+    pub right_down: bool,
+    /// 中ボタン押下中
+    pub middle_down: bool,
+    /// ダブルクリック検出（1フレームのみtrue）
+    pub double_click: bool,
+    /// カーソル移動速度
+    pub velocity: CursorVelocity,
+    /// タイムスタンプ
+    pub timestamp: Instant,
+}
 
-#### スコープ外への委譲
+/// カーソル移動速度（ピクセル/秒）
+#[derive(Debug, Clone, Default)]
+pub struct CursorVelocity {
+    pub x: f32,
+    pub y: f32,
+    pub magnitude: f32,
+}
+```
 
-| イベント | 委譲先 | 理由 |
-|---------|--------|------|
-| Click | event-dispatch | MouseDown→MouseUp の対応付け + 親へのバブリングが必要 |
-| RightClick | event-dispatch | 同上 |
+#### 使用パターン
+
+| 検出したいこと | クエリ |
+|---------------|--------|
+| Enter（入った瞬間） | `Added<MouseState>` |
+| ホバー中 | `With<MouseState>` |
+| 状態変化 | `Changed<MouseState>` |
+| Leave（離れた瞬間） | `With<MouseLeave>` |
+| 左ボタン押下中 | `query.get(e).map(\|s\| s.left_down)` |
+| ダブルクリック | `query.get(e).map(\|s\| s.double_click)` |
 
 ---
 
-### Requirement 2: マウスホバーイベント
+### Requirement 2: MouseLeave マーカー
 
-**Objective:** 開発者として、マウスカーソルがウィジェット上にあることを検知したい。それによりホバー効果や撫でる操作を実装できる。
+**Objective:** 開発者として、マウスがエンティティから離れた瞬間を検出したい。それによりLeaveアニメーション等を実行できる。
 
 #### Acceptance Criteria
 
-1. When マウスカーソルがエンティティに入った時, the Mouse Event System shall `MouseEnter` イベントを発火する
-2. When マウスカーソルがエンティティから出た時, the Mouse Event System shall `MouseLeave` イベントを発火する
-3. While マウスカーソルがエンティティ上にある間, the Mouse Event System shall `MouseMove` イベントを継続的に発火する
-4. When カーソルが複数のエンティティを跨いで移動した時, the Mouse Event System shall 適切な順序で Enter/Leave イベントを発火する
-5. The Mouse Event System shall 現在ホバー中のエンティティを `HoveredEntity` リソースとして保持する
+1. The Mouse Event System shall `MouseState` 削除時に `MouseLeave` マーカーを付与する
+2. The Mouse Event System shall `FrameFinalize` スケジュールで `MouseLeave` を削除する
+3. When ウィンドウ外にマウスが移動した時（WM_MOUSELEAVE）, the Mouse Event System shall `MouseLeave` を付与する
 
-#### イベント発火順序
+#### コンポーネント定義
 
-カーソルが Entity A から Entity B に移動した場合：
-1. `MouseLeave { entity: A }`
-2. `MouseEnter { entity: B }`
-3. `MouseMove { entity: B, ... }`
+```rust
+/// マウス離脱マーカー（1フレーム限り）
+/// 
+/// MouseState が削除されたフレームに付与される。
+/// FrameFinalize で削除されるため、1フレームのみ存在。
+/// 
+/// メモリ戦略: SparseSet - 一時的マーカー
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[component(storage = "SparseSet")]
+pub struct MouseLeave;
+```
+
+#### ライフサイクル
+
+```
+1. マウスがエンティティに入る
+   → MouseState を追加
+   → Added<MouseState> で Enter を検出
+
+2. マウスがエンティティ上で動く / ボタン操作
+   → MouseState を更新
+   → Changed<MouseState> で変化を検出
+
+3. マウスがエンティティから離れる
+   → MouseState を削除
+   → MouseLeave を追加（With<MouseLeave> で検出）
+
+4. FrameFinalize スケジュール
+   → MouseLeave を削除
+```
 
 ---
 
@@ -108,21 +176,10 @@ Click判定（MouseDown→MouseUpの対応付け）は親への伝播が必要�
 
 #### Acceptance Criteria
 
-1. The Mouse Event System shall `MouseMove` イベントにカーソル移動速度（ピクセル/秒）を含める
+1. The Mouse Event System shall `MouseState.velocity` にカーソル移動速度（ピクセル/秒）を含める
 2. The Mouse Event System shall 直前の位置と現在位置、および経過時間から速度を計算する
 3. The Mouse Event System shall 速度計算に使用する履歴を最大5サンプル保持する
 4. When 最初のマウス移動の場合, the Mouse Event System shall 速度を 0.0 として報告する
-
-#### 速度計算
-
-```rust
-/// カーソル移動速度（ピクセル/秒）
-pub struct CursorVelocity {
-    pub x: f32,  // 水平方向速度
-    pub y: f32,  // 垂直方向速度
-    pub magnitude: f32,  // 速度の大きさ
-}
-```
 
 ---
 
@@ -132,27 +189,9 @@ pub struct CursorVelocity {
 
 #### Acceptance Criteria
 
-1. The Mouse Event System shall スクリーン座標からエンティティローカル座標への変換を提供する
+1. The Mouse Event System shall `MouseState.local_point` にエンティティローカル座標を含める
 2. The Mouse Event System shall `GlobalArrangement.bounds` の left/top を使用してローカル座標を計算する
 3. The Mouse Event System shall `hit_test_detailed` 関数でエンティティとローカル座標を同時に返す
-4. The Mouse Event System shall すべてのマウスイベントにローカル座標を含める
-
-#### API設計
-
-```rust
-/// ヒットテスト結果（詳細情報付き）
-pub struct HitTestResult {
-    pub entity: Entity,
-    pub local_point: PhysicalPoint,  // エンティティローカル座標（物理ピクセル）
-}
-
-/// 詳細ヒットテスト
-pub fn hit_test_detailed(
-    world: &World, 
-    root: Entity, 
-    screen_point: PhysicalPoint
-) -> Option<HitTestResult>;
-```
 
 #### 座標変換計算
 
@@ -165,61 +204,9 @@ local_y = screen_y - GlobalArrangement.bounds.top
 
 ---
 
-### Requirement 5: マウスイベントデータ構造
+### Requirement 5: Win32メッセージ統合
 
-**Objective:** 開発者として、マウスイベントの情報を統一されたデータ構造で受け取りたい。それにより一貫性のあるイベントハンドリングが可能になる。
-
-#### Acceptance Criteria
-
-1. The Mouse Event System shall すべてのマウスイベントに共通の `MouseEventData` 構造体を使用する
-2. The Mouse Event System shall イベントデータにターゲットエンティティを含める
-3. The Mouse Event System shall イベントデータにスクリーン座標を含める
-4. The Mouse Event System shall イベントデータにローカル座標を含める
-5. The Mouse Event System shall イベントデータにタイムスタンプを含める
-
-#### データ構造
-
-```rust
-/// マウスイベント共通データ
-#[derive(Debug, Clone)]
-pub struct MouseEventData {
-    /// ターゲットエンティティ
-    pub target: Entity,
-    /// スクリーン座標（物理ピクセル）
-    pub screen_point: PhysicalPoint,
-    /// エンティティローカル座標（物理ピクセル）
-    pub local_point: PhysicalPoint,
-    /// イベント発生時刻
-    pub timestamp: Instant,
-    /// カーソル移動速度（MouseMove のみ有効）
-    pub velocity: Option<CursorVelocity>,
-}
-
-/// マウスボタン
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MouseButton {
-    Left,
-    Right,
-    Middle,
-}
-
-/// マウスイベント種別
-#[derive(Debug, Clone)]
-pub enum MouseEvent {
-    MouseDown { data: MouseEventData, button: MouseButton },
-    MouseUp { data: MouseEventData, button: MouseButton },
-    DoubleClick { data: MouseEventData },
-    MouseEnter { data: MouseEventData },
-    MouseLeave { data: MouseEventData },
-    MouseMove { data: MouseEventData },
-}
-```
-
----
-
-### Requirement 6: Win32メッセージ統合
-
-**Objective:** 開発者として、Win32メッセージをECSイベントに変換したい。それにより既存のwintfアーキテクチャと統合できる。
+**Objective:** 開発者として、Win32メッセージをECSコンポーネントに変換したい。それにより既存のwintfアーキテクチャと統合できる。
 
 #### Acceptance Criteria
 
@@ -228,36 +215,43 @@ pub enum MouseEvent {
 3. When `hit_test` が `None` を返した場合, the Mouse Event System shall `HTTRANSPARENT` を返す（クリックスルー）
 4. When `hit_test` がエンティティを返した場合, the Mouse Event System shall `HTCLIENT` を返す
 5. When `WM_MOUSEMOVE` を受信し `WindowMouseTracking` が `false` の場合, the Mouse Event System shall `TrackMouseEvent(TME_LEAVE)` を呼び出して `true` に設定する
-6. When `WM_MOUSEMOVE` を受信した時, the Mouse Event System shall `hit_test` を実行しホバー状態を更新する
-7. When `WM_MOUSELEAVE` を受信した時, the Mouse Event System shall `WindowMouseTracking` を `false` に設定し、ホバー中のエンティティに `MouseLeave` を発火する
-8. When `WM_LBUTTONDOWN` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseDown { button: Left }` イベントを発火する
-9. When `WM_LBUTTONUP` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseUp { button: Left }` イベントを発火する
-10. When `WM_RBUTTONDOWN` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseDown { button: Right }` イベントを発火する
-11. When `WM_RBUTTONUP` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseUp { button: Right }` イベントを発火する
-12. When `WM_LBUTTONDBLCLK` を受信した時, the Mouse Event System shall `DoubleClick` イベントを発火する
+6. When `WM_MOUSEMOVE` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseState` を更新する
+7. When `WM_MOUSELEAVE` を受信した時, the Mouse Event System shall `WindowMouseTracking` を `false` に設定し、`MouseState` を削除して `MouseLeave` を付与する
+8. When `WM_LBUTTONDOWN` を受信した時, the Mouse Event System shall `MouseState.left_down` を `true` に更新する
+9. When `WM_LBUTTONUP` を受信した時, the Mouse Event System shall `MouseState.left_down` を `false` に更新する
+10. When `WM_RBUTTONDOWN` を受信した時, the Mouse Event System shall `MouseState.right_down` を `true` に更新する
+11. When `WM_RBUTTONUP` を受信した時, the Mouse Event System shall `MouseState.right_down` を `false` に更新する
+12. When `WM_LBUTTONDBLCLK` を受信した時, the Mouse Event System shall `MouseState.double_click` を `true` に設定する（次フレームでリセット）
 13. The Mouse Event System shall `ecs_wndproc` のハンドラとして実装する
 
 #### Win32メッセージマッピング
 
-| Win32 Message | Mouse Event / 返却値 |
-|---------------|---------------------|
-| WM_NCHITTEST | None（領域外）/ HTTRANSPARENT / HTCLIENT |
-| WM_MOUSEMOVE | MouseMove, MouseEnter, MouseLeave + TrackMouseEvent |
-| WM_MOUSELEAVE | MouseLeave（ウィンドウ外への離脱）|
-| WM_LBUTTONDOWN | MouseDown (Left) |
-| WM_LBUTTONUP | MouseUp (Left) |
-| WM_RBUTTONDOWN | MouseDown (Right) |
-| WM_RBUTTONUP | MouseUp (Right) |
-| WM_LBUTTONDBLCLK | DoubleClick |
-| WM_RBUTTONDBLCLK | DoubleClick (Right) |
-| WM_MBUTTONDOWN | MouseDown (Middle) |
-| WM_MBUTTONUP | MouseUp (Middle) |
+| Win32 Message | MouseState 更新 |
+|---------------|-----------------|
+| WM_NCHITTEST | クライアント領域判定 + hit_test |
+| WM_MOUSEMOVE | 座標更新、ボタン状態（wParam）、Enter/Leave処理 |
+| WM_MOUSELEAVE | MouseState削除 + MouseLeave付与 |
+| WM_LBUTTONDOWN | left_down = true |
+| WM_LBUTTONUP | left_down = false |
+| WM_RBUTTONDOWN | right_down = true |
+| WM_RBUTTONUP | right_down = false |
+| WM_LBUTTONDBLCLK | double_click = true |
+| WM_RBUTTONDBLCLK | double_click = true |
+| WM_MBUTTONDOWN | middle_down = true |
+| WM_MBUTTONUP | middle_down = false |
 
-**Note**: Click / RightClick 判定は `event-dispatch` 仕様で実装。本仕様では Win32 メッセージを直接 ECS イベントに変換するのみ。
+#### ボタン状態の取得
+
+`WM_MOUSEMOVE` の `wParam` からボタン押下状態を取得：
+- `MK_LBUTTON` (0x0001): 左ボタン押下中
+- `MK_RBUTTON` (0x0002): 右ボタン押下中
+- `MK_MBUTTON` (0x0010): 中ボタン押下中
+
+**Note**: Click / RightClick 判定は `event-dispatch` 仕様で実装。本仕様では Win32 メッセージを直接 `MouseState` コンポーネントに反映するのみ。
 
 ---
 
-### Requirement 7: ヒットテストキャッシュ（オプション）
+### Requirement 6: ヒットテストキャッシュ（オプション）
 
 **Objective:** 開発者として、同一座標での重複ヒットテストを避けたい。それによりパフォーマンスを向上できる。
 
@@ -268,62 +262,23 @@ pub enum MouseEvent {
 3. When `ArrangementTreeChanged` イベントを受信した時, the Mouse Event System shall キャッシュを無効化する
 4. The Mouse Event System shall キャッシュヒット率をデバッグログで報告する（開発時のみ）
 
-#### キャッシュ構造
-
-```rust
-/// ヒットテストキャッシュ
-#[derive(Resource, Default)]
-pub struct HitTestCache {
-    /// 前回のスクリーン座標
-    pub last_point: Option<PhysicalPoint>,
-    /// 前回のヒット結果
-    pub last_result: Option<HitTestResult>,
-    /// キャッシュ世代（ArrangementTreeChanged でインクリメント）
-    pub generation: u64,
-}
-```
-
 **Note**: 本要件はオプションであり、初期実装では省略可能。
 
 ---
 
-### Requirement 8: ECSリソース・イベント統合
+### Requirement 7: WindowMouseTracking コンポーネント
 
-**Objective:** 開発者として、マウスイベントをECSのイベントキューで受け取りたい。それにより既存のbevy_ecsパターンと一貫性を保てる。
+**Objective:** 開発者として、ウィンドウごとのマウストラッキング状態を管理したい。それによりWM_MOUSELEAVEを正しく受信できる。
 
 #### Acceptance Criteria
 
-1. The Mouse Event System shall マウスイベントを `Events<MouseEvent>` として配信する
-2. The Mouse Event System shall ホバー中のエンティティに `MouseEnter` マーカーコンポーネントを付与する
-3. The Mouse Event System shall ホバー終了時に `MouseEnter` を削除し `MouseLeave` マーカーコンポーネントを付与する
-4. The Mouse Event System shall `WindowMouseTracking` コンポーネントでウィンドウごとのトラッキング状態を管理する
-5. The Mouse Event System shall `FrameFinalize` スケジュールで `MouseLeave` コンポーネントを削除する
-6. When エンティティが削除された時, the Mouse Event System shall 関連するホバー状態をクリアする
-7. The Mouse Event System shall `WM_MOUSEMOVE` の `wParam` からボタン押下状態を取得する（`MK_LBUTTON`, `MK_RBUTTON`, `MK_MBUTTON`）
+1. The Mouse Event System shall `WindowMouseTracking` コンポーネントでトラッキング状態を管理する
+2. When `WM_MOUSEMOVE` 受信時にトラッキングが無効な場合, the Mouse Event System shall `TrackMouseEvent(TME_LEAVE)` を呼び出す
+3. When `WM_MOUSELEAVE` を受信した時, the Mouse Event System shall トラッキングを無効にする
 
 #### コンポーネント定義
 
 ```rust
-/// マウスがエンティティ領域に入った（Enter状態）
-/// 
-/// ヒットテスト成功エンティティに付与される。
-/// Added<MouseEnter> で入った瞬間、With<MouseEnter> でホバー中を検出可能。
-/// 
-/// メモリ戦略: SparseSet - 同時にホバーされるエンティティは少数
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-#[component(storage = "SparseSet")]
-pub struct MouseEnter;
-
-/// マウスがエンティティ領域から出た（Leave通知）
-/// 
-/// ホバー終了時に付与される。
-/// アプリのシステムでクリーンナップ処理後、FrameCleanup で削除される。
-/// 
-/// メモリ戦略: SparseSet - 一時的マーカー
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-#[component(storage = "SparseSet")]
-pub struct MouseLeave;
-
 /// ウィンドウのマウストラッキング状態
 /// 
 /// Win32 の TrackMouseEvent 呼び出し状態を管理。
@@ -335,41 +290,18 @@ pub struct MouseLeave;
 pub struct WindowMouseTracking(pub bool);
 ```
 
-#### Enter/Leave ライフサイクル
-
-```
-1. カーソルがエンティティに入る
-   → MouseEnter を追加（Added<MouseEnter> で検出）
-
-2. カーソルがエンティティ上にいる間
-   → MouseEnter が付いたまま（With<MouseEnter> で検出）
-
-3. カーソルがエンティティから離れる
-   → MouseEnter を削除
-   → MouseLeave を追加（With<MouseLeave> で検出）
-
-4. FrameCleanup スケジュール
-   → MouseLeave を削除
-```
-
-**設計根拠**:
-- **マーカーコンポーネント**: ECS原則に従い、状態を持つエンティティ自身にコンポーネントを付与
-- `Added<MouseEnter>` / `With<MouseLeave>`: Enter/Leave の瞬間を明確に検出可能
-- **SparseSet ストレージ**: 一時的マーカーの挿入/削除が頻繁なため効率的
-
 ---
 
-### Requirement 9: CommitComposition → FrameFinalize リネームとクリーンアップ統合
+### Requirement 8: FrameFinalize クリーンアップ
 
-**Objective:** 開発者として、フレーム終了時の処理を統一された名前で理解したい。それによりスケジュール構造が直感的になる。
+**Objective:** 開発者として、一時的マーカーコンポーネントを自動クリーンアップしたい。それにより手動削除の手間を省ける。
 
 #### Acceptance Criteria
 
-1. The ECS World shall `CommitComposition` スケジュールを `FrameFinalize` にリネームする
-2. The `FrameFinalize` schedule shall DirectComposition の Commit を実行する
-3. The `FrameFinalize` schedule shall `MouseLeave` コンポーネントを全削除するクリーンアップシステムを実行する
+1. The `FrameFinalize` schedule shall `MouseLeave` コンポーネントを全削除するクリーンアップシステムを実行する
+2. The `FrameFinalize` schedule shall `MouseState.double_click` を `false` にリセットする
+3. The cleanup systems shall Commit システムの後に実行される
 4. The `FrameFinalize` schedule shall 将来の他の一時的マーカーのクリーンアップにも使用可能であること
-5. The cleanup systems shall Commit システムの後に実行される
 
 #### スケジュール定義
 
@@ -382,6 +314,7 @@ pub struct WindowMouseTracking(pub bool);
 /// 実行内容:
 /// 1. IDCompositionDevice3::Commit() - ビジュアル変更の確定
 /// 2. MouseLeave 等の一時マーカーコンポーネントの削除
+/// 3. MouseState.double_click のリセット
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FrameFinalize;
 ```
@@ -393,8 +326,20 @@ Input → Update → PreLayout → Layout → PostLayout → UISetup →
 GraphicsSetup → Draw → PreRenderSurface → RenderSurface → 
 Composition → FrameFinalize
                     ├── commit_composition（既存）
-                    └── cleanup_mouse_leave（新規）
+                    ├── cleanup_mouse_leave（新規）
+                    └── reset_double_click（新規）
 ```
+
+---
+
+### Requirement 9: CommitComposition → FrameFinalize リネーム
+
+**Objective:** 開発者として、フレーム終了時の処理を統一された名前で理解したい。それによりスケジュール構造が直感的になる。
+
+#### Acceptance Criteria
+
+1. The ECS World shall `CommitComposition` スケジュールを `FrameFinalize` にリネームする
+2. The `FrameFinalize` schedule shall DirectComposition の Commit を実行する
 
 #### 移行作業
 
@@ -432,11 +377,11 @@ Composition → FrameFinalize
 
 | 用語 | 説明 |
 |------|------|
-| MouseDown | マウスボタン押下イベント |
-| MouseUp | マウスボタン解放イベント |
-| Click | 同一エンティティ上での Down→Up 完了 |
-| MouseEnter | カーソルがエンティティ領域に入った |
-| MouseLeave | カーソルがエンティティ領域から出た |
+| MouseState | マウス状態コンポーネント（座標、ボタン、速度を含む） |
+| MouseLeave | マウス離脱マーカー（1フレーム限り） |
+| Enter | マウスがエンティティに入った瞬間（Added<MouseState>で検出） |
+| Leave | マウスがエンティティから離れた瞬間（With<MouseLeave>で検出） |
+| ホバー中 | MouseStateが付与されている状態 |
 | ローカル座標 | エンティティ左上を原点とした座標 |
 | 物理ピクセル | DPIスケール適用後の実ピクセル |
 
@@ -462,11 +407,11 @@ event-mouse-basic
 
 ### C. 実装優先順位
 
-1. **Phase 1**: Win32メッセージハンドラ + MouseMove/Enter/Leave
-2. **Phase 2**: MouseDown/MouseUp/Click
-3. **Phase 3**: hit_test_detailed（ローカル座標）
+1. **Phase 1**: MouseState コンポーネント + Win32メッセージハンドラ
+2. **Phase 2**: MouseLeave マーカー + FrameFinalize クリーンアップ
+3. **Phase 3**: ローカル座標変換（hit_test_detailed）
 4. **Phase 4**: カーソル速度計算
-5. **Phase 5**: キャッシュ機構（オプション）
+5. **Phase 5**: ヒットテストキャッシュ（オプション）
 
 ---
 
