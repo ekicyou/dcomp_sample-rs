@@ -28,9 +28,15 @@
 - カーソル移動速度の計算（撫でる操作検出用）
 
 **含まれないもの**:
+- Click/RightClick 判定 → `event-dispatch` 仕様で対応（親への伝播が必要）
 - ドラッグイベント → `event-drag-system` 仕様で対応
 - 名前付きヒット領域 → `event-hit-test-named-regions` 仕様で対応
 - イベントバブリング・キャプチャ → `event-dispatch` 仕様で対応
+
+**設計方針**:
+本仕様は「Win32マウスメッセージをECSに持ち込む」ことに集中する。
+Click判定（MouseDown→MouseUpの対応付け）は親への伝播が必要な高度なシナリオであり、
+`event-dispatch` 仕様でバブリング機構と共に実装する。
 
 ### event-hit-test からの引き継ぎ事項
 
@@ -47,7 +53,7 @@
 
 ## Requirements
 
-### Requirement 1: マウスクリックイベント
+### Requirement 1: マウスボタンイベント
 
 **Objective:** ユーザーとして、キャラクターをクリックして反応を得たい。それによりキャラクターとのインタラクションが可能になる。
 
@@ -55,16 +61,23 @@
 
 1. When ユーザーが左マウスボタンを押した時, the Mouse Event System shall `MouseDown { button: Left }` イベントを発火する
 2. When ユーザーが左マウスボタンを離した時, the Mouse Event System shall `MouseUp { button: Left }` イベントを発火する
-3. When ユーザーが左クリックを完了した時（Down→Up が同一エンティティ上）, the Mouse Event System shall `Click` イベントを発火する
-4. When ユーザーが右クリックした時, the Mouse Event System shall `RightClick` イベントを発火する
+3. When ユーザーが右マウスボタンを押した時, the Mouse Event System shall `MouseDown { button: Right }` イベントを発火する
+4. When ユーザーが右マウスボタンを離した時, the Mouse Event System shall `MouseUp { button: Right }` イベントを発火する
 5. When ユーザーがダブルクリックした時, the Mouse Event System shall `DoubleClick` イベントを発火する
-6. The Mouse Event System shall クリックイベントにターゲットエンティティを含める
-7. The Mouse Event System shall クリックイベントにスクリーン座標（物理ピクセル）を含める
+6. The Mouse Event System shall ボタンイベントにターゲットエンティティを含める
+7. The Mouse Event System shall ボタンイベントにスクリーン座標（物理ピクセル）を含める
 
 #### 設計決定
 
-- **Click判定**: `MouseDown` と `MouseUp` が同一エンティティ上で発生した場合に `Click` を発火
-- **ダブルクリック検出**: Win32 の `WM_LBUTTONDBLCLK` メッセージを使用
+- **ダブルクリック検出**: Win32 の `WM_LBUTTONDBLCLK` / `WM_RBUTTONDBLCLK` メッセージを使用
+- **Click/RightClick 判定**: `event-dispatch` 仕様に委譲（バブリング対応が必要なため）
+
+#### スコープ外への委譲
+
+| イベント | 委譲先 | 理由 |
+|---------|--------|------|
+| Click | event-dispatch | MouseDown→MouseUp の対応付け + 親へのバブリングが必要 |
+| RightClick | event-dispatch | 同上 |
 
 ---
 
@@ -195,8 +208,6 @@ pub enum MouseButton {
 pub enum MouseEvent {
     MouseDown { data: MouseEventData, button: MouseButton },
     MouseUp { data: MouseEventData, button: MouseButton },
-    Click { data: MouseEventData },
-    RightClick { data: MouseEventData },
     DoubleClick { data: MouseEventData },
     MouseEnter { data: MouseEventData },
     MouseLeave { data: MouseEventData },
@@ -219,11 +230,12 @@ pub enum MouseEvent {
 5. When `WM_MOUSEMOVE` を受信し `WindowMouseTracking` が `false` の場合, the Mouse Event System shall `TrackMouseEvent(TME_LEAVE)` を呼び出して `true` に設定する
 6. When `WM_MOUSEMOVE` を受信した時, the Mouse Event System shall `hit_test` を実行しホバー状態を更新する
 7. When `WM_MOUSELEAVE` を受信した時, the Mouse Event System shall `WindowMouseTracking` を `false` に設定し、ホバー中のエンティティに `MouseLeave` を発火する
-8. When `WM_LBUTTONDOWN` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseDown` イベントを発火する
-9. When `WM_LBUTTONUP` を受信した時, the Mouse Event System shall `MouseUp` イベントと条件付きで `Click` イベントを発火する
-10. When `WM_RBUTTONDOWN`/`WM_RBUTTONUP` を受信した時, the Mouse Event System shall `RightClick` イベントを発火する
-11. When `WM_LBUTTONDBLCLK` を受信した時, the Mouse Event System shall `DoubleClick` イベントを発火する
-12. The Mouse Event System shall `ecs_wndproc` のハンドラとして実装する
+8. When `WM_LBUTTONDOWN` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseDown { button: Left }` イベントを発火する
+9. When `WM_LBUTTONUP` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseUp { button: Left }` イベントを発火する
+10. When `WM_RBUTTONDOWN` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseDown { button: Right }` イベントを発火する
+11. When `WM_RBUTTONUP` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseUp { button: Right }` イベントを発火する
+12. When `WM_LBUTTONDBLCLK` を受信した時, the Mouse Event System shall `DoubleClick` イベントを発火する
+13. The Mouse Event System shall `ecs_wndproc` のハンドラとして実装する
 
 #### Win32メッセージマッピング
 
@@ -233,12 +245,15 @@ pub enum MouseEvent {
 | WM_MOUSEMOVE | MouseMove, MouseEnter, MouseLeave + TrackMouseEvent |
 | WM_MOUSELEAVE | MouseLeave（ウィンドウ外への離脱）|
 | WM_LBUTTONDOWN | MouseDown (Left) |
-| WM_LBUTTONUP | MouseUp (Left), Click |
+| WM_LBUTTONUP | MouseUp (Left) |
 | WM_RBUTTONDOWN | MouseDown (Right) |
-| WM_RBUTTONUP | MouseUp (Right), RightClick |
+| WM_RBUTTONUP | MouseUp (Right) |
 | WM_LBUTTONDBLCLK | DoubleClick |
+| WM_RBUTTONDBLCLK | DoubleClick (Right) |
 | WM_MBUTTONDOWN | MouseDown (Middle) |
 | WM_MBUTTONUP | MouseUp (Middle) |
+
+**Note**: Click / RightClick 判定は `event-dispatch` 仕様で実装。本仕様では Win32 メッセージを直接 ECS イベントに変換するのみ。
 
 ---
 
@@ -281,24 +296,10 @@ pub struct HitTestCache {
 1. The Mouse Event System shall マウスイベントを `Events<MouseEvent>` として配信する
 2. The Mouse Event System shall ホバー中のエンティティに `MouseEnter` マーカーコンポーネントを付与する
 3. The Mouse Event System shall ホバー終了時に `MouseEnter` を削除し `MouseLeave` マーカーコンポーネントを付与する
-4. The Mouse Event System shall 現在押下中のマウスボタン状態を `MouseButtonState` リソースとして保持する
-5. The Mouse Event System shall `WindowMouseTracking` コンポーネントでウィンドウごとのトラッキング状態を管理する
-6. The Mouse Event System shall `FrameCleanup` スケジュールで `MouseLeave` コンポーネントを削除する
-7. When エンティティが削除された時, the Mouse Event System shall 関連するホバー状態をクリアする
-
-#### リソース定義
-
-```rust
-/// マウスボタン状態
-#[derive(Resource, Default)]
-pub struct MouseButtonState {
-    pub left: bool,
-    pub right: bool,
-    pub middle: bool,
-    /// 最後に MouseDown が発生したエンティティ（Click 判定用）
-    pub down_target: Option<Entity>,
-}
-```
+4. The Mouse Event System shall `WindowMouseTracking` コンポーネントでウィンドウごとのトラッキング状態を管理する
+5. The Mouse Event System shall `FrameFinalize` スケジュールで `MouseLeave` コンポーネントを削除する
+6. When エンティティが削除された時, the Mouse Event System shall 関連するホバー状態をクリアする
+7. The Mouse Event System shall `WM_MOUSEMOVE` の `wParam` からボタン押下状態を取得する（`MK_LBUTTON`, `MK_RBUTTON`, `MK_MBUTTON`）
 
 #### コンポーネント定義
 
