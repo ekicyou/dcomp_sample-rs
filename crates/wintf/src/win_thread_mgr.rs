@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use crate::ecs::world::*;
 use crate::process_singleton::*;
 use crate::win_message_handler::*;

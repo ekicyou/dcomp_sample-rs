@@ -90,6 +90,7 @@ struct DemoWindow {
 unsafe impl Send for DemoWindow {}
 unsafe impl Sync for DemoWindow {}
 
+#[allow(deprecated)]
 impl WinMessageHandler for DemoWindow {
     fn WM_CREATE(&mut self, _wparam: WPARAM, _lparam: LPARAM) -> Option<LRESULT> {
         eprintln!("WM_CREATE");
