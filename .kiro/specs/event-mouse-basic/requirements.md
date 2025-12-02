@@ -263,6 +263,46 @@ local_y = screen_y - GlobalArrangement.bounds.top
 
 **Note**: 現在の `GlobalArrangement` は軸平行変換のみをサポートするため、回転・スキュー変換は不要。
 
+#### 実装フェーズ分離（hit_test 依存）
+
+`event-hit-test` 仕様は `event-mouse-basic` 完了後に実装されるため、以下のフェーズ分離を行う：
+
+| Phase | 内容 | hit_test 実装 |
+|-------|------|---------------|
+| **Phase 1** | 仮スタブ使用 | ウィンドウエンティティを返す（子ウィジェットへのヒットテストなし） |
+| **Phase 2** | `event-hit-test` 完了後 | 実APIに差し替え |
+
+```rust
+/// 仮スタブ: hit_test
+/// 
+/// event-hit-test 仕様完了後に実装に差し替える。
+/// 現時点ではウィンドウエンティティを返す。
+pub fn hit_test_stub(
+    _world: &World,
+    window_entity: Entity,
+    _client_point: (i32, i32),
+) -> Option<Entity> {
+    // 仮実装: ウィンドウ自体を返す（子ウィジェットへのヒットテストなし）
+    Some(window_entity)
+}
+
+/// 仮スタブ: hit_test_detailed
+/// 
+/// ローカル座標変換も含む詳細ヒットテスト。
+/// GlobalArrangement がない場合はクライアント座標をそのまま返す。
+pub fn hit_test_detailed_stub(
+    _world: &World,
+    window_entity: Entity,
+    client_point: (i32, i32),
+) -> Option<HitTestResult> {
+    Some(HitTestResult {
+        entity: window_entity,
+        local_x: client_point.0 as f32,
+        local_y: client_point.1 as f32,
+    })
+}
+```
+
 ---
 
 ### Requirement 5: Win32メッセージ統合
