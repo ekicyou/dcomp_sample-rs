@@ -144,6 +144,35 @@
   - セキュリティ要件が高いケースは `event-hit-test-alpha-mask` で対応
 - **Follow-up**: 孫仕様 `event-hit-test-alpha-mask` でα判定を実装予定
 
+### Decision: API シグネチャ（World 渡し）
+
+- **Context**: ヒットテスト関数の引数設計
+- **Alternatives Considered**:
+  1. Query を引数に渡す — 呼び出し側で用意が必要
+  2. `&World` を渡す — 内部で必要なコンポーネントを取得
+  3. SystemParam 構造体 — 使いやすいがボイラープレート増
+- **Selected Approach**: Option B - `&World` を渡す
+- **Rationale**: 
+  - 呼び出し側はシンプル（`&World` を渡すだけ）
+  - 将来 `AlphaMask` 等を追加しても呼び出し側の変更不要
+  - 内部で `world.get::<T>(entity)` を使用（O(1)、性能問題なし）
+  - 排他システムで World を持っているため自然な設計
+- **Trade-offs**: Query ほど効率的ではないが、ヒットテスト頻度では許容範囲
+- **Follow-up**: 
+  - `hit_test_entity(world, entity, point) -> bool` — 単一エンティティ判定
+  - `hit_test(world, root, point) -> Option<Entity>` — ツリー走査
+
+### Decision: 2層 API 構成
+
+- **Context**: 単一エンティティ判定とツリー走査の分離
+- **Selected Approach**: Layer 1（hit_test_entity）と Layer 2（hit_test）に分離
+- **Rationale**: 
+  - `hit_test_entity` は単一エンティティのみ判定（子孫は走査しない）
+  - `hit_test` は `DepthFirstReversePostOrder` で走査し、各エンティティで `hit_test_entity` を呼び出し
+  - 責務分離により将来の拡張（AlphaMask 等）が容易
+- **Trade-offs**: 関数が増えるが、責務が明確になる
+- **Follow-up**: テストでは `hit_test_entity` を直接呼び出し可能
+
 ### Decision: キャッシュ戦略
 
 - **Context**: パフォーマンス最適化の必要性判断

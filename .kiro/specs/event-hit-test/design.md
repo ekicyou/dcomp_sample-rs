@@ -148,13 +148,13 @@ sequenceDiagram
 | Requirement | Summary | Components | Interfaces | Flows |
 |-------------|---------|------------|------------|-------|
 | 1 | HitTestMode/HitTest 定義 | HitTestMode, HitTest | - | - |
-| 2 | 矩形ヒットテスト | HitTest | hit_test | 走査フロー |
+| 2 | 矩形ヒットテスト | HitTest | hit_test_entity, hit_test | 走査フロー |
 | 3 | Z順序優先度 | - | hit_test | 走査フロー |
-| 4 | ヒットテスト除外 | HitTestMode::None | hit_test_recursive | 走査フロー |
+| 4 | ヒットテスト除外 | HitTestMode::None | hit_test_entity | 走査フロー |
 | 5 | 座標変換 | - | hit_test_in_window | - |
 | 6 | ECS統合 | HitTest | hit_test | - |
 | 7 | 呼び出しタイミング | - | （将来実装） | - |
-| 8 | ヒットテストAPI | - | hit_test, hit_test_in_window, hit_test_detailed | - |
+| 8 | ヒットテストAPI | - | hit_test_entity, hit_test, hit_test_in_window, hit_test_detailed | - |
 
 ---
 
@@ -167,7 +167,8 @@ sequenceDiagram
 | DepthFirstReversePostOrder | ecs::common | 深さ優先・逆順・後順走査イテレータ | 3 | Children (P0) | Iterator |
 | HitTestMode | ecs::layout | ヒットテスト動作モード | 1, 4 | - | - |
 | HitTest | ecs::layout | ヒットテスト設定 | 1, 2, 6 | HitTestMode | - |
-| hit_test | ecs::layout | スクリーン座標ヒットテスト | 2, 3, 8 | HitTest, GlobalArrangement, DepthFirstReversePostOrder (P0) | Service |
+| hit_test_entity | ecs::layout | 単一エンティティヒットテスト | 2, 4 | HitTest, GlobalArrangement (P0) | Service |
+| hit_test | ecs::layout | ツリー走査ヒットテスト | 2, 3, 8 | hit_test_entity, DepthFirstReversePostOrder (P0) | Service |
 | hit_test_in_window | ecs::layout | ウィンドウクライアント座標ヒットテスト | 5, 8 | hit_test (P0), WindowPos (P0) | Service |
 | hit_test_detailed | ecs::layout | 詳細ヒットテスト結果 | 8 | hit_test (P0) | Service |
 
@@ -336,23 +337,69 @@ impl HitTest {
 
 ---
 
+#### hit_test_entity
+
+| Field | Detail |
+|-------|--------|
+| Intent | 単一エンティティのヒットテストを実行する API 関数 |
+| Requirements | 2 |
+
+**Responsibilities & Constraints**
+- 指定エンティティのみを判定対象とする（子孫は走査しない）
+- `HitTestMode` に応じた判定を実行
+- 将来の拡張（AlphaMask 等）でも API 変更不要
+
+**Dependencies**
+- Outbound: HitTest — モード判定 (P0)
+- Outbound: GlobalArrangement — 座標判定 (P0)
+
+**Contracts**: Service ✓
+
+##### Service Interface
+
+```rust
+/// 単一エンティティのヒットテスト
+///
+/// # Arguments
+/// - `world`: ECS World 参照（将来の拡張でも API 変更不要にするため）
+/// - `entity`: 判定対象エンティティ
+/// - `point`: スクリーン座標（物理ピクセル）
+///
+/// # Returns
+/// - `true`: ヒット
+/// - `false`: ヒットしない、または GlobalArrangement がない
+///
+/// # Note
+/// `HitTest` コンポーネントがない場合は `HitTestMode::Bounds` として扱う
+pub fn hit_test_entity(world: &World, entity: Entity, point: PhysicalPoint) -> bool;
+```
+
+- Preconditions: なし（エンティティが存在しない場合は `false`）
+- Postconditions: ヒット判定結果を返す
+
+**Implementation Notes**
+- `world.get::<GlobalArrangement>(entity)` で bounds 取得
+- `world.get::<HitTest>(entity)` でモード取得（None なら Bounds）
+- 将来 `AlphaMask` 追加時は内部で `BitmapSourceResource` 等を追加取得
+- `world.get()` は O(1) なので性能問題なし
+
+---
+
 #### hit_test
 
 | Field | Detail |
 |-------|--------|
-| Intent | スクリーン座標でヒットテストを実行する API 関数 |
+| Intent | ルート配下を走査してスクリーン座標でヒットテストを実行する API 関数 |
 | Requirements | 2, 3, 8 |
 
 **Responsibilities & Constraints**
 - 指定ルートエンティティ配下を深さ優先・逆順走査
-- `HitTestMode::None` のエンティティをスキップ
-- `GlobalArrangement.bounds.contains()` で矩形判定
-- クリッピングなし（親 bounds 外でも子を調査）
+- 各エンティティで `hit_test_entity` を呼び出し
+- 最初のヒットで early return
 
 **Dependencies**
 - Inbound: 外部呼び出し元 — ヒットテスト実行 (P0)
-- Outbound: HitTest — モード判定 (P0)
-- Outbound: GlobalArrangement — 座標判定 (P0)
+- Outbound: hit_test_entity — 単一エンティティ判定 (P0)
 - Outbound: Children — 階層走査 (P0)
 
 **Contracts**: Service ✓
@@ -372,21 +419,18 @@ impl HitTest {
 /// - `None`: ヒットなし
 ///
 /// # Algorithm
-/// 深さ優先・逆順走査（front-to-back）で最前面エンティティを優先
+/// 深さ優先・逆順・後順走査で最前面エンティティを優先
 pub fn hit_test(world: &World, root: Entity, screen_point: PhysicalPoint) -> Option<Entity>;
 ```
 
 - Preconditions: `root` エンティティが存在すること
 - Postconditions: ヒットエンティティまたは None を返す
-- Invariants: 走査順序は Children 配列の逆順
+- Invariants: 走査順序は Children 配列の逆順、子が親より先
 
 **Implementation Notes**
 - `DepthFirstReversePostOrder` イテレータを使用（`ecs::common` から import）
 - イテレータは後順走査: 子孫を全て返してから親を返す
-- `GlobalArrangement` がないエンティティはスキップ（bounds がないため判定不可）
-- `HitTest` がないエンティティは `HitTestMode::Bounds` として扱う（暗黙的に矩形判定）
-- `HitTest::none()` のエンティティはスキップ
-- 子孫は引き続き調査（イテレータがツリー走査を継続）
+- 各エンティティで `hit_test_entity(world, entity, point)` を呼び出し
 - 最初のヒットで early return（イテレータの残りは消費しない）
 
 ---
