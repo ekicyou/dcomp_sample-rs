@@ -275,6 +275,7 @@ local_y = screen_y - GlobalArrangement.bounds.top
 2. When `WM_NCHITTEST` を受信し座標がクライアント領域内の場合, the Mouse Event System shall `hit_test` を実行する
 3. When `hit_test` が `None` を返した場合, the Mouse Event System shall `HTTRANSPARENT` を返す（クリックスルー）
 4. When `hit_test` がエンティティを返した場合, the Mouse Event System shall `HTCLIENT` を返す
+5. When World の借用に失敗した場合（tick実行中）, the Mouse Event System shall `None` を返して `DefWindowProcW` に委譲する（簡易対応、キャッシュ実装は `event-hit-test-cache` 仕様に委譲）
 5. When `WM_MOUSEMOVE` を受信し `WindowMouseTracking` が `false` の場合, the Mouse Event System shall `TrackMouseEvent(TME_LEAVE)` を呼び出して `true` に設定する
 6. When `WM_MOUSEMOVE` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseState` を更新する
 7. When `WM_MOUSELEAVE` を受信した時, the Mouse Event System shall `WindowMouseTracking` を `false` に設定し、`MouseState` を削除して `MouseLeave` を付与する
