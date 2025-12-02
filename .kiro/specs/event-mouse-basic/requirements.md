@@ -40,6 +40,11 @@
 - `Added<MouseState>` で Enter、`MouseLeave` マーカーで Leave を検出
 - Click判定（MouseDown→MouseUpの対応付け）は `event-dispatch` に委譲
 
+**将来の再検討事項**:
+- `Events<MouseEvent>` の導入は `event-dispatch` 仕様でバブリング実装時に再検討
+- コンポーネントベースとイベントベースのハイブリッド設計の可能性あり
+- 本仕様では純粋なコンポーネントベースで実装し、拡張性を確保
+
 ### event-hit-test からの引き継ぎ事項
 
 `event-hit-test` 仕様で実装されたAPIを統合し、以下の項目を本仕様で実装する：
