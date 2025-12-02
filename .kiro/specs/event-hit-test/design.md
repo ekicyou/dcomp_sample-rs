@@ -210,8 +210,19 @@ sequenceDiagram
 ///
 /// 走査順: GC2a → Child2 → GC1b → GC1a → Child1 → Root
 /// ```
+///
+/// # アルゴリズム
+/// ## 初期化
+/// 1. ルートを「子取り出し済みフラグ=OFF」で積む
+///
+/// ## next
+/// 1. 最後の要素を取り出す
+/// 2. 「子取り出し済みフラグ=ON」なら返却
+/// 3. 自分を「取り出し済み」にして再度スタックに積む
+/// 4. 子供がいたら、子供要素を逆順でスタックに積む（フラグはOFF）
+/// 5. 1に戻る
 pub struct DepthFirstReversePostOrder<'w, 's> {
-    /// (Entity, 子展開済みフラグ)
+    /// (Entity, 子取り出し済みフラグ)
     stack: Vec<(Entity, bool)>,
     children_query: &'w Query<'w, 's, &'static Children>,
 }
@@ -230,27 +241,24 @@ impl<'w, 's> Iterator for DepthFirstReversePostOrder<'w, 's> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
+            // 1. 最後の要素を取り出す
             let (entity, expanded) = self.stack.pop()?;
 
+            // 2. 「子取り出し済みフラグ=ON」なら返却
             if expanded {
-                // 子の処理が終わったので返却
                 return Some(entity);
             }
 
-            // 子を展開
+            // 3. 自分を「取り出し済み」にして再度スタックに積む
+            self.stack.push((entity, true));
+
+            // 4. 子供がいたら、子供要素を逆順でスタックに積む（フラグはOFF）
             if let Ok(children) = self.children_query.get(entity) {
-                if !children.is_empty() {
-                    // 自分を「展開済み」で積み直す
-                    self.stack.push((entity, true));
-                    // 子を逆順で積む（最後の子が先にpopされる）
-                    for &child in children.iter().rev() {
-                        self.stack.push((child, false));
-                    }
-                    continue;
+                for &child in children.iter().rev() {
+                    self.stack.push((child, false));
                 }
             }
-            // 子がない → そのまま返却
-            return Some(entity);
+            // 5. ループ先頭に戻る
         }
     }
 }
