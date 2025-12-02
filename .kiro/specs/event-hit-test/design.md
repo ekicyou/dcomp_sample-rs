@@ -693,3 +693,112 @@ crates/wintf/tests/
 ├── hit_test_integration_test.rs    # 新規作成
 └── tree_iter_test.rs               # 新規作成: イテレータ単体テスト
 ```
+
+---
+
+## Test Specifications
+
+### DepthFirstReversePostOrder テストケース
+
+#### 1. 基本走査順序テスト
+
+```text
+ツリー構造:
+Root
+├── Child1
+│   ├── GC1a
+│   └── GC1b
+└── Child2 (最前面)
+    └── GC2a
+
+期待される走査順: [GC2a, Child2, GC1b, GC1a, Child1, Root]
+```
+
+**検証ポイント**:
+- 最前面の子（Child2）の子孫が最初に返される
+- 子孫を全て返してから親が返される（後順）
+- 最終的にルートが返される
+
+#### 2. 単一ノード（子なし）テスト
+
+```text
+ツリー構造:
+Root（子なし）
+
+期待される走査順: [Root]
+```
+
+#### 3. 深い階層テスト
+
+```text
+ツリー構造:
+A
+└── B
+    └── C
+        └── D
+
+期待される走査順: [D, C, B, A]
+```
+
+#### 4. 幅広ツリーテスト
+
+```text
+ツリー構造:
+Root
+├── C1
+├── C2
+├── C3
+└── C4 (最前面)
+
+期待される走査順: [C4, C3, C2, C1, Root]
+```
+
+### hit_test テストケース
+
+#### 1. ヒットあり（最前面）
+
+```text
+ツリー構造:
+Root (0,0)-(100,100)
+├── Back (10,10)-(90,90)
+└── Front (20,20)-(80,80) ← 最前面
+
+クリック位置: (50, 50)
+期待結果: Some(Front)
+```
+
+#### 2. ヒットあり（背面のみ）
+
+```text
+クリック位置: (15, 15)  ← Back の領域内、Front の外
+期待結果: Some(Back)
+```
+
+#### 3. ヒットなし
+
+```text
+クリック位置: (5, 5)  ← Root の外
+期待結果: None
+```
+
+#### 4. HitTestMode::None のスキップ
+
+```text
+ツリー構造:
+Root (0,0)-(100,100) [HitTestMode::Bounds]
+└── Overlay (0,0)-(100,100) [HitTestMode::None]
+
+クリック位置: (50, 50)
+期待結果: Some(Root)  ← Overlay はスキップ
+```
+
+#### 5. HitTest コンポーネントなし（デフォルト動作）
+
+```text
+ツリー構造:
+Root (0,0)-(100,100) [HitTest なし → 暗黙的 Bounds]
+
+クリック位置: (50, 50)
+期待結果: Some(Root)
+```
+
