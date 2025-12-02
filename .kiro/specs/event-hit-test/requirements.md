@@ -108,20 +108,56 @@ LayoutRoot (仮想デスクトップ: 物理ピクセル)
 
 #### ヒットテスト走査アルゴリズム
 
+深さ優先・逆順・後順走査（post-order）を使用する。子孫を全て処理してから親を返すことで、最前面のエンティティを優先してヒットテストできる。
+
+**スタックベースのイテレータ実装**:
+
 ```rust
-fn hit_test_recursive(entity: Entity, point: Point) -> Option<Entity> {
-    // 1. 子を逆順で調査（前面から背面へ）
-    //    注意: 親の bounds に関係なく子を調査（クリッピングなしのため）
-    if let Some(children) = get_children(entity) {
-        for child in children.iter().rev() {
-            if let Some(hit) = hit_test_recursive(*child, point) {
-                return Some(hit);
+/// スタックエントリ: (Entity, 子展開済みフラグ)
+type StackEntry = (Entity, bool);
+
+/// 深さ優先・逆順・後順走査イテレータ
+struct DepthFirstReversePostOrder {
+    stack: Vec<StackEntry>,
+    children_query: Query<&Children>,
+}
+
+impl Iterator for DepthFirstReversePostOrder {
+    type Item = Entity;
+
+    fn next(&mut self) -> Option<Entity> {
+        loop {
+            let (entity, expanded) = self.stack.pop()?;
+
+            if expanded {
+                // 子の処理が終わったので返却
+                return Some(entity);
             }
+
+            // 子を展開
+            if let Ok(children) = self.children_query.get(entity) {
+                if !children.is_empty() {
+                    // 自分を「展開済み」で積み直す
+                    self.stack.push((entity, true));
+                    // 子を逆順で積む（最後の子が先にpopされる）
+                    for &child in children.iter().rev() {
+                        self.stack.push((child, false));
+                    }
+                    continue;
+                }
+            }
+            // 子がない → そのまま返却
+            return Some(entity);
         }
     }
-    // 2. 子でヒットしなければ、自身をチェック
-    if should_hit_test(entity) && is_point_in_bounds(entity, point) {
-        return Some(entity);
+}
+
+// ヒットテスト使用例
+fn hit_test(root: Entity, point: Point) -> Option<Entity> {
+    for entity in DepthFirstReversePostOrder::new(root) {
+        if should_hit_test(entity) && is_point_in_bounds(entity, point) {
+            return Some(entity);
+        }
     }
     None
 }
@@ -132,6 +168,13 @@ fn hit_test_recursive(entity: Entity, point: Point) -> Option<Entity> {
 - **クリッピングなし**: 現在の実装ではクリッピングが存在しないため、子エンティティが親の bounds 外に存在する可能性がある
 - 親の bounds 外でも子の調査をスキップしてはならない
 - 将来クリッピングが導入された場合、クリップ設定のあるエンティティでは最適化（早期スキップ）が可能になる
+
+#### 走査アルゴリズムの設計決定
+
+- **イテレータベース**: 再帰関数ではなくイテレータで実装し、早期リターンと再利用性を両立
+- **スタック + フラグ方式**: `(Entity, bool)` タプルでスタックを管理し、子展開済みかどうかを追跡
+- **汎用イテレータ**: `DepthFirstReversePostOrder` は `ecs::common` に配置し、他の用途（フォーカス管理等）でも再利用可能
+- **bevy_ecs に同等 API なし**: `iter_descendants_depth_first` は正順のみ。逆順・後順走査は独自実装が必要
 
 ---
 

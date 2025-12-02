@@ -110,36 +110,36 @@ graph TB
 sequenceDiagram
     participant Caller
     participant hit_test
-    participant traverse
+    participant Iterator as DepthFirstReversePostOrder
     participant Entity
 
     Caller->>hit_test: hit_test(world, root, screen_point)
-    hit_test->>traverse: hit_test_recursive(root, point)
+    hit_test->>Iterator: new(root)
     
-    loop 各子エンティティ（逆順）
-        traverse->>traverse: hit_test_recursive(child, point)
-        alt 子でヒット
-            traverse-->>hit_test: Some(child_entity)
+    loop イテレータから順次取得
+        Iterator->>Iterator: next() [スタック操作]
+        Iterator-->>hit_test: entity
+        hit_test->>Entity: HitTest.mode チェック
+        alt HitTestMode::None
+            Note over hit_test: スキップ（次のエンティティへ）
+        else HitTestMode::Bounds
+            hit_test->>Entity: GlobalArrangement.bounds.contains()
+            alt ヒット
+                hit_test-->>Caller: Some(entity)
+            end
         end
     end
     
-    alt 自身でヒット
-        traverse->>Entity: HitTest.mode チェック
-        Entity-->>traverse: HitTestMode::Bounds
-        traverse->>Entity: GlobalArrangement.bounds.contains()
-        Entity-->>traverse: true
-        traverse-->>hit_test: Some(entity)
-    else ヒットなし
-        traverse-->>hit_test: None
-    end
-    
-    hit_test-->>Caller: Option<Entity>
+    hit_test-->>Caller: None（ヒットなし）
 ```
 
 **Key Decisions**:
-- 深さ優先・逆順走査（front-to-back）で最前面エンティティを優先
+- **イテレータベース**: `DepthFirstReversePostOrder` イテレータで走査
+- **後順走査**: 子孫を全て返してから親を返す（子が優先される）
+- **逆順**: Children 配列の最後（最前面）から走査
+- **早期リターン**: 最初のヒットで即座に返却
 - クリッピングなし: 親の bounds 外でも子を調査
-- `HitTestMode::None` のエンティティは完全スキップ
+- `HitTestMode::None` のエンティティはスキップ
 
 ---
 
@@ -164,11 +164,97 @@ sequenceDiagram
 
 | Component | Domain/Layer | Intent | Req Coverage | Key Dependencies | Contracts |
 |-----------|--------------|--------|--------------|------------------|-----------|
+| DepthFirstReversePostOrder | ecs::common | 深さ優先・逆順・後順走査イテレータ | 3 | Children (P0) | Iterator |
 | HitTestMode | ecs::layout | ヒットテスト動作モード | 1, 4 | - | - |
 | HitTest | ecs::layout | ヒットテスト設定 | 1, 2, 6 | HitTestMode | - |
-| hit_test | ecs::layout | スクリーン座標ヒットテスト | 2, 3, 8 | HitTest, GlobalArrangement, Children (P0) | Service |
+| hit_test | ecs::layout | スクリーン座標ヒットテスト | 2, 3, 8 | HitTest, GlobalArrangement, DepthFirstReversePostOrder (P0) | Service |
 | hit_test_in_window | ecs::layout | ウィンドウクライアント座標ヒットテスト | 5, 8 | hit_test (P0), WindowPos (P0) | Service |
 | hit_test_detailed | ecs::layout | 詳細ヒットテスト結果 | 8 | hit_test (P0) | Service |
+
+### ecs::common
+
+#### DepthFirstReversePostOrder
+
+| Field | Detail |
+|-------|--------|
+| Intent | ECS階層を深さ優先・逆順・後順で走査する汎用イテレータ |
+| Requirements | 3 (Z順序優先度) |
+
+**Responsibilities & Constraints**
+- スタック + フラグ方式で後順走査を実現
+- `(Entity, bool)` タプルでスタック管理（bool = 子展開済みフラグ）
+- 子を全て返却してから親を返す
+- Children 配列を逆順で積むことで最前面の子から走査
+- ヒットテスト以外（フォーカス管理、ツリーダンプ等）でも再利用可能
+
+**Dependencies**
+- Outbound: Children — 子エンティティ取得 (P0)
+
+**Contracts**: Iterator ✓
+
+```rust
+/// 深さ優先・逆順・後順走査イテレータ
+///
+/// # 走査順序
+/// Children 配列の最後の要素（最前面）から走査し、
+/// 子孫を全て返却してから親を返す。
+///
+/// # 例
+/// ```text
+/// Root
+/// ├── Child1
+/// │   ├── GC1a
+/// │   └── GC1b
+/// └── Child2 (最前面)
+///     └── GC2a
+///
+/// 走査順: GC2a → Child2 → GC1b → GC1a → Child1 → Root
+/// ```
+pub struct DepthFirstReversePostOrder<'w, 's> {
+    /// (Entity, 子展開済みフラグ)
+    stack: Vec<(Entity, bool)>,
+    children_query: &'w Query<'w, 's, &'static Children>,
+}
+
+impl<'w, 's> DepthFirstReversePostOrder<'w, 's> {
+    pub fn new(root: Entity, children_query: &'w Query<'w, 's, &'static Children>) -> Self {
+        Self {
+            stack: vec![(root, false)],
+            children_query,
+        }
+    }
+}
+
+impl<'w, 's> Iterator for DepthFirstReversePostOrder<'w, 's> {
+    type Item = Entity;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let (entity, expanded) = self.stack.pop()?;
+
+            if expanded {
+                // 子の処理が終わったので返却
+                return Some(entity);
+            }
+
+            // 子を展開
+            if let Ok(children) = self.children_query.get(entity) {
+                if !children.is_empty() {
+                    // 自分を「展開済み」で積み直す
+                    self.stack.push((entity, true));
+                    // 子を逆順で積む（最後の子が先にpopされる）
+                    for &child in children.iter().rev() {
+                        self.stack.push((child, false));
+                    }
+                    continue;
+                }
+            }
+            // 子がない → そのまま返却
+            return Some(entity);
+        }
+    }
+}
+```
 
 ### ecs::layout
 
@@ -287,9 +373,11 @@ pub fn hit_test(world: &World, root: Entity, screen_point: PhysicalPoint) -> Opt
 - Invariants: 走査順序は Children 配列の逆順
 
 **Implementation Notes**
-- 再帰関数 `hit_test_recursive` を内部で使用
+- `DepthFirstReversePostOrder` イテレータを使用（`ecs::common` から import）
+- イテレータは後順走査: 子孫を全て返してから親を返す
 - `HitTest` または `GlobalArrangement` がないエンティティはスキップ
-- 子孫は引き続き調査（ツリー走査継続）
+- 子孫は引き続き調査（イテレータがツリー走査を継続）
+- 最初のヒットで early return（イテレータの残りは消費しない）
 
 ---
 
@@ -534,14 +622,20 @@ impl PhysicalPoint {
 ### ファイル構成
 
 ```
-crates/wintf/src/ecs/layout/
-├── arrangement.rs      # 既存（変更なし）
-├── hit_test.rs         # 新規作成
-├── mod.rs              # pub mod hit_test; pub use hit_test::*; 追加
-├── rect.rs             # 既存（変更なし）
-├── systems.rs          # 既存（変更なし）
-└── ...
+crates/wintf/src/ecs/
+├── common/
+│   ├── mod.rs                  # 新規作成: pub mod tree_iter; pub use tree_iter::*;
+│   └── tree_iter.rs            # 新規作成: DepthFirstReversePostOrder
+├── layout/
+│   ├── arrangement.rs          # 既存（変更なし）
+│   ├── hit_test.rs             # 新規作成: HitTest, HitTestMode, hit_test API
+│   ├── mod.rs                  # pub mod hit_test; pub use hit_test::*; 追加
+│   ├── rect.rs                 # 既存（変更なし）
+│   ├── systems.rs              # 既存（変更なし）
+│   └── ...
+└── mod.rs                      # pub mod common; 追加
 
 crates/wintf/tests/
-└── hit_test_integration_test.rs  # 新規作成
+├── hit_test_integration_test.rs    # 新規作成
+└── tree_iter_test.rs               # 新規作成: イテレータ単体テスト
 ```

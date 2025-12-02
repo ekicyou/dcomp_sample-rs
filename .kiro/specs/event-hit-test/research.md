@@ -39,16 +39,21 @@
 
 ### 逆イテレーション最適化（R2）
 
-- **Context**: `Children` の逆順走査のパフォーマンス評価
+- **Context**: `Children` の逆順走査のパフォーマンス評価と実装方式
 - **Sources Consulted**: 
   - bevy_ecs 0.17.2 ソースコード
   - Rust `DoubleEndedIterator` ドキュメント
+  - docs.rs/bevy_ecs/0.17.2/bevy_ecs/hierarchy/struct.Children.html
 - **Findings**:
   - `Children` は `SmallVec<[Entity; 8]>` ベース
   - `.iter().rev()` は `DoubleEndedIterator` を利用した O(1) 反転
   - 追加のメモリアロケーションなし
+  - **bevy_ecs に逆順走査 API なし**: `iter_descendants_depth_first` は正順のみ
+  - 後順走査（post-order）には独自実装が必要
 - **Implications**:
-  - シンプルに `.iter().rev()` を使用（選択肢 A）
+  - **スタック + フラグ方式**: `(Entity, bool)` タプルで子展開済みかを管理
+  - 汎用イテレータ `DepthFirstReversePostOrder` を `ecs::common` に配置
+  - ヒットテスト以外（フォーカス管理等）でも再利用可能
 
 ### キャッシュ無効化（R3）
 
@@ -103,6 +108,21 @@
   - テスト時に特定のサブツリーのみ検証可能
 - **Trade-offs**: 引数が 1 つ増えるが柔軟性向上
 - **Follow-up**: `hit_test_in_window` で Window エンティティを自動取得
+
+### Decision: 走査アルゴリズム
+
+- **Context**: 深さ優先・逆順走査の実装方式
+- **Alternatives Considered**:
+  1. 再帰関数 — シンプルだが early return しにくい
+  2. イテレータ + スタック — 汎用的、early return 容易
+- **Selected Approach**: イテレータ + スタック + フラグ方式
+- **Rationale**: 
+  - `(Entity, bool)` タプルで子展開済みかを管理
+  - 後順走査（子を全て返してから親を返す）を実現
+  - for ループで使用でき、最初のヒットで即座に return 可能
+  - `ecs::common::DepthFirstReversePostOrder` として汎用化
+- **Trade-offs**: 再帰より若干複雑だが、再利用性と early return のメリットが上回る
+- **Follow-up**: `ecs::common` モジュールを新規作成、フォーカス管理等で再利用検討
 
 ### Decision: キャッシュ戦略
 
