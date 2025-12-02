@@ -6,12 +6,13 @@ use std::time::Duration;
 use tracing_subscriber::EnvFilter;
 use windows::core::Result;
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
+use wintf::ecs::layout::{hit_test, GlobalArrangement, PhysicalPoint};
 use wintf::ecs::layout::{
     BoxInset, BoxMargin, BoxPosition, BoxSize, BoxStyle, Dimension, LengthPercentageAuto, Opacity,
 };
 use wintf::ecs::widget::bitmap_source::{BitmapSource, CommandSender};
 use wintf::ecs::widget::shapes::Rectangle;
-use wintf::ecs::Window;
+use wintf::ecs::{Window, WindowPos};
 use wintf::*;
 
 #[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
@@ -74,15 +75,29 @@ async fn run_demo(tx: CommandSender) {
     println!("[Async] 0s: Creating Flexbox demo window");
     let _ = tx.send(Box::new(create_flexbox_window));
 
-    // === 5秒待機 ===
-    async_io::Timer::after(Duration::from_secs(5)).await;
+    // === 1秒待機 ===
+    async_io::Timer::after(Duration::from_secs(1)).await;
+
+    // === 1秒: ヒットテスト検証 ===
+    println!("[Async] 1s: Running hit test verification");
+    let _ = tx.send(Box::new(test_hit_test_1s));
+
+    // === 4秒待機 ===
+    async_io::Timer::after(Duration::from_secs(4)).await;
 
     // === 5秒: レイアウト変更 ===
     println!("[Async] 5s: Changing layout parameters");
     let _ = tx.send(Box::new(change_layout_parameters));
 
-    // === 5秒待機 ===
-    async_io::Timer::after(Duration::from_secs(5)).await;
+    // === 1秒待機 ===
+    async_io::Timer::after(Duration::from_secs(1)).await;
+
+    // === 6秒: ヒットテスト検証（レイアウト変更後） ===
+    println!("[Async] 6s: Running hit test verification after layout change");
+    let _ = tx.send(Box::new(test_hit_test_6s));
+
+    // === 4秒待機 ===
+    async_io::Timer::after(Duration::from_secs(4)).await;
 
     // === 10秒: ウィンドウ終了 ===
     println!("[Async] 10s: Closing window");
@@ -324,5 +339,281 @@ fn close_window(world: &mut World) {
     if let Some(window) = query.iter(world).next() {
         println!("[Test] Removing Window entity {:?}", window);
         world.despawn(window);
+    }
+}
+
+/// 1秒後のヒットテスト検証
+fn test_hit_test_1s(world: &mut World) {
+    println!("[HitTest @1s] === Running hit test verification ===");
+
+    // ウィンドウエンティティを取得
+    let mut window_query = world.query_filtered::<Entity, With<FlexDemoWindow>>();
+    let Some(window_entity) = window_query.iter(world).next() else {
+        println!("[HitTest @1s] Window entity not found");
+        return;
+    };
+
+    // ウィンドウの GlobalArrangement からスケールと原点を取得
+    let Some(window_global) = world.get::<GlobalArrangement>(window_entity) else {
+        println!("[HitTest @1s] Window has no GlobalArrangement");
+        return;
+    };
+    let (scale_x, scale_y) = window_global.scale();
+    let origin_x = window_global.bounds.left;
+    let origin_y = window_global.bounds.top;
+
+    println!(
+        "[HitTest @1s] Window scale: ({:.2}, {:.2}), origin: ({:.0}, {:.0})",
+        scale_x, scale_y, origin_x, origin_y
+    );
+
+    // DIP座標からスクリーン座標（物理ピクセル）に変換するヘルパー
+    let to_screen = |dip_x: f32, dip_y: f32| -> PhysicalPoint {
+        PhysicalPoint::new(origin_x + dip_x * scale_x, origin_y + dip_y * scale_y)
+    };
+
+    // ウィンドウの WindowPos をログ出力（基準座標）
+    println!("[HitTest @1s] --- Window reference coordinates ---");
+    dump_window_pos(world, window_entity);
+
+    // 各エンティティの GlobalArrangement.bounds をログ出力
+    println!("[HitTest @1s] --- Entity bounds (GlobalArrangement) ---");
+    dump_entity_bounds(world, "FlexDemo-Window", window_entity);
+
+    // FlexContainerを検索
+    let mut container_query = world.query_filtered::<Entity, With<FlexDemoContainer>>();
+    if let Some(container) = container_query.iter(world).next() {
+        dump_entity_bounds(world, "FlexDemo-Container", container);
+    }
+
+    // 各Boxを検索
+    let mut red_query = world.query_filtered::<Entity, With<RedBox>>();
+    if let Some(red) = red_query.iter(world).next() {
+        dump_entity_bounds(world, "RedBox", red);
+    }
+
+    let mut green_query = world.query_filtered::<Entity, With<GreenBox>>();
+    if let Some(green) = green_query.iter(world).next() {
+        dump_entity_bounds(world, "GreenBox", green);
+    }
+
+    let mut blue_query = world.query_filtered::<Entity, With<BlueBox>>();
+    if let Some(blue) = blue_query.iter(world).next() {
+        dump_entity_bounds(world, "BlueBox", blue);
+    }
+    println!("[HitTest @1s] --- End of entity bounds ---");
+
+    // テストポイント（DIP座標で指定、to_screen で物理ピクセルに変換）
+    // 実際のレイアウト結果（物理ピクセル、スケール1.25、原点125,125）:
+    // - GreenBox: (135,375)→(260,500) → DIP (8,200)→(108,300)
+    // - RedBox: (235,375)→(485,500) → DIP (88,200)→(288,300)
+    //   - RedBox内に子要素 SeikatuImage があり、中心テストでは子がヒット
+    // - BlueBox: (435,375)→(560,500) → DIP (248,200)→(348,300)
+    let test_points = [
+        (
+            to_screen(50.0, 250.0),
+            "GreenBox center (DIP 50,250)",
+            "GreenBox",
+        ),
+        (
+            to_screen(150.0, 250.0),
+            "RedBox child (SeikatuImage) (DIP 150,250)",
+            "SeikatuImage",
+        ),
+        (
+            to_screen(320.0, 250.0),
+            "BlueBox center (DIP 320,250)",
+            "BlueBox",
+        ),
+        (
+            to_screen(15.0, 15.0),
+            "Container area (DIP 15,15)",
+            "FlexDemo-Container",
+        ),
+        (
+            to_screen(700.0, 300.0),
+            "Outside Container (DIP 700,300)",
+            "FlexDemo-Window",
+        ),
+    ];
+
+    println!("[HitTest @1s] --- Hit test results ---");
+    for (point, description, expected) in test_points {
+        match hit_test(world, window_entity, point) {
+            Some(entity) => {
+                if let Some(name) = world.get::<Name>(entity) {
+                    println!(
+                        "[HitTest @1s] {} at DIP->Screen ({:.0}, {:.0}): Hit {:?} (expected: {})",
+                        description,
+                        point.x,
+                        point.y,
+                        name.as_str(),
+                        expected
+                    );
+                } else {
+                    println!(
+                        "[HitTest @1s] {} at ({:.0}, {:.0}): Hit Entity {:?} (no name)",
+                        description, point.x, point.y, entity
+                    );
+                }
+            }
+            None => {
+                println!(
+                    "[HitTest @1s] {} at ({:.0}, {:.0}): No hit (expected: {})",
+                    description, point.x, point.y, expected
+                );
+            }
+        }
+    }
+}
+
+/// 6秒後のヒットテスト検証（レイアウト変更後）
+fn test_hit_test_6s(world: &mut World) {
+    println!("[HitTest @6s] === Running hit test after layout change ===");
+
+    // ウィンドウエンティティを取得
+    let mut window_query = world.query_filtered::<Entity, With<FlexDemoWindow>>();
+    let Some(window_entity) = window_query.iter(world).next() else {
+        println!("[HitTest @6s] Window entity not found");
+        return;
+    };
+
+    // ウィンドウの GlobalArrangement からスケールと原点を取得
+    let Some(window_global) = world.get::<GlobalArrangement>(window_entity) else {
+        println!("[HitTest @6s] Window has no GlobalArrangement");
+        return;
+    };
+    let (scale_x, scale_y) = window_global.scale();
+    let origin_x = window_global.bounds.left;
+    let origin_y = window_global.bounds.top;
+
+    println!(
+        "[HitTest @6s] Window scale: ({:.2}, {:.2}), origin: ({:.0}, {:.0})",
+        scale_x, scale_y, origin_x, origin_y
+    );
+
+    // DIP座標からスクリーン座標（物理ピクセル）に変換するヘルパー
+    let to_screen = |dip_x: f32, dip_y: f32| -> PhysicalPoint {
+        PhysicalPoint::new(origin_x + dip_x * scale_x, origin_y + dip_y * scale_y)
+    };
+
+    // 各エンティティの GlobalArrangement.bounds をログ出力（デバッグ用）
+    println!("[HitTest @6s] --- Entity bounds (GlobalArrangement) ---");
+    dump_entity_bounds(world, "FlexDemo-Window", window_entity);
+
+    let mut container_query = world.query_filtered::<Entity, With<FlexDemoContainer>>();
+    if let Some(container) = container_query.iter(world).next() {
+        dump_entity_bounds(world, "FlexDemo-Container", container);
+    }
+
+    let mut red_query = world.query_filtered::<Entity, With<RedBox>>();
+    if let Some(red) = red_query.iter(world).next() {
+        dump_entity_bounds(world, "RedBox", red);
+    }
+
+    let mut green_query = world.query_filtered::<Entity, With<GreenBox>>();
+    if let Some(green) = green_query.iter(world).next() {
+        dump_entity_bounds(world, "GreenBox", green);
+    }
+
+    let mut blue_query = world.query_filtered::<Entity, With<BlueBox>>();
+    if let Some(blue) = blue_query.iter(world).next() {
+        dump_entity_bounds(world, "BlueBox", blue);
+    }
+    println!("[HitTest @6s] --- End of entity bounds ---");
+
+    // テストポイント（DIP座標で指定）
+    // 6秒時点: ウィンドウサイズ 600x400 DIP、Column レイアウト
+    // 実際のレイアウト結果に基づく（Containerは幅150DIP程度、左寄せ）
+    // GreenBox, RedBox, BlueBox は Container内で縦並び
+    let test_points = [
+        (
+            to_screen(20.0, 50.0),
+            "GreenBox area (DIP 20,50)",
+            "GreenBox",
+        ),
+        (to_screen(20.0, 150.0), "RedBox area (DIP 20,150)", "RedBox"),
+        (
+            to_screen(20.0, 200.0),
+            "BlueBox area (DIP 20,200)",
+            "BlueBox",
+        ),
+        (
+            to_screen(5.0, 5.0),
+            "Top-left corner (DIP 5,5)",
+            "FlexDemo-Container",
+        ),
+        (
+            to_screen(400.0, 200.0),
+            "Right side - outside Container (DIP 400,200)",
+            "FlexDemo-Window",
+        ),
+    ];
+
+    println!("[HitTest @6s] --- Hit test results ---");
+    for (point, description, expected) in test_points {
+        match hit_test(world, window_entity, point) {
+            Some(entity) => {
+                if let Some(name) = world.get::<Name>(entity) {
+                    let result = if name.as_str() == expected {
+                        "✓"
+                    } else {
+                        "✗"
+                    };
+                    println!(
+                        "[HitTest @6s] {} {} -> ({:.0}, {:.0}): Hit {:?} (expected: {})",
+                        result,
+                        description,
+                        point.x,
+                        point.y,
+                        name.as_str(),
+                        expected
+                    );
+                } else {
+                    println!(
+                        "[HitTest @6s] ✗ {} -> ({:.0}, {:.0}): Hit Entity {:?} (no name, expected: {})",
+                        description, point.x, point.y, entity, expected
+                    );
+                }
+            }
+            None => {
+                println!(
+                    "[HitTest @6s] ✗ {} -> ({:.0}, {:.0}): No hit (expected: {})",
+                    description, point.x, point.y, expected
+                );
+            }
+        }
+    }
+}
+
+/// エンティティの GlobalArrangement.bounds をログ出力
+fn dump_entity_bounds(world: &World, name: &str, entity: Entity) {
+    if let Some(global) = world.get::<GlobalArrangement>(entity) {
+        let b = &global.bounds;
+        println!(
+            "[HitTest] {} bounds: left={:.1}, top={:.1}, right={:.1}, bottom={:.1} (size: {:.1}x{:.1})",
+            name, b.left, b.top, b.right, b.bottom,
+            b.right - b.left, b.bottom - b.top
+        );
+    } else {
+        println!("[HitTest] {} has no GlobalArrangement", name);
+    }
+}
+
+/// ウィンドウの WindowPos をログ出力
+fn dump_window_pos(world: &World, entity: Entity) {
+    if let Some(window_pos) = world.get::<WindowPos>(entity) {
+        if let Some(pos) = window_pos.position {
+            println!("[HitTest] WindowPos.position: x={}, y={}", pos.x, pos.y);
+        } else {
+            println!("[HitTest] WindowPos.position: None");
+        }
+        if let Some(size) = window_pos.size {
+            println!("[HitTest] WindowPos.size: cx={}, cy={}", size.cx, size.cy);
+        } else {
+            println!("[HitTest] WindowPos.size: None");
+        }
+    } else {
+        println!("[HitTest] Window has no WindowPos");
     }
 }

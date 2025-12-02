@@ -48,16 +48,18 @@ fn on_arrangement_add(
 
 /// グローバルレイアウト変換（親からの累積変換とバウンディングボックス）
 ///
-/// ワールド座標系での累積変換行列とバウンディングボックスを保持します。
+/// スクリーン座標系での累積変換行列とバウンディングボックスを保持します。
 /// ECS階層システムの`propagate_parent_transforms`により自動的に伝播されます。
 ///
 /// # フィールド
-/// - `transform`: 親からの累積変換行列（Matrix3x2）
-/// - `bounds`: ワールド座標系でのバウンディングボックス（軸平行矩形）
+/// - `transform`: LayoutRootからの累積変換行列（Matrix3x2）
+/// - `bounds`: スクリーン座標系でのバウンディングボックス（軸平行矩形、物理ピクセル単位）
 ///
 /// # 座標系
-/// - ワールド座標系: ルートWindowを基準とした絶対座標
-/// - ローカル座標系: 親エンティティを基準とした相対座標
+/// - **スクリーン座標系**: LayoutRoot（仮想デスクトップ原点）を基準とした絶対座標。
+///   物理ピクセル単位で、マルチモニター環境では負の座標も取りうる。
+/// - `bounds` はヒットテストや Window 位置計算で直接使用可能。
+/// - ローカル座標系: 親エンティティを基準とした相対座標（Arrangement）
 ///
 /// # Surface生成との関連
 /// `bounds`はDirect2D Surfaceの必要サイズを決定する際に使用されます。
@@ -73,7 +75,9 @@ fn on_arrangement_add(
 /// ```
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct GlobalArrangement {
+    /// LayoutRootからの累積変換行列（スクリーン座標系）
     pub transform: Matrix3x2,
+    /// スクリーン座標系でのバウンディングボックス（物理ピクセル単位）
     pub bounds: D2DRect,
 }
 

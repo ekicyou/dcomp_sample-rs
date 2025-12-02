@@ -27,7 +27,7 @@
 //!
 //! #### 2. `mark_dirty_trees<L, G, M>()`
 //! 変更されたエンティティから祖先に向かってダーティビットを伝播します。
-//! これにより、影響を受けるサブツリーのみを効率的に更新できます。
+//! これにより、影響を受けるサブツリーのみを効率的に更新できます.
 //!
 //! ```rust,ignore
 //! mark_dirty_trees::<Arrangement, GlobalArrangement, ArrangementTreeChanged>(
@@ -43,6 +43,22 @@
 //! propagate_parent_transforms::<Arrangement, GlobalArrangement, ArrangementTreeChanged>(
 //!     queue, roots, nodes
 //! );
+//! ```
+//!
+//! ## 階層走査イテレータ
+//!
+//! ### DepthFirstReversePostOrder
+//! 深さ優先・逆順・後順走査イテレータ。ヒットテスト（最前面優先）や
+//! フォーカス管理など、Z順序を考慮した処理に使用します。
+//!
+//! ```rust,ignore
+//! use wintf::ecs::common::DepthFirstReversePostOrder;
+//!
+//! for entity in DepthFirstReversePostOrder::new(root, &children_query) {
+//!     if hit_test_entity(world, entity, point) {
+//!         return Some(entity);
+//!     }
+//! }
 //! ```
 //!
 //! ## パフォーマンス最適化
@@ -62,5 +78,8 @@
 //!
 //! `Mul<L, Output = G>`により、親のグローバル変換と子のローカル変換を積算できます。
 
+pub mod tree_iter;
 pub mod tree_system;
+
+pub use tree_iter::*;
 pub use tree_system::*;
