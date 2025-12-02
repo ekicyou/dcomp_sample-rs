@@ -57,17 +57,20 @@ wintf フレームワークは現在、イベントシステムの設計のみ�
 
 ---
 
-### Requirement 2: ヒット領域定義
+### ~~Requirement 2: ヒット領域定義~~ → **P1へ移管**
 
-**Objective:** 開発者として、キャラクター画像上の特定領域（頭、胴体、手など）を定義したい。それにより部位ごとに異なる反応を実装できる。
+**Note**: 本要件は `wintf-P1-clickthrough` → `event-hit-test-named-regions` へ移管されました。
+P0では矩形ヒットテスト（`event-hit-test`）とαマスク（`event-hit-test-alpha-mask`）で基本機能を提供します。
 
-#### Acceptance Criteria
+~~**Objective:** 開発者として、キャラクター画像上の特定領域（頭、胴体、手など）を定義したい。それにより部位ごとに異なる反応を実装できる。~~
 
-1. **The** Event System **shall** 矩形（Rectangle）によるヒット領域定義をサポートする
-2. **The** Event System **shall** 多角形（Polygon）によるヒット領域定義をサポートする
-3. **The** Event System **shall** 1つのエンティティに複数の名前付きヒット領域を定義できる
-4. **When** ヒットが検出された時, **the** Event System **shall** ヒット領域の名前を含むイベント情報を提供する
-5. **The** Event System **shall** ヒット領域定義を外部ファイル（JSON/YAML）から読み込める
+#### ~~Acceptance Criteria~~
+
+1. ~~**The** Event System **shall** 矩形（Rectangle）によるヒット領域定義をサポートする~~
+2. ~~**The** Event System **shall** 多角形（Polygon）によるヒット領域定義をサポートする~~
+3. ~~**The** Event System **shall** 1つのエンティティに複数の名前付きヒット領域を定義できる~~
+4. ~~**When** ヒットが検出された時, **the** Event System **shall** ヒット領域の名前を含むイベント情報を提供する~~
+5. ~~**The** Event System **shall** ヒット領域定義を外部ファイル（JSON/YAML）から読み込める~~
 
 ---
 

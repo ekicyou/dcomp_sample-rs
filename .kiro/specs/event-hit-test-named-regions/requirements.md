@@ -2,10 +2,11 @@
 
 ## Project Description (Input)
 
-event-hit-test の孫仕様：名前付きヒット領域と多角形ヒットテスト
+event-hit-test の拡張仕様：名前付きヒット領域と多角形ヒットテスト（P1機能）
 
-親仕様 `wintf-P0-event-system` の Requirement 2（ヒット領域定義）を実装する。
-キャラクター画像上の特定領域（頭、胴体、手など）を定義し、部位ごとに異なる反応を実装できるようにする。
+親仕様 `wintf-P1-clickthrough` の一部として、キャラクター画像上の特定領域（頭、胴体、手など）を定義し、部位ごとに異なる反応を実装できるようにする。
+
+**Note**: 本仕様は P1（リリース後機能）です。P0 では矩形ヒットテスト（`event-hit-test`）とαマスク（`event-hit-test-alpha-mask`）で基本機能を提供します。
 
 ### 背景
 
@@ -15,7 +16,7 @@ event-hit-test の孫仕様：名前付きヒット領域と多角形ヒット�
 
 ### 対応する親仕様の要件
 
-- **wintf-P0-event-system Requirement 2**: ヒット領域定義
+- **wintf-P0-event-system Requirement 2**: ヒット領域定義（P1へ移管）
   - 2.1: 矩形（Rectangle）によるヒット領域定義をサポート
   - 2.2: 多角形（Polygon）によるヒット領域定義をサポート
   - 2.3: 1つのエンティティに複数の名前付きヒット領域を定義できる

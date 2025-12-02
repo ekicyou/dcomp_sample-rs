@@ -212,17 +212,21 @@ pub enum MouseEvent {
 
 #### Acceptance Criteria
 
-1. When `WM_MOUSEMOVE` を受信した時, the Mouse Event System shall `hit_test` を実行しホバー状態を更新する
-2. When `WM_LBUTTONDOWN` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseDown` イベントを発火する
-3. When `WM_LBUTTONUP` を受信した時, the Mouse Event System shall `MouseUp` イベントと条件付きで `Click` イベントを発火する
-4. When `WM_RBUTTONDOWN`/`WM_RBUTTONUP` を受信した時, the Mouse Event System shall `RightClick` イベントを発火する
-5. When `WM_LBUTTONDBLCLK` を受信した時, the Mouse Event System shall `DoubleClick` イベントを発火する
-6. The Mouse Event System shall `ecs_wndproc` のハンドラとして実装する
+1. When `WM_NCHITTEST` を受信した時, the Mouse Event System shall `hit_test` を実行しヒット結果に応じた値を返す
+2. When `hit_test` が `None` を返した場合, the Mouse Event System shall `HTTRANSPARENT` を返す（クリックスルー）
+3. When `hit_test` がエンティティを返した場合, the Mouse Event System shall `HTCLIENT` を返す（デフォルト）
+4. When `WM_MOUSEMOVE` を受信した時, the Mouse Event System shall `hit_test` を実行しホバー状態を更新する
+5. When `WM_LBUTTONDOWN` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseDown` イベントを発火する
+6. When `WM_LBUTTONUP` を受信した時, the Mouse Event System shall `MouseUp` イベントと条件付きで `Click` イベントを発火する
+7. When `WM_RBUTTONDOWN`/`WM_RBUTTONUP` を受信した時, the Mouse Event System shall `RightClick` イベントを発火する
+8. When `WM_LBUTTONDBLCLK` を受信した時, the Mouse Event System shall `DoubleClick` イベントを発火する
+9. The Mouse Event System shall `ecs_wndproc` のハンドラとして実装する
 
 #### Win32メッセージマッピング
 
-| Win32 Message | Mouse Event |
-|---------------|-------------|
+| Win32 Message | Mouse Event / 返却値 |
+|---------------|---------------------|
+| WM_NCHITTEST | HTTRANSPARENT / HTCLIENT / HTCAPTION |
 | WM_MOUSEMOVE | MouseMove, MouseEnter, MouseLeave |
 | WM_LBUTTONDOWN | MouseDown (Left) |
 | WM_LBUTTONUP | MouseUp (Left), Click |
