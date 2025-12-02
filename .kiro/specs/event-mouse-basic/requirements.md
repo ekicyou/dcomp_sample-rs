@@ -279,10 +279,12 @@ pub struct HitTestCache {
 #### Acceptance Criteria
 
 1. The Mouse Event System shall マウスイベントを `Events<MouseEvent>` として配信する
-2. The Mouse Event System shall ウィンドウごとのホバー中エンティティを `WindowHovered` コンポーネントとして保持する
-3. The Mouse Event System shall 現在押下中のマウスボタン状態を `MouseButtonState` リソースとして保持する
-4. The Mouse Event System shall `WindowMouseTracking` コンポーネントでウィンドウごとのトラッキング状態を管理する
-5. When エンティティが削除された時, the Mouse Event System shall 関連するホバー状態をクリアする
+2. The Mouse Event System shall ホバー中のエンティティに `MouseEnter` マーカーコンポーネントを付与する
+3. The Mouse Event System shall ホバー終了時に `MouseEnter` を削除し `MouseLeave` マーカーコンポーネントを付与する
+4. The Mouse Event System shall 現在押下中のマウスボタン状態を `MouseButtonState` リソースとして保持する
+5. The Mouse Event System shall `WindowMouseTracking` コンポーネントでウィンドウごとのトラッキング状態を管理する
+6. The Mouse Event System shall `FrameCleanup` スケジュールで `MouseLeave` コンポーネントを削除する
+7. When エンティティが削除された時, the Mouse Event System shall 関連するホバー状態をクリアする
 
 #### リソース定義
 
@@ -301,15 +303,25 @@ pub struct MouseButtonState {
 #### コンポーネント定義
 
 ```rust
-/// ウィンドウごとのホバー中エンティティ
+/// マウスがエンティティ領域に入った（Enter状態）
 /// 
-/// ECS原則: 状態はコンポーネントに、処理はシステムに
-/// Query<&WindowHovered, Changed<WindowHovered>> でホバー変化を検出可能
+/// ヒットテスト成功エンティティに付与される。
+/// Added<MouseEnter> で入った瞬間、With<MouseEnter> でホバー中を検出可能。
 /// 
-/// メモリ戦略: SparseSet - Window は全エンティティの1〜5%程度
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// メモリ戦略: SparseSet - 同時にホバーされるエンティティは少数
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 #[component(storage = "SparseSet")]
-pub struct WindowHovered(pub Option<Entity>);
+pub struct MouseEnter;
+
+/// マウスがエンティティ領域から出た（Leave通知）
+/// 
+/// ホバー終了時に付与される。
+/// アプリのシステムでクリーンナップ処理後、FrameCleanup で削除される。
+/// 
+/// メモリ戦略: SparseSet - 一時的マーカー
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[component(storage = "SparseSet")]
+pub struct MouseLeave;
 
 /// ウィンドウのマウストラッキング状態
 /// 
@@ -322,11 +334,60 @@ pub struct WindowHovered(pub Option<Entity>);
 pub struct WindowMouseTracking(pub bool);
 ```
 
+#### Enter/Leave ライフサイクル
+
+```
+1. カーソルがエンティティに入る
+   → MouseEnter を追加（Added<MouseEnter> で検出）
+
+2. カーソルがエンティティ上にいる間
+   → MouseEnter が付いたまま（With<MouseEnter> で検出）
+
+3. カーソルがエンティティから離れる
+   → MouseEnter を削除
+   → MouseLeave を追加（With<MouseLeave> で検出）
+
+4. FrameCleanup スケジュール
+   → MouseLeave を削除
+```
+
 **設計根拠**:
-- `PartialEq, Eq`: `Changed<WindowMouseTracking>` での変更検出用
-- `Clone, Copy`: 単純フラグなのでコピー可能
-- `Default`: `false` で初期化（未トラッキング状態）
-- **SparseSet ストレージ**: Window は全エンティティの少数（1〜5%）のため、Table より効率的。全 Window* 系コンポーネントで統一。
+- **マーカーコンポーネント**: ECS原則に従い、状態を持つエンティティ自身にコンポーネントを付与
+- `Added<MouseEnter>` / `With<MouseLeave>`: Enter/Leave の瞬間を明確に検出可能
+- **SparseSet ストレージ**: 一時的マーカーの挿入/削除が頻繁なため効率的
+
+---
+
+### Requirement 9: FrameCleanup スケジュール
+
+**Objective:** 開発者として、フレーム終了時に一時的マーカーコンポーネントをクリーンアップしたい。それにより次フレームで誤検出を防げる。
+
+#### Acceptance Criteria
+
+1. The ECS World shall `CommitComposition` の後に `FrameCleanup` スケジュールを実行する
+2. The Mouse Event System shall `FrameCleanup` で `MouseLeave` コンポーネントを全削除するシステムを登録する
+3. The `FrameCleanup` schedule shall 将来の他の一時的マーカーのクリーンアップにも使用可能であること
+
+#### スケジュール定義
+
+```rust
+/// フレーム終了時クリーンアップスケジュール
+/// 
+/// 一時的マーカーコンポーネント（MouseLeave等）の削除を行う。
+/// CommitComposition の後、フレームの最後に実行される。
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FrameCleanup;
+```
+
+#### 実行順序
+
+```
+Input → Update → PreLayout → Layout → PostLayout → UISetup → 
+GraphicsSetup → Draw → PreRenderSurface → RenderSurface → 
+Composition → CommitComposition → FrameCleanup
+```
+
+**Note**: `CommitComposition` のリネームは本仕様のスコープ外とし、別途検討する。`FrameCleanup` を新規追加することで、既存のスケジュール構造への影響を最小化。
 
 ---
 
