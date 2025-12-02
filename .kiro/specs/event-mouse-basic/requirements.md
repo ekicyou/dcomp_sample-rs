@@ -340,6 +340,142 @@ local_y = screen_y - GlobalArrangement.bounds.top
 
 ---
 
+### Requirement 5A: マウスバッファ（1フレーム複数メッセージ対応）
+
+**Objective:** 開発者として、1 tick 間に複数のマウスメッセージが到着しても情報を欠落なくECSに反映したい。それにより高速操作時のイベント信頼性を確保できる。
+
+#### 背景
+
+Win32 では tick 実行中（World 借用中）も WndProc にマウスメッセージが到着する。
+単純にイベントを捨てると、ボタンの UP/DOWN や座標変化が失われる可能性がある。
+マウスバッファを導入し、tick 実行後にバッファ内容を MouseState に反映する。
+
+#### Acceptance Criteria
+
+1. The Mouse Event System shall `MouseBuffer` をウィンドウエンティティ外部（thread_local または WndProc 専用領域）に保持する
+2. When World の借用に失敗した場合, the Mouse Event System shall マウスメッセージ情報を `MouseBuffer` に蓄積する
+3. The Mouse Event System shall `MouseBuffer` に最終座標（screen_point）を記録する
+4. The Mouse Event System shall `MouseBuffer` に各ボタン（5つ）の `ButtonBuffer` を記録する
+5. When tick 開始時, the Mouse Event System shall `MouseBuffer` の内容を `MouseState` に反映してからクリアする
+
+#### ButtonBuffer 構造
+
+```rust
+/// ボタンごとの状態バッファ
+/// 
+/// 1 tick 内に複数の UP/DOWN が到着した場合の処理ルール：
+/// - DOWN が1回でも到着した場合、そのボタンは pressed 状態として報告
+/// - DOWN がなく UP のみの場合、UP を反映
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ButtonBuffer {
+    /// UP を受信したか（1回以上で true）
+    pub up_reserved: bool,
+    /// DOWN を受信したか（1回以上で true）
+    pub down_received: bool,
+}
+```
+
+#### MouseBuffer 構造
+
+```rust
+use std::collections::VecDeque;
+use std::time::Instant;
+
+/// 座標サンプル（速度計算用）
+#[derive(Debug, Clone, Copy)]
+pub struct PositionSample {
+    pub point: (i32, i32),
+    pub timestamp: Instant,
+}
+
+/// WndProc から tick へのマウス情報バッファ
+/// 
+/// tick 実行中（World 借用中）に到着したマウスメッセージを蓄積。
+/// tick 開始時に MouseState に反映する。
+/// 座標履歴は速度計算のためクリアせず保持。
+#[derive(Debug, Clone)]
+pub struct MouseBuffer {
+    /// 最終座標（スクリーン座標）
+    pub screen_point: Option<(i32, i32)>,
+    /// 左ボタン
+    pub left: ButtonBuffer,
+    /// 右ボタン
+    pub right: ButtonBuffer,
+    /// 中ボタン
+    pub middle: ButtonBuffer,
+    /// X1ボタン
+    pub xbutton1: ButtonBuffer,
+    /// X2ボタン
+    pub xbutton2: ButtonBuffer,
+    /// 垂直ホイールデルタ蓄積
+    pub wheel_vertical: i16,
+    /// 水平ホイールデルタ蓄積
+    pub wheel_horizontal: i16,
+    /// 修飾キー状態（最終値）
+    pub shift_down: bool,
+    pub ctrl_down: bool,
+    /// 座標履歴（速度計算用、最大5サンプル）
+    /// VecDeque はリングバッファ実装（配列ベース）でキャッシュフレンドリー
+    pub position_history: VecDeque<PositionSample>,
+}
+
+impl MouseBuffer {
+    pub fn new() -> Self {
+        Self {
+            screen_point: None,
+            left: ButtonBuffer::default(),
+            right: ButtonBuffer::default(),
+            middle: ButtonBuffer::default(),
+            xbutton1: ButtonBuffer::default(),
+            xbutton2: ButtonBuffer::default(),
+            wheel_vertical: 0,
+            wheel_horizontal: 0,
+            shift_down: false,
+            ctrl_down: false,
+            position_history: VecDeque::with_capacity(5),
+        }
+    }
+    
+    /// 座標サンプルを追加（最大5件、古いものは自動削除）
+    pub fn push_position(&mut self, point: (i32, i32), timestamp: Instant) {
+        if self.position_history.len() >= 5 {
+            self.position_history.pop_front();
+        }
+        self.position_history.push_back(PositionSample { point, timestamp });
+    }
+}
+```
+
+#### tick 時の反映ルール
+
+```
+for each button in [left, right, middle, xbutton1, xbutton2]:
+    if button.down_received:
+        MouseState.{button}_down = true
+    elif button.up_reserved:
+        MouseState.{button}_down = false
+    # else: 変更なし
+
+if screen_point.is_some():
+    MouseState.screen_point = screen_point
+
+MouseState.wheel.vertical += wheel_vertical
+MouseState.wheel.horizontal += wheel_horizontal
+MouseState.shift_down = shift_down
+MouseState.ctrl_down = ctrl_down
+
+# 速度計算（position_history から）
+MouseState.velocity = calculate_velocity(position_history)
+
+# バッファ部分クリア（座標履歴は保持）
+screen_point = None
+left = right = middle = xbutton1 = xbutton2 = ButtonBuffer::default()
+wheel_vertical = wheel_horizontal = 0
+# position_history はクリアしない（速度計算の継続性のため）
+```
+
+---
+
 ### Requirement 6: ヒットテストキャッシュ（オプション）
 
 **Objective:** 開発者として、同一座標での重複ヒットテストを避けたい。それによりパフォーマンスを向上できる。
