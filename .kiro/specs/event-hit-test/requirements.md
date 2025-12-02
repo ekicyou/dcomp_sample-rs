@@ -240,8 +240,10 @@ fn hit_test(root: Entity, point: Point) -> Option<Entity> {
 
 1. The HitTest System shall スクリーン座標（物理ピクセル）からウィンドウクライアント座標（物理ピクセル）への変換を提供する
 2. The HitTest System shall ウィンドウクライアント座標（物理ピクセル）と `GlobalArrangement.bounds`（物理ピクセル）を直接比較できる
-3. The HitTest System shall 物理ピクセル座標からエンティティローカル座標への変換を提供する（`GlobalArrangement.transform`の逆変換）
+3. ~~The HitTest System shall 物理ピクセル座標からエンティティローカル座標への変換を提供する（`GlobalArrangement.transform`の逆変換）~~ → **`event-mouse-basic` へ移管**
 4. The HitTest System shall `GlobalArrangement.bounds` が物理ピクセル座標であることを前提として座標判定を行う
+
+**Note**: Acceptance Criteria 3（ローカル座標変換）は `event-mouse-basic` 仕様で実装予定。本仕様ではスクリーン座標でのヒット判定のみをスコープとする。
 
 ---
 
@@ -302,20 +304,21 @@ pub fn hit_test(world: &World, root: Entity, screen_point: PhysicalPoint) -> Opt
 /// 内部でWindowPosを使用してスクリーン座標に変換後、hit_testを呼び出す
 pub fn hit_test_in_window(world: &World, window: Entity, client_point: PhysicalPoint) -> Option<Entity>;
 
-/// ヒットテスト結果（詳細情報付き）
-pub struct HitTestResult {
-    pub entity: Entity,
-    pub local_point: Point,  // エンティティローカル座標
-}
-
-pub fn hit_test_detailed(world: &World, root: Entity, screen_point: PhysicalPoint) -> Option<HitTestResult>;
+// ===== 以下は event-mouse-basic へ移管 =====
+// /// ヒットテスト結果（詳細情報付き）
+// pub struct HitTestResult {
+//     pub entity: Entity,
+//     pub local_point: Point,  // エンティティローカル座標
+// }
+//
+// pub fn hit_test_detailed(world: &World, root: Entity, screen_point: PhysicalPoint) -> Option<HitTestResult>;
 ```
 
 #### 実装順序（ギャップ分析結果）
 
-1. **Phase 1**: `hit_test(world, root, screen_point)` - 基本API
-2. **Phase 2**: `hit_test_in_window(world, window, client_point)` - WindowPos利用ラッパー
-3. **Phase 3**: `hit_test_detailed` - ローカル座標付き結果（オプション）
+1. **Phase 1**: `hit_test(world, root, screen_point)` - 基本API ✅ 実装済み
+2. **Phase 2**: `hit_test_in_window(world, window, client_point)` - WindowPos利用ラッパー ✅ 実装済み
+3. ~~**Phase 3**: `hit_test_detailed` - ローカル座標付き結果~~ → **`event-mouse-basic` へ移管**
 
 ---
 
