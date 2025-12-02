@@ -216,19 +216,22 @@ pub enum MouseEvent {
 2. When `WM_NCHITTEST` を受信し座標がクライアント領域内の場合, the Mouse Event System shall `hit_test` を実行する
 3. When `hit_test` が `None` を返した場合, the Mouse Event System shall `HTTRANSPARENT` を返す（クリックスルー）
 4. When `hit_test` がエンティティを返した場合, the Mouse Event System shall `HTCLIENT` を返す
-4. When `WM_MOUSEMOVE` を受信した時, the Mouse Event System shall `hit_test` を実行しホバー状態を更新する
-5. When `WM_LBUTTONDOWN` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseDown` イベントを発火する
-6. When `WM_LBUTTONUP` を受信した時, the Mouse Event System shall `MouseUp` イベントと条件付きで `Click` イベントを発火する
-7. When `WM_RBUTTONDOWN`/`WM_RBUTTONUP` を受信した時, the Mouse Event System shall `RightClick` イベントを発火する
-8. When `WM_LBUTTONDBLCLK` を受信した時, the Mouse Event System shall `DoubleClick` イベントを発火する
-9. The Mouse Event System shall `ecs_wndproc` のハンドラとして実装する
+5. When `WM_MOUSEMOVE` を受信し `WindowMouseTracking` が `false` の場合, the Mouse Event System shall `TrackMouseEvent(TME_LEAVE)` を呼び出して `true` に設定する
+6. When `WM_MOUSEMOVE` を受信した時, the Mouse Event System shall `hit_test` を実行しホバー状態を更新する
+7. When `WM_MOUSELEAVE` を受信した時, the Mouse Event System shall `WindowMouseTracking` を `false` に設定し、ホバー中のエンティティに `MouseLeave` を発火する
+8. When `WM_LBUTTONDOWN` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseDown` イベントを発火する
+9. When `WM_LBUTTONUP` を受信した時, the Mouse Event System shall `MouseUp` イベントと条件付きで `Click` イベントを発火する
+10. When `WM_RBUTTONDOWN`/`WM_RBUTTONUP` を受信した時, the Mouse Event System shall `RightClick` イベントを発火する
+11. When `WM_LBUTTONDBLCLK` を受信した時, the Mouse Event System shall `DoubleClick` イベントを発火する
+12. The Mouse Event System shall `ecs_wndproc` のハンドラとして実装する
 
 #### Win32メッセージマッピング
 
 | Win32 Message | Mouse Event / 返却値 |
 |---------------|---------------------|
 | WM_NCHITTEST | None（領域外）/ HTTRANSPARENT / HTCLIENT |
-| WM_MOUSEMOVE | MouseMove, MouseEnter, MouseLeave |
+| WM_MOUSEMOVE | MouseMove, MouseEnter, MouseLeave + TrackMouseEvent |
+| WM_MOUSELEAVE | MouseLeave（ウィンドウ外への離脱）|
 | WM_LBUTTONDOWN | MouseDown (Left) |
 | WM_LBUTTONUP | MouseUp (Left), Click |
 | WM_RBUTTONDOWN | MouseDown (Right) |
@@ -278,7 +281,8 @@ pub struct HitTestCache {
 1. The Mouse Event System shall マウスイベントを `Events<MouseEvent>` として配信する
 2. The Mouse Event System shall 現在ホバー中のエンティティを `HoveredEntity` リソースとして保持する
 3. The Mouse Event System shall 現在押下中のマウスボタン状態を `MouseButtonState` リソースとして保持する
-4. When エンティティが削除された時, the Mouse Event System shall 関連するホバー状態をクリアする
+4. The Mouse Event System shall `WindowMouseTracking` コンポーネントでウィンドウごとのトラッキング状態を管理する
+5. When エンティティが削除された時, the Mouse Event System shall 関連するホバー状態をクリアする
 
 #### リソース定義
 
@@ -297,6 +301,25 @@ pub struct MouseButtonState {
     pub down_target: Option<Entity>,
 }
 ```
+
+#### コンポーネント定義
+
+```rust
+/// ウィンドウのマウストラッキング状態
+/// 
+/// Win32 の TrackMouseEvent 呼び出し状態を管理。
+/// WM_MOUSELEAVE を受信するために必要。
+/// 
+/// メモリ戦略: Table（デフォルト）- 全 Window エンティティが保持
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct WindowMouseTracking(pub bool);
+```
+
+**設計根拠**:
+- `PartialEq, Eq`: `Changed<WindowMouseTracking>` での変更検出用
+- `Clone, Copy`: 単純フラグなのでコピー可能
+- `Default`: `false` で初期化（未トラッキング状態）
+- Table ストレージ: 全 Window に付与されるため効率的
 
 ---
 
