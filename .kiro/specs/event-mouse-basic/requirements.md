@@ -279,7 +279,7 @@ pub struct HitTestCache {
 #### Acceptance Criteria
 
 1. The Mouse Event System shall マウスイベントを `Events<MouseEvent>` として配信する
-2. The Mouse Event System shall ウィンドウごとのホバー中エンティティを `WindowHoveredEntity` コンポーネントとして保持する
+2. The Mouse Event System shall ウィンドウごとのホバー中エンティティを `WindowHovered` コンポーネントとして保持する
 3. The Mouse Event System shall 現在押下中のマウスボタン状態を `MouseButtonState` リソースとして保持する
 4. The Mouse Event System shall `WindowMouseTracking` コンポーネントでウィンドウごとのトラッキング状態を管理する
 5. When エンティティが削除された時, the Mouse Event System shall 関連するホバー状態をクリアする
@@ -304,12 +304,12 @@ pub struct MouseButtonState {
 /// ウィンドウごとのホバー中エンティティ
 /// 
 /// ECS原則: 状態はコンポーネントに、処理はシステムに
-/// Query<&WindowHoveredEntity, Changed<WindowHoveredEntity>> でホバー変化を検出可能
+/// Query<&WindowHovered, Changed<WindowHovered>> でホバー変化を検出可能
 /// 
 /// メモリ戦略: SparseSet - Window は全エンティティの1〜5%程度
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[component(storage = "SparseSet")]
-pub struct WindowHoveredEntity(pub Option<Entity>);
+pub struct WindowHovered(pub Option<Entity>);
 
 /// ウィンドウのマウストラッキング状態
 /// 
