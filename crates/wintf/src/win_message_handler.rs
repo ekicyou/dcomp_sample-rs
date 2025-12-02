@@ -1,6 +1,24 @@
+//! # 非推奨 (Deprecated)
+//!
+//! このモジュールは現在使用されておらず、今後も使用する予定はありません。
+//!
+//! ## 推奨される代替手段
+//!
+//! 新しいウィンドウメッセージハンドラは以下の場所に実装してください：
+//!
+//! - **エントリポイント**: `ecs::window_proc::ecs_wndproc`
+//! - **ハンドラ実装**: `ecs::window_proc::handlers`
+//!
+//! ECSアーキテクチャに基づくウィンドウプロシージャを使用することで、
+//! コンポーネントベースのイベント処理が可能になります。
+
 #![allow(non_snake_case)]
 #![allow(unused_variables)]
 #![allow(dead_code)]
+#![deprecated(
+    since = "0.1.0",
+    note = "このモジュールは非推奨です。代わりに ecs::window_proc を使用してください。"
+)]
 
 use crate::win_state::*;
 use ambassador::*;
