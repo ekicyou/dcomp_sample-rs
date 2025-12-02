@@ -438,18 +438,34 @@ stateDiagram-v2
 
 ## handlers.rs 拡張
 
+### ウィンドウクラス変更
+
+**Req 5 AC 13**: ダブルクリックメッセージ（`WM_*DBLCLK`）を受信するため、ウィンドウクラス登録時に `CS_DBLCLKS` スタイルを追加する。
+
+```rust
+// ウィンドウクラス登録時
+let wc = WNDCLASSEXW {
+    cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
+    style: CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,  // CS_DBLCLKS 追加
+    // ...
+};
+```
+
+**Note**: ダブルクリック閾値は Windows が `GetDoubleClickTime()` に基づいて判定するため、アプリ側での実装は不要。
+
 ### 追加するハンドラ関数
 
 | 関数名 | 処理内容 | 備考 |
 |--------|----------|------|
 | `WM_MOUSEMOVE` | 位置→MouseBuffer、修飾キー更新、TME 初回設定 | 借用区切り方式 |
-| `WM_LBUTTONDOWN` / `UP` | ButtonBuffer 記録、ダブルクリック検出 | L/R/M/X1/X2 |
+| `WM_LBUTTONDOWN` / `UP` | ButtonBuffer 記録 | L/R/M/X1/X2 |
 | `WM_RBUTTONDOWN` / `UP` | 同上 | |
 | `WM_MBUTTONDOWN` / `UP` | 同上 | |
 | `WM_XBUTTONDOWN` / `UP` | 同上 | |
-| `WM_MOUSEWHEEL` | wheel_delta 累積 | |
-| `WM_MOUSEHWHEEL` | horizontal wheel_delta | |
-| `WM_MOUSELEAVE` | MouseLeave 除去、WindowMouseTracking = false | |
+| `WM_LBUTTONDBLCLK` 等 | double_click 設定 | L/R/M/X1/X2 |
+| `WM_MOUSEWHEEL` | wheel.vertical 累積 | |
+| `WM_MOUSEHWHEEL` | wheel.horizontal 累積 | |
+| `WM_MOUSELEAVE` | MouseState 削除 + MouseLeave 付与、WindowMouseTracking = false | |
 
 ### 実装パターン
 
@@ -602,8 +618,7 @@ pub fn clear_transient_mouse_state(
 
 ### 未解決事項
 
-1. **ダブルクリック閾値**: Win32 GetDoubleClickTime() 使用か固定値か
-2. **キャプチャ状態**: SetCapture/ReleaseCapture 統合は Phase 2 以降
+1. **キャプチャ状態**: SetCapture/ReleaseCapture 統合は Phase 2 以降
 
 ## 参照
 
