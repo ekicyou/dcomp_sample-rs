@@ -476,22 +476,7 @@ wheel_vertical = wheel_horizontal = 0
 
 ---
 
-### Requirement 6: ヒットテストキャッシュ（オプション）
-
-**Objective:** 開発者として、同一座標での重複ヒットテストを避けたい。それによりパフォーマンスを向上できる。
-
-#### Acceptance Criteria
-
-1. The Mouse Event System shall 前回のマウス座標とヒット結果をキャッシュする
-2. When マウス座標が前回と同一の場合, the Mouse Event System shall キャッシュからヒット結果を返す
-3. When `ArrangementTreeChanged` イベントを受信した時, the Mouse Event System shall キャッシュを無効化する
-4. The Mouse Event System shall キャッシュヒット率をデバッグログで報告する（開発時のみ）
-
-**Note**: 本要件はオプションであり、初期実装では省略可能。
-
----
-
-### Requirement 7: WindowMouseTracking コンポーネント
+### Requirement 6: WindowMouseTracking コンポーネント
 
 **Objective:** 開発者として、ウィンドウごとのマウストラッキング状態を管理したい。それによりWM_MOUSELEAVEを正しく受信できる。
 
@@ -517,7 +502,7 @@ pub struct WindowMouseTracking(pub bool);
 
 ---
 
-### Requirement 8: FrameFinalize クリーンアップ
+### Requirement 7: FrameFinalize クリーンアップ
 
 **Objective:** 開発者として、一時的マーカーコンポーネントを自動クリーンアップしたい。それにより手動削除の手間を省ける。
 
@@ -560,7 +545,7 @@ Composition → FrameFinalize
 
 ---
 
-### Requirement 9: CommitComposition → FrameFinalize リネーム
+### Requirement 8: CommitComposition → FrameFinalize リネーム
 
 **Objective:** 開発者として、フレーム終了時の処理を統一された名前で理解したい。それによりスケジュール構造が直感的になる。
 
