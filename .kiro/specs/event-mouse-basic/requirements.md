@@ -358,25 +358,31 @@ pub struct WindowMouseTracking(pub bool);
 
 ---
 
-### Requirement 9: FrameCleanup スケジュール
+### Requirement 9: CommitComposition → FrameFinalize リネームとクリーンアップ統合
 
-**Objective:** 開発者として、フレーム終了時に一時的マーカーコンポーネントをクリーンアップしたい。それにより次フレームで誤検出を防げる。
+**Objective:** 開発者として、フレーム終了時の処理を統一された名前で理解したい。それによりスケジュール構造が直感的になる。
 
 #### Acceptance Criteria
 
-1. The ECS World shall `CommitComposition` の後に `FrameCleanup` スケジュールを実行する
-2. The Mouse Event System shall `FrameCleanup` で `MouseLeave` コンポーネントを全削除するシステムを登録する
-3. The `FrameCleanup` schedule shall 将来の他の一時的マーカーのクリーンアップにも使用可能であること
+1. The ECS World shall `CommitComposition` スケジュールを `FrameFinalize` にリネームする
+2. The `FrameFinalize` schedule shall DirectComposition の Commit を実行する
+3. The `FrameFinalize` schedule shall `MouseLeave` コンポーネントを全削除するクリーンアップシステムを実行する
+4. The `FrameFinalize` schedule shall 将来の他の一時的マーカーのクリーンアップにも使用可能であること
+5. The cleanup systems shall Commit システムの後に実行される
 
 #### スケジュール定義
 
 ```rust
-/// フレーム終了時クリーンアップスケジュール
+/// フレーム最終化スケジュール
 /// 
-/// 一時的マーカーコンポーネント（MouseLeave等）の削除を行う。
-/// CommitComposition の後、フレームの最後に実行される。
+/// DirectComposition の Commit と一時マーカーのクリーンアップを行う。
+/// フレームの最後に実行される。
+/// 
+/// 実行内容:
+/// 1. IDCompositionDevice3::Commit() - ビジュアル変更の確定
+/// 2. MouseLeave 等の一時マーカーコンポーネントの削除
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct FrameCleanup;
+pub struct FrameFinalize;
 ```
 
 #### 実行順序
@@ -384,10 +390,19 @@ pub struct FrameCleanup;
 ```
 Input → Update → PreLayout → Layout → PostLayout → UISetup → 
 GraphicsSetup → Draw → PreRenderSurface → RenderSurface → 
-Composition → CommitComposition → FrameCleanup
+Composition → FrameFinalize
+                    ├── commit_composition（既存）
+                    └── cleanup_mouse_leave（新規）
 ```
 
-**Note**: `CommitComposition` のリネームは本仕様のスコープ外とし、別途検討する。`FrameCleanup` を新規追加することで、既存のスケジュール構造への影響を最小化。
+#### 移行作業
+
+| 変更箇所 | Before | After |
+|---------|--------|-------|
+| スケジュール定義 | `CommitComposition` | `FrameFinalize` |
+| world.rs 登録 | `schedules.insert(Schedule::new(CommitComposition))` | `schedules.insert(Schedule::new(FrameFinalize))` |
+| try_tick_world | `try_run_schedule(CommitComposition)` | `try_run_schedule(FrameFinalize)` |
+| システム登録 | `add_systems(CommitComposition, ...)` | `add_systems(FrameFinalize, ...)` |
 
 ---
 
