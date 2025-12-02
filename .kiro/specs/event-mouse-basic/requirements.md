@@ -212,9 +212,10 @@ pub enum MouseEvent {
 
 #### Acceptance Criteria
 
-1. When `WM_NCHITTEST` を受信した時, the Mouse Event System shall `hit_test` を実行しヒット結果に応じた値を返す
-2. When `hit_test` が `None` を返した場合, the Mouse Event System shall `HTTRANSPARENT` を返す（クリックスルー）
-3. When `hit_test` がエンティティを返した場合, the Mouse Event System shall `HTCLIENT` を返す（デフォルト）
+1. When `WM_NCHITTEST` を受信し座標がクライアント領域外の場合, the Mouse Event System shall `None` を返して `DefWindowProcW` に委譲する
+2. When `WM_NCHITTEST` を受信し座標がクライアント領域内の場合, the Mouse Event System shall `hit_test` を実行する
+3. When `hit_test` が `None` を返した場合, the Mouse Event System shall `HTTRANSPARENT` を返す（クリックスルー）
+4. When `hit_test` がエンティティを返した場合, the Mouse Event System shall `HTCLIENT` を返す
 4. When `WM_MOUSEMOVE` を受信した時, the Mouse Event System shall `hit_test` を実行しホバー状態を更新する
 5. When `WM_LBUTTONDOWN` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseDown` イベントを発火する
 6. When `WM_LBUTTONUP` を受信した時, the Mouse Event System shall `MouseUp` イベントと条件付きで `Click` イベントを発火する
@@ -226,7 +227,7 @@ pub enum MouseEvent {
 
 | Win32 Message | Mouse Event / 返却値 |
 |---------------|---------------------|
-| WM_NCHITTEST | HTTRANSPARENT / HTCLIENT / HTCAPTION |
+| WM_NCHITTEST | None（領域外）/ HTTRANSPARENT / HTCLIENT |
 | WM_MOUSEMOVE | MouseMove, MouseEnter, MouseLeave |
 | WM_LBUTTONDOWN | MouseDown (Left) |
 | WM_LBUTTONUP | MouseUp (Left), Click |
