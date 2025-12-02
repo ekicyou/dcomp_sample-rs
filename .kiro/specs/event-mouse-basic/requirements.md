@@ -27,6 +27,9 @@
 - Win32メッセージハンドラとヒットテストAPIの統合
 - ローカル座標変換
 - カーソル移動速度の計算（撫でる操作検出用）
+- ホイール回転情報
+- XButton (4th/5th ボタン) 対応
+- 修飾キー状態 (Shift/Ctrl)
 
 **含まれないもの**:
 - Click/RightClick 判定 → `event-dispatch` 仕様で対応（親への伝播が必要）
@@ -36,6 +39,8 @@
 
 **設計方針**:
 - 本仕様は「Win32マウスメッセージをECSコンポーネントとして持ち込む」ことに集中
+- **Win32から飛んでくる情報は透過的にECSに渡す（情報欠落なし）**
+- **解釈（Click判定等）はUIフレームワークではなくアプリ側の責務**
 - `MouseState` コンポーネントがあるエンティティ = ホバー中（マウスは1つ）
 - `Added<MouseState>` で Enter、`MouseLeave` マーカーで Leave を検出
 - Click判定（MouseDown→MouseUpの対応付け）は `event-dispatch` に委譲
@@ -70,10 +75,12 @@
 2. The Mouse Event System shall マウスがエンティティから離れた時に `MouseState` を削除する
 3. The Mouse Event System shall `MouseState` にスクリーン座標（物理ピクセル）を含める
 4. The Mouse Event System shall `MouseState` にエンティティローカル座標を含める
-5. The Mouse Event System shall `MouseState` に各ボタンの押下状態（`left_down`, `right_down`, `middle_down`）を含める
+5. The Mouse Event System shall `MouseState` に各ボタンの押下状態（`left_down`, `right_down`, `middle_down`, `xbutton1_down`, `xbutton2_down`）を含める
 6. The Mouse Event System shall `MouseState` にタイムスタンプを含める
 7. The Mouse Event System shall `MouseState` にカーソル移動速度を含める
 8. The Mouse Event System shall ダブルクリック検出時に `MouseState.double_click` を対応する `DoubleClick` 列挙値に設定する
+9. The Mouse Event System shall `MouseState` に修飾キー状態（`shift_down`, `ctrl_down`）を含める
+10. The Mouse Event System shall `MouseState` にホイール回転情報を含める
 
 #### コンポーネント定義
 
@@ -83,6 +90,9 @@
 /// hit_test がヒットしたエンティティに付与される。
 /// コンポーネントの存在 = ホバー中。
 /// Added<MouseState> で Enter を検出。
+/// 
+/// Win32マウスメッセージの情報を透過的にECSに転送する。
+/// 情報の解釈（Click判定等）はアプリ側の責務。
 /// 
 /// マウスは1つなので、同時に1エンティティのみが持つ。
 /// 
@@ -94,14 +104,34 @@ pub struct MouseState {
     pub screen_point: PhysicalPoint,
     /// エンティティローカル座標（物理ピクセル）
     pub local_point: PhysicalPoint,
-    /// 左ボタン押下中
+    
+    // === ボタン押下状態（wParam のビットマスクを透過転送）===
+    /// 左ボタン押下中 (MK_LBUTTON)
     pub left_down: bool,
-    /// 右ボタン押下中
+    /// 右ボタン押下中 (MK_RBUTTON)
     pub right_down: bool,
-    /// 中ボタン押下中
+    /// 中ボタン押下中 (MK_MBUTTON)
     pub middle_down: bool,
-    /// ダブルクリック検出（1フレームのみ有効、FrameFinalizeでNoneにリセット）
+    /// XButton1 押下中 (MK_XBUTTON1) - 4thボタン
+    pub xbutton1_down: bool,
+    /// XButton2 押下中 (MK_XBUTTON2) - 5thボタン
+    pub xbutton2_down: bool,
+    
+    // === 修飾キー状態（wParam から透過転送）===
+    /// Shift押下中 (MK_SHIFT)
+    pub shift_down: bool,
+    /// Ctrl押下中 (MK_CONTROL)
+    pub ctrl_down: bool,
+    
+    // === ダブルクリック（1フレームのみ有効）===
+    /// ダブルクリック検出（FrameFinalizeでNoneにリセット）
     pub double_click: DoubleClick,
+    
+    // === ホイール（1フレームのみ有効）===
+    /// ホイール回転情報（FrameFinalizeでリセット）
+    pub wheel: WheelDelta,
+    
+    // === その他 ===
     /// カーソル移動速度
     pub velocity: CursorVelocity,
     /// タイムスタンプ
@@ -118,6 +148,20 @@ pub enum DoubleClick {
     Left,
     Right,
     Middle,
+    XButton1,
+    XButton2,
+}
+
+/// ホイール回転情報（1フレームのみ有効）
+/// 
+/// WM_MOUSEWHEEL / WM_MOUSEHWHEEL から透過転送。
+/// FrameFinalize でリセットされる。
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct WheelDelta {
+    /// 垂直ホイール回転量（WHEEL_DELTA単位、正=上、負=下）
+    pub vertical: i16,
+    /// 水平ホイール回転量（WHEEL_DELTA単位、正=右、負=左）
+    pub horizontal: i16,
 }
 
 /// カーソル移動速度（ピクセル/秒）
@@ -234,39 +278,62 @@ local_y = screen_y - GlobalArrangement.bounds.top
 5. When `WM_MOUSEMOVE` を受信し `WindowMouseTracking` が `false` の場合, the Mouse Event System shall `TrackMouseEvent(TME_LEAVE)` を呼び出して `true` に設定する
 6. When `WM_MOUSEMOVE` を受信した時, the Mouse Event System shall `hit_test` を実行し `MouseState` を更新する
 7. When `WM_MOUSELEAVE` を受信した時, the Mouse Event System shall `WindowMouseTracking` を `false` に設定し、`MouseState` を削除して `MouseLeave` を付与する
-8. When `WM_LBUTTONDOWN` を受信した時, the Mouse Event System shall `MouseState.left_down` を `true` に更新する
-9. When `WM_LBUTTONUP` を受信した時, the Mouse Event System shall `MouseState.left_down` を `false` に更新する
-10. When `WM_RBUTTONDOWN` を受信した時, the Mouse Event System shall `MouseState.right_down` を `true` に更新する
-11. When `WM_RBUTTONUP` を受信した時, the Mouse Event System shall `MouseState.right_down` を `false` に更新する
-12. When `WM_LBUTTONDBLCLK` を受信した時, the Mouse Event System shall `MouseState.double_click` を `DoubleClick::Left` に設定する
-13. When `WM_RBUTTONDBLCLK` を受信した時, the Mouse Event System shall `MouseState.double_click` を `DoubleClick::Right` に設定する
-14. When `WM_MBUTTONDBLCLK` を受信した時, the Mouse Event System shall `MouseState.double_click` を `DoubleClick::Middle` に設定する
-15. The Window Class shall `CS_DBLCLKS` スタイルを設定してダブルクリックメッセージを受信可能にする
-13. The Mouse Event System shall `ecs_wndproc` のハンドラとして実装する
+8. When ボタンメッセージを受信した時, the Mouse Event System shall 対応するボタンフラグを更新する
+9. When ダブルクリックメッセージを受信した時, the Mouse Event System shall `MouseState.double_click` を対応する列挙値に設定する
+10. When `WM_MOUSEWHEEL` を受信した時, the Mouse Event System shall `MouseState.wheel.vertical` に回転量を設定する
+11. When `WM_MOUSEHWHEEL` を受信した時, the Mouse Event System shall `MouseState.wheel.horizontal` に回転量を設定する
+12. The Mouse Event System shall すべてのマウスメッセージで `wParam` から修飾キー状態（MK_SHIFT, MK_CONTROL）を転送する
+13. The Window Class shall `CS_DBLCLKS` スタイルを設定してダブルクリックメッセージを受信可能にする
+14. The Mouse Event System shall `ecs_wndproc` のハンドラとして実装する
 
 #### Win32メッセージマッピング
 
 | Win32 Message | MouseState 更新 |
 |---------------|-----------------|
 | WM_NCHITTEST | クライアント領域判定 + hit_test |
-| WM_MOUSEMOVE | 座標更新、ボタン状態（wParam）、Enter/Leave処理 |
+| WM_MOUSEMOVE | 座標更新、全ボタン/修飾キー状態（wParam）、Enter/Leave処理 |
 | WM_MOUSELEAVE | MouseState削除 + MouseLeave付与 |
-| WM_LBUTTONDOWN | left_down = true |
-| WM_LBUTTONUP | left_down = false |
-| WM_RBUTTONDOWN | right_down = true |
-| WM_RBUTTONUP | right_down = false |
+| WM_LBUTTONDOWN | left_down = true + wParam全体を反映 |
+| WM_LBUTTONUP | left_down = false + wParam全体を反映 |
+| WM_RBUTTONDOWN | right_down = true + wParam全体を反映 |
+| WM_RBUTTONUP | right_down = false + wParam全体を反映 |
+| WM_MBUTTONDOWN | middle_down = true + wParam全体を反映 |
+| WM_MBUTTONUP | middle_down = false + wParam全体を反映 |
+| WM_XBUTTONDOWN | xbutton1/2_down = true + wParam全体を反映 |
+| WM_XBUTTONUP | xbutton1/2_down = false + wParam全体を反映 |
 | WM_LBUTTONDBLCLK | double_click = Left |
 | WM_RBUTTONDBLCLK | double_click = Right |
 | WM_MBUTTONDBLCLK | double_click = Middle |
-| WM_MBUTTONDOWN | middle_down = true |
-| WM_MBUTTONUP | middle_down = false |
+| WM_XBUTTONDBLCLK | double_click = XButton1/XButton2 |
+| WM_MOUSEWHEEL | wheel.vertical = GET_WHEEL_DELTA_WPARAM |
+| WM_MOUSEHWHEEL | wheel.horizontal = GET_WHEEL_DELTA_WPARAM |
 
-#### ボタン状態の取得
+#### wParam ビットマスク（透過転送）
 
-`WM_MOUSEMOVE` の `wParam` からボタン押下状態を取得：
-- `MK_LBUTTON` (0x0001): 左ボタン押下中
-- `MK_RBUTTON` (0x0002): 右ボタン押下中
-- `MK_MBUTTON` (0x0010): 中ボタン押下中
+すべてのマウスメッセージで `wParam` から以下を抽出：
+
+| フラグ | 値 | MouseState フィールド |
+|--------|------|----------------------|
+| MK_LBUTTON | 0x0001 | left_down |
+| MK_RBUTTON | 0x0002 | right_down |
+| MK_SHIFT | 0x0004 | shift_down |
+| MK_CONTROL | 0x0008 | ctrl_down |
+| MK_MBUTTON | 0x0010 | middle_down |
+| MK_XBUTTON1 | 0x0020 | xbutton1_down |
+| MK_XBUTTON2 | 0x0040 | xbutton2_down |
+
+#### XButton の識別
+
+`WM_XBUTTONDOWN/UP/DBLCLK` では `GET_XBUTTON_WPARAM(wParam)` で識別：
+- `XBUTTON1` (0x0001): 4thボタン
+- `XBUTTON2` (0x0002): 5thボタン
+
+#### ホイール回転量
+
+`WM_MOUSEWHEEL/MOUSEHWHEEL` では `GET_WHEEL_DELTA_WPARAM(wParam)` で取得：
+- 戻り値は `WHEEL_DELTA` (120) 単位の符号付き整数
+- 正=上/右、負=下/左
+- 高解像度ホイールでは 120 未満の値も送信される
 
 **Note**: Click / RightClick 判定は `event-dispatch` 仕様で実装。本仕様では Win32 メッセージを直接 `MouseState` コンポーネントに反映するのみ。
 
@@ -321,8 +388,9 @@ pub struct WindowMouseTracking(pub bool);
 
 1. The `FrameFinalize` schedule shall `MouseLeave` コンポーネントを全削除するクリーンアップシステムを実行する
 2. The `FrameFinalize` schedule shall `MouseState.double_click` を `DoubleClick::None` にリセットする
-3. The cleanup systems shall Commit システムの後に実行される
-4. The `FrameFinalize` schedule shall 将来の他の一時的マーカーのクリーンアップにも使用可能であること
+3. The `FrameFinalize` schedule shall `MouseState.wheel` を `WheelDelta::default()` にリセットする
+4. The cleanup systems shall Commit システムの後に実行される
+5. The `FrameFinalize` schedule shall 将来の他の一時的マーカーのクリーンアップにも使用可能であること
 
 #### スケジュール定義
 
@@ -336,6 +404,7 @@ pub struct WindowMouseTracking(pub bool);
 /// 1. IDCompositionDevice3::Commit() - ビジュアル変更の確定
 /// 2. MouseLeave 等の一時マーカーコンポーネントの削除
 /// 3. MouseState.double_click を DoubleClick::None にリセット
+/// 4. MouseState.wheel を WheelDelta::default() にリセット
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FrameFinalize;
 ```
@@ -348,7 +417,8 @@ GraphicsSetup → Draw → PreRenderSurface → RenderSurface →
 Composition → FrameFinalize
                     ├── commit_composition（既存）
                     ├── cleanup_mouse_leave（新規）
-                    └── reset_double_click（新規）
+                    ├── reset_double_click（新規）
+                    └── reset_wheel_delta（新規）
 ```
 
 ---
