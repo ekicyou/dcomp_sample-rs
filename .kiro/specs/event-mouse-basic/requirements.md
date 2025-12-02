@@ -73,7 +73,7 @@
 5. The Mouse Event System shall `MouseState` に各ボタンの押下状態（`left_down`, `right_down`, `middle_down`）を含める
 6. The Mouse Event System shall `MouseState` にタイムスタンプを含める
 7. The Mouse Event System shall `MouseState` にカーソル移動速度を含める
-8. The Mouse Event System shall ダブルクリック検出時に `MouseState.double_click` を `true` に設定する
+8. The Mouse Event System shall ダブルクリック検出時に `MouseState.double_click` を対応する `DoubleClick` 列挙値に設定する
 
 #### コンポーネント定義
 
@@ -100,12 +100,24 @@ pub struct MouseState {
     pub right_down: bool,
     /// 中ボタン押下中
     pub middle_down: bool,
-    /// ダブルクリック検出（1フレームのみtrue）
-    pub double_click: bool,
+    /// ダブルクリック検出（1フレームのみ有効、FrameFinalizeでNoneにリセット）
+    pub double_click: DoubleClick,
     /// カーソル移動速度
     pub velocity: CursorVelocity,
     /// タイムスタンプ
     pub timestamp: Instant,
+}
+
+/// ダブルクリック種別（1フレームのみ有効）
+/// 
+/// FrameFinalize で None にリセットされる。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DoubleClick {
+    #[default]
+    None,
+    Left,
+    Right,
+    Middle,
 }
 
 /// カーソル移動速度（ピクセル/秒）
@@ -126,7 +138,7 @@ pub struct CursorVelocity {
 | 状態変化 | `Changed<MouseState>` |
 | Leave（離れた瞬間） | `With<MouseLeave>` |
 | 左ボタン押下中 | `query.get(e).map(\|s\| s.left_down)` |
-| ダブルクリック | `query.get(e).map(\|s\| s.double_click)` |
+| ダブルクリック | `query.get(e).map(\|s\| s.double_click != DoubleClick::None)` |
 
 ---
 
@@ -226,7 +238,10 @@ local_y = screen_y - GlobalArrangement.bounds.top
 9. When `WM_LBUTTONUP` を受信した時, the Mouse Event System shall `MouseState.left_down` を `false` に更新する
 10. When `WM_RBUTTONDOWN` を受信した時, the Mouse Event System shall `MouseState.right_down` を `true` に更新する
 11. When `WM_RBUTTONUP` を受信した時, the Mouse Event System shall `MouseState.right_down` を `false` に更新する
-12. When `WM_LBUTTONDBLCLK` を受信した時, the Mouse Event System shall `MouseState.double_click` を `true` に設定する（次フレームでリセット）
+12. When `WM_LBUTTONDBLCLK` を受信した時, the Mouse Event System shall `MouseState.double_click` を `DoubleClick::Left` に設定する
+13. When `WM_RBUTTONDBLCLK` を受信した時, the Mouse Event System shall `MouseState.double_click` を `DoubleClick::Right` に設定する
+14. When `WM_MBUTTONDBLCLK` を受信した時, the Mouse Event System shall `MouseState.double_click` を `DoubleClick::Middle` に設定する
+15. The Window Class shall `CS_DBLCLKS` スタイルを設定してダブルクリックメッセージを受信可能にする
 13. The Mouse Event System shall `ecs_wndproc` のハンドラとして実装する
 
 #### Win32メッセージマッピング
@@ -240,8 +255,9 @@ local_y = screen_y - GlobalArrangement.bounds.top
 | WM_LBUTTONUP | left_down = false |
 | WM_RBUTTONDOWN | right_down = true |
 | WM_RBUTTONUP | right_down = false |
-| WM_LBUTTONDBLCLK | double_click = true |
-| WM_RBUTTONDBLCLK | double_click = true |
+| WM_LBUTTONDBLCLK | double_click = Left |
+| WM_RBUTTONDBLCLK | double_click = Right |
+| WM_MBUTTONDBLCLK | double_click = Middle |
 | WM_MBUTTONDOWN | middle_down = true |
 | WM_MBUTTONUP | middle_down = false |
 
@@ -304,7 +320,7 @@ pub struct WindowMouseTracking(pub bool);
 #### Acceptance Criteria
 
 1. The `FrameFinalize` schedule shall `MouseLeave` コンポーネントを全削除するクリーンアップシステムを実行する
-2. The `FrameFinalize` schedule shall `MouseState.double_click` を `false` にリセットする
+2. The `FrameFinalize` schedule shall `MouseState.double_click` を `DoubleClick::None` にリセットする
 3. The cleanup systems shall Commit システムの後に実行される
 4. The `FrameFinalize` schedule shall 将来の他の一時的マーカーのクリーンアップにも使用可能であること
 
@@ -319,7 +335,7 @@ pub struct WindowMouseTracking(pub bool);
 /// 実行内容:
 /// 1. IDCompositionDevice3::Commit() - ビジュアル変更の確定
 /// 2. MouseLeave 等の一時マーカーコンポーネントの削除
-/// 3. MouseState.double_click のリセット
+/// 3. MouseState.double_click を DoubleClick::None にリセット
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FrameFinalize;
 ```
