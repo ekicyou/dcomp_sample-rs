@@ -124,6 +124,26 @@
 - **Trade-offs**: 再帰より若干複雑だが、再利用性と early return のメリットが上回る
 - **Follow-up**: `ecs::common` モジュールを新規作成、フォーカス管理等で再利用検討
 
+### Decision: HitTest コンポーネントのデフォルト動作
+
+- **Context**: `HitTest` コンポーネントを持たないエンティティの扱い
+- **Alternatives Considered**:
+  1. スキップ（明示的）— `HitTest` 必須、毎回追加が必要
+  2. Bounds として扱う（暗黙的）— 省略時は矩形判定
+- **Selected Approach**: Option B - 暗黙的に `HitTestMode::Bounds` として扱う
+- **Rationale**: 
+  - 描画されているウィジェットは基本的にヒット対象とすべき
+  - 記述量が減り、自然なデフォルト動作となる
+  - 除外したい場合のみ `HitTest::none()` を明示的に追加
+- **Trade-offs**: 
+  - 暗黙的な動作のため、意図せずヒット対象になる可能性
+  - 透明部分（α < 50%）もヒット対象となるセキュリティリスク（後述）
+- **Security Note**: 
+  - 矩形判定では透明部分もヒット対象となり、クリックジャッキング的リスクあり
+  - 「疑わしきはヒットしない」が安全だが、本仕様では利便性を優先
+  - セキュリティ要件が高いケースは `event-hit-test-alpha-mask` で対応
+- **Follow-up**: 孫仕様 `event-hit-test-alpha-mask` でα判定を実装予定
+
 ### Decision: キャッシュ戦略
 
 - **Context**: パフォーマンス最適化の必要性判断

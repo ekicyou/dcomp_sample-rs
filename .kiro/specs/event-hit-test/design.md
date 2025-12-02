@@ -383,7 +383,9 @@ pub fn hit_test(world: &World, root: Entity, screen_point: PhysicalPoint) -> Opt
 **Implementation Notes**
 - `DepthFirstReversePostOrder` イテレータを使用（`ecs::common` から import）
 - イテレータは後順走査: 子孫を全て返してから親を返す
-- `HitTest` または `GlobalArrangement` がないエンティティはスキップ
+- `GlobalArrangement` がないエンティティはスキップ（bounds がないため判定不可）
+- `HitTest` がないエンティティは `HitTestMode::Bounds` として扱う（暗黙的に矩形判定）
+- `HitTest::none()` のエンティティはスキップ
 - 子孫は引き続き調査（イテレータがツリー走査を継続）
 - 最初のヒットで early return（イテレータの残りは消費しない）
 

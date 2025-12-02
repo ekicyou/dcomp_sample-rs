@@ -33,6 +33,17 @@
 - 多角形・カスタム形状によるヒットテスト → 将来の孫仕様
 - 名前付きヒット領域 → 将来の孫仕様
 
+### セキュリティ考慮事項
+
+**透明部分のヒットテストに関するリスク**:
+
+矩形判定（本仕様）では、α < 50% の透明部分もヒット対象となる。これにより以下のセキュリティリスクが存在する：
+
+- **クリックジャッキング的リスク**: ユーザーが視覚的に認識できない透明領域でクリックを捕捉する可能性
+- **緩和策**: デスクトップマスコット用途では、アプリケーション自身が信頼されるため、リスクは限定的
+- **推奨事項**: セキュリティ要件が高い場合は `event-hit-test-alpha-mask` でα判定を実装
+- **原則**: 「疑わしきはヒットしない」が安全だが、本仕様では利便性を優先
+
 ### 技術的調査結果
 
 **GlobalArrangementからの座標取得**:
@@ -71,12 +82,36 @@ LayoutRoot (仮想デスクトップ: 物理ピクセル)
 3. The HitTest System shall `HitTest` コンポーネントを `ecs::layout` モジュールに配置する
 4. The `HitTest` component shall `mode: HitTestMode` フィールドを持つ
 5. When `HitTest` componentが作成された時, the HitTest System shall デフォルト値として `HitTestMode::Bounds` を設定する
+6. When エンティティが `HitTest` コンポーネントを持たない時, the HitTest System shall `HitTestMode::Bounds` として扱う（矩形判定）
 
 #### 設計決定
 
 - **コンポーネント名**: `HitTest`（`Visual` とは独立）
 - **名前空間**: `ecs::layout`（`GlobalArrangement.bounds` に依存するため）
 - **理由**: ユニットテストで `Visual` のライフサイクルイベントによる副作用を回避
+
+#### デフォルト動作の設計決定
+
+**方針**: `HitTest` コンポーネントがないエンティティは `HitTestMode::Bounds` として扱う（暗黙的に矩形判定）
+
+**理由**:
+- 描画されているウィジェットは基本的にヒット対象とすべき
+- 記述量が減り、自然なデフォルト動作となる
+- 除外したい場合のみ `HitTest::none()` を明示的に追加
+
+**セキュリティ考慮**:
+- 透明部分（α < 50%）もヒット対象となるリスクは認識済み
+- 「疑わしきはヒットしない」が安全だが、本仕様では利便性を優先
+- セキュリティ要件が高いケースは `event-hit-test-alpha-mask` で対応
+
+**使用例**:
+```rust
+// HitTest なし → 矩形判定（デフォルト）
+commands.spawn((Visual::new(), Arrangement::default()));
+
+// 明示的に除外
+ commands.spawn((Visual::new(), Arrangement::default(), HitTest::none()));
+```
 
 ---
 
