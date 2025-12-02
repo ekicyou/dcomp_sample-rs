@@ -1,0 +1,595 @@
+# event-mouse-basic: 技術設計書
+
+## 概要
+
+### 目的
+wintfフレームワークにマウス入力のECS統合を提供し、Win32マウスメッセージを正規化されたECSコンポーネントとして利用可能にする。これにより、マウスベースのUI相互作用（ホバー、クリック、ドラッグ、スクロール）の基盤を確立する。
+
+### スコープ
+- **Phase 1 実装**: ウィンドウレベルのマウス状態管理
+- **in-scope**: MouseState/MouseLeave コンポーネント、Win32 メッセージ統合、速度計算、バッファリング
+- **out-of-scope**: hit_test 実装（仮スタブ使用）、ウィジェットレベル通知、高レベル抽象（ドラッグ＆ドロップ等）
+
+### 設計原則
+1. **既存パターン準拠**: `handlers.rs` の借用区切り方式、`thread_local!` パターンに従う
+2. **ECS-first**: bevy_ecs 0.17 の SparseSet storage、hook を活用
+3. **スレッドセーフ配慮**: `thread_local!` + `RefCell` で UIスレッド内安全性を確保
+
+## 要件トレーサビリティ
+
+| Req | 概要 | コンポーネント | インターフェース | フロー |
+|-----|------|----------------|------------------|--------|
+| 1 | MouseState コンポーネント | `MouseState` | `MouseState::position()`, `button_state()` | Capture → Input |
+| 2 | MouseLeave マーカー | `MouseLeave` | on_add/on_remove hooks | Enter/Leave 検出 |
+| 3 | カーソル移動速度 | `MouseBuffer` | `calculate_velocity()` | 速度計算 |
+| 4 | ローカル座標変換 + hit_test | `MouseState`, `hit_test_stub` | `hit_test_placeholder()` | Capture → Transform |
+| 5 | Win32 メッセージ統合 | `handlers.rs` 拡張 | `WM_MOUSEMOVE`, `WM_LBUTTONDOWN` 等 | WndProc → Capture |
+| 5A | MouseBuffer | `MouseBuffer`, `ButtonBuffer` | `MouseBuffer::push()`, `ButtonBuffer::record_*` | 複数メッセージ/tick |
+| 6 | WindowMouseTracking | `WindowMouseTracking` | `TrackMouseEvent` 連携 | Leave 検出 |
+| 7 | FrameFinalize | `FrameFinalize` スケジュール | `clear_transient_mouse_state` | tick 終了時クリーンアップ |
+
+## アーキテクチャ
+
+### システム構成図
+
+```mermaid
+graph TB
+    subgraph WndProc["WndProc (handlers.rs)"]
+        WM_MOUSE[WM_MOUSEMOVE/BUTTON/WHEEL]
+        WM_LEAVE[WM_MOUSELEAVE]
+    end
+
+    subgraph ThreadLocal["thread_local!"]
+        MBUF[MouseBuffer]
+        BBUF[ButtonBuffer per entity]
+    end
+
+    subgraph ECS["ECS World"]
+        subgraph Components["Components"]
+            MS[MouseState]
+            ML[MouseLeave marker]
+            WMT[WindowMouseTracking]
+        end
+        
+        subgraph Schedules["Schedules"]
+            Input[Input schedule]
+            FF[FrameFinalize schedule]
+        end
+    end
+
+    WM_MOUSE --> MBUF
+    WM_MOUSE --> BBUF
+    WM_LEAVE --> ML
+    MBUF --> Input
+    BBUF --> Input
+    Input --> MS
+    FF --> |"clear transient"| MS
+    FF --> |"remove"| ML
+```
+
+### レイヤー構成
+
+| レイヤー | 責務 | ファイル |
+|----------|------|----------|
+| WndProc | Win32 メッセージ受信、バッファ蓄積 | `handlers.rs` 拡張 |
+| Buffer | 複数メッセージ/tick の蓄積 | `mouse.rs` (新規) |
+| ECS Components | 正規化された状態保持 | `mouse.rs` |
+| Systems | バッファ処理、クリーンアップ | `mouse.rs` |
+
+## 技術スタック
+
+| レイヤー | ツール/ライブラリ | バージョン | 役割 |
+|----------|-------------------|------------|------|
+| ECS | bevy_ecs | 0.17.2 | コンポーネント管理、スケジューリング |
+| Win32 | windows-rs | 既存 | マウスメッセージ、TrackMouseEvent |
+| Platform | Rust stable | 1.80+ | 言語ランタイム |
+
+**既存スタックからの逸脱**: なし。既存の `handlers.rs` パターンを踏襲。
+
+## システムフロー
+
+### マウスイベント処理フロー
+
+```mermaid
+sequenceDiagram
+    participant Win32 as Win32 WndProc
+    participant Handler as handlers.rs
+    participant Buffer as MouseBuffer
+    participant Input as Input Schedule
+    participant State as MouseState
+    participant FF as FrameFinalize
+
+    Win32->>Handler: WM_MOUSEMOVE(x, y)
+    Handler->>Buffer: push_position(entity, x, y, time)
+    Win32->>Handler: WM_LBUTTONDOWN
+    Handler->>Buffer: record_button_down(entity, Left)
+    
+    Note over Input: tick 開始
+    Input->>Buffer: drain_positions(entity)
+    Buffer-->>Input: VecDeque<PositionSample>
+    Input->>State: 最新位置、速度、ボタン状態を設定
+    
+    Note over FF: tick 終了
+    FF->>State: events, wheel_delta クリア
+    FF->>State: MouseLeave 除去
+```
+
+### Enter/Leave 検出フロー
+
+```mermaid
+sequenceDiagram
+    participant Win32 as Win32
+    participant Handler as handlers.rs
+    participant ECS as ECS World
+    
+    Note over Win32: カーソルがウィンドウに進入
+    Win32->>Handler: WM_MOUSEMOVE (初回)
+    Handler->>ECS: check WindowMouseTracking
+    alt tracking == false
+        Handler->>Win32: TrackMouseEvent(TME_LEAVE)
+        Handler->>ECS: WindowMouseTracking = true
+        Handler->>ECS: insert MouseLeave (on_add → Enter イベント)
+    end
+    
+    Note over Win32: カーソルがウィンドウを離脱
+    Win32->>Handler: WM_MOUSELEAVE
+    Handler->>ECS: remove MouseLeave (on_remove → Leave イベント)
+    Handler->>ECS: WindowMouseTracking = false
+```
+
+## コンポーネント＆インターフェース
+
+### コンポーネント概要表
+
+| コンポーネント | ドメイン | 目的 | 要件 | 依存関係 |
+|----------------|----------|------|------|----------|
+| MouseState | Input | マウス状態保持 | 1, 4 | DPI |
+| MouseLeave | Input | Leave マーカー | 2, 6 | なし |
+| WindowMouseTracking | Input | TME 状態追跡 | 6 | なし |
+| MouseBuffer | Buffer | 位置サンプル蓄積 | 3, 5A | なし |
+| ButtonBuffer | Buffer | ボタン状態蓄積 | 5A | なし |
+
+### MouseState コンポーネント
+
+```rust
+/// マウス状態コンポーネント
+/// 
+/// # Storage
+/// SparseSet（頻繁な追加/削除はないが、変更は多い）
+#[derive(Component, Debug, Clone, Default)]
+#[component(storage = "SparseSet")]
+pub struct MouseState {
+    /// カーソル位置（ウィンドウ論理座標、DIP）
+    pub position: (f32, f32),
+    
+    /// ボタン状態（5ボタン対応）
+    pub buttons: MouseButtons,
+    
+    /// 修飾キー状態
+    pub modifiers: Modifiers,
+    
+    /// ホイール増分（tick中の累積）
+    pub wheel_delta: WheelDelta,
+    
+    /// カーソル移動速度（DIP/秒）
+    pub velocity: (f32, f32),
+    
+    /// 今tick中に発生したイベント（FrameFinalizeでクリア）
+    pub events: MouseEvents,
+    
+    /// ダブルクリック候補状態
+    pub double_click: Option<DoubleClickState>,
+}
+
+/// マウスボタン状態（5ボタン対応）
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MouseButtons {
+    pub left: ButtonState,
+    pub right: ButtonState,
+    pub middle: ButtonState,
+    pub x1: ButtonState,
+    pub x2: ButtonState,
+}
+
+/// 個別ボタン状態
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ButtonState {
+    #[default]
+    Up,
+    Down,
+}
+
+/// 修飾キー状態
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Modifiers {
+    pub shift: bool,
+    pub ctrl: bool,
+    pub alt: bool,
+}
+
+/// ホイール増分
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WheelDelta {
+    pub vertical: f32,   // WHEEL_DELTA 単位
+    pub horizontal: f32, // 水平スクロール
+}
+
+/// 今 tick 中に発生したイベント
+#[derive(Debug, Clone, Default)]
+pub struct MouseEvents {
+    pub entered: bool,
+    pub left: bool,
+    pub moved: bool,
+    pub button_events: Vec<ButtonEvent>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ButtonEvent {
+    pub button: MouseButton,
+    pub action: ButtonAction,
+    pub position: (f32, f32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MouseButton { Left, Right, Middle, X1, X2 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ButtonAction { Pressed, Released, DoubleClick }
+
+/// ダブルクリック候補状態
+#[derive(Debug, Clone)]
+pub struct DoubleClickState {
+    pub button: MouseButton,
+    pub first_click_time: std::time::Instant,
+    pub first_click_position: (f32, f32),
+}
+```
+
+### MouseLeave マーカーコンポーネント
+
+```rust
+/// マウス離脱マーカー
+/// 
+/// on_add: Enter イベント発火
+/// on_remove: Leave イベント発火
+#[derive(Component, Debug, Clone, Copy, Default)]
+#[component(storage = "SparseSet", on_add = on_mouse_enter, on_remove = on_mouse_leave)]
+pub struct MouseLeave;
+
+fn on_mouse_enter(mut world: DeferredWorld, HookContext { entity, .. }: HookContext) {
+    if let Some(mut mouse) = world.get_mut::<MouseState>(entity) {
+        mouse.events.entered = true;
+    }
+}
+
+fn on_mouse_leave(mut world: DeferredWorld, HookContext { entity, .. }: HookContext) {
+    if let Some(mut mouse) = world.get_mut::<MouseState>(entity) {
+        mouse.events.left = true;
+    }
+}
+```
+
+### WindowMouseTracking コンポーネント
+
+```rust
+/// TrackMouseEvent 状態追跡
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub struct WindowMouseTracking(pub bool);
+```
+
+### MouseBuffer（thread_local!）
+
+```rust
+/// 位置サンプル
+#[derive(Debug, Clone, Copy)]
+pub struct PositionSample {
+    pub x: f32,
+    pub y: f32,
+    pub timestamp: std::time::Instant,
+}
+
+/// マウスバッファ（thread_local! で管理）
+pub struct MouseBuffer {
+    samples: VecDeque<PositionSample>,
+}
+
+impl MouseBuffer {
+    const MAX_SAMPLES: usize = 5;
+    
+    pub fn push(&mut self, sample: PositionSample) {
+        if self.samples.len() >= Self::MAX_SAMPLES {
+            self.samples.pop_front();
+        }
+        self.samples.push_back(sample);
+    }
+    
+    pub fn drain(&mut self) -> impl Iterator<Item = PositionSample> + '_ {
+        self.samples.drain(..)
+    }
+    
+    /// 速度計算（最新2サンプル間）
+    pub fn calculate_velocity(&self) -> (f32, f32) {
+        if self.samples.len() < 2 {
+            return (0.0, 0.0);
+        }
+        let newest = self.samples.back().unwrap();
+        let prev = &self.samples[self.samples.len() - 2];
+        let dt = newest.timestamp.duration_since(prev.timestamp).as_secs_f32();
+        if dt < 0.0001 {
+            return (0.0, 0.0);
+        }
+        ((newest.x - prev.x) / dt, (newest.y - prev.y) / dt)
+    }
+}
+
+thread_local! {
+    /// Entity ごとの MouseBuffer
+    static MOUSE_BUFFERS: RefCell<HashMap<Entity, MouseBuffer>> = RefCell::new(HashMap::new());
+}
+```
+
+### ButtonBuffer
+
+```rust
+/// ボタンバッファ
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ButtonBuffer {
+    /// tick中にDownが発生したか
+    pub down_received: bool,
+    /// tick中にUpが発生したか
+    pub up_received: bool,
+}
+
+impl ButtonBuffer {
+    pub fn record_down(&mut self) {
+        self.down_received = true;
+    }
+    
+    pub fn record_up(&mut self) {
+        self.up_received = true;
+    }
+    
+    pub fn reset(&mut self) {
+        self.down_received = false;
+        self.up_received = false;
+    }
+}
+
+thread_local! {
+    /// Entity × Button ごとの ButtonBuffer
+    static BUTTON_BUFFERS: RefCell<HashMap<(Entity, MouseButton), ButtonBuffer>> = RefCell::new(HashMap::new());
+}
+```
+
+### hit_test 仮スタブ
+
+```rust
+/// hit_test プレースホルダー（Phase 1）
+/// 
+/// event-hit-test 完了後に実際の実装に差し替え
+pub fn hit_test_placeholder(
+    _world: &World,
+    window_entity: Entity,
+    _position: (f32, f32),
+) -> Entity {
+    // Phase 1: 常にウィンドウエンティティを返す
+    window_entity
+}
+```
+
+## データモデル
+
+### ドメインモデル
+
+```mermaid
+erDiagram
+    WindowEntity ||--o| MouseState : has
+    WindowEntity ||--o| MouseLeave : may_have
+    WindowEntity ||--|| WindowMouseTracking : has
+    
+    MouseState {
+        f32_f32 position
+        MouseButtons buttons
+        Modifiers modifiers
+        WheelDelta wheel_delta
+        f32_f32 velocity
+        MouseEvents events
+    }
+    
+    MouseBuffer {
+        VecDeque samples
+    }
+    
+    ButtonBuffer {
+        bool down_received
+        bool up_received
+    }
+```
+
+### 状態遷移
+
+```mermaid
+stateDiagram-v2
+    [*] --> Outside: ウィンドウ作成
+    Outside --> Inside: WM_MOUSEMOVE (初回)
+    Inside --> Inside: WM_MOUSEMOVE
+    Inside --> Outside: WM_MOUSELEAVE
+    Outside --> Inside: WM_MOUSEMOVE
+    
+    note right of Inside
+        MouseLeave コンポーネント存在
+        TrackMouseEvent 有効
+    end note
+    
+    note right of Outside
+        MouseLeave コンポーネントなし
+        TrackMouseEvent 無効
+    end note
+```
+
+## handlers.rs 拡張
+
+### 追加するハンドラ関数
+
+| 関数名 | 処理内容 | 備考 |
+|--------|----------|------|
+| `WM_MOUSEMOVE` | 位置→MouseBuffer、修飾キー更新、TME 初回設定 | 借用区切り方式 |
+| `WM_LBUTTONDOWN` / `UP` | ButtonBuffer 記録、ダブルクリック検出 | L/R/M/X1/X2 |
+| `WM_RBUTTONDOWN` / `UP` | 同上 | |
+| `WM_MBUTTONDOWN` / `UP` | 同上 | |
+| `WM_XBUTTONDOWN` / `UP` | 同上 | |
+| `WM_MOUSEWHEEL` | wheel_delta 累積 | |
+| `WM_MOUSEHWHEEL` | horizontal wheel_delta | |
+| `WM_MOUSELEAVE` | MouseLeave 除去、WindowMouseTracking = false | |
+
+### 実装パターン
+
+```rust
+/// WM_MOUSEMOVE の実装例
+#[inline]
+pub(super) unsafe fn WM_MOUSEMOVE(
+    hwnd: HWND,
+    _message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> HandlerResult {
+    let Some(entity) = super::get_entity_from_hwnd(hwnd) else {
+        return None;
+    };
+    
+    // 位置取得（物理ピクセル）
+    let x = GET_X_LPARAM(lparam);
+    let y = GET_Y_LPARAM(lparam);
+    
+    // MouseBuffer に蓄積（借用なし）
+    MOUSE_BUFFERS.with(|buffers| {
+        let mut buffers = buffers.borrow_mut();
+        let buffer = buffers.entry(entity).or_default();
+        buffer.push(PositionSample {
+            x: x as f32,
+            y: y as f32,
+            timestamp: Instant::now(),
+        });
+    });
+    
+    // TrackMouseEvent 設定（初回のみ）
+    if let Some(world) = super::try_get_ecs_world() {
+        if let Ok(mut world_borrow) = world.try_borrow_mut() {
+            // ... WindowMouseTracking チェック、MouseLeave 挿入
+        }
+    }
+    
+    Some(LRESULT(0))
+}
+```
+
+## システム設計
+
+### Input スケジュールシステム
+
+```rust
+/// マウスバッファ処理システム
+pub fn process_mouse_buffers(
+    mut query: Query<(Entity, &mut MouseState, &DPI)>,
+) {
+    for (entity, mut mouse, dpi) in query.iter_mut() {
+        MOUSE_BUFFERS.with(|buffers| {
+            let mut buffers = buffers.borrow_mut();
+            if let Some(buffer) = buffers.get_mut(&entity) {
+                // 速度計算
+                mouse.velocity = buffer.calculate_velocity();
+                
+                // 最新位置取得・DPI 変換
+                if let Some(sample) = buffer.samples.back() {
+                    let (lx, ly) = dpi.to_logical_point(sample.x as i32, sample.y as i32);
+                    mouse.position = (lx, ly);
+                    mouse.events.moved = true;
+                }
+                
+                // バッファクリア
+                buffer.samples.clear();
+            }
+        });
+        
+        // ButtonBuffer 処理
+        // ... 各ボタンの down_received/up_received を MouseState に反映
+    }
+}
+```
+
+### FrameFinalize スケジュールシステム
+
+```rust
+/// 一時的マウス状態クリアシステム
+pub fn clear_transient_mouse_state(
+    mut query: Query<&mut MouseState>,
+    mut commands: Commands,
+    leave_query: Query<Entity, With<MouseLeave>>,
+) {
+    // MouseEvents, wheel_delta クリア
+    for mut mouse in query.iter_mut() {
+        mouse.events = MouseEvents::default();
+        mouse.wheel_delta = WheelDelta::default();
+    }
+    
+    // MouseLeave マーカー除去
+    for entity in leave_query.iter() {
+        commands.entity(entity).remove::<MouseLeave>();
+    }
+}
+```
+
+## エラー処理
+
+### エラーカテゴリ
+
+| カテゴリ | 発生条件 | 対応 |
+|----------|----------|------|
+| 借用失敗 | RefCell 再入 | スキップ、warn ログ |
+| Entity 無効 | GWLP_USERDATA 不正 | スキップ、debug ログ |
+| DPI 取得失敗 | コンポーネント未設定 | デフォルト値使用 |
+
+### 観測可能性
+
+- `tracing::trace!` マウス位置更新
+- `tracing::debug!` Enter/Leave イベント
+- `tracing::warn!` 借用失敗
+
+## テスト戦略
+
+### ユニットテスト
+
+| テスト | 対象 | 検証内容 |
+|--------|------|----------|
+| `test_mouse_buffer_push` | MouseBuffer | サンプル蓄積、上限 |
+| `test_velocity_calculation` | MouseBuffer::calculate_velocity | 速度計算精度 |
+| `test_button_buffer_state` | ButtonBuffer | down/up 記録 |
+| `test_double_click_detection` | DoubleClickState | 時間・距離判定 |
+
+### 統合テスト
+
+| テスト | 対象 | 検証内容 |
+|--------|------|----------|
+| `test_mouse_state_creation` | MouseState + Entity | コンポーネント追加 |
+| `test_enter_leave_hooks` | MouseLeave on_add/on_remove | イベント発火 |
+| `test_frame_finalize_cleanup` | clear_transient_mouse_state | 一時状態クリア |
+
+## リスク＆未解決事項
+
+### 既知のリスク
+
+| リスク | 影響 | 緩和策 |
+|--------|------|--------|
+| hit_test 仮スタブ依存 | ウィジェットレベル通知不可 | Phase 1 スコープ限定 |
+| 高頻度メッセージ | パフォーマンス影響 | バッファリング、速度計算最適化 |
+
+### 未解決事項
+
+1. **ダブルクリック閾値**: Win32 GetDoubleClickTime() 使用か固定値か
+2. **キャプチャ状態**: SetCapture/ReleaseCapture 統合は Phase 2 以降
+
+## 参照
+
+- [requirements.md](./requirements.md) - 全要件定義
+- [gap-analysis.md](./gap-analysis.md) - 既存コード分析
+- [doc/spec/08-event-system.md](../../../doc/spec/08-event-system.md) - イベントシステム仕様
