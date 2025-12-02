@@ -59,7 +59,7 @@
 | **ecs_wndproc 統合** | `WM_MOUSEMOVE`, `WM_LBUTTONDOWN` 等のハンドラから `hit_test` API を呼び出す | Req 5 |
 | **ローカル座標変換** | `GlobalArrangement.bounds` を使用したエンティティローカル座標への変換 | Req 1 |
 | **hit_test_detailed** | ローカル座標付きヒット結果を返す関数 | Req 1 |
-| **キャッシュ機構** | 座標が同一の場合は前回結果を返す | Req 6 (オプション) |
+| **キャッシュ機構** | 座標が同一の場合は前回結果を返す | event-hit-test-cache 仕様に移管 |
 
 ---
 
@@ -502,17 +502,23 @@ pub struct WindowMouseTracking(pub bool);
 
 ---
 
-### Requirement 7: FrameFinalize クリーンアップ
+### Requirement 7: FrameFinalize スケジュール（リネーム + クリーンアップ）
 
-**Objective:** 開発者として、一時的マーカーコンポーネントを自動クリーンアップしたい。それにより手動削除の手間を省ける。
+**Objective:** 開発者として、フレーム終了時の処理を統一された名前で理解し、一時的マーカーコンポーネントを自動クリーンアップしたい。それによりスケジュール構造が直感的になり、手動削除の手間を省ける。
 
 #### Acceptance Criteria
 
-1. The `FrameFinalize` schedule shall `MouseLeave` コンポーネントを全削除するクリーンアップシステムを実行する
-2. The `FrameFinalize` schedule shall `MouseState.double_click` を `DoubleClick::None` にリセットする
-3. The `FrameFinalize` schedule shall `MouseState.wheel` を `WheelDelta::default()` にリセットする
-4. The cleanup systems shall Commit システムの後に実行される
-5. The `FrameFinalize` schedule shall 将来の他の一時的マーカーのクリーンアップにも使用可能であること
+**リネーム:**
+1. The ECS World shall `CommitComposition` スケジュールを `FrameFinalize` にリネームする
+2. The `FrameFinalize` schedule shall tick の最後に実行されるスケジュールとする
+3. The `FrameFinalize` schedule shall DirectComposition の Commit を実行する（`commit_composition` システム）
+
+**クリーンアップ:**
+4. The `FrameFinalize` schedule shall `MouseLeave` コンポーネントを全削除するクリーンアップシステムを実行する
+5. The `FrameFinalize` schedule shall `MouseState.double_click` を `DoubleClick::None` にリセットする
+6. The `FrameFinalize` schedule shall `MouseState.wheel` を `WheelDelta::default()` にリセットする
+7. The cleanup systems shall Commit システムの後に実行される
+8. The `FrameFinalize` schedule shall 将来の他の一時的マーカーのクリーンアップにも使用可能であること
 
 #### スケジュール定義
 
@@ -527,6 +533,8 @@ pub struct WindowMouseTracking(pub bool);
 /// 2. MouseLeave 等の一時マーカーコンポーネントの削除
 /// 3. MouseState.double_click を DoubleClick::None にリセット
 /// 4. MouseState.wheel を WheelDelta::default() にリセット
+/// 
+/// 注: 旧名 CommitComposition からリネーム（本仕様で実施）
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FrameFinalize;
 ```
@@ -543,17 +551,6 @@ Composition → FrameFinalize
                     └── reset_wheel_delta（新規）
 ```
 
----
-
-### Requirement 8: CommitComposition → FrameFinalize リネーム
-
-**Objective:** 開発者として、フレーム終了時の処理を統一された名前で理解したい。それによりスケジュール構造が直感的になる。
-
-#### Acceptance Criteria
-
-1. The ECS World shall `CommitComposition` スケジュールを `FrameFinalize` にリネームする
-2. The `FrameFinalize` schedule shall DirectComposition の Commit を実行する
-
 #### 移行作業
 
 | 変更箇所 | Before | After |
@@ -562,6 +559,7 @@ Composition → FrameFinalize
 | world.rs 登録 | `schedules.insert(Schedule::new(CommitComposition))` | `schedules.insert(Schedule::new(FrameFinalize))` |
 | try_tick_world | `try_run_schedule(CommitComposition)` | `try_run_schedule(FrameFinalize)` |
 | システム登録 | `add_systems(CommitComposition, ...)` | `add_systems(FrameFinalize, ...)` |
+| pub use | `pub use world::CommitComposition` | `pub use world::FrameFinalize` |
 
 ---
 
