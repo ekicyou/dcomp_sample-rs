@@ -310,8 +310,9 @@ pub struct MouseButtonState {
 /// Win32 の TrackMouseEvent 呼び出し状態を管理。
 /// WM_MOUSELEAVE を受信するために必要。
 /// 
-/// メモリ戦略: Table（デフォルト）- 全 Window エンティティが保持
+/// メモリ戦略: SparseSet - Window は全エンティティの1〜5%程度
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[component(storage = "SparseSet")]
 pub struct WindowMouseTracking(pub bool);
 ```
 
@@ -319,7 +320,7 @@ pub struct WindowMouseTracking(pub bool);
 - `PartialEq, Eq`: `Changed<WindowMouseTracking>` での変更検出用
 - `Clone, Copy`: 単純フラグなのでコピー可能
 - `Default`: `false` で初期化（未トラッキング状態）
-- Table ストレージ: 全 Window に付与されるため効率的
+- **SparseSet ストレージ**: Window は全エンティティの少数（1〜5%）のため、Table より効率的。全 Window* 系コンポーネントで統一。
 
 ---
 
