@@ -110,7 +110,7 @@ sequenceDiagram
     Input->>State: 最新位置、速度、ボタン状態を設定
     
     Note over FF: tick 終了
-    FF->>State: events, wheel_delta クリア
+    FF->>State: double_click, wheel クリア
     FF->>State: MouseLeave 除去
 ```
 
@@ -128,13 +128,17 @@ sequenceDiagram
     alt tracking == false
         Handler->>Win32: TrackMouseEvent(TME_LEAVE)
         Handler->>ECS: WindowMouseTracking = true
-        Handler->>ECS: insert MouseLeave (on_add → Enter イベント)
+        Handler->>ECS: insert MouseState (Added<MouseState> → Enter 検出)
     end
     
     Note over Win32: カーソルがウィンドウを離脱
     Win32->>Handler: WM_MOUSELEAVE
-    Handler->>ECS: remove MouseLeave (on_remove → Leave イベント)
+    Handler->>ECS: remove MouseState
+    Handler->>ECS: insert MouseLeave (With<MouseLeave> → Leave 検出)
     Handler->>ECS: WindowMouseTracking = false
+    
+    Note over ECS: FrameFinalize
+    ECS->>ECS: remove MouseLeave
 ```
 
 ## コンポーネント＆インターフェース
@@ -584,7 +588,7 @@ pub fn clear_transient_mouse_state(
 | テスト | 対象 | 検証内容 |
 |--------|------|----------|
 | `test_mouse_state_creation` | MouseState + Entity | コンポーネント追加 |
-| `test_enter_leave_hooks` | MouseLeave on_add/on_remove | イベント発火 |
+| `test_enter_leave_detection` | Added<MouseState>, With<MouseLeave> | Enter/Leave 検出 |
 | `test_frame_finalize_cleanup` | clear_transient_mouse_state | 一時状態クリア |
 
 ## リスク＆未解決事項
