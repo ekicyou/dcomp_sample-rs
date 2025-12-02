@@ -457,6 +457,7 @@ let wc = WNDCLASSEXW {
 
 | 関数名 | 処理内容 | 備考 |
 |--------|----------|------|
+| `WM_NCHITTEST` | クライアント領域判定 + hit_test → HTCLIENT/HTTRANSPARENT | クリックスルー対応 |
 | `WM_MOUSEMOVE` | 位置→MouseBuffer、修飾キー更新、TME 初回設定 | 借用区切り方式 |
 | `WM_LBUTTONDOWN` / `UP` | ButtonBuffer 記録 | L/R/M/X1/X2 |
 | `WM_RBUTTONDOWN` / `UP` | 同上 | |
@@ -466,6 +467,69 @@ let wc = WNDCLASSEXW {
 | `WM_MOUSEWHEEL` | wheel.vertical 累積 | |
 | `WM_MOUSEHWHEEL` | wheel.horizontal 累積 | |
 | `WM_MOUSELEAVE` | MouseState 削除 + MouseLeave 付与、WindowMouseTracking = false | |
+
+### WM_NCHITTEST 実装
+
+```rust
+/// WM_NCHITTEST: 透過ウィンドウのクリックスルー対応
+/// 
+/// Req 5 AC 1-5 に準拠
+#[inline]
+pub(super) unsafe fn WM_NCHITTEST(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    lparam: LPARAM,
+) -> HandlerResult {
+    use windows::Win32::UI::WindowsAndMessaging::{HTCLIENT, HTTRANSPARENT};
+    
+    // スクリーン座標を取得
+    let x = GET_X_LPARAM(lparam);
+    let y = GET_Y_LPARAM(lparam);
+    
+    // クライアント領域に変換
+    let mut pt = POINT { x, y };
+    if ScreenToClient(hwnd, &mut pt).is_err() {
+        return None; // DefWindowProcW に委譲
+    }
+    
+    // クライアント領域外の場合は DefWindowProcW に委譲
+    let mut rect = RECT::default();
+    if GetClientRect(hwnd, &mut rect).is_err() {
+        return None;
+    }
+    if pt.x < rect.left || pt.x >= rect.right || pt.y < rect.top || pt.y >= rect.bottom {
+        return None; // DefWindowProcW に委譲（非クライアント領域処理）
+    }
+    
+    // Entity 取得
+    let Some(entity) = super::get_entity_from_hwnd(hwnd) else {
+        return None;
+    };
+    
+    // World 借用して hit_test 実行
+    let Some(world) = super::try_get_ecs_world() else {
+        return None; // 借用失敗時は DefWindowProcW に委譲
+    };
+    
+    let hit_result = match world.try_borrow() {
+        Ok(world_ref) => {
+            // Phase 1: 仮スタブ（常にウィンドウエンティティを返す）
+            hit_test_placeholder(&world_ref, entity, (pt.x as f32, pt.y as f32))
+        }
+        Err(_) => {
+            return None; // 借用失敗時は DefWindowProcW に委譲
+        }
+    };
+    
+    // hit_test 結果に応じて HTCLIENT または HTTRANSPARENT を返す
+    if hit_result.is_some() {
+        Some(LRESULT(HTCLIENT as isize))
+    } else {
+        Some(LRESULT(HTTRANSPARENT as isize))
+    }
+}
+```
 
 ### 実装パターン
 
