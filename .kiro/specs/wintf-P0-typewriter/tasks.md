@@ -163,6 +163,49 @@ Taffy の min_size/max_size プロパティに変換される。
 
 ---
 
+## 🚨 未解決の問題: Typewriter が表示されない
+
+### 問題の症状
+- 横書き・縦書きともにテキストが表示されない
+- 灰色の背景ボックスは正常に表示される
+- ウィンドウリサイズによるレイアウト追従は動作している
+
+### 調査状況
+
+**確認済み**:
+1. `TypewriterTalk` が正しくエンティティに追加されている
+2. `TypewriterLayoutCache` が `init_typewriter_layout` システムで生成されている
+3. `draw_typewriters` システムが実行されている
+4. `Arrangement` コンポーネントの `Changed` 検出は正常動作
+
+**未確認・問題の可能性**:
+1. **Visual コンポーネントのライフサイクル**: 
+   - Typewriter エンティティに `Visual` が追加されているが、Visual 追加時に自動生成されるはずのコンポーネントが不足している可能性
+   - `crates/wintf/src/dcomp/visual.rs` の `on_add` フックを確認すべき
+   - 比較対象: `Rectangle` や `Label` のVisual初期化パターン
+
+2. **Surface / GlobalArrangement の問題**:
+   - サーフェス描画時に `GlobalArrangement` が正しく設定されていない可能性
+   - `render_surfaces` システムでの描画対象に含まれていない可能性
+
+3. **レイアウト設定の問題**:
+   - デモで `BoxStyle { size: None, .. }` に変更後、親の灰色ボックスが極端に小さくなった
+   - `min_size` を追加して対応したが、子のTypewriterのサイズが0になっている可能性
+
+### 次のアクション
+1. `Visual` の `on_add` フックを確認し、追加されるコンポーネントを特定
+2. `Rectangle` と同じパターンで Typewriter が初期化されているか比較
+3. `GlobalArrangement` の値をログ出力して描画領域を確認
+4. `render_surfaces` システムで Typewriter が描画対象として認識されているか確認
+
+### 参考コード箇所
+- Visual ライフサイクル: `crates/wintf/src/dcomp/visual.rs`
+- Rectangle パターン: `crates/wintf/src/widget/rectangle.rs`
+- Label パターン: `crates/wintf/src/widget/text/label.rs`
+- サーフェス描画: `crates/wintf/src/dcomp/surface.rs` の `render_surfaces`
+
+---
+
 ## Requirements Coverage Matrix
 
 | Requirement | Tasks |

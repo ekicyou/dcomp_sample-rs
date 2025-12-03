@@ -166,9 +166,39 @@ fn create_typewriter_demo_window(world: &mut World) {
                     top: LengthPercentageAuto::Px(20.0),
                     bottom: LengthPercentageAuto::Px(20.0),
                 })),
+                flex_direction: Some(wintf::ecs::layout::FlexDirection::Column),
                 ..Default::default()
             },
             ChildOf(window_entity),
+        ))
+        .id();
+
+    // 横書き用の内側ボックス（薄い青）
+    let horizontal_box = world
+        .spawn((
+            Name::new("HorizontalBox"),
+            Rectangle {
+                color: D2D1_COLOR_F {
+                    r: 0.9,
+                    g: 0.9,
+                    b: 1.0,
+                    a: 1.0,
+                },
+            },
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(460.0)),  // 親幅より小さい固定値
+                    height: Some(Dimension::Px(80.0)),
+                }),
+                margin: Some(BoxMargin(wintf::ecs::layout::Rect {
+                    left: LengthPercentageAuto::Px(10.0),
+                    right: LengthPercentageAuto::Px(10.0),
+                    top: LengthPercentageAuto::Px(10.0),
+                    bottom: LengthPercentageAuto::Px(10.0),
+                })),
+                ..Default::default()
+            },
+            ChildOf(background),
         ))
         .id();
 
@@ -190,20 +220,44 @@ fn create_typewriter_demo_window(world: &mut World) {
             ..Default::default()
         },
         BoxStyle {
-            margin: Some(BoxMargin(wintf::ecs::layout::Rect {
-                left: LengthPercentageAuto::Px(5.0),
-                right: LengthPercentageAuto::Px(5.0),
-                top: LengthPercentageAuto::Px(5.0),
-                bottom: LengthPercentageAuto::Px(5.0),
-            })),
             size: Some(BoxSize {
-                width: None,  // 親に追従
-                height: Some(Dimension::Px(60.0)),
+                width: Some(Dimension::Percent(1.0)),  // 親幅に追従 (100%)
+                height: Some(Dimension::Percent(1.0)), // 親高さに追従 (100%)
             }),
             ..Default::default()
         },
-        ChildOf(background),
+        ChildOf(horizontal_box),
     ));
+
+    // 縦書き用の内側ボックス（薄い緑）
+    let vertical_box = world
+        .spawn((
+            Name::new("VerticalBox"),
+            Rectangle {
+                color: D2D1_COLOR_F {
+                    r: 0.9,
+                    g: 1.0,
+                    b: 0.9,
+                    a: 1.0,
+                },
+            },
+            BoxStyle {
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(80.0)),
+                    height: Some(Dimension::Px(200.0)),
+                }),
+                margin: Some(BoxMargin(wintf::ecs::layout::Rect {
+                    left: LengthPercentageAuto::Px(10.0),
+                    right: LengthPercentageAuto::Px(10.0),
+                    top: LengthPercentageAuto::Px(10.0),
+                    bottom: LengthPercentageAuto::Px(10.0),
+                })),
+                align_self: Some(wintf::ecs::layout::AlignSelf::FlexEnd),  // 右寄せ
+                ..Default::default()
+            },
+            ChildOf(background),
+        ))
+        .id();
 
     // 縦書き Typewriter エンティティ
     world.spawn((
@@ -223,19 +277,13 @@ fn create_typewriter_demo_window(world: &mut World) {
             ..Default::default()
         },
         BoxStyle {
-            margin: Some(BoxMargin(wintf::ecs::layout::Rect {
-                left: LengthPercentageAuto::Px(5.0),
-                right: LengthPercentageAuto::Px(5.0),
-                top: LengthPercentageAuto::Px(75.0),
-                bottom: LengthPercentageAuto::Px(5.0),
-            })),
             size: Some(BoxSize {
-                width: Some(Dimension::Px(60.0)),
-                height: None,  // 親に追従
+                width: Some(Dimension::Percent(1.0)),  // 親幅に追従 (100%)
+                height: Some(Dimension::Percent(1.0)), // 親高さに追従 (100%)
             }),
             ..Default::default()
         },
-        ChildOf(background),
+        ChildOf(vertical_box),
     ));
 
     // 完了イベント受信用エンティティ

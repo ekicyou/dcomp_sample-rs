@@ -48,7 +48,10 @@ pub fn init_typewriter_layout(
     >,
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
+    debug!("[init_typewriter_layout] Running, query count: {}", query.iter().count());
+    
     let Some(graphics_core) = graphics_core else {
+        debug!("[init_typewriter_layout] No GraphicsCore");
         return;
     };
 
@@ -75,6 +78,26 @@ pub fn init_typewriter_layout(
         // Arrangementからサイズを取得
         let layout_width = arrangement.size.width;
         let layout_height = arrangement.size.height;
+
+        // Arrangementがまだ計算されていない場合（極小値）は次フレームに委ねる
+        // レイアウト計算はフレーム境界で適用されるため、初回フレームでは初期値の可能性がある
+        const MIN_LAYOUT_SIZE: f32 = 10.0;
+        if layout_width < MIN_LAYOUT_SIZE || layout_height < MIN_LAYOUT_SIZE {
+            trace!(
+                entity = ?entity,
+                layout_width = layout_width,
+                layout_height = layout_height,
+                "[init_typewriter_layout] Arrangement too small, deferring to next frame"
+            );
+            continue;
+        }
+
+        debug!(
+            entity = ?entity,
+            layout_width = layout_width,
+            layout_height = layout_height,
+            "[init_typewriter_layout] Arrangement size"
+        );
 
         // TextFormat 作成
         let font_family_hstring = windows::core::HSTRING::from(&typewriter.font_family);
