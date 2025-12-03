@@ -69,18 +69,23 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 
 ---
 
-### Requirement 3: 中間表現（IR）入力
+### Requirement 3: 2段階IR設計
 
-**Objective:** 描画エンジンとして、パース済みの構造化データを受け取りたい。それによりTypewriterは表示アニメーションに専念できる。
+**Objective:** 描画エンジンとして、パース済みの構造化データを受け取り、内部でグリフ単位に分解したい。それによりTypewriterは表示アニメーションに専念できる。
 
 #### Acceptance Criteria
 
-1. **The** Typewriter widget **shall** 中間表現（IR）形式でトークン列を受け取れる
+**Stage 1 IR（外部インターフェース）:**
+1. **The** Typewriter widget **shall** Stage 1 IR形式でトークン列を受け取れる
 2. **The** Typewriter widget **shall** テキストトークン（表示文字列）を処理できる
-3. **The** Typewriter widget **shall** ウェイトトークン（待機時間）を処理できる
-4. **When** ウェイトトークンを受け取った時, **the** Typewriter widget **shall** 指定時間だけ次のトークン処理を遅延する
-5. **The** Typewriter widget **shall** IR型定義を `areka-P0-script-engine` と共有する
-6. **The** Typewriter widget **shall** 将来の拡張トークン（速度変更、ポーズ等）に対応可能な設計とする
+3. **The** Typewriter widget **shall** ウェイトトークン（f64秒単位、Windows Animation API互換）を処理できる
+4. **The** Typewriter widget **shall** Stage 1 IR型定義を `areka-P0-script-engine` と共有する
+
+**Stage 2 IR（内部タイムライン）:**
+5. **The** Typewriter widget **shall** Stage 1 IRをDirectWriteでグリフ単位に分解しStage 2 IRを生成する
+6. **The** Typewriter widget **shall** Stage 2 IRにグリフ情報（TextLayout内のクラスタ番号）を含める
+7. **The** Typewriter widget **shall** Stage 2 IRでウェイトをf64秒単位で保持する
+8. **The** Typewriter widget **shall** Stage 2 IRで縦書き/横書きの位置情報をTextLayoutから取得する
 
 ---
 
@@ -99,17 +104,18 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 
 ---
 
-### Requirement 5: コールバック・イベント
+### Requirement 5: IR駆動イベント
 
-**Objective:** 開発者として、表示の進行状況を監視したい。それにより表示完了後の処理やプログレス表示が可能になる。
+**Objective:** 開発者として、テキスト表示の進行に応じてイベントを発火したい。それにより表示完了後の処理や状態変更が可能になる。
 
 #### Acceptance Criteria
 
-1. **When** 文字が表示された時, **the** Typewriter widget **shall** 文字表示イベントを発火する
-2. **When** 全文字の表示が完了した時, **the** Typewriter widget **shall** 完了イベントを発火する
-3. **When** ウェイト中にスキップされた時, **the** Typewriter widget **shall** スキップイベントを発火する
-4. **The** Typewriter widget **shall** 現在の表示進行度（0.0〜1.0）を取得できる
-5. **The** Typewriter widget **shall** 残り表示時間（ウェイト含む）を推定できる
+1. **The** Typewriter widget **shall** IRトークンにイベント発火コマンドを含められる
+2. **When** FireEventトークンを処理した時, **the** Typewriter widget **shall** 指定されたエンティティにコンポーネントを投入する
+3. **The** Typewriter widget **shall** 表示完了時のイベント発火をIRで記述できる
+4. **The** Typewriter widget **shall** 任意のタイミング（特定文字後等）でのイベント発火をIRで記述できる
+5. **The** Typewriter widget **shall** 投入されたコンポーネントの処理は別Systemに委譲する
+6. **The** Typewriter widget **shall** 現在の表示進行度（0.0〜1.0）をコンポーネントとして公開する
 
 ---
 
@@ -134,9 +140,9 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 #### Acceptance Criteria
 
 1. **The** Typewriter widget **shall** ECSコンポーネントとして実装される
-2. **The** Typewriter widget **shall** ECSシステムによってタイマー駆動される
-3. **The** Typewriter widget **shall** ECSイベントを通じて進行状況を通知する
-4. **When** エンティティが削除された時, **the** Typewriter widget **shall** 関連するタイマーをクリーンアップする
+2. **The** Typewriter widget **shall** Windows Animation API を時間管理の正として使用する
+3. **The** Typewriter widget **shall** ECSシステムでAnimation APIの状態を参照し表示を更新する
+4. **When** エンティティが削除された時, **the** Typewriter widget **shall** 関連するアニメーションリソースをクリーンアップする
 5. **The** Typewriter widget **shall** 他のコンポーネント（Visual、Layout等）と同様のライフサイクルを持つ
 
 ---
@@ -173,10 +179,14 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 | 用語 | 説明 |
 |------|------|
 | タイプライター効果 | テキストを一文字ずつ表示する演出 |
-| ウェイト | 文字表示間の待機時間 |
-| 中間表現（IR） | Intermediate Representation。パース済みの構造化データ |
-| TypewriterToken | IR内の個別要素（Text, Wait等） |
+| ウェイト | 文字表示間の待機時間（f64秒単位） |
+| Stage 1 IR | 外部インターフェース用の中間表現。Text, Wait, FireEvent等 |
+| Stage 2 IR | 内部タイムライン用の中間表現。グリフ単位に分解済み |
+| TypewriterToken | Stage 1 IR内の個別要素 |
+| TimelineItem | Stage 2 IR内の個別要素 |
 | グリフ | DirectWriteにおける描画単位。合字・結合文字を含む |
+| FireEvent | IRトークンの一種。指定エンティティにコンポーネントを投入する |
+| 論理エンティティ | Visualツリーに参加しない、処理用のエンティティ |
 
 ---
 
@@ -187,29 +197,71 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 - 親仕様: `.kiro/specs/ukagaka-desktop-mascot/requirements.md`
 - Labelウィジェット実装: `crates/wintf/src/ecs/widget/label.rs`
 - IR型定義共有先: `areka-P0-script-engine`
+- Windows Animation API: `crates/wintf/src/com/animation.rs`
 
-### B. 中間表現（IR）例
+### B. 2段階IR設計例
 
 ```rust
-/// Typewriterが受け取るトークン
+// ============================================
+// Stage 1 IR (外部インターフェース)
+// Script Engine から受け取る形式
+// ============================================
 pub enum TypewriterToken {
     /// 表示するテキスト
     Text(String),
-    /// ウェイト（待機時間）
-    Wait(Duration),
-    // 将来拡張:
-    // Speed(f32),     // 表示速度変更
-    // Pause,          // ユーザー入力待ち
+    /// ウェイト（f64秒単位、Windows Animation API互換）
+    Wait(f64),
+    /// イベント発火（対象エンティティにコンポーネント投入）
+    FireEvent {
+        target: Entity,
+        event_type: String,
+        payload: Option<Value>,
+    },
 }
 
-/// 入力例: "こんにちは、今日もいい天気ですね。"（500ms + 200ms ウェイト付き）
-let tokens = vec![
+/// Stage 1 入力例: "こんにちは、今日もいい天気ですね。"
+let stage1_tokens = vec![
     TypewriterToken::Text("こんにちは".into()),
-    TypewriterToken::Wait(Duration::from_millis(500)),
+    TypewriterToken::Wait(0.5),  // 500ms = 0.5秒
     TypewriterToken::Text("、今日も".into()),
-    TypewriterToken::Wait(Duration::from_millis(200)),
+    TypewriterToken::Wait(0.2),  // 200ms = 0.2秒
     TypewriterToken::Text("いい天気ですね。".into()),
+    TypewriterToken::FireEvent {
+        target: callback_entity,
+        event_type: "talk_complete".into(),
+        payload: None,
+    },
 ];
+
+// ============================================
+// Stage 2 IR (内部タイムライン)
+// DirectWriteでグリフ単位に分解後の形式
+// ============================================
+pub enum TimelineItem {
+    /// グリフ表示（TextLayout内のクラスタ番号）
+    Glyph { cluster_index: u32 },
+    /// ウェイト（f64秒単位）
+    Wait(f64),
+    /// イベント発火
+    FireEvent {
+        target: Entity,
+        event_type: String,
+        payload: Option<Value>,
+    },
+}
+
+pub struct TypewriterTimeline {
+    /// 全文のTextLayout（位置情報源、縦書き/横書き対応）
+    pub text_layout: IDWriteTextLayout,
+    /// タイムライン
+    pub items: Vec<TimelineItem>,
+}
+
+/// Stage 2 変換後:
+/// "こんにちは" → [Glyph(0), Glyph(1), Glyph(2), Glyph(3), Glyph(4)]
+/// Wait(0.5)   → Wait(0.5)
+/// "、今日も"   → [Glyph(5), Glyph(6), Glyph(7), Glyph(8)]
+/// ...
 ```
 
 ---
