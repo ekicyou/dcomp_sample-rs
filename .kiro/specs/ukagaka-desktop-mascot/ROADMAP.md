@@ -1,19 +1,19 @@
 # ROADMAP - ukagaka-desktop-mascot
 
-> 最終更新: 2025-11-30
+> 最終更新: 2025-12-03
 
 ---
 
 ## Current Focus
 
-🎯 **現在取り組むべき仕様**: Tier 0 残り2仕様 または Tier 1 解放済み仕様
+🎯 **現在取り組むべき仕様**: Tier 0 残り仕様 または Tier 1 解放済み仕様
 
 ### 推奨: 次のアクション
-1. Tier 0 残り（event-system / typewriter）から1つ選定
+1. Tier 0 残り（event-system 継続 / typewriter）から1つ選定
 2. または Tier 1 の animation-system（image-widget 完了で解放済み）
 3. 選定した仕様の要件承認 → 設計 → タスク → 実装
 
-**並行実行可能**: Tier 0 の2仕様は相互依存がないため、並行して進められます
+**並行実行可能**: Tier 0 の仕様は相互依存がないため、並行して進められます
 
 ---
 
@@ -22,8 +22,8 @@
 | Status | Count | 割合 |
 |--------|-------|------|
 | 🟢 Completed | 2 | 6% |
-| 🔵 In Progress | 0 | 0% |
-| ⚪ Not Started | 30 | 94% |
+| 🔵 In Progress | 1 | 3% |
+| ⚪ Not Started | 29 | 91% |
 | **Total** | **32** | 100% |
 
 ---
@@ -76,7 +76,7 @@ graph TB
 | Tier | Spec | Phase | Parallel | Dependencies |
 |------|------|-------|----------|--------------|
 | 0 | `wintf-P0-image-widget` | 🟢 completed | ○ | - |
-| 0 | `wintf-P0-event-system` | ⚪ requirements-draft | ○ | - |
+| 0 | `wintf-P0-event-system` | 🔵 in-progress | ○ | - |
 | 0 | `wintf-P0-typewriter` | ⚪ requirements-draft | ○ | - |
 | 1 | `wintf-P0-animation-system` | ⚪ requirements-draft | ○ | ✅ image-widget |
 | 1 | `wintf-P0-balloon-system` | ⚪ requirements-draft | ○ | typewriter |
@@ -89,6 +89,15 @@ graph TB
 | 3 | `areka-P0-reference-ghost` | ⚪ requirements-draft | - | script-engine, mcp-server |
 | 3 | `areka-P0-reference-shell` | ⚪ requirements-draft | ○ | animation-system |
 | 3 | `areka-P0-reference-balloon` | ⚪ requirements-draft | ○ | balloon-system |
+
+### event-system 子仕様進捗
+
+| Spec | Phase | Description |
+|------|-------|-------------|
+| `event-hit-test` | 🟢 completed | ヒットテストAPI |
+| `event-mouse-basic` | 🟢 completed | マウス入力ECS統合 |
+| `event-dispatch` | ⚪ not-started | イベントバブリング・キャプチャ |
+| `event-drag-system` | ⚪ not-started | ドラッグ＆ドロップ |
 
 **凡例**:
 - Phase: ⚪ not-started / 🔵 in-progress / 🟢 completed
@@ -160,6 +169,7 @@ graph TB
 
 | Date | Update |
 |------|--------|
+| 2025-12-03 | **event-mouse-basic 完了** - マウス入力ECS統合、MouseState/MouseLeave実装、hit_test統合 |
 | 2025-11-30 | **wintf-P0-image-widget 完了** - BitmapSource実装、completed/ へ移動 |
 | 2025-11-29 | wintf-P1-image-rendering を P1 backlog に追加（P0 image-widget から分離） |
 | 2025-11-29 | kiro-P0-roadmap-management 完了、P1-P3 を backlog に移動 |

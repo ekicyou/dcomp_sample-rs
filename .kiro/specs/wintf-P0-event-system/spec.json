@@ -1,14 +1,14 @@
 {
     "feature_name": "wintf-P0-event-system",
     "created_at": "2025-11-29T00:00:00Z",
-    "updated_at": "2025-11-29T00:00:00Z",
+    "updated_at": "2025-12-03T00:00:00Z",
     "language": "ja",
-    "phase": "requirements-draft",
+    "phase": "in-progress",
     "parent_spec": "ukagaka-desktop-mascot",
     "approvals": {
         "requirements": {
-            "generated": false,
-            "approved": false
+            "generated": true,
+            "approved": true
         },
         "design": {
             "generated": false,
@@ -19,5 +19,11 @@
             "approved": false
         }
     },
-    "ready_for_implementation": false
+    "ready_for_implementation": false,
+    "child_specs": [
+        {"name": "event-hit-test", "phase": "implementation-complete"},
+        {"name": "event-mouse-basic", "phase": "implementation-complete"},
+        {"name": "event-dispatch", "phase": "not-started"},
+        {"name": "event-drag-system", "phase": "not-started"}
+    ]
 }
