@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | wintf アニメーションシステム 要件定義書 |
-| **Version** | 1.1 |
+| **Version** | 1.2 |
 | **Date** | 2025-12-03 |
 | **Parent Spec** | ukagaka-desktop-mascot |
 | **Priority** | P0 (MVP必須) |
@@ -13,6 +13,17 @@
 ## Introduction
 
 本仕様書は wintf フレームワークにおけるアニメーションシステムの要件を定義する。キャラクターが「生き生きとした動き」を持ち、「生きている」存在として感じられることを目的とする。
+
+### ブロッカー仕様
+
+本仕様は `wintf-P0-typewriter` が完成していることを前提とする。typewriter 仕様は以下を提供する：
+
+| 提供機能 | 本仕様での利用 |
+|----------|----------------|
+| `AnimationCore` ECSリソース | Windows Animation API の時間管理基盤 |
+| IR表現 (Stage 1/Stage 2) | アニメーションシーケンスの記述形式 |
+| `IUIAnimationTimer` | フレームアニメーションのタイミング制御 |
+| `IUIAnimationManager2` | アニメーション状態管理 |
 
 ### 親仕様からのトレーサビリティ
 
@@ -33,13 +44,18 @@
 - サーフェス間トランジション効果
 - アイドルアニメーション自動再生
 - 連動アニメーション（複数キャラクター同期）
-- Windows Animation API (UIAnimationManager) との統合
+- typewriter IR表現を拡張したアニメーションシーケンス定義
 - DirectComposition プロパティアニメーション
+
+**typewriter仕様から利用するもの:**
+- `AnimationCore` ECSリソース（Windows Animation API統合）
+- IRベースのアニメーション記述パターン
 
 **含まれないもの:**
 - 画像の読み込み・描画（wintf-P0-image-widget の責務）
 - キャラクター外見定義（areka-P0-reference-shell の責務）
 - アニメーション定義ファイルフォーマット（シェル仕様の責務）
+- AnimationCore の初期化（wintf-P0-typewriter の責務）
 
 ---
 
@@ -161,10 +177,17 @@
 
 ## Dependencies
 
+### ブロッカー仕様
+
+| 仕様 | ブロック理由 |
+|------|------------|
+| `wintf-P0-typewriter` | AnimationCore基盤、IR表現、Windows Animation API統合を提供 |
+
 ### 依存する仕様
 
 | 仕様 | 依存内容 |
 |------|----------|
+| `wintf-P0-typewriter` | AnimationCore ECSリソース、IR表現パターン |
 | `wintf-P0-image-widget` | サーフェス画像の読み込み・描画 |
 
 ### 依存される仕様

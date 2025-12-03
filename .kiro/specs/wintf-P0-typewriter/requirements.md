@@ -3,8 +3,9 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | wintf-typewriter 要件定義書 |
-| **Version** | 0.1 (Draft) |
-| **Date** | 2025-11-29 |
+| **Version** | 1.0 |
+| **Date** | 2025-12-03 |
+| **Status** | ✅ Approved |
 | **Parent Spec** | ukagaka-desktop-mascot |
 | **Author** | AI-DLC System |
 
