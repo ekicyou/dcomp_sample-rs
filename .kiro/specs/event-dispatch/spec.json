@@ -1,19 +1,20 @@
 {
     "feature_name": "event-dispatch",
     "created_at": "2025-12-01T00:00:00Z",
-    "updated_at": "2025-12-03T12:00:00Z",
+    "updated_at": "2025-12-03T15:00:00Z",
     "language": "ja",
-    "phase": "requirements-generated",
+    "phase": "design-generated",
     "parent_spec": "wintf-P0-event-system",
     "approvals": {
         "requirements": {
             "generated": true,
-            "approved": false,
+            "approved": true,
             "note": "設計議論完了: fnポインタ+ECS状態分離方式、2パス伝播、排他システム"
         },
         "design": {
-            "generated": false,
-            "approved": false
+            "generated": true,
+            "approved": false,
+            "note": "Option B: 新規 dispatch.rs モジュール作成、2パス方式、SparseSet"
         },
         "tasks": {
             "generated": false,
