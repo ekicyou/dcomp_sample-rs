@@ -159,6 +159,9 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
   - `IUIAnimationTimer`: システム時刻取得
   - `IUIAnimationManager2`: アニメーション状態管理
   - `IUIAnimationTransitionLibrary2`: トランジション生成
+- **初期化タイミング**: `EcsWorld::new()` で即座に初期化（CPUリソースのみのため）
+  - `GraphicsCore`（GPUリソース）とは異なり、HWND不要・Device Lost無関係
+  - `WicCore` と同様のパターン
 - **タイマー方式**: Windows Animation API を時間管理の正として使用
 - **更新タイミング**: `animation_tick_system` を Input スケジュール先頭で実行
 - **時刻精度**: f64秒単位 (`UI_ANIMATION_SECONDS`)
