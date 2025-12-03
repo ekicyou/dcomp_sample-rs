@@ -3,7 +3,7 @@
     "created_at": "2025-12-02T00:00:00Z",
     "updated_at": "2025-12-03T00:00:00Z",
     "language": "ja",
-    "phase": "design-approved",
+    "phase": "tasks-generated",
     "parent_spec": "event-mouse-basic",
     "related_specs": [
         "event-mouse-basic",
@@ -19,7 +19,7 @@
             "approved": true
         },
         "tasks": {
-            "generated": false,
+            "generated": true,
             "approved": false
         }
     },

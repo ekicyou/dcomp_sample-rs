@@ -302,11 +302,27 @@ pub struct HitTestResult {
 | Requirements | 7.2, 7.3 |
 | Owner | wintf/ecs |
 
+**Schedule Registration**
+
+```rust
+// EcsWorld::new() 内、デフォルトシステムの登録セクション
+schedules.add_systems(
+    Input,
+    animation_tick_system, // Input スケジュール先頭（依存なし）
+);
+
+// 他の Input システムは animation_tick_system の後に実行
+schedules.add_systems(
+    Input,
+    drain_task_pool_commands.after(animation_tick_system),
+);
+```
+
 **Implementation Notes**
 
 ```rust
 /// アニメーションタイマー更新システム
-/// Input スケジュール先頭で実行
+/// Input スケジュール先頭で実行（他システムより先に時刻確定）
 pub fn animation_tick_system(animation_core: Option<Res<AnimationCore>>) {
     if let Some(core) = animation_core {
         if let Err(e) = core.tick() {
