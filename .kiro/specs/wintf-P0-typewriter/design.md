@@ -172,16 +172,18 @@ stateDiagram-v2
 
 ## Components and Interfaces
 
-| Component | Domain/Layer | Intent | Req Coverage | Key Dependencies | Contracts |
-|-----------|--------------|--------|--------------|------------------|-----------|
-| AnimationCore | ECS/Resource | Windows Animation API 統合 | 7.1-7.5 | (なし) | Service |
-| TypewriterToken | IR/Type | Stage 1 IR 外部インターフェース | 3.1-3.4 | (なし) | State |
-| TimelineItem | IR/Type | Stage 2 IR 内部タイムライン | 3.5-3.8 | IDWriteTextLayout | State |
-| Typewriter | ECS/Component | タイプライター表示状態管理 | 1.1-1.5, 2.1-2.5, 4.1-4.6 | AnimationCore, Stage2 IR | State |
-| TypewriterProgress | ECS/Component | 進行度公開 | 5.6 | Typewriter | State |
-| draw_typewriters | ECS/System | Typewriter 描画 | 1.1-1.5, 6.3 | GraphicsCore, Typewriter | - |
-| animation_tick_system | ECS/System | AnimationCore 時刻更新 | 7.2-7.3 | AnimationCore | - |
-| DWriteTextLayoutExt | COM/Trait | DirectWrite クラスタ API | 1.3, 3.5-3.8 | IDWriteTextLayout | Service |
+| Component | Domain/Layer | Intent | Req Coverage | Key Dependencies | Storage | Contracts |
+|-----------|--------------|--------|--------------|------------------|---------|-----------|
+| AnimationCore | ECS/Resource | Windows Animation API 統合 | 7.1-7.5 | (なし) | - | Service |
+| TypewriterToken | IR/Type | Stage 1 IR 外部インターフェース | 3.1-3.4 | (なし) | - | State |
+| TypewriterEvent | ECS/Component | イベント通知 (set pattern) | 5.1-5.5 | (なし) | SparseSet | State |
+| TimelineItem | IR/Type | Stage 2 IR 内部タイムライン | 3.5-3.8 | IDWriteTextLayout | - | State |
+| TypewriterResource | ECS/Component | TextLayout + Timeline 保持 | 3.5-3.8, 6.1-6.5 | IDWriteTextLayout | SparseSet | State |
+| Typewriter | ECS/Component | タイプライター表示状態管理 | 1.1-1.5, 2.1-2.5, 4.1-4.6 | AnimationCore, TypewriterResource | SparseSet | State |
+| TypewriterProgress | ECS/Component | 進行度公開 | 5.6 | Typewriter | SparseSet | State |
+| draw_typewriters | ECS/System | Typewriter 描画 | 1.1-1.5, 6.3 | GraphicsCore, TypewriterResource | - | - |
+| animation_tick_system | ECS/System | AnimationCore 時刻更新 | 7.2-7.3 | AnimationCore | - | - |
+| DWriteTextLayoutExt | COM/Trait | DirectWrite クラスタ API | 1.3, 3.5-3.8 | IDWriteTextLayout | - | Service |
 
 ### Track A: 基盤層
 
@@ -349,7 +351,9 @@ pub enum TypewriterToken {
 
 /// イベント通知用 enum Component
 /// Changed<TypewriterEvent> で検出、処理後に None へ戻す（set パターン）
+/// メモリ戦略: SparseSet（動的変更）
 #[derive(Component, Debug, Clone, Default, PartialEq)]
+#[component(storage = "SparseSet")]
 pub enum TypewriterEvent {
     #[default]
     None,
@@ -403,14 +407,55 @@ pub enum TimelineItem {
 
 /// Typewriter タイムライン全体
 pub struct TypewriterTimeline {
-    /// 全文の TextLayout（描画に使用）
-    pub text_layout: IDWriteTextLayout,
     /// 全文テキスト
     pub full_text: String,
     /// タイムライン項目
     pub items: Vec<TimelineItem>,
     /// 総再生時間
     pub total_duration: f64,
+}
+```
+
+---
+
+#### TypewriterResource
+
+| Field | Detail |
+|-------|--------|
+| Intent | TextLayout と Timeline を保持する CPU リソース |
+| Requirements | 3.5-3.8, 6.1-6.5 |
+| Owner | wintf/ecs/widget/text |
+
+**Responsibilities & Constraints**
+- `IDWriteTextLayout` と `TypewriterTimeline` を保持
+- `TextLayoutResource` と同様の CPU リソースパターン
+- メモリ戦略: SparseSet（動的追加/削除）
+
+**Contracts**: State [x]
+
+##### State Management
+
+```rust
+/// Typewriter リソースコンポーネント
+/// TextLayout と Timeline を保持
+/// メモリ戦略: SparseSet（Typewriter に付随、動的）
+#[derive(Component)]
+#[component(storage = "SparseSet", on_remove = on_typewriter_resource_remove)]
+pub struct TypewriterResource {
+    /// 全文の TextLayout（描画に使用）
+    text_layout: IDWriteTextLayout,
+    /// タイムライン
+    timeline: TypewriterTimeline,
+}
+
+impl TypewriterResource {
+    pub fn new(text_layout: IDWriteTextLayout, timeline: TypewriterTimeline) -> Self;
+    pub fn text_layout(&self) -> &IDWriteTextLayout;
+    pub fn timeline(&self) -> &TypewriterTimeline;
+}
+
+fn on_typewriter_resource_remove(hook: DeferredHook) {
+    trace!(entity = ?hook.entity, "[TypewriterResource] Removed");
 }
 ```
 
@@ -453,6 +498,7 @@ pub enum TypewriterState {
 }
 
 /// Typewriter コンポーネント
+/// メモリ戦略: SparseSet（動的追加/削除）
 #[derive(Component)]
 #[component(storage = "SparseSet", on_add = on_typewriter_add, on_remove = on_typewriter_remove)]
 pub struct Typewriter {
@@ -468,8 +514,6 @@ pub struct Typewriter {
     
     // === 内部状態 ===
     state: TypewriterState,
-    /// Stage 2 IR タイムライン（Option: 未設定時 None）
-    timeline: Option<TypewriterTimeline>,
     /// 再生開始時刻
     start_time: f64,
     /// 一時停止時の経過時間
@@ -477,6 +521,7 @@ pub struct Typewriter {
     /// 現在の表示クラスタ数
     visible_cluster_count: u32,
 }
+// Note: Timeline は TypewriterResource に分離
 
 impl Typewriter {
     // === 操作 API ===
@@ -507,7 +552,9 @@ impl Typewriter {
 
 ```rust
 /// 進行度コンポーネント（0.0〜1.0）
+/// メモリ戦略: SparseSet（動的変更）
 #[derive(Component, Debug, Clone, Copy)]
+#[component(storage = "SparseSet")]
 pub struct TypewriterProgress(pub f32);
 ```
 
