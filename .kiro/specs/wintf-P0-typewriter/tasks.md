@@ -192,6 +192,11 @@ Taffy の min_size/max_size プロパティに変換される。
    - デモで `BoxStyle { size: None, .. }` に変更後、親の灰色ボックスが極端に小さくなった
    - `min_size` を追加して対応したが、子のTypewriterのサイズが0になっている可能性
 
+### テスト用アプリケーション
+- **試験アプリ**: `examples/taffy_flex_demo.rs`
+- **実行コマンド**: `cargo run --example taffy_flex_demo`
+- デモでは横書きと縦書きの2つの Typewriter エンティティを灰色ボックス内に配置
+
 ### 次のアクション
 1. `Visual` の `on_add` フックを確認し、追加されるコンポーネントを特定
 2. `Rectangle` と同じパターンで Typewriter が初期化されているか比較
