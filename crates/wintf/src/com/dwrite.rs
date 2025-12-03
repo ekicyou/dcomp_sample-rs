@@ -121,3 +121,86 @@ impl DWriteTextFormatExt for IDWriteTextFormat {
         unsafe { self.SetParagraphAlignment(paragraphalignment) }
     }
 }
+
+// ============================================================
+// DWriteTextLayoutExt - クラスタメトリクス取得API
+// ============================================================
+
+/// HitTestTextPosition の結果
+#[derive(Debug, Clone)]
+pub struct HitTestResult {
+    pub point_x: f32,
+    pub point_y: f32,
+    pub metrics: DWRITE_HIT_TEST_METRICS,
+}
+
+pub trait DWriteTextLayoutExt {
+    /// クラスタメトリクス取得
+    fn get_cluster_metrics(&self) -> Result<Vec<DWRITE_CLUSTER_METRICS>>;
+
+    /// クラスタ数取得
+    fn get_cluster_count(&self) -> Result<u32>;
+
+    /// テキスト位置からヒットテスト（描画位置取得用）
+    fn hit_test_text_position(
+        &self,
+        text_position: u32,
+        is_trailing_hit: bool,
+    ) -> Result<HitTestResult>;
+}
+
+impl DWriteTextLayoutExt for IDWriteTextLayout {
+    fn get_cluster_metrics(&self) -> Result<Vec<DWRITE_CLUSTER_METRICS>> {
+        unsafe {
+            // まず必要なサイズを取得
+            let mut actual_count = 0u32;
+            // GetClusterMetrics with None returns actual count needed
+            let _ = self.GetClusterMetrics(None, &mut actual_count);
+
+            if actual_count == 0 {
+                return Ok(Vec::new());
+            }
+
+            // バッファを確保して再取得
+            let mut metrics = vec![DWRITE_CLUSTER_METRICS::default(); actual_count as usize];
+            self.GetClusterMetrics(Some(&mut metrics), &mut actual_count)?;
+            metrics.truncate(actual_count as usize);
+
+            Ok(metrics)
+        }
+    }
+
+    fn get_cluster_count(&self) -> Result<u32> {
+        unsafe {
+            let mut actual_count = 0u32;
+            let _ = self.GetClusterMetrics(None, &mut actual_count);
+            Ok(actual_count)
+        }
+    }
+
+    fn hit_test_text_position(
+        &self,
+        text_position: u32,
+        is_trailing_hit: bool,
+    ) -> Result<HitTestResult> {
+        unsafe {
+            let mut point_x = 0.0f32;
+            let mut point_y = 0.0f32;
+            let mut metrics = DWRITE_HIT_TEST_METRICS::default();
+
+            self.HitTestTextPosition(
+                text_position,
+                is_trailing_hit.into(),
+                &mut point_x,
+                &mut point_y,
+                &mut metrics,
+            )?;
+
+            Ok(HitTestResult {
+                point_x,
+                point_y,
+                metrics,
+            })
+        }
+    }
+}

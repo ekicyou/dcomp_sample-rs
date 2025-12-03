@@ -3,6 +3,30 @@ use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::System::Com::*;
 use windows::Win32::UI::Animation::*;
 
+// ============================================================
+// IUIAnimationTimer
+// ============================================================
+
+pub fn create_animation_timer() -> Result<IUIAnimationTimer> {
+    unsafe { CoCreateInstance(&UIAnimationTimer, None, CLSCTX_INPROC_SERVER) }
+}
+
+pub trait UIAnimationTimerExt {
+    /// GetTime - 現在時刻取得（f64秒単位）
+    fn get_time(&self) -> Result<f64>;
+}
+
+impl UIAnimationTimerExt for IUIAnimationTimer {
+    #[inline(always)]
+    fn get_time(&self) -> Result<f64> {
+        unsafe { self.GetTime() }
+    }
+}
+
+// ============================================================
+// IUIAnimationManager2
+// ============================================================
+
 pub trait UIAnimationManagerExt {
     fn create_animation_variable(&self, initialvalue: f64) -> Result<IUIAnimationVariable2>;
     fn update(&self, time: f64) -> Result<()>;

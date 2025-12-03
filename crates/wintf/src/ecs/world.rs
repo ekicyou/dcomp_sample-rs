@@ -202,6 +202,11 @@ impl EcsWorld {
             world.insert_resource(wic_core);
         }
 
+        // AnimationCore初期化（Device Lostの影響を受けない独立リソース）
+        if let Ok(animation_core) = crate::ecs::graphics::AnimationCore::new() {
+            world.insert_resource(animation_core);
+        }
+
         // WintfTaskPool初期化（非同期タスク実行基盤）
         world.insert_resource(crate::ecs::widget::bitmap_source::WintfTaskPool::new());
 
@@ -239,10 +244,14 @@ impl EcsWorld {
         {
             let mut schedules = world.resource_mut::<Schedules>();
 
+            // Inputスケジュール: アニメーションタイマー更新（最優先）
+            schedules.add_systems(Input, crate::ecs::graphics::animation_tick_system);
+
             // Inputスケジュール: 非同期タスク完了コマンドのドレイン
             schedules.add_systems(
                 Input,
-                crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands,
+                crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands
+                    .after(crate::ecs::graphics::animation_tick_system),
             );
 
             // Inputスケジュール: マウスバッファ処理
@@ -282,6 +291,9 @@ impl EcsWorld {
                     // 依存コンポーネント無効化
                     crate::ecs::graphics::invalidate_dependent_components
                         .after(crate::ecs::layout::update_monitor_layout_system),
+                    // Typewriter更新（アニメーション進行）
+                    crate::ecs::widget::text::update_typewriters
+                        .after(crate::ecs::graphics::invalidate_dependent_components),
                 )
                     .chain(),
             );
@@ -357,6 +369,7 @@ impl EcsWorld {
                 (
                     crate::ecs::widget::shapes::rectangle::draw_rectangles,
                     crate::ecs::widget::text::draw_labels,
+                    crate::ecs::widget::text::draw_typewriters,
                     crate::ecs::widget::bitmap_source::draw_bitmap_sources,
                     // 遅延Surface作成（GraphicsCommandList存在時、GlobalArrangementベース）
                     crate::ecs::graphics::deferred_surface_creation_system

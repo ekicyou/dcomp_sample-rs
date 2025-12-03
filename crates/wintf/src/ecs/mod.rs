@@ -16,6 +16,7 @@ pub use app::*;
 pub use bevy_ecs::hierarchy::{ChildOf, Children};
 pub use common::tree_system::*;
 pub use graphics::calculate_surface_size_from_global_arrangement;
+pub use graphics::AnimationCore;
 pub use graphics::*;
 pub use layout::*;
 pub use monitor::*;
