@@ -1,10 +1,9 @@
-use crate::com::animation::*;
 use crate::com::d2d::*;
 use crate::com::d3d11::*;
 use crate::com::dcomp::*;
 use crate::com::dwrite::*;
 use bevy_ecs::prelude::*;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 use windows::core::{Interface, Result};
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Direct2D::*;
@@ -13,7 +12,6 @@ use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::DirectComposition::*;
 use windows::Win32::Graphics::DirectWrite::*;
 use windows::Win32::Graphics::Dxgi::*;
-use windows::Win32::UI::Animation::*;
 
 #[derive(Debug)]
 struct GraphicsCoreInner {
@@ -138,82 +136,53 @@ fn create_device_3d() -> Result<ID3D11Device> {
 }
 
 // ============================================================
-// AnimationCore - Windows Animation API 統合リソース
+// FrameTime - 高精度フレーム時刻リソース
 // ============================================================
 
-/// AnimationCore - Windows Animation API 統合リソース
+/// FrameTime - 高精度フレーム時刻リソース
 ///
-/// WicCoreと同様のパターンで、CPUリソースのためEcsWorld::new()で即座に初期化される。
-/// Device Lostの影響を受けない独立リソース。
-///
-/// # 保持するCOMオブジェクト
-/// - `IUIAnimationTimer`: システム時刻取得
-/// - `IUIAnimationManager2`: アニメーション状態管理
-/// - `IUIAnimationTransitionLibrary2`: トランジション生成
-#[derive(Resource)]
-pub struct AnimationCore {
-    timer: IUIAnimationTimer,
-    manager: IUIAnimationManager2,
-    transition_library: IUIAnimationTransitionLibrary2,
+/// GetSystemTimePreciseAsFileTime（100ナノ秒単位）を使用。
+/// Windows 8以降で利用可能な最高精度のシステム時刻API。
+/// スレッドセーフ、どのスケジュールからでもアクセス可能。
+#[derive(Resource, Debug)]
+pub struct FrameTime {
+    /// 起動時の時刻値（100ナノ秒単位）
+    start_time: u64,
 }
 
-unsafe impl Send for AnimationCore {}
-unsafe impl Sync for AnimationCore {}
-
-impl AnimationCore {
+impl FrameTime {
     /// リソース作成
-    pub fn new() -> Result<Self> {
-        info!("[AnimationCore] Initialization started");
-
-        let timer = create_animation_timer()?;
-        let manager = create_animation_manager()?;
-        let transition_library = create_animation_transition_library()?;
-
-        info!("[AnimationCore] Initialization completed");
-
-        Ok(Self {
-            timer,
-            manager,
-            transition_library,
-        })
-    }
-
-    /// 現在時刻取得 (f64秒)
-    pub fn get_time(&self) -> Result<f64> {
-        self.timer.get_time()
-    }
-
-    /// タイマー更新（毎フレーム呼び出し）
-    /// 現在時刻を取得し、マネージャーを更新する
-    pub fn tick(&self) -> Result<f64> {
-        let time = self.timer.get_time()?;
-        self.manager.update(time)?;
-        Ok(time)
-    }
-
-    /// マネージャー参照
-    pub fn manager(&self) -> &IUIAnimationManager2 {
-        &self.manager
-    }
-
-    /// トランジションライブラリ参照
-    pub fn transition_library(&self) -> &IUIAnimationTransitionLibrary2 {
-        &self.transition_library
-    }
-}
-
-impl std::fmt::Debug for AnimationCore {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AnimationCore").finish_non_exhaustive()
-    }
-}
-
-/// アニメーションタイマー更新システム
-/// Input スケジュール先頭で実行（他システムより先に時刻確定）
-pub fn animation_tick_system(animation_core: Option<Res<AnimationCore>>) {
-    if let Some(core) = animation_core {
-        if let Err(e) = core.tick() {
-            warn!("Animation tick failed: {:?}", e);
+    pub fn new() -> Self {
+        Self {
+            start_time: Self::get_precise_time(),
         }
+    }
+
+    /// 現在時刻取得 (f64秒、起動時からの経過時間)
+    pub fn elapsed_secs(&self) -> f64 {
+        let now = Self::get_precise_time();
+        let elapsed_100ns = now.saturating_sub(self.start_time);
+        // 100ナノ秒 → 秒: 1秒 = 10,000,000 * 100ナノ秒
+        elapsed_100ns as f64 / 10_000_000.0
+    }
+
+    /// 現在時刻を100ナノ秒単位のu64で取得
+    pub fn elapsed_100ns(&self) -> u64 {
+        Self::get_precise_time().saturating_sub(self.start_time)
+    }
+
+    /// 高精度システム時刻を取得（100ナノ秒単位のu64）
+    fn get_precise_time() -> u64 {
+        use windows::Win32::Foundation::FILETIME;
+        use windows::Win32::System::SystemInformation::GetSystemTimePreciseAsFileTime;
+
+        let ft: FILETIME = unsafe { GetSystemTimePreciseAsFileTime() };
+        ((ft.dwHighDateTime as u64) << 32) | (ft.dwLowDateTime as u64)
+    }
+}
+
+impl Default for FrameTime {
+    fn default() -> Self {
+        Self::new()
     }
 }

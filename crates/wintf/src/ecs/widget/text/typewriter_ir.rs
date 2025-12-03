@@ -69,7 +69,7 @@ impl From<TypewriterEventKind> for TypewriterEvent {
 
 /// Stage 2 IR - 内部タイムライン
 /// DirectWriteでグリフ単位に分解後の形式
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TimelineItem {
     /// グリフ表示（TextLayout内のクラスタ番号）
     Glyph {
@@ -97,6 +97,7 @@ pub enum TimelineItem {
 }
 
 /// Typewriter タイムライン全体
+#[derive(Debug, Clone)]
 pub struct TypewriterTimeline {
     /// 全文テキスト
     pub full_text: String,
@@ -116,6 +117,93 @@ impl TypewriterTimeline {
             items: Vec::new(),
             total_duration: 0.0,
             total_cluster_count: 0,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_typewriter_token_text() {
+        let token = TypewriterToken::Text("Hello".to_string());
+        match token {
+            TypewriterToken::Text(s) => assert_eq!(s, "Hello"),
+            _ => panic!("Expected Text token"),
+        }
+    }
+
+    #[test]
+    fn test_typewriter_token_wait() {
+        let token = TypewriterToken::Wait(0.5);
+        match token {
+            TypewriterToken::Wait(d) => assert!((d - 0.5).abs() < f64::EPSILON),
+            _ => panic!("Expected Wait token"),
+        }
+    }
+
+    #[test]
+    fn test_typewriter_event_default() {
+        let event = TypewriterEvent::default();
+        assert_eq!(event, TypewriterEvent::None);
+    }
+
+    #[test]
+    fn test_typewriter_event_kind_conversion() {
+        assert_eq!(
+            TypewriterEvent::from(TypewriterEventKind::Complete),
+            TypewriterEvent::Complete
+        );
+        assert_eq!(
+            TypewriterEvent::from(TypewriterEventKind::Paused),
+            TypewriterEvent::Paused
+        );
+        assert_eq!(
+            TypewriterEvent::from(TypewriterEventKind::Resumed),
+            TypewriterEvent::Resumed
+        );
+    }
+
+    #[test]
+    fn test_typewriter_timeline_empty() {
+        let timeline = TypewriterTimeline::empty();
+        assert!(timeline.full_text.is_empty());
+        assert!(timeline.items.is_empty());
+        assert_eq!(timeline.total_duration, 0.0);
+        assert_eq!(timeline.total_cluster_count, 0);
+    }
+
+    #[test]
+    fn test_timeline_item_glyph() {
+        let item = TimelineItem::Glyph {
+            cluster_index: 5,
+            show_at: 0.25,
+        };
+        match item {
+            TimelineItem::Glyph {
+                cluster_index,
+                show_at,
+            } => {
+                assert_eq!(cluster_index, 5);
+                assert!((show_at - 0.25).abs() < f64::EPSILON);
+            }
+            _ => panic!("Expected Glyph item"),
+        }
+    }
+
+    #[test]
+    fn test_timeline_item_wait() {
+        let item = TimelineItem::Wait {
+            duration: 0.5,
+            start_at: 1.0,
+        };
+        match item {
+            TimelineItem::Wait { duration, start_at } => {
+                assert!((duration - 0.5).abs() < f64::EPSILON);
+                assert!((start_at - 1.0).abs() < f64::EPSILON);
+            }
+            _ => panic!("Expected Wait item"),
         }
     }
 }

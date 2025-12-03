@@ -1,10 +1,9 @@
 //! Typewriter コンポーネント定義
 //!
-//! - Typewriter: ウィジェット論理コンポーネント（永続）
-//! - TypewriterTalk: 1回のトーク（再生中のみ存在、終了で解放）
+//! - Typewriter: ウィジェット論理コンポーネント（永続、スタイル設定）
+//! - TypewriterTalk: 1回のトーク論理情報（再生中のみ存在）
+//! - TypewriterLayoutCache: 描画リソース（システムが自動生成）
 
-use crate::com::dwrite::DWriteTextLayoutExt;
-use crate::ecs::widget::text::label::TextDirection;
 use crate::ecs::widget::text::typewriter_ir::{
     TimelineItem, TypewriterEventKind, TypewriterTimeline, TypewriterToken,
 };
@@ -13,9 +12,11 @@ use bevy_ecs::component::Component;
 use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::world::DeferredWorld;
 use tracing::trace;
-use windows::core::Result;
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use windows::Win32::Graphics::DirectWrite::IDWriteTextLayout;
+
+// re-export TextDirection from label
+pub use crate::ecs::widget::text::label::TextDirection;
 
 // ============================================================
 // Typewriter - ウィジェット論理コンポーネント（永続）
@@ -74,7 +75,7 @@ fn on_typewriter_remove(_world: DeferredWorld, hook: HookContext) {
 }
 
 // ============================================================
-// TypewriterTalk - 1回のトーク（再生中のみ存在）
+// TypewriterTalk - 1回のトーク論理情報（再生中のみ存在）
 // ============================================================
 
 /// 再生状態
@@ -86,17 +87,17 @@ pub enum TypewriterState {
     Completed,
 }
 
-/// 1回のトーク（再生中のみ存在）
+/// 1回のトーク論理情報（再生中のみ存在）
 /// トーク完了・クリア時に remove される
 /// メモリ戦略: SparseSet（動的追加/削除）
-#[derive(Component)]
+///
+/// COMリソース（TextLayout）は TypewriterLayoutCache が保持。
+/// このコンポーネントは論理情報のみを保持する。
+#[derive(Component, Clone)]
 #[component(storage = "SparseSet", on_remove = on_typewriter_talk_remove)]
 pub struct TypewriterTalk {
-    // === リソース ===
-    /// TextLayout（このトーク用、描画に使用）
-    text_layout: IDWriteTextLayout,
-    /// Stage 2 IR タイムライン
-    timeline: TypewriterTimeline,
+    /// Stage 1 IR トークン列
+    tokens: Vec<TypewriterToken>,
 
     // === 再生状態 ===
     state: TypewriterState,
@@ -113,91 +114,17 @@ pub struct TypewriterTalk {
 }
 
 impl TypewriterTalk {
-    /// Stage 1 IR から TypewriterTalk を生成
-    ///
-    /// # Arguments
-    /// * `tokens` - Stage 1 IR トークン列
-    /// * `typewriter` - Typewriter コンポーネント（スタイル設定取得用）
-    /// * `text_layout` - 作成済みの TextLayout
-    /// * `current_time` - 現在時刻（AnimationCore.get_time()から取得）
-    pub fn new(
-        tokens: Vec<TypewriterToken>,
-        typewriter: &Typewriter,
-        text_layout: IDWriteTextLayout,
-        current_time: f64,
-    ) -> Result<Self> {
-        // Stage 1 → Stage 2 IR 変換
-        let timeline = Self::convert_to_timeline(tokens, typewriter, &text_layout)?;
-
-        Ok(Self {
-            text_layout,
-            timeline,
+    /// トークン列と開始時刻から TypewriterTalk を生成
+    pub fn new(tokens: Vec<TypewriterToken>, start_time: f64) -> Self {
+        Self {
+            tokens,
             state: TypewriterState::Playing,
-            start_time: current_time,
+            start_time,
             paused_elapsed: 0.0,
             visible_cluster_count: 0,
             progress: 0.0,
             next_item_index: 0,
-        })
-    }
-
-    /// Stage 1 → Stage 2 IR 変換
-    fn convert_to_timeline(
-        tokens: Vec<TypewriterToken>,
-        typewriter: &Typewriter,
-        text_layout: &IDWriteTextLayout,
-    ) -> Result<TypewriterTimeline> {
-        let cluster_metrics = text_layout.get_cluster_metrics()?;
-        let total_cluster_count = cluster_metrics.len() as u32;
-
-        let mut full_text = String::new();
-        let mut items = Vec::new();
-        let mut current_time = 0.0;
-        let mut cluster_index = 0u32;
-
-        for token in tokens {
-            match token {
-                TypewriterToken::Text(text) => {
-                    full_text.push_str(&text);
-
-                    // テキスト内の各クラスタをタイムラインに追加
-                    // クラスタ数はDirectWriteで決定されるため、文字数ではなくクラスタ単位で処理
-                    let char_count = text.chars().count();
-                    for _ in 0..char_count {
-                        if cluster_index < total_cluster_count {
-                            // デフォルトウェイトを加算
-                            current_time += typewriter.default_char_wait;
-                            items.push(TimelineItem::Glyph {
-                                cluster_index,
-                                show_at: current_time,
-                            });
-                            cluster_index += 1;
-                        }
-                    }
-                }
-                TypewriterToken::Wait(duration) => {
-                    items.push(TimelineItem::Wait {
-                        duration,
-                        start_at: current_time,
-                    });
-                    current_time += duration;
-                }
-                TypewriterToken::FireEvent { target, event } => {
-                    items.push(TimelineItem::FireEvent {
-                        target,
-                        event,
-                        fire_at: current_time,
-                    });
-                }
-            }
         }
-
-        Ok(TypewriterTimeline {
-            full_text,
-            items,
-            total_duration: current_time,
-            total_cluster_count,
-        })
     }
 
     // === 操作 API ===
@@ -218,14 +145,19 @@ impl TypewriterTalk {
         }
     }
 
-    /// 全文即時表示
-    pub fn skip(&mut self) {
-        self.visible_cluster_count = self.timeline.total_cluster_count;
+    /// 全文即時表示（LayoutCache がある場合のみ有効）
+    pub fn skip(&mut self, total_cluster_count: u32) {
+        self.visible_cluster_count = total_cluster_count;
         self.progress = 1.0;
         self.state = TypewriterState::Completed;
     }
 
     // === 状態取得 ===
+
+    /// トークン列を取得
+    pub fn tokens(&self) -> &[TypewriterToken] {
+        &self.tokens
+    }
 
     /// 再生状態を取得
     pub fn state(&self) -> TypewriterState {
@@ -247,23 +179,26 @@ impl TypewriterTalk {
         self.state == TypewriterState::Completed
     }
 
-    /// TextLayout参照
-    pub fn text_layout(&self) -> &IDWriteTextLayout {
-        &self.text_layout
+    /// 開始時刻を取得
+    pub fn start_time(&self) -> f64 {
+        self.start_time
     }
 
-    /// タイムライン参照
-    pub fn timeline(&self) -> &TypewriterTimeline {
-        &self.timeline
-    }
-
-    // === 内部更新 ===
+    // === 内部更新（TypewriterLayoutCache と連携） ===
 
     /// 現在時刻に基づいて状態を更新
     ///
+    /// # Arguments
+    /// * `current_time` - 現在時刻
+    /// * `timeline` - Stage 2 IR タイムライン（LayoutCache から取得）
+    ///
     /// # Returns
     /// 発火すべきイベントのリスト
-    pub fn update(&mut self, current_time: f64) -> Vec<(bevy_ecs::entity::Entity, TypewriterEventKind)> {
+    pub fn update(
+        &mut self,
+        current_time: f64,
+        timeline: &TypewriterTimeline,
+    ) -> Vec<(bevy_ecs::entity::Entity, TypewriterEventKind)> {
         if self.state != TypewriterState::Playing {
             return Vec::new();
         }
@@ -272,8 +207,8 @@ impl TypewriterTalk {
         let mut events_to_fire = Vec::new();
 
         // タイムラインを走査して表示状態を更新
-        while self.next_item_index < self.timeline.items.len() {
-            let item = &self.timeline.items[self.next_item_index];
+        while self.next_item_index < timeline.items.len() {
+            let item = &timeline.items[self.next_item_index];
             match item {
                 TimelineItem::Glyph { show_at, .. } => {
                     if elapsed >= *show_at {
@@ -306,15 +241,14 @@ impl TypewriterTalk {
         }
 
         // 進行度を更新
-        if self.timeline.total_cluster_count > 0 {
-            self.progress =
-                self.visible_cluster_count as f32 / self.timeline.total_cluster_count as f32;
+        if timeline.total_cluster_count > 0 {
+            self.progress = self.visible_cluster_count as f32 / timeline.total_cluster_count as f32;
         } else {
             self.progress = 1.0;
         }
 
         // 全クラスタ表示完了で Completed に遷移
-        if self.visible_cluster_count >= self.timeline.total_cluster_count {
+        if self.visible_cluster_count >= timeline.total_cluster_count {
             self.state = TypewriterState::Completed;
         }
 
@@ -323,5 +257,84 @@ impl TypewriterTalk {
 }
 
 fn on_typewriter_talk_remove(_world: DeferredWorld, hook: HookContext) {
-    trace!(entity = ?hook.entity, "[TypewriterTalk] Removed - resources released");
+    trace!(entity = ?hook.entity, "[TypewriterTalk] Removed");
+}
+
+// ============================================================
+// TypewriterLayoutCache - 描画リソース（システムが自動生成）
+// ============================================================
+
+/// Typewriter 描画リソースキャッシュ
+///
+/// TypewriterTalk 追加時に描画システムが自動生成する。
+/// COMリソース（IDWriteTextLayout）と Stage 2 IR を保持。
+#[derive(Component)]
+#[component(storage = "SparseSet", on_remove = on_layout_cache_remove)]
+pub struct TypewriterLayoutCache {
+    /// TextLayout（描画に使用）
+    text_layout: IDWriteTextLayout,
+    /// Stage 2 IR タイムライン
+    timeline: TypewriterTimeline,
+}
+
+unsafe impl Send for TypewriterLayoutCache {}
+unsafe impl Sync for TypewriterLayoutCache {}
+
+impl TypewriterLayoutCache {
+    /// 新規作成
+    pub fn new(text_layout: IDWriteTextLayout, timeline: TypewriterTimeline) -> Self {
+        Self {
+            text_layout,
+            timeline,
+        }
+    }
+
+    /// TextLayout参照
+    pub fn text_layout(&self) -> &IDWriteTextLayout {
+        &self.text_layout
+    }
+
+    /// タイムライン参照
+    pub fn timeline(&self) -> &TypewriterTimeline {
+        &self.timeline
+    }
+}
+
+impl std::fmt::Debug for TypewriterLayoutCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TypewriterLayoutCache")
+            .field("timeline", &self.timeline)
+            .finish_non_exhaustive()
+    }
+}
+
+fn on_layout_cache_remove(_world: DeferredWorld, hook: HookContext) {
+    trace!(entity = ?hook.entity, "[TypewriterLayoutCache] Removed - COM resources released");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_typewriter_default() {
+        let tw = Typewriter::default();
+        assert_eq!(tw.font_family, "メイリオ");
+        assert_eq!(tw.font_size, 16.0);
+        assert!((tw.default_char_wait - 0.05).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_typewriter_state_default() {
+        let state = TypewriterState::default();
+        assert_eq!(state, TypewriterState::Playing);
+    }
+
+    #[test]
+    fn test_typewriter_state_transitions() {
+        assert_eq!(TypewriterState::Playing, TypewriterState::Playing);
+        assert_eq!(TypewriterState::Paused, TypewriterState::Paused);
+        assert_eq!(TypewriterState::Completed, TypewriterState::Completed);
+        assert_ne!(TypewriterState::Playing, TypewriterState::Paused);
+    }
 }

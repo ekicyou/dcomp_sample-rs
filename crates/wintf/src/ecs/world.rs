@@ -202,10 +202,8 @@ impl EcsWorld {
             world.insert_resource(wic_core);
         }
 
-        // AnimationCore初期化（Device Lostの影響を受けない独立リソース）
-        if let Ok(animation_core) = crate::ecs::graphics::AnimationCore::new() {
-            world.insert_resource(animation_core);
-        }
+        // FrameTime初期化（FILETIMEベースのフレーム時刻）
+        world.insert_resource(crate::ecs::graphics::FrameTime::new());
 
         // WintfTaskPool初期化（非同期タスク実行基盤）
         world.insert_resource(crate::ecs::widget::bitmap_source::WintfTaskPool::new());
@@ -244,14 +242,10 @@ impl EcsWorld {
         {
             let mut schedules = world.resource_mut::<Schedules>();
 
-            // Inputスケジュール: アニメーションタイマー更新（最優先）
-            schedules.add_systems(Input, crate::ecs::graphics::animation_tick_system);
-
             // Inputスケジュール: 非同期タスク完了コマンドのドレイン
             schedules.add_systems(
                 Input,
-                crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands
-                    .after(crate::ecs::graphics::animation_tick_system),
+                crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands,
             );
 
             // Inputスケジュール: マウスバッファ処理
@@ -369,7 +363,12 @@ impl EcsWorld {
                 (
                     crate::ecs::widget::shapes::rectangle::draw_rectangles,
                     crate::ecs::widget::text::draw_labels,
-                    crate::ecs::widget::text::draw_typewriters,
+                    // Typewriter: Arrangement変更で無効化 → LayoutCache初期化 → 描画の順
+                    crate::ecs::widget::text::invalidate_typewriter_layout_on_arrangement_change,
+                    crate::ecs::widget::text::init_typewriter_layout
+                        .after(crate::ecs::widget::text::invalidate_typewriter_layout_on_arrangement_change),
+                    crate::ecs::widget::text::draw_typewriters
+                        .after(crate::ecs::widget::text::init_typewriter_layout),
                     crate::ecs::widget::bitmap_source::draw_bitmap_sources,
                     // 遅延Surface作成（GraphicsCommandList存在時、GlobalArrangementベース）
                     crate::ecs::graphics::deferred_surface_creation_system
