@@ -4,6 +4,7 @@ mod graphics;
 pub mod layout;
 pub mod monitor;
 pub mod mouse;
+mod nchittest_cache;
 pub mod transform;
 pub mod widget;
 pub mod window;

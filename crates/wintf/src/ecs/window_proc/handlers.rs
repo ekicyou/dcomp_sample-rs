@@ -393,7 +393,7 @@ pub(super) unsafe fn WM_DPICHANGED(
 
 /// WM_NCHITTEST: 非クライアント領域ヒットテスト
 ///
-/// クライアント領域判定を実装し、hit_test仮スタブを呼び出す。
+/// クライアント領域判定を実装し、キャッシュ付きhit_testを呼び出す。
 /// HTCLIENT / HTTRANSPARENT を返す（クリックスルー対応）。
 #[inline]
 pub(super) unsafe fn WM_NCHITTEST(
@@ -402,26 +402,28 @@ pub(super) unsafe fn WM_NCHITTEST(
     _wparam: WPARAM,
     lparam: LPARAM,
 ) -> HandlerResult {
-    use windows::Win32::Graphics::Gdi::ScreenToClient;
     use windows::Win32::UI::WindowsAndMessaging::GetClientRect;
 
     // スクリーン座標を取得（lparam から）
     let x = (lparam.0 & 0xFFFF) as i16 as i32;
     let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
 
-    // クライアント座標に変換
-    let mut pt = POINT { x, y };
-    if !ScreenToClient(hwnd, &mut pt).as_bool() {
-        return None; // DefWindowProcW に委譲
-    }
+    // クライアント領域判定用に座標変換（クライアント領域外はDefWindowProcWに委譲）
+    {
+        use windows::Win32::Graphics::Gdi::ScreenToClient;
+        let mut pt = POINT { x, y };
+        if !ScreenToClient(hwnd, &mut pt).as_bool() {
+            return None; // DefWindowProcW に委譲
+        }
 
-    // クライアント領域外の場合は DefWindowProcW に委譲
-    let mut rect = RECT::default();
-    if GetClientRect(hwnd, &mut rect).is_err() {
-        return None;
-    }
-    if pt.x < rect.left || pt.x >= rect.right || pt.y < rect.top || pt.y >= rect.bottom {
-        return None; // DefWindowProcW に委譲（非クライアント領域処理）
+        // クライアント領域外の場合は DefWindowProcW に委譲
+        let mut rect = RECT::default();
+        if GetClientRect(hwnd, &mut rect).is_err() {
+            return None;
+        }
+        if pt.x < rect.left || pt.x >= rect.right || pt.y < rect.top || pt.y >= rect.bottom {
+            return None; // DefWindowProcW に委譲（非クライアント領域処理）
+        }
     }
 
     // Entity 取得
@@ -429,37 +431,13 @@ pub(super) unsafe fn WM_NCHITTEST(
         return None;
     };
 
-    // World 借用して hit_test 実行
+    // World 取得
     let Some(world) = super::try_get_ecs_world() else {
         return None;
     };
 
-    let hit_result = match world.try_borrow() {
-        Ok(world_ref) => {
-            // クライアント座標でhit_test実行
-            use crate::ecs::layout::hit_test::hit_test_in_window;
-            use crate::ecs::layout::hit_test::PhysicalPoint;
-            hit_test_in_window(
-                world_ref.world(),
-                entity,
-                PhysicalPoint::new(pt.x as f32, pt.y as f32),
-            )
-        }
-        Err(_) => {
-            return None; // 借用失敗時は DefWindowProcW に委譲
-        }
-    };
-
-    // HTCLIENT = 1, HTTRANSPARENT = -1
-    const HTCLIENT: i32 = 1;
-    const HTTRANSPARENT: i32 = -1;
-
-    // hit_test 結果に応じて HTCLIENT または HTTRANSPARENT を返す
-    if hit_result.is_some() {
-        Some(LRESULT(HTCLIENT as isize))
-    } else {
-        Some(LRESULT(HTTRANSPARENT as isize))
-    }
+    // キャッシュ付きヒットテスト実行
+    crate::ecs::nchittest_cache::cached_nchittest(hwnd, (x, y), entity, &world)
 }
 
 /// WM_MOUSEMOVE: マウス移動メッセージ

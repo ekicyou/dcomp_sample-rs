@@ -534,6 +534,9 @@ impl EcsWorld {
         let _ = self.world.try_run_schedule(CommitComposition);
         let _ = self.world.try_run_schedule(FrameFinalize);
 
+        // Layout スケジュール実行後のタイミングで NCHITTEST キャッシュをクリア
+        crate::ecs::nchittest_cache::clear_nchittest_cache();
+
         true
     }
 
