@@ -154,23 +154,7 @@ wintf フレームワークでは、既存の `mouse.rs` モジュールおよ�
 
 ---
 
-### Requirement 7: エンティティ削除時の解除
-
-**Objective:** 開発者として、エンティティ削除時に関連するイベント状態が自動的にクリーンアップされることを保証したい。それによりメモリリークやダングリング参照を防げる。
-
-**Priority:** P1（体験向上）
-
-#### Acceptance Criteria
-
-1. When エンティティが削除された時, the Event System shall 関連するイベントバッファ（`MouseBuffer`, `ButtonBuffer`, `WheelBuffer`）をクリアする
-2. When エンティティが削除された時, the Event System shall 進行中の伝播経路からそのエンティティを除外する
-3. The Event System shall エンティティ削除を検出するためにbevy_ecsの `RemovedComponents` を使用する
-4. When 親エンティティが削除された時, the Event System shall 子エンティティへの影響を適切に処理する
-5. The Event System shall 削除されたエンティティへのイベント配信を試みない
-
----
-
-### Requirement 8: イベント履歴保持
+### Requirement 7: イベント履歴保持
 
 **Objective:** 開発者として、デバッグ目的でイベント履歴を参照したい。それにより問題発生時の原因調査が容易になる。
 
@@ -198,8 +182,7 @@ wintf フレームワークでは、既存の `mouse.rs` モジュールおよ�
 ### NFR-2: 信頼性
 
 - イベントの取りこぼしなし
-- 正確な伝播順序（キャプチャ→ターゲット→バブリング）
-- エンティティ削除時のリソースリーク防止
+- 正確な伝播順序（ターゲット→バブリング、将来的にはキャプチャ→ターゲット→バブリング）
 
 ### NFR-3: 互換性
 
