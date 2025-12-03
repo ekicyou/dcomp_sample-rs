@@ -21,9 +21,9 @@
 
 | Status | Count | 割合 |
 |--------|-------|------|
-| 🟢 Completed | 2 | 6% |
+| 🟢 Completed | 3 | 9% |
 | 🔵 In Progress | 1 | 3% |
-| ⚪ Not Started | 29 | 91% |
+| ⚪ Not Started | 28 | 88% |
 | **Total** | **32** | 100% |
 
 ---
@@ -95,6 +95,7 @@ graph TB
 | Spec | Phase | Description |
 |------|-------|-------------|
 | `event-hit-test` | 🟢 completed | ヒットテストAPI |
+| `event-hit-test-cache` | 🟢 completed | ヒットテストキャッシュ |
 | `event-mouse-basic` | 🟢 completed | マウス入力ECS統合 |
 | `event-dispatch` | ⚪ not-started | イベントバブリング・キャプチャ |
 | `event-drag-system` | ⚪ not-started | ドラッグ＆ドロップ |
@@ -169,6 +170,7 @@ graph TB
 
 | Date | Update |
 |------|--------|
+| 2025-12-03 | **event-hit-test-cache 完了** - スレッドローカルキャッシュ、WM_NCHITTEST最適化、try_tick_world連動クリア |
 | 2025-12-03 | **event-mouse-basic 完了** - マウス入力ECS統合、MouseState/MouseLeave実装、hit_test統合 |
 | 2025-11-30 | **wintf-P0-image-widget 完了** - BitmapSource実装、completed/ へ移動 |
 | 2025-11-29 | wintf-P1-image-rendering を P1 backlog に追加（P0 image-widget から分離） |
