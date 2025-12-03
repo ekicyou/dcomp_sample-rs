@@ -3,9 +3,9 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | wintf-typewriter 要件定義書 |
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Date** | 2025-12-03 |
-| **Status** | ✅ Approved |
+| **Status** | ✅ Implemented |
 | **Parent Spec** | ukagaka-desktop-mascot |
 | **Author** | AI-DLC System |
 
@@ -22,7 +22,7 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 ### スコープ
 
 **含まれるもの**:
-- アニメーション基盤 `AnimationCore`（ECSリソース）
+- 時刻管理基盤 `FrameTime`（ECSリソース）
 - 文字単位の表示制御（一文字ずつ追加表示）
 - ウェイト制御（文字間の待機時間）
 - さくらスクリプト互換のウェイトコマンド（\w, \_w）
@@ -40,9 +40,9 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 
 ```
 Track A: 基盤層（依存なし）
-├─ A1: AnimationCore リソース実装
-├─ A2: DirectWrite 拡張（GetClusterMetrics/HitTestTextPosition）
-└─ A3: animation_tick_system
+├─ A1: FrameTime リソース（高精度時刻管理）
+├─ A2: DirectWrite 拡張（GetClusterMetrics）
+└─ A3: 時刻更新
 
 Track B: IR型定義（依存なし）
 ├─ B1: Stage 1 IR (TypewriterToken)
@@ -50,7 +50,7 @@ Track B: IR型定義（依存なし）
 
 Track C: Typewriter本体（A, B 完了後）
 ├─ C1: Typewriter コンポーネント
-├─ C2: Stage1→Stage2 変換
+├─ C2: TypewriterTalk / TypewriterLayoutCache
 ├─ C3: 描画システム
 └─ C4: FireEvent 処理
 ```
@@ -102,7 +102,7 @@ Track C: Typewriter本体（A, B 完了後）
 **Stage 1 IR（外部インターフェース）:**
 1. **The** Typewriter widget **shall** Stage 1 IR形式でトークン列を受け取れる
 2. **The** Typewriter widget **shall** テキストトークン（表示文字列）を処理できる
-3. **The** Typewriter widget **shall** ウェイトトークン（f64秒単位、Windows Animation API互換）を処理できる
+3. **The** Typewriter widget **shall** ウェイトトークン（f64秒単位）を処理できる
 4. **The** Typewriter widget **shall** Stage 1 IR型定義を `areka-P0-script-engine` と共有する
 
 **Stage 2 IR（内部タイムライン）:**
@@ -119,12 +119,12 @@ Track C: Typewriter本体（A, B 完了後）
 
 #### Acceptance Criteria
 
-1. **The** Typewriter widget **shall** 表示開始（start）操作を提供する
+1. **The** Typewriter widget **shall** 表示開始（TypewriterTalk挿入）で自動開始する
 2. **The** Typewriter widget **shall** 表示停止（pause）操作を提供する
 3. **The** Typewriter widget **shall** 表示再開（resume）操作を提供する
 4. **The** Typewriter widget **shall** 全文即時表示（skip）操作を提供する
-5. **The** Typewriter widget **shall** テキストクリア（clear）操作を提供する
-6. **When** 新しいテキストがセットされた時, **the** Typewriter widget **shall** 表示位置をリセットする
+5. **The** Typewriter widget **shall** テキストクリア（TypewriterTalk削除）操作を提供する
+6. **When** 新しいTypewriterTalkがセットされた時, **the** Typewriter widget **shall** 表示位置をリセットする
 
 ---
 
@@ -139,7 +139,7 @@ Track C: Typewriter本体（A, B 完了後）
 3. **The** Typewriter widget **shall** 表示完了時のイベント発火をIRで記述できる
 4. **The** Typewriter widget **shall** 任意のタイミング（特定文字後等）でのイベント発火をIRで記述できる
 5. **The** Typewriter widget **shall** 投入されたコンポーネントの処理は別Systemに委譲する
-6. **The** Typewriter widget **shall** 現在の表示進行度（0.0〜1.0）をコンポーネントとして公開する
+6. **The** Typewriter widget **shall** 現在の表示進行度（0.0〜1.0）を提供する
 
 ---
 
@@ -149,11 +149,11 @@ Track C: Typewriter本体（A, B 完了後）
 
 #### Acceptance Criteria
 
-1. **The** Typewriter widget **shall** Labelと同様のテキスト設定APIを提供する
-2. **The** Typewriter widget **shall** Labelと同様のスタイル設定（フォント、色、サイズ）をサポートする
-3. **The** Typewriter widget **shall** 縦書き/横書きの両方をサポートする
-4. **The** Typewriter widget **shall** Labelと同様にレイアウトシステムと統合される
-5. **When** タイプライター効果が不要な場合, **the** Typewriter widget **shall** 即時全文表示モードで動作する
+1. **The** Typewriter widget **shall** Labelと同様のスタイル設定（フォント、色、サイズ）をサポートする
+2. **The** Typewriter widget **shall** 縦書き/横書きの両方をサポートする
+3. **The** Typewriter widget **shall** Arrangement（レイアウトシステム）と統合される
+4. **When** Arrangementが変更された時, **the** Typewriter widget **shall** TextLayoutを再生成してレイアウトに追従する
+5. **When** タイプライター効果が不要な場合, **the** Typewriter widget **shall** skip()で即時全文表示できる
 
 ---
 
@@ -164,28 +164,29 @@ Track C: Typewriter本体（A, B 完了後）
 #### Acceptance Criteria
 
 1. **The** Typewriter widget **shall** ECSコンポーネントとして実装される
-2. **The** Typewriter widget **shall** Windows Animation API を時間管理の正として使用する
-3. **The** Typewriter widget **shall** ECSシステムでAnimation APIの状態を参照し表示を更新する
-4. **When** エンティティが削除された時, **the** Typewriter widget **shall** 関連するアニメーションリソースをクリーンアップする
+2. **The** Typewriter widget **shall** FrameTime リソースを時間管理の正として使用する
+3. **The** Typewriter widget **shall** ECSシステムでFrameTimeを参照し表示を更新する
+4. **When** エンティティが削除された時, **the** Typewriter widget **shall** 関連するリソースをクリーンアップする
 5. **The** Typewriter widget **shall** 他のコンポーネント（Visual、Layout等）と同様のライフサイクルを持つ
 
 ---
 
 ## Non-Functional Requirements
 
-### NFR-1: アニメーション基盤 (AnimationCore)
+### NFR-1: 時刻管理基盤 (FrameTime)
 
-- **リソース構成**: `AnimationCore` ECSリソースとして実装
-  - `IUIAnimationTimer`: システム時刻取得
-  - `IUIAnimationManager2`: アニメーション状態管理
-  - `IUIAnimationTransitionLibrary2`: トランジション生成
-- **初期化タイミング**: `EcsWorld::new()` で即座に初期化（CPUリソースのみのため）
-  - `GraphicsCore`（GPUリソース）とは異なり、HWND不要・Device Lost無関係
-  - `WicCore` と同様のパターン
-- **タイマー方式**: Windows Animation API を時間管理の正として使用
-- **更新タイミング**: `animation_tick_system` を Input スケジュール先頭で実行
-- **時刻精度**: f64秒単位 (`UI_ANIMATION_SECONDS`)
+- **リソース構成**: `FrameTime` ECSリソースとして実装
+  - `GetSystemTimePreciseAsFileTime`: 高精度時刻取得（100ns精度、Windows 8以降）
+  - f64秒単位での経過時間管理
+- **初期化タイミング**: `EcsWorld::new()` で即座に初期化
+- **更新タイミング**: 毎フレームワールドtick時に更新
+- **時刻精度**: f64秒単位
 - **拡張性**: 将来 `wintf-P0-animation-system` で高度な機能を追加予定
+
+**設計変更履歴**:
+- 当初設計: Windows Animation API (`IUIAnimationTimer`, `IUIAnimationManager2`) を使用予定
+- 変更理由: STA (Single-Threaded Apartment) 要件により ECS マルチスレッドスケジューラと競合
+- 採用設計: `GetSystemTimePreciseAsFileTime` ベースの `FrameTime` リソース
 
 ### NFR-2: パフォーマンス
 
@@ -209,7 +210,7 @@ Track C: Typewriter本体（A, B 完了後）
 
 | 用語 | 説明 |
 |------|------|
-| AnimationCore | Windows Animation API を統合したECSリソース。Timer/Manager/TransitionLibraryを保持 |
+| FrameTime | 高精度時刻管理ECSリソース。GetSystemTimePreciseAsFileTimeベース |
 | タイプライター効果 | テキストを一文字ずつ表示する演出 |
 | ウェイト | 文字表示間の待機時間（f64秒単位） |
 | Stage 1 IR | 外部インターフェース用の中間表現。Text, Wait, FireEvent等 |
@@ -218,8 +219,9 @@ Track C: Typewriter本体（A, B 完了後）
 | TimelineItem | Stage 2 IR内の個別要素 |
 | グリフ | DirectWriteにおける描画単位。合字・結合文字を含む |
 | FireEvent | IRトークンの一種。指定エンティティの TypewriterEvent を設定する |
-| TypewriterEvent | イベント通知用 enum Component。Changed クエリで検出、処理後に None へ戻す |
-| 論理エンティティ | Visualツリーに参加しない、処理用のエンティティ |
+| TypewriterEvent | イベント通知用 enum Component。Changed クエリで検出 |
+| TypewriterTalk | 1回のトーク論理情報（トークン列、再生状態） |
+| TypewriterLayoutCache | 描画リソース（TextLayout、Stage 2 IR タイムライン） |
 
 ---
 
@@ -230,7 +232,8 @@ Track C: Typewriter本体（A, B 完了後）
 - 親仕様: `.kiro/specs/ukagaka-desktop-mascot/requirements.md`
 - Labelウィジェット実装: `crates/wintf/src/ecs/widget/label.rs`
 - IR型定義共有先: `areka-P0-script-engine`
-- Windows Animation API: `crates/wintf/src/com/animation.rs`
+- Typewriter実装: `crates/wintf/src/ecs/widget/text/typewriter.rs`
+- デモ: `crates/wintf/examples/typewriter_demo.rs`
 
 ### B. 2段階IR設計例
 
@@ -242,17 +245,16 @@ Track C: Typewriter本体（A, B 完了後）
 pub enum TypewriterToken {
     /// 表示するテキスト
     Text(String),
-    /// ウェイト（f64秒単位、Windows Animation API互換）
+    /// ウェイト（f64秒単位）
     Wait(f64),
     /// イベント発火（対象エンティティの TypewriterEvent を設定）
     FireEvent {
         target: Entity,
-        event: TypewriterEvent,
+        event: TypewriterEventKind,
     },
 }
 
 /// イベント通知用 enum Component
-/// Changed<TypewriterEvent> で検出、処理後に None へ戻す
 #[derive(Component, Debug, Clone, Default, PartialEq)]
 pub enum TypewriterEvent {
     #[default]
@@ -274,40 +276,34 @@ let stage1_tokens = vec![
     TypewriterToken::Text("いい天気ですね。".into()),
     TypewriterToken::FireEvent {
         target: callback_entity,
-        event: TypewriterEvent::Complete,
+        event: TypewriterEventKind::Complete,
     },
 ];
+
+// TypewriterTalk の使用例
+let talk = TypewriterTalk::new(stage1_tokens, current_time);
+world.entity_mut(typewriter_entity).insert(talk);
+// → init_typewriter_layout システムが自動的に TypewriterLayoutCache を生成
 
 // ============================================
 // Stage 2 IR (内部タイムライン)
 // DirectWriteでグリフ単位に分解後の形式
+// TypewriterLayoutCache 内で保持
 // ============================================
 pub enum TimelineItem {
     /// グリフ表示（TextLayout内のクラスタ番号）
-    Glyph { cluster_index: u32 },
+    Glyph { cluster_index: u32, show_at: f64 },
     /// ウェイト（f64秒単位）
-    Wait(f64),
+    Wait { duration: f64, start_at: f64 },
     /// イベント発火
     FireEvent {
         target: Entity,
-        event: TypewriterEvent,
+        event: TypewriterEventKind,
+        fire_at: f64,
     },
 }
-
-pub struct TypewriterTimeline {
-    /// 全文のTextLayout（位置情報源、縦書き/横書き対応）
-    pub text_layout: IDWriteTextLayout,
-    /// タイムライン
-    pub items: Vec<TimelineItem>,
-}
-
-/// Stage 2 変換後:
-/// "こんにちは" → [Glyph(0), Glyph(1), Glyph(2), Glyph(3), Glyph(4)]
-/// Wait(0.5)   → Wait(0.5)
-/// "、今日も"   → [Glyph(5), Glyph(6), Glyph(7), Glyph(8)]
-/// ...
 ```
 
 ---
 
-_Document generated by AI-DLC System on 2025-11-29_
+_Document updated on 2025-12-03 (v1.1 - Implementation Complete)_
