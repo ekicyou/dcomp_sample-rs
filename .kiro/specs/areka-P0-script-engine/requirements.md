@@ -34,6 +34,8 @@
 
 **含まれるもの:**
 - 対話記述DSL（里々インスパイア）のパーサーと実行エンジン
+- **スクリプト言語の設計**（コマンド構文、ウェイト記法等）
+- **中間表現（IR）の出力**（wintf-P0-typewriter への入力形式）
 - さくらスクリプト互換コマンドの出力
 - 変数管理（グローバル/ローカル）
 - 制御構文（条件分岐、ループ、関数）
@@ -42,7 +44,7 @@
 **含まれないもの:**
 - LLM連携（areka-P2-llm-integration の責務）
 - ゴーストパッケージ管理（areka-P0-package-manager の責務）
-- タイプライター表示（wintf-P0-typewriter の責務）
+- タイプライター表示アニメーション（wintf-P0-typewriter の責務）
 
 ---
 
@@ -62,22 +64,38 @@
 
 ---
 
-### Requirement 2: さくらスクリプト互換出力
+### Requirement 2: 中間表現（IR）出力
+
+**Objective:** 描画エンジンとして、パース済みの構造化データを受け取りたい。それによりTypewriterは表示アニメーションに専念できる。
+
+#### Acceptance Criteria
+
+1. **The** Script Engine **shall** スクリプトを中間表現（IR）に変換して出力できる
+2. **The** Script Engine **shall** テキストトークン（表示文字列）をIRに含められる
+3. **The** Script Engine **shall** ウェイトトークン（待機時間）をIRに含められる
+4. **The** Script Engine **shall** サーフェス切り替えトークンをIRに含められる
+5. **The** Script Engine **shall** 発言者切り替えトークンをIRに含められる
+6. **The** Script Engine **shall** 将来の拡張トークン（速度変更、ポーズ等）を追加可能な設計とする
+7. **The** Script Engine **shall** IRの型定義を `wintf-P0-typewriter` と共有する
+
+---
+
+### Requirement 3: さくらスクリプト互換出力
 
 **Objective:** ゴースト制作者として、既存のさくらスクリプト知識を活用したい。それにより学習コストを削減できる。
 
 #### Acceptance Criteria
 
-1. **The** Script Engine **shall** さくらスクリプトの基本コマンドを出力できる
-2. **The** Script Engine **shall** サーフェス切り替えコマンド（`\s[n]`）を出力できる
-3. **The** Script Engine **shall** ウェイトコマンド（`\w[n]`）を出力できる
-4. **The** Script Engine **shall** 発言者切り替えコマンド（`\0`, `\1`等）を出力できる
-5. **The** Script Engine **shall** 改行コマンド（`\n`）を出力できる
-6. **The** Script Engine **shall** 独自拡張コマンドを定義・出力できる
+1. **The** Script Engine **shall** さくらスクリプトの基本コマンドをIRに変換できる
+2. **The** Script Engine **shall** サーフェス切り替えコマンド（`\s[n]`）を解釈できる
+3. **The** Script Engine **shall** ウェイトコマンド（`\w[n]}`, `\_w[n]`）を解釈できる
+4. **The** Script Engine **shall** 発言者切り替えコマンド（`\0`, `\1`等）を解釈できる
+5. **The** Script Engine **shall** 改行コマンド（`\n`）を解釈できる
+6. **The** Script Engine **shall** 独自拡張コマンドを定義できる
 
 ---
 
-### Requirement 3: 変数管理
+### Requirement 4: 変数管理
 
 **Objective:** ゴースト制作者として、キャラクターの状態を変数で管理したい。それにより動的な会話を実現できる。
 
@@ -91,7 +109,7 @@
 
 ---
 
-### Requirement 4: 制御構文
+### Requirement 5: 制御構文
 
 **Objective:** ゴースト制作者として、条件分岐やループで複雑なロジックを記述したい。それにより多様な会話パターンを実現できる。
 
@@ -106,7 +124,7 @@
 
 ---
 
-### Requirement 5: 複数キャラクター会話制御
+### Requirement 6: 複数キャラクター会話制御
 
 **Objective:** ゴースト制作者として、複数キャラクター間の掛け合いを記述したい。それにより漫才的なやりとりを実現できる。
 
@@ -120,7 +138,7 @@
 
 ---
 
-### Requirement 6: イベントハンドリング
+### Requirement 7: イベントハンドリング
 
 **Objective:** ゴースト制作者として、ユーザーの操作に応じた会話を記述したい。それによりインタラクティブな体験を実現できる。
 
@@ -168,6 +186,7 @@
 
 | 仕様 | 依存内容 |
 |------|----------|
+| `wintf-P0-typewriter` | **IR（中間表現）の共有**：TypewriterTokenの型定義を共有 |
 | `areka-P0-reference-ghost` | スクリプト実行 |
 | `areka-P1-devtools` | デバッグ機能 |
 | `areka-P2-llm-integration` | LLM応答との統合 |

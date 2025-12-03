@@ -3,8 +3,8 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | wintf アニメーションシステム 要件定義書 |
-| **Version** | 1.0 |
-| **Date** | 2025-11-29 |
+| **Version** | 1.1 |
+| **Date** | 2025-12-03 |
 | **Parent Spec** | ukagaka-desktop-mascot |
 | **Priority** | P0 (MVP必須) |
 
@@ -33,7 +33,8 @@
 - サーフェス間トランジション効果
 - アイドルアニメーション自動再生
 - 連動アニメーション（複数キャラクター同期）
-- Windows Animation API 統合
+- Windows Animation API (UIAnimationManager) との統合
+- DirectComposition プロパティアニメーション
 
 **含まれないもの:**
 - 画像の読み込み・描画（wintf-P0-image-widget の責務）
@@ -57,6 +58,7 @@
 5. **When** アニメーションが終了した時, **the** Animation System **shall** 完了イベントを発火する
 6. **The** Animation System **shall** アニメーションの一時停止・再開・停止をサポートする
 7. **While** アニメーション再生中, **the** Animation System **shall** 60fps以上の滑らかな描画を維持する
+8. **The** Animation System **shall** アニメーション定義を ECS コンポーネントとして表現する
 
 ---
 
@@ -71,6 +73,7 @@
 3. **The** Animation System **shall** 即時切り替え（トランジションなし）をサポートする
 4. **The** Animation System **shall** トランジション時間を指定できる
 5. **When** トランジション中に新しい切り替え命令を受けた時, **the** Animation System **shall** 現在のトランジションを中断して新しいトランジションを開始する
+6. **The** Animation System **shall** DirectComposition の不透明度プロパティを使用してトランジションを実現する
 
 ---
 
@@ -85,6 +88,7 @@
 3. **The** Animation System **shall** 複数のアイドルアニメーションからランダムに選択できる
 4. **The** Animation System **shall** アイドルアニメーション間隔（次のアニメーション開始までの待機時間）を設定できる
 5. **Where** 微細動作モードが有効な場合, **the** Animation System **shall** 呼吸のような微細な動き（スケール/位置の微小変化）をアイドル時に付与する
+6. **When** 明示的なアニメーション再生命令を受けた時, **the** Animation System **shall** アイドルアニメーションを中断して指定アニメーションを優先する
 
 ---
 
@@ -98,6 +102,7 @@
 2. **The** Animation System **shall** アニメーショングループ（連動セット）を定義できる
 3. **When** グループアニメーション開始命令を受けた時, **the** Animation System **shall** グループ内の全アニメーションを同時に開始する
 4. **The** Animation System **shall** キャラクター間でアニメーション完了を待ち合わせできる
+5. **The** Animation System **shall** 異なるウィンドウ間でのアニメーション同期をサポートする
 
 ---
 
@@ -112,6 +117,22 @@
 3. **The** Animation System **shall** イージング関数（ease-in, ease-out, ease-in-out, linear）をサポートする
 4. **The** Animation System **shall** 複数のプロパティアニメーションを同時に実行できる
 5. **When** アニメーションが完了した時, **the** Animation System **shall** 完了コールバックを発火する
+6. **The** Animation System **shall** IDCompositionAnimation を使用して DirectComposition ビジュアルのプロパティをアニメーションする
+7. **The** Animation System **shall** アニメーションタイマーを使用してフレームベースのアニメーションを駆動する
+
+---
+
+### Requirement 6: エラーハンドリングとリソース管理
+
+**Objective:** 開発者として、アニメーション中のエラー状況に対して適切に対処したい。それによりアプリケーションの安定性を保つことができる。
+
+#### Acceptance Criteria
+
+1. **If** デバイスロストが発生した場合, **the** Animation System **shall** 再生中のアニメーションを適切に停止する
+2. **If** デバイスロストから復帰した場合, **the** Animation System **shall** アニメーションリソースを再初期化する
+3. **If** 無効なアニメーション定義が渡された場合, **the** Animation System **shall** エラーを報告してフォールバック動作を行う
+4. **The** Animation System **shall** COM オブジェクト（IUIAnimationManager, IDCompositionAnimation 等）のライフタイムを適切に管理する
+5. **While** アニメーションリソースを保持中, **the** Animation System **shall** 不要になったリソースを速やかに解放する
 
 ---
 
@@ -119,19 +140,22 @@
 
 ### NFR-1: パフォーマンス
 
-1. アニメーション再生中、60fps以上を維持すること
-2. アイドル時のCPU使用率は1%未満であること
-3. Windows Animation API を使用する場合、GPU アクセラレーションを活用すること
+1. **While** アニメーション再生中, **the** Animation System **shall** 60fps以上を維持する
+2. **While** アイドル状態（アニメーション未再生）, **the** Animation System **shall** CPU使用率を1%未満に抑える
+3. **Where** Windows Animation API を使用する場合, **the** Animation System **shall** GPU アクセラレーションを活用する
+4. **The** Animation System **shall** DirectComposition の暗黙的アニメーション機能を活用してCPU負荷を最小化する
 
 ### NFR-2: 互換性
 
-1. Windows 10 (1803) 以降をサポートすること
-2. DirectComposition 対応環境を前提とすること
+1. **The** Animation System **shall** Windows 10 (1803) 以降をサポートする
+2. **The** Animation System **shall** DirectComposition 対応環境を前提とする
+3. **The** Animation System **shall** wintf の既存 ECS アーキテクチャと統合する
 
 ### NFR-3: 拡張性
 
-1. 新しいトランジション効果を追加可能な設計とすること
-2. カスタムイージング関数を追加可能な設計とすること
+1. **The** Animation System **shall** 新しいトランジション効果を追加可能な設計とする
+2. **The** Animation System **shall** カスタムイージング関数を追加可能な設計とする
+3. **The** Animation System **shall** ECS コンポーネントベースの拡張パターンに従う
 
 ---
 
@@ -151,6 +175,25 @@
 
 ---
 
+## Technical Context
+
+### 既存 COM ラッパー
+
+本仕様は既存の `crates/wintf/src/com/animation.rs` を活用する：
+- `IUIAnimationManager` - Windows Animation Manager
+- `IUIAnimationTimer` - アニメーションタイマー
+- `IUIAnimationStoryboard` - ストーリーボード
+- `IUIAnimationVariable` - アニメーション変数
+
+### ECS 統合方針
+
+`structure.md` の命名規則に従い、以下のコンポーネントパターンを採用：
+- **GPU リソース**: `AnimationGraphics` (IDCompositionAnimation保持)
+- **CPU リソース**: `AnimationResource` (アニメーション定義データ)
+- **論理コンポーネント**: `FrameAnimation`, `TransitionAnimation`, `IdleAnimation`
+
+---
+
 ## Glossary
 
 | 用語 | 定義 |
@@ -161,3 +204,5 @@
 | **アイドルアニメーション** | 待機中に自動再生されるアニメーション |
 | **連動アニメーション** | 複数キャラクター間で同期して再生されるアニメーション |
 | **Windows Animation API** | Windowsのアニメーション管理API（UIAnimationManager） |
+| **DirectComposition Animation** | DirectComposition が提供する暗黙的アニメーション機能（IDCompositionAnimation） |
+| **イージング関数** | アニメーションの加減速カーブを定義する関数 |

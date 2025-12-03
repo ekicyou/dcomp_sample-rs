@@ -49,7 +49,7 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 
 1. **The** Typewriter widget **shall** テキストを一文字ずつ順番に表示できる
 2. **When** 新しい文字が追加された時, **the** Typewriter widget **shall** 既存のテキストに文字を追加して再描画する
-3. **The** Typewriter widget **shall** Unicode文字（日本語、絵文字等）を正しく1文字として扱う
+3. **The** Typewriter widget **shall** DirectWriteのグリフ単位で文字を扱う（合字・結合文字・絵文字シーケンスは1つのアニメーション単位として表示）
 4. **The** Typewriter widget **shall** 改行文字を正しく処理する
 5. **When** 全文字の表示が完了した時, **the** Typewriter widget **shall** 完了イベントを発火する
 
@@ -69,17 +69,18 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 
 ---
 
-### Requirement 3: さくらスクリプト互換ウェイト
+### Requirement 3: 中間表現（IR）入力
 
-**Objective:** 開発者として、さくらスクリプトのウェイトコマンドを使用したい。それにより既存のゴーストスクリプトとの互換性が保てる。
+**Objective:** 描画エンジンとして、パース済みの構造化データを受け取りたい。それによりTypewriterは表示アニメーションに専念できる。
 
 #### Acceptance Criteria
 
-1. **The** Typewriter widget **shall** `\w[n]` コマンド（nミリ秒待機）を解釈できる
-2. **The** Typewriter widget **shall** `\_w[n]` コマンド（n×50ミリ秒待機）を解釈できる
-3. **When** ウェイトコマンドが検出された時, **the** Typewriter widget **shall** 指定時間だけ次の文字表示を遅延する
-4. **The** Typewriter widget **shall** ウェイトコマンド自体は画面に表示しない
-5. **The** Typewriter widget **shall** ウェイトコマンドをエスケープして表示する手段を提供する
+1. **The** Typewriter widget **shall** 中間表現（IR）形式でトークン列を受け取れる
+2. **The** Typewriter widget **shall** テキストトークン（表示文字列）を処理できる
+3. **The** Typewriter widget **shall** ウェイトトークン（待機時間）を処理できる
+4. **When** ウェイトトークンを受け取った時, **the** Typewriter widget **shall** 指定時間だけ次のトークン処理を遅延する
+5. **The** Typewriter widget **shall** IR型定義を `areka-P0-script-engine` と共有する
+6. **The** Typewriter widget **shall** 将来の拡張トークン（速度変更、ポーズ等）に対応可能な設計とする
 
 ---
 
@@ -142,18 +143,25 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 
 ## Non-Functional Requirements
 
-### NFR-1: パフォーマンス
+### NFR-1: アニメーション基盤
 
-- 文字表示間隔: 1ms精度でのウェイト制御
-- 描画更新: 文字追加ごとに16ms以内で再描画
+- **タイマー方式**: DirectComposition Animation Timer + Windows Animation API を使用
+- **更新単位**: アニメーションフレーム単位（通常60fps = 約16.67ms間隔）
+- **ウェイト計算**: 指定ミリ秒をフレーム数に変換（例: 50ms → 3フレーム）
+- **描画同期**: DCompのコミットタイミングに同期
+
+### NFR-2: パフォーマンス
+
+- 描画更新: 文字追加ごとに1フレーム以内で再描画
 - メモリ: 表示テキスト長に比例した適切なメモリ使用量
+- CPU負荷: アイドル時はタイマーイベントを発生させない
 
-### NFR-2: 精度
+### NFR-3: 精度
 
-- タイミング精度: 指定ウェイト時間の±5%以内
-- Unicode対応: サロゲートペア、結合文字の正しい処理
+- フレーム精度: ±1フレーム以内の誤差
+- Unicode対応: DirectWriteグリフ単位での正しい処理
 
-### NFR-3: 互換性
+### NFR-4: 互換性
 
 - さくらスクリプトの基本ウェイトコマンド（\w, \_w）との互換性
 - 既存Labelウィジェットとの共存
@@ -166,9 +174,9 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 |------|------|
 | タイプライター効果 | テキストを一文字ずつ表示する演出 |
 | ウェイト | 文字表示間の待機時間 |
-| さくらスクリプト | 伺かで使用されるスクリプト言語 |
-| \w[n] | nミリ秒待機するコマンド |
-| \_w[n] | n×50ミリ秒待機するコマンド |
+| 中間表現（IR） | Intermediate Representation。パース済みの構造化データ |
+| TypewriterToken | IR内の個別要素（Text, Wait等） |
+| グリフ | DirectWriteにおける描画単位。合字・結合文字を含む |
 
 ---
 
@@ -178,20 +186,31 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 
 - 親仕様: `.kiro/specs/ukagaka-desktop-mascot/requirements.md`
 - Labelウィジェット実装: `crates/wintf/src/ecs/widget/label.rs`
+- IR型定義共有先: `areka-P0-script-engine`
 
-### B. さくらスクリプト ウェイトコマンド例
+### B. 中間表現（IR）例
 
+```rust
+/// Typewriterが受け取るトークン
+pub enum TypewriterToken {
+    /// 表示するテキスト
+    Text(String),
+    /// ウェイト（待機時間）
+    Wait(Duration),
+    // 将来拡張:
+    // Speed(f32),     // 表示速度変更
+    // Pause,          // ユーザー入力待ち
+}
+
+/// 入力例: "こんにちは、今日もいい天気ですね。"（500ms + 200ms ウェイト付き）
+let tokens = vec![
+    TypewriterToken::Text("こんにちは".into()),
+    TypewriterToken::Wait(Duration::from_millis(500)),
+    TypewriterToken::Text("、今日も".into()),
+    TypewriterToken::Wait(Duration::from_millis(200)),
+    TypewriterToken::Text("いい天気ですね。".into()),
+];
 ```
-こんにちは\w[500]、今日も\w[200]いい天気ですね。
-```
-
-上記は「こんにちは」の後に500ms、「今日も」の後に200msの待機を入れる例。
-
-```
-おはよう\_w[3]ございます。
-```
-
-上記は「おはよう」の後に150ms（3×50ms）の待機を入れる例。
 
 ---
 
