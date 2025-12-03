@@ -122,19 +122,19 @@
 
 ---
 
-### Requirement 5: Windows Animation API 統合
+### Requirement 5: AnimationCore 連携
 
-**Objective:** 開発者として、Windows Animation API を活用したプロパティアニメーションを使用したい。それによりGPUアクセラレーションを活用した滑らかなアニメーションを実現できる。
+**Objective:** 開発者として、typewriter仕様が提供する AnimationCore を活用してプロパティアニメーションを実行したい。それにより一貫した時間管理とGPUアクセラレーションを活用できる。
 
 #### Acceptance Criteria
 
-1. **The** Animation System **shall** Windows Animation Manager との統合をサポートする
+1. **The** Animation System **shall** typewriter仕様が提供する `AnimationCore` ECSリソースを使用する
 2. **The** Animation System **shall** DirectComposition のプロパティ（位置、不透明度、スケール）をアニメーションできる
 3. **The** Animation System **shall** イージング関数（ease-in, ease-out, ease-in-out, linear）をサポートする
 4. **The** Animation System **shall** 複数のプロパティアニメーションを同時に実行できる
 5. **When** アニメーションが完了した時, **the** Animation System **shall** 完了コールバックを発火する
 6. **The** Animation System **shall** IDCompositionAnimation を使用して DirectComposition ビジュアルのプロパティをアニメーションする
-7. **The** Animation System **shall** アニメーションタイマーを使用してフレームベースのアニメーションを駆動する
+7. **The** Animation System **shall** typewriter IR表現を拡張してアニメーションシーケンスを記述する
 
 ---
 
@@ -200,13 +200,46 @@
 
 ## Technical Context
 
-### 既存 COM ラッパー
+### typewriter仕様から提供される基盤
 
-本仕様は既存の `crates/wintf/src/com/animation.rs` を活用する：
-- `IUIAnimationManager` - Windows Animation Manager
-- `IUIAnimationTimer` - アニメーションタイマー
-- `IUIAnimationStoryboard` - ストーリーボード
-- `IUIAnimationVariable` - アニメーション変数
+`wintf-P0-typewriter` が以下を提供（本仕様はこれらを利用）：
+
+| 提供物 | 説明 |
+|--------|------|
+| `AnimationCore` | ECSリソース。IUIAnimationTimer/Manager2/TransitionLibrary2を保持 |
+| Stage 1 IR | 外部インターフェース用中間表現（Text, Wait, FireEvent等） |
+| Stage 2 IR | 内部タイムライン用中間表現（グリフ単位、f64秒単位） |
+| `animation_tick_system` | Inputスケジュール先頭で実行されるタイマー更新システム |
+
+### 本仕様で拡張するIR表現
+
+typewriter IR を拡張し、以下のアニメーション固有トークンを追加：
+
+```rust
+// Stage 1 IR 拡張（本仕様で追加）
+pub enum AnimationToken {
+    /// サーフェス切り替え
+    SetSurface { surface_id: SurfaceId },
+    /// トランジション付きサーフェス切り替え
+    TransitionSurface { 
+        surface_id: SurfaceId, 
+        duration: f64,
+        easing: EasingFunction,
+    },
+    /// プロパティアニメーション
+    AnimateProperty {
+        target: Entity,
+        property: AnimatableProperty,
+        to_value: f64,
+        duration: f64,
+        easing: EasingFunction,
+    },
+    /// アニメーショングループ開始
+    BeginGroup { group_id: GroupId },
+    /// アニメーショングループ終了（待ち合わせ）
+    EndGroup { group_id: GroupId },
+}
+```
 
 ### ECS 統合方針
 
@@ -226,6 +259,8 @@
 | **トランジション** | サーフェス切り替え時の視覚効果（フェード等） |
 | **アイドルアニメーション** | 待機中に自動再生されるアニメーション |
 | **連動アニメーション** | 複数キャラクター間で同期して再生されるアニメーション |
+| **AnimationCore** | typewriter仕様が提供するWindows Animation API統合ECSリソース |
 | **Windows Animation API** | Windowsのアニメーション管理API（UIAnimationManager） |
 | **DirectComposition Animation** | DirectComposition が提供する暗黙的アニメーション機能（IDCompositionAnimation） |
 | **イージング関数** | アニメーションの加減速カーブを定義する関数 |
+| **Stage 1 IR** | 外部インターフェース用の中間表現（typewriter仕様で定義） |
