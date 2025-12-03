@@ -1,14 +1,15 @@
 {
     "feature_name": "event-dispatch",
     "created_at": "2025-12-01T00:00:00Z",
-    "updated_at": "2025-12-03T00:00:00Z",
+    "updated_at": "2025-12-03T12:00:00Z",
     "language": "ja",
     "phase": "requirements-generated",
     "parent_spec": "wintf-P0-event-system",
     "approvals": {
         "requirements": {
             "generated": true,
-            "approved": false
+            "approved": false,
+            "note": "設計議論完了: fnポインタ+ECS状態分離方式、2パス伝播、排他システム"
         },
         "design": {
             "generated": false,
