@@ -1,9 +1,9 @@
 {
     "feature_name": "event-dispatch",
     "created_at": "2025-12-01T00:00:00Z",
-    "updated_at": "2025-12-03T19:00:00Z",
+    "updated_at": "2025-12-03T19:30:00Z",
     "language": "ja",
-    "phase": "tasks-generated",
+    "phase": "tasks-approved",
     "parent_spec": "wintf-P0-event-system",
     "approvals": {
         "requirements": {
@@ -18,9 +18,9 @@
         },
         "tasks": {
             "generated": true,
-            "approved": false,
+            "approved": true,
             "note": "5 major tasks, 14 sub-tasks: リネーム→型定義→コンポーネント→システム→テスト"
         }
     },
-    "ready_for_implementation": false
+    "ready_for_implementation": true
 }
