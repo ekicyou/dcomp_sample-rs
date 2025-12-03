@@ -178,10 +178,9 @@ stateDiagram-v2
 | TypewriterToken | IR/Type | Stage 1 IR 外部インターフェース | 3.1-3.4 | (なし) | - | State |
 | TypewriterEvent | ECS/Component | イベント通知 (set pattern) | 5.1-5.5 | (なし) | SparseSet | State |
 | TimelineItem | IR/Type | Stage 2 IR 内部タイムライン | 3.5-3.8 | IDWriteTextLayout | - | State |
-| TypewriterResource | ECS/Component | TextLayout + Timeline 保持 | 3.5-3.8, 6.1-6.5 | IDWriteTextLayout | SparseSet | State |
-| Typewriter | ECS/Component | タイプライター表示状態管理 | 1.1-1.5, 2.1-2.5, 4.1-4.6 | AnimationCore, TypewriterResource | SparseSet | State |
-| TypewriterProgress | ECS/Component | 進行度公開 | 5.6 | Typewriter | SparseSet | State |
-| draw_typewriters | ECS/System | Typewriter 描画 | 1.1-1.5, 6.3 | GraphicsCore, TypewriterResource | - | - |
+| Typewriter | ECS/Component | ウィジェット論理状態（スタイル等） | 6.1-6.5 | (なし) | SparseSet | State |
+| TypewriterTalk | ECS/Component | 1回のトーク（再生中のみ、終了で解放） | 1.1-1.5, 2.1-2.5, 3.5-3.8, 4.1-4.6, 5.6 | AnimationCore, IDWriteTextLayout | SparseSet | State |
+| draw_typewriters | ECS/System | Typewriter 描画 | 1.1-1.5, 6.3 | GraphicsCore, TypewriterTalk | - | - |
 | animation_tick_system | ECS/System | AnimationCore 時刻更新 | 7.2-7.3 | AnimationCore | - | - |
 | DWriteTextLayoutExt | COM/Trait | DirectWrite クラスタ API | 1.3, 3.5-3.8 | IDWriteTextLayout | - | Service |
 
@@ -418,67 +417,64 @@ pub struct TypewriterTimeline {
 
 ---
 
-#### TypewriterResource
-
-| Field | Detail |
-|-------|--------|
-| Intent | TextLayout と Timeline を保持する CPU リソース |
-| Requirements | 3.5-3.8, 6.1-6.5 |
-| Owner | wintf/ecs/widget/text |
-
-**Responsibilities & Constraints**
-- `IDWriteTextLayout` と `TypewriterTimeline` を保持
-- `TextLayoutResource` と同様の CPU リソースパターン
-- メモリ戦略: SparseSet（動的追加/削除）
-
-**Contracts**: State [x]
-
-##### State Management
-
-```rust
-/// Typewriter リソースコンポーネント
-/// TextLayout と Timeline を保持
-/// メモリ戦略: SparseSet（Typewriter に付随、動的）
-#[derive(Component)]
-#[component(storage = "SparseSet", on_remove = on_typewriter_resource_remove)]
-pub struct TypewriterResource {
-    /// 全文の TextLayout（描画に使用）
-    text_layout: IDWriteTextLayout,
-    /// タイムライン
-    timeline: TypewriterTimeline,
-}
-
-impl TypewriterResource {
-    pub fn new(text_layout: IDWriteTextLayout, timeline: TypewriterTimeline) -> Self;
-    pub fn text_layout(&self) -> &IDWriteTextLayout;
-    pub fn timeline(&self) -> &TypewriterTimeline;
-}
-
-fn on_typewriter_resource_remove(hook: DeferredHook) {
-    trace!(entity = ?hook.entity, "[TypewriterResource] Removed");
-}
-```
-
----
-
 ### Track C: Typewriter本体
 
 #### Typewriter
 
 | Field | Detail |
 |-------|--------|
-| Intent | タイプライター表示の状態管理 |
-| Requirements | 1.1-1.5, 2.1-2.5, 4.1-4.6, 6.1-6.5 |
+| Intent | ウィジェット論理状態（スタイル、デフォルト設定） |
+| Requirements | 6.1-6.5 |
 | Owner | wintf/ecs/widget/text |
 
 **Responsibilities & Constraints**
-- Stage 1 IR → Stage 2 IR 変換
-- 再生状態管理（Playing/Paused/Completed/Idle）
-- 表示クラスタ数の計算
-- Label 互換スタイル設定
+- Label 互換スタイル設定（font, color, direction）
+- デフォルトウェイト設定
+- Entity 生存中は永続
 
 **Dependencies**
-- Inbound: Application — IR 設定 (P0)
+- Inbound: Application — スタイル設定 (P0)
+
+**Contracts**: State [x]
+
+##### State Management
+
+```rust
+/// ウィジェット論理コンポーネント（永続）
+/// メモリ戦略: SparseSet（動的追加/削除）
+#[derive(Component)]
+#[component(storage = "SparseSet", on_add = on_typewriter_add, on_remove = on_typewriter_remove)]
+pub struct Typewriter {
+    // === スタイル設定（Label互換） ===
+    pub font_family: String,
+    pub font_size: f32,
+    pub color: D2D1_COLOR_F,
+    pub direction: TextDirection,
+    
+    // === デフォルト設定 ===
+    /// デフォルト文字間ウェイト（秒）
+    pub default_char_wait: f64,
+}
+```
+
+---
+
+#### TypewriterTalk
+
+| Field | Detail |
+|-------|--------|
+| Intent | 1回のトーク（再生中のみ存在、終了で解放） |
+| Requirements | 1.1-1.5, 2.1-2.5, 3.5-3.8, 4.1-4.6, 5.6 |
+| Owner | wintf/ecs/widget/text |
+
+**Responsibilities & Constraints**
+- Stage 2 IR（TextLayout + Timeline）を保持
+- 再生状態管理（Playing/Paused/Completed）
+- 表示クラスタ数・進行度の計算
+- トーク完了時に remove される（リソース解放）
+
+**Dependencies**
+- Inbound: Application — Stage 1 IR 設定 (P0)
 - Outbound: AnimationCore — 時刻取得 (P0)
 - Outbound: DirectWrite — TextLayout 作成 (P0)
 
@@ -491,28 +487,24 @@ fn on_typewriter_resource_remove(hook: DeferredHook) {
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum TypewriterState {
     #[default]
-    Idle,
     Playing,
     Paused,
     Completed,
 }
 
-/// Typewriter コンポーネント
+/// 1回のトーク（再生中のみ存在）
+/// トーク完了・クリア時に remove される
 /// メモリ戦略: SparseSet（動的追加/削除）
 #[derive(Component)]
-#[component(storage = "SparseSet", on_add = on_typewriter_add, on_remove = on_typewriter_remove)]
-pub struct Typewriter {
-    // === スタイル設定（Label互換） ===
-    pub font_family: String,
-    pub font_size: f32,
-    pub color: D2D1_COLOR_F,
-    pub direction: TextDirection,
+#[component(storage = "SparseSet", on_remove = on_typewriter_talk_remove)]
+pub struct TypewriterTalk {
+    // === リソース ===
+    /// TextLayout（このトーク用、描画に使用）
+    text_layout: IDWriteTextLayout,
+    /// Stage 2 IR タイムライン
+    timeline: TypewriterTimeline,
     
-    // === ウェイト設定 ===
-    /// デフォルト文字間ウェイト（秒）
-    pub default_char_wait: f64,
-    
-    // === 内部状態 ===
+    // === 再生状態 ===
     state: TypewriterState,
     /// 再生開始時刻
     start_time: f64,
@@ -520,42 +512,35 @@ pub struct Typewriter {
     paused_elapsed: f64,
     /// 現在の表示クラスタ数
     visible_cluster_count: u32,
+    /// 進行度（0.0〜1.0）
+    progress: f32,
 }
-// Note: Timeline は TypewriterResource に分離
 
-impl Typewriter {
+impl TypewriterTalk {
+    // === 生成 ===
+    pub fn new(
+        tokens: Vec<TypewriterToken>,
+        typewriter: &Typewriter,
+        graphics_core: &GraphicsCore,
+        current_time: f64,
+    ) -> windows::core::Result<Self>;
+    
     // === 操作 API ===
-    pub fn set_tokens(&mut self, tokens: Vec<TypewriterToken>, graphics_core: &GraphicsCore);
-    pub fn start(&mut self, current_time: f64);
     pub fn pause(&mut self, current_time: f64);
     pub fn resume(&mut self, current_time: f64);
     pub fn skip(&mut self);
-    pub fn clear(&mut self);
     
     // === 状態取得 ===
     pub fn state(&self) -> TypewriterState;
-    pub fn progress(&self) -> f32; // 0.0〜1.0
+    pub fn progress(&self) -> f32;
     pub fn visible_cluster_count(&self) -> u32;
     pub fn is_completed(&self) -> bool;
+    pub fn text_layout(&self) -> &IDWriteTextLayout;
 }
-```
 
----
-
-#### TypewriterProgress
-
-| Field | Detail |
-|-------|--------|
-| Intent | 進行度をコンポーネントとして公開 |
-| Requirements | 5.6 |
-| Owner | wintf/ecs/widget/text |
-
-```rust
-/// 進行度コンポーネント（0.0〜1.0）
-/// メモリ戦略: SparseSet（動的変更）
-#[derive(Component, Debug, Clone, Copy)]
-#[component(storage = "SparseSet")]
-pub struct TypewriterProgress(pub f32);
+fn on_typewriter_talk_remove(hook: DeferredHook) {
+    trace!(entity = ?hook.entity, "[TypewriterTalk] Removed - resources released");
+}
 ```
 
 ---
@@ -575,14 +560,15 @@ pub struct TypewriterProgress(pub f32);
 /// Draw スケジュールで実行
 pub fn draw_typewriters(
     graphics_core: Option<Res<GraphicsCore>>,
-    mut query: Query<(
+    query: Query<(
         Entity,
         &Typewriter,
+        &TypewriterTalk,
         &mut GraphicsCommandList,
-    ), Changed<Typewriter>>,
+    ), Changed<TypewriterTalk>>,
 ) {
-    // 1. GraphicsCore から DWrite Factory, DeviceContext 取得
-    // 2. Typewriter.timeline から TextLayout 取得
+    // 1. GraphicsCore から DeviceContext 取得
+    // 2. TypewriterTalk.text_layout() から TextLayout 取得
     // 3. visible_cluster_count までのグリフを描画
     // 4. GraphicsCommandList に記録
 }
@@ -596,10 +582,12 @@ pub fn draw_typewriters(
 
 ```mermaid
 erDiagram
-    Typewriter ||--o| TypewriterTimeline : "has"
+    Typewriter ||--o| TypewriterTalk : "has (during talk)"
+    TypewriterTalk ||--|| TypewriterTimeline : "contains"
+    TypewriterTalk ||--|| IDWriteTextLayout : "holds"
     TypewriterTimeline ||--|{ TimelineItem : "contains"
-    TypewriterTimeline ||--|| IDWriteTextLayout : "uses"
     TimelineItem }|--o| Entity : "targets (FireEvent)"
+    Typewriter ||--o| TypewriterEvent : "has"
     
     Typewriter {
         String font_family
@@ -607,7 +595,13 @@ erDiagram
         Color color
         TextDirection direction
         f64 default_char_wait
+    }
+    
+    TypewriterTalk {
         TypewriterState state
+        f64 start_time
+        f32 progress
+        u32 visible_cluster_count
     }
     
     TypewriterTimeline {
@@ -619,6 +613,10 @@ erDiagram
         enum type
         u32 cluster_index
         f64 time
+    }
+    
+    TypewriterEvent {
+        enum None_Complete_Paused_Resumed
     }
 ```
 
