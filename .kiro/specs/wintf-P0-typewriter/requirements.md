@@ -21,12 +21,14 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 ### スコープ
 
 **含まれるもの**:
+- アニメーション基盤 `AnimationCore`（ECSリソース）
 - 文字単位の表示制御（一文字ずつ追加表示）
 - ウェイト制御（文字間の待機時間）
 - さくらスクリプト互換のウェイトコマンド（\w, \_w）
 - 表示完了コールバック
 
 **含まれないもの**:
+- 高度なアニメーション機能（→ `wintf-P0-animation-system` で拡張予定）
 - テキストのフェードイン/アウト効果
 - テキストアニメーション（揺れ、拡大縮小等）
 - 音声同期
@@ -151,10 +153,16 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 
 ### NFR-1: アニメーション基盤
 
-- **タイマー方式**: DirectComposition Animation Timer + Windows Animation API を使用
-- **更新単位**: アニメーションフレーム単位（通常60fps = 約16.67ms間隔）
-- **ウェイト計算**: 指定ミリ秒をフレーム数に変換（例: 50ms → 3フレーム）
-- **描画同期**: DCompのコミットタイミングに同期
+### NFR-1: アニメーション基盤 (AnimationCore)
+
+- **リソース構成**: `AnimationCore` ECSリソースとして実装
+  - `IUIAnimationTimer`: システム時刻取得
+  - `IUIAnimationManager2`: アニメーション状態管理
+  - `IUIAnimationTransitionLibrary2`: トランジション生成
+- **タイマー方式**: Windows Animation API を時間管理の正として使用
+- **更新タイミング**: `animation_tick_system` を Input スケジュール先頭で実行
+- **時刻精度**: f64秒単位 (`UI_ANIMATION_SECONDS`)
+- **拡張性**: 将来 `wintf-P0-animation-system` で高度な機能を追加予定
 
 ### NFR-2: パフォーマンス
 
@@ -178,6 +186,7 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 
 | 用語 | 説明 |
 |------|------|
+| AnimationCore | Windows Animation API を統合したECSリソース。Timer/Manager/TransitionLibraryを保持 |
 | タイプライター効果 | テキストを一文字ずつ表示する演出 |
 | ウェイト | 文字表示間の待機時間（f64秒単位） |
 | Stage 1 IR | 外部インターフェース用の中間表現。Text, Wait, FireEvent等 |

@@ -15,8 +15,12 @@
 
 **調査結果サマリ:**
 - 既存アセット: Label/TextLayout基盤、Windows Animation APIラッパー、ECSスケジュール構造
-- 主要ギャップ: DirectWrite クラスタ取得API未実装、IUIAnimationTimer 未統合、IR型定義なし
+- 主要ギャップ: DirectWrite クラスタ取得API未実装、AnimationCore新規、IR型定義なし
 - 全体工数見積: **L** (1-2週間) ※設計+実装
+
+**スコープ決定:**
+- 本仕様でアニメーション基盤 `AnimationCore` を実装
+- 将来の `wintf-P0-animation-system` で高度な機能を拡張予定
 
 ---
 
@@ -43,14 +47,15 @@
 |----|-------------|---------|------|--------|
 | 2.1 デフォルトウェイト | なし | Typewriterコンポーネントに追加 | S | Low |
 | 2.2 個別ウェイト | なし | Stage 1 IR Waitトークン | S | Low |
-| 2.3 時間経過で次文字 | `animation.rs` (AnimationManager) | **IUIAnimationTimer未統合** | M | Medium |
+| 2.3 時間経過で次文字 | `animation.rs` (AnimationManager) | **AnimationCore新規（本仕様スコープ）** | M | Medium |
 | 2.4 瞬時表示 | なし | ウェイト0ハンドリング | S | Low |
 | 2.5 スキップ機能 | なし | skip()メソッド追加 | S | Low |
 
 **ギャップ詳細:**
-- `IUIAnimationTimer` が `animation.rs` に未実装
-- `IUIAnimationManager2::Update()` は存在するが、Timer連携未整備
-- タイマーコールバック機構が必要
+- `AnimationCore` リソースを本仕様で新規実装
+  - `IUIAnimationTimer` + `IUIAnimationManager2` + `IUIAnimationTransitionLibrary2` を保持
+  - `animation_tick_system` を Input スケジュールに登録
+- 既存 `animation.rs` の Manager/Storyboard ラッパーは流用
 
 ### Requirement 3: 2段階IR設計
 
@@ -103,7 +108,7 @@
 | AC | 既存アセット | ギャップ | 工数 | リスク |
 |----|-------------|---------|------|--------|
 | 7.1 ECSコンポーネント | ECS基盤完備 | Typewriterコンポーネント定義 | S | Low |
-| 7.2 Windows Animation | `animation.rs` (Manager, Storyboard) | **Timer統合** | M | Medium |
+| 7.2 Windows Animation | `animation.rs` (Manager, Storyboard) | **AnimationCore（本仕様で実装）** | M | Low |
 | 7.3 Animation状態参照 | `UIAnimationVariableExt::get_value()` | 流用可能 | S | Low |
 | 7.4 クリーンアップ | `on_remove` フックパターン | 流用可能 | S | Low |
 | 7.5 ライフサイクル | `Visual`, `VisualGraphics` パターン | 流用可能 | S | Low |
@@ -117,7 +122,7 @@
 | ID | 項目 | 説明 | 工数 | リスク |
 |----|------|------|------|--------|
 | G1 | DirectWrite Cluster API | `GetClusterMetrics()`, `HitTestTextPosition()` ラッパー追加 | M | Medium |
-| G2 | IUIAnimationTimer | Timer作成・コールバック・DComp連携 | M | Medium |
+| G2 | AnimationCore | Timer/Manager/TransitionLibraryをリソース化、`animation_tick_system` | M | Low |
 | G3 | Stage 1 IR型定義 | `TypewriterToken` enum (Text, Wait, FireEvent) | S | Low |
 | G4 | Stage 2 IR型定義 | `TimelineItem` struct (グリフ情報含む) | M | Low |
 | G5 | Typewriterコンポーネント | 状態管理、描画制御 | M | Low |
@@ -212,7 +217,7 @@
 |----------|------|------|
 | 設計 | design.md作成 | S |
 | 実装 | G1: DirectWrite API | M |
-| 実装 | G2: Timer統合 | M |
+| 実装 | G2: AnimationCore | M |
 | 実装 | G3-G4: IR型定義 | S |
 | 実装 | G5-G7: Typewriterコンポーネント・システム | M |
 | テスト | 単体テスト・統合テスト | M |
