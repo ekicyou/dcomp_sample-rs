@@ -14,7 +14,7 @@
 
 ## Introduction
 
-本仕様書は wintf フレームワークにおけるヒットテストキャッシュ機構の要件を定義する。`event-mouse-basic` 仕様から派生した関連仕様として、WM_NCHITTEST の高頻度呼び出しに対するパフォーマンス最適化を提供する。
+本仕様書は wintf フレームワークにおける WM_NCHITTEST 応答キャッシュの要件を定義する。`event-mouse-basic` 仕様から派生した関連仕様として、WM_NCHITTEST の高頻度呼び出しに対するパフォーマンス最適化を提供する。
 
 ### 背景
 
@@ -34,31 +34,38 @@ Win32 は `WM_NCHITTEST` を非常に高頻度で送信する：
 
 ### スコープ
 
-**含まれるもの**:
-- World 外スレッドローカルキャッシュの実装
-- 座標ベースのキャッシュ判定
-- フレームカウントによるキャッシュ無効化
-- グローバルフレームカウンター
-- レイアウト変更時のキャッシュ無効化
+**含まれるもの（Phase 1: 最小実装）**:
+- WM_NCHITTEST 戻り値のキャッシュ
+- 座標ベースのキャッシュ判定（座標一致ならキャッシュ返却）
+- World tick 時のキャッシュクリア
+- レイアウト更新時のキャッシュクリア
 
 **含まれないもの**:
+- Entity 情報のキャッシュ（本仕様では不要）
+- hit_test API 本体の最適化（別仕様で対応）
 - ヒットテストロジック本体 → `event-hit-test` 仕様で実装済み
 - マウスイベント処理 → `event-mouse-basic` 仕様で対応
-- αマスクヒットテスト → `event-hit-test-alpha-mask` 仕様で対応
+
+**将来拡張（Phase 2 以降）**:
+- hit_test API 自体のキャッシュ（Entity 情報含む）
+- 複数座標のキャッシュ保持
+- LRU キャッシュ戦略
 
 ### 設計決定
 
+**WM_NCHITTEST 戻り値のみをキャッシュする理由**:
+
+| 観点 | Entity キャッシュ | LRESULT キャッシュ |
+|------|-------------------|-------------------|
+| 複雑さ | 高（ライフサイクル管理） | 低（値のみ） |
+| 実装コスト | 中〜高 | 低 |
+| 効果 | WM_NCHITTEST + hit_test | WM_NCHITTEST のみ |
+
+**結論**: 最小実装として WM_NCHITTEST 戻り値（LRESULT）のみをキャッシュ。hit_test の最適化は別仕様で検討。
+
 **World 外キャッシュを採用する理由**:
 
-World 内 Resource（`#[derive(Resource)]`）ではなく、スレッドローカルキャッシュを採用する：
-
-| 観点 | World 内 Resource | World 外スレッドローカル |
-|------|-------------------|--------------------------|
-| キャッシュ確認時の World 借用 | 必要 | 不要 |
-| ECS パターン統合 | ○ | △ |
-| WM_NCHITTEST パフォーマンス | 改善なし | 大幅改善 |
-
-**結論**: キャッシュヒット時に World 借用を回避することが主目的のため、World 外キャッシュを採用。
+キャッシュヒット時に World 借用を回避することが主目的のため、スレッドローカルキャッシュを採用。
 
 ---
 
@@ -66,146 +73,82 @@ World 内 Resource（`#[derive(Resource)]`）ではなく、スレッドロー�
 
 ### Requirement 1: スレッドローカルキャッシュ
 
-**Objective:** 開発者として、ヒットテスト結果をキャッシュしたい。それにより WM_NCHITTEST の高頻度呼び出しに対するパフォーマンスを向上できる。
+**Objective:** 開発者として、WM_NCHITTEST 戻り値をキャッシュしたい。それにより高頻度呼び出しに対するパフォーマンスを向上できる。
 
 #### Acceptance Criteria
 
-1. The HitTest Cache System shall スレッドローカル変数でウィンドウごとのキャッシュを管理する
-2. The HitTest Cache System shall キャッシュエントリにスクリーン座標（物理ピクセル）を保持する
-3. The HitTest Cache System shall キャッシュエントリにヒット結果（Entity と ローカル座標）を保持する
-4. The HitTest Cache System shall キャッシュエントリにフレームカウントを保持する
-5. The HitTest Cache System shall ウィンドウ（HWND）ごとに独立したキャッシュエントリを管理する
-6. When キャッシュ確認時, the HitTest Cache System shall World 借用なしでキャッシュの有効性を判定する
+1. The NCHITTEST Cache System shall スレッドローカル変数でウィンドウごとのキャッシュを管理する
+2. The NCHITTEST Cache System shall キャッシュエントリにスクリーン座標（物理ピクセル）を保持する
+3. The NCHITTEST Cache System shall キャッシュエントリに WM_NCHITTEST 戻り値（LRESULT）を保持する
+4. The NCHITTEST Cache System shall ウィンドウ（HWND）ごとに独立したキャッシュエントリを管理する
+5. When キャッシュ確認時, the NCHITTEST Cache System shall World 借用なしでキャッシュの有効性を判定する
 
-#### 構造定義
+#### 実装ノート
 
-```rust
-thread_local! {
-    static HIT_TEST_CACHE: RefCell<HashMap<isize, WindowHitTestCache>> = RefCell::new(HashMap::new());
-}
-
-/// ウィンドウごとのヒットテストキャッシュ
-struct WindowHitTestCache {
-    /// 前回のスクリーン座標（物理ピクセル）
-    last_screen_point: PhysicalPoint,
-    /// 前回のヒット結果（ヒットなしの場合は None）
-    last_hit_result: Option<(Entity, PhysicalPoint)>,
-    /// キャッシュ時のフレームカウント
-    frame_count: u32,
-}
-```
+- データ構造（HashMap / Vec / 単一エントリ）は設計フェーズで決定
+- 1フレーム（約16ms）あたりの WM_NCHITTEST 頻度は最大20回程度（高速マウス移動時）
+- ウィンドウ数は通常1-2個であり、線形探索でも十分な性能が期待される
 
 ---
 
 ### Requirement 2: キャッシュヒット判定
 
-**Objective:** 開発者として、同一座標・同一フレームでのヒットテストをスキップしたい。それによりWorld借用なしで結果を返せる。
+**Objective:** 開発者として、同一座標での WM_NCHITTEST をスキップしたい。それによりWorld借用なしで結果を返せる。
 
 #### Acceptance Criteria
 
-1. When 同一スクリーン座標でヒットテストが要求された時, the HitTest Cache System shall キャッシュからヒット結果を返す
-2. When 同一フレーム内でヒットテストが要求された時, the HitTest Cache System shall キャッシュを有効とみなす
-3. When 座標が異なる場合, the HitTest Cache System shall キャッシュミスとして実際のヒットテストを実行する
-4. When フレームカウントが異なる場合, the HitTest Cache System shall キャッシュを無効化し実際のヒットテストを実行する
-5. The HitTest Cache System shall キャッシュヒット時に World を借用しない
+1. When 同一スクリーン座標で WM_NCHITTEST が要求された時, the NCHITTEST Cache System shall キャッシュから戻り値を返す
+2. When 座標が異なる場合, the NCHITTEST Cache System shall 実際のヒットテストを実行しキャッシュを更新する
+3. The NCHITTEST Cache System shall キャッシュヒット時に World を借用しない
 
 #### キャッシュ判定ロジック
 
-```rust
-fn is_cache_valid(cache: &WindowHitTestCache, screen_point: PhysicalPoint, current_frame: u32) -> bool {
-    cache.frame_count == current_frame && cache.last_screen_point == screen_point
-}
-```
+- HWND と座標の組み合わせが一致すればキャッシュヒット
+- 座標は物理ピクセル単位で厳密比較
 
 ---
 
-### Requirement 3: グローバルフレームカウンター
+### Requirement 3: キャッシュクリア
 
-**Objective:** 開発者として、World 外からフレームカウントを取得したい。それによりキャッシュ無効化判定を World 借用なしで行える。
+**Objective:** 開発者として、適切なタイミングでキャッシュを無効化したい。それにより古い結果を返すことを防げる。
 
 #### Acceptance Criteria
 
-1. The HitTest Cache System shall グローバルな `AtomicU32` フレームカウンターを提供する
-2. When ECS tick が実行された時, the HitTest Cache System shall フレームカウンターをインクリメントする
-3. The HitTest Cache System shall `get_current_frame_count()` 関数でフレームカウントを取得可能とする
-4. The HitTest Cache System shall フレームカウンターを Relaxed メモリオーダリングでアクセスする
+1. When World tick が実行された時, the NCHITTEST Cache System shall 全キャッシュをクリアする
+2. When レイアウトが更新された時, the NCHITTEST Cache System shall 全キャッシュをクリアする
+3. The NCHITTEST Cache System shall `clear_nchittest_cache()` 関数を提供する
 
-#### 実装例
+#### クリアタイミング
 
-```rust
-use std::sync::atomic::{AtomicU32, Ordering};
+| トリガー | アクション |
+|---------|-----------|
+| World tick | `clear_nchittest_cache()` 呼び出し |
+| レイアウト更新完了 | `clear_nchittest_cache()` 呼び出し |
 
-static GLOBAL_FRAME_COUNT: AtomicU32 = AtomicU32::new(0);
+#### 実装ノート
 
-/// フレームカウントをインクリメント（tick 時に呼び出し）
-pub fn increment_frame_count() {
-    GLOBAL_FRAME_COUNT.fetch_add(1, Ordering::Relaxed);
-}
-
-/// 現在のフレームカウントを取得
-pub fn get_current_frame_count() -> u32 {
-    GLOBAL_FRAME_COUNT.load(Ordering::Relaxed)
-}
-```
+- `clear_nchittest_cache()` は全ウィンドウのキャッシュをクリア
+- 部分クリア（特定HWNDのみ）は Phase 2 で検討
 
 ---
 
 ### Requirement 4: キャッシュ公開API
 
-**Objective:** 開発者として、キャッシュ付きヒットテストAPIを使用したい。それにより透過的にキャッシュ最適化の恩恵を受けられる。
+**Objective:** 開発者として、キャッシュ付き WM_NCHITTEST 処理を使用したい。それにより透過的にキャッシュ最適化の恩恵を受けられる。
 
 #### Acceptance Criteria
 
-1. The HitTest Cache System shall `cached_hit_test(hwnd, screen_point)` 関数を提供する
-2. When キャッシュヒット時, the `cached_hit_test` function shall World 借用なしで結果を返す
-3. When キャッシュミス時, the `cached_hit_test` function shall 実際のヒットテストを実行しキャッシュを更新する
-4. The `cached_hit_test` function shall `event-hit-test` 仕様の `hit_test_detailed` APIを内部で使用する
-5. The HitTest Cache System shall 戻り値として `Option<(Entity, PhysicalPoint)>` を返す
+1. The NCHITTEST Cache System shall `cached_nchittest(hwnd, screen_point, world)` 関数を提供する
+2. When キャッシュヒット時, the `cached_nchittest` function shall World 借用なしで LRESULT を返す
+3. When キャッシュミス時, the `cached_nchittest` function shall 実際のヒットテストを実行しキャッシュを更新する
+4. The NCHITTEST Cache System shall 戻り値として `LRESULT` を返す
 
-#### API シグネチャ
+#### API 概要
 
-```rust
-/// キャッシュ付きヒットテスト
-/// 
-/// キャッシュヒット時は World 借用なしで結果を返す。
-/// キャッシュミス時は hit_test_detailed を呼び出しキャッシュを更新。
-/// 
-/// # Arguments
-/// * `hwnd` - ウィンドウハンドル
-/// * `screen_point` - スクリーン座標（物理ピクセル）
-/// * `world` - ECS World（キャッシュミス時のみ使用）
-/// 
-/// # Returns
-/// * `Some((entity, local_point))` - ヒットしたエンティティとローカル座標
-/// * `None` - ヒットなし
-pub fn cached_hit_test(
-    hwnd: HWND,
-    screen_point: PhysicalPoint,
-    world: &World,
-) -> Option<(Entity, PhysicalPoint)>;
-```
-
----
-
-### Requirement 5: レイアウト変更時の無効化
-
-**Objective:** 開発者として、レイアウト変更時にキャッシュを無効化したい。それにより古いヒット結果を返すことを防げる。
-
-#### Acceptance Criteria
-
-1. When `ArrangementTreeChanged` イベントが発生した時, the HitTest Cache System shall 該当ウィンドウのキャッシュを無効化する
-2. When ウィンドウが破棄された時（WM_DESTROY）, the HitTest Cache System shall 該当ウィンドウのキャッシュエントリを削除する
-3. The HitTest Cache System shall `invalidate_cache(hwnd)` 関数を提供する
-4. The HitTest Cache System shall `clear_cache(hwnd)` 関数を提供する
-
-#### 無効化タイミング
-
-| トリガー | アクション |
-|---------|-----------|
-| 座標変化 | 自動無効化（キャッシュ判定で処理） |
-| フレーム変化 | 自動無効化（フレームカウント比較） |
-| `ArrangementTreeChanged` | `invalidate_cache(hwnd)` 呼び出し |
-| WM_DESTROY | `clear_cache(hwnd)` 呼び出し |
+- `cached_nchittest(hwnd, screen_point, world) -> LRESULT`
+  - キャッシュヒット時: World 借用なしで LRESULT を返す
+  - キャッシュミス時: hit_test 実行 → LRESULT 変換 → キャッシュ更新
+  - 戻り値: HTCLIENT（ヒットあり）または HTTRANSPARENT（ヒットなし）
 
 ---
 
@@ -217,9 +160,9 @@ pub fn cached_hit_test(
 
 #### Acceptance Criteria
 
-1. When キャッシュヒット時, the HitTest Cache System shall 0.01ms 以下で結果を返す
-2. The HitTest Cache System shall キャッシュ確認のために World を借用しない
-3. The HitTest Cache System shall 60fps バジェット（16ms）への影響を最小化する
+1. When キャッシュヒット時, the NCHITTEST Cache System shall 0.01ms 以下で結果を返す
+2. The NCHITTEST Cache System shall キャッシュ確認のために World を借用しない
+3. The NCHITTEST Cache System shall 60fps バジェット（16ms）への影響を最小化する
 
 #### 期待効果
 
@@ -234,9 +177,8 @@ pub fn cached_hit_test(
 
 #### Acceptance Criteria
 
-1. The HitTest Cache System shall メインスレッド専用として設計する
-2. The HitTest Cache System shall `thread_local!` マクロを使用してスレッドローカルストレージを実装する
-3. The HitTest Cache System shall グローバルフレームカウンターを `AtomicU32` で実装する
+1. The NCHITTEST Cache System shall メインスレッド専用として設計する
+2. The NCHITTEST Cache System shall `thread_local!` マクロを使用してスレッドローカルストレージを実装する
 
 ---
 
@@ -245,9 +187,11 @@ pub fn cached_hit_test(
 | 用語 | 定義 |
 |------|------|
 | WM_NCHITTEST | Win32 メッセージ。マウス位置がウィンドウのどの部分にあるかを問い合わせる |
-| キャッシュヒット | 前回と同一条件でのヒットテスト要求。キャッシュから結果を返す |
-| キャッシュミス | 条件が変化したヒットテスト要求。実際のヒットテストを実行 |
-| フレームカウント | ECS tick の実行回数。キャッシュ有効期限の判定に使用 |
+| HTCLIENT | WM_NCHITTEST 戻り値。クライアント領域内を示す |
+| HTTRANSPARENT | WM_NCHITTEST 戻り値。透過領域（ヒットなし）を示す |
+| LRESULT | Win32 メッセージ処理の戻り値型 |
+| キャッシュヒット | 前回と同一座標での WM_NCHITTEST 要求。キャッシュから結果を返す |
+| キャッシュミス | 座標が変化した WM_NCHITTEST 要求。実際のヒットテストを実行 |
 | スレッドローカル | スレッドごとに独立した変数。`thread_local!` マクロで実装 |
 
 ---
@@ -268,21 +212,20 @@ pub fn cached_hit_test(
 WM_NCHITTEST 受信
     │
     ▼
-cached_hit_test(hwnd, screen_point, world) 呼び出し
+cached_nchittest(hwnd, screen_point, world) 呼び出し
     │
     ▼
 ┌─────────────────────────────────────┐
 │ キャッシュ有効性チェック              │
 │ (World 借用なし)                     │
 │                                     │
-│ 1. フレームカウント一致?             │
-│ 2. 座標一致?                        │
+│ 座標一致?                           │
 └─────────────────────────────────────┘
     │
     ├── Yes (キャッシュヒット)
     │       │
     │       ▼
-    │   キャッシュから結果を返す
+    │   キャッシュから LRESULT を返す
     │   (World 借用なし)
     │
     └── No (キャッシュミス)
@@ -291,13 +234,39 @@ cached_hit_test(hwnd, screen_point, world) 呼び出し
         World を借用
             │
             ▼
-        hit_test_detailed 実行
+        hit_test 実行
+            │
+            ▼
+        結果を LRESULT に変換
+        (ヒットあり → HTCLIENT, なし → HTTRANSPARENT)
             │
             ▼
         キャッシュ更新
             │
             ▼
-        結果を返す
+        LRESULT を返す
+
+---
+
+World tick / レイアウト更新
+    │
+    ▼
+clear_nchittest_cache() 呼び出し
+    │
+    ▼
+全キャッシュクリア
 ```
+
+---
+
+## Appendix C: 将来拡張
+
+本仕様は WM_NCHITTEST 戻り値のみをキャッシュする最小実装（Phase 1）である。
+
+| 将来仕様 | 説明 |
+|---------|------|
+| hit_test キャッシュ | Entity 情報を含むヒットテスト結果のキャッシュ（別仕様） |
+| 複数座標キャッシュ | 直近N件の座標をキャッシュ保持 |
+| LRU 戦略 | 最も古いエントリを自動削除 |
 
 ````

@@ -2,275 +2,295 @@
 
 | 項目 | 内容 |
 |------|------|
-| **Feature** | event-dispatch |
+| **Document Title** | event-dispatch ギャップ分析 |
+| **Version** | 1.0 |
 | **Date** | 2025-12-03 |
-| **Parent Spec** | wintf-P0-event-system |
-| **Phase** | Gap Analysis Complete |
+| **Spec Reference** | `.kiro/specs/event-dispatch/requirements.md` v0.2 |
 
 ---
 
-## 1. Executive Summary
+## Executive Summary
 
-- **スコープ**: イベント伝播機構（バブリング/キャプチャ）とハンドラディスパッチシステム
-- **既存基盤**: hit_test → MouseState 付与まで実装済み（event-mouse-basic, event-hit-test）
-- **主要ギャップ**: ハンドラコンポーネント、バブリング経路収集、ディスパッチシステムが未実装
-- **推奨アプローチ**: Option B（新規コンポーネント作成）- 既存 mouse.rs と分離し、新モジュール `dispatch.rs` を作成
-- **リスク**: Low - 既存パターン（排他システム、SparseSet）が確立済み
+| 項目 | 評価 |
+|------|------|
+| **工数** | M (3-7日) |
+| **リスク** | Low |
+| **推奨アプローチ** | Option B: 新規モジュール作成 |
+
+**主要ポイント**:
+- 既存のヒットテスト（`hit_test.rs`）と `MouseState` コンポーネントが完成済み
+- 階層走査パターン（`DepthFirstReversePostOrder`, `ChildOf.parent()`）が確立
+- 新規 `dispatch.rs` モジュール作成が最適（既存モジュールへの影響最小）
+- 排他システム (`&mut World`) の実装は bevy_ecs の標準パターン
 
 ---
 
-## 2. Current State Investigation
+## 1. Current State Investigation
 
-### 2.1 Domain-Related Assets
+### 1.1 関連資産マップ
 
-| カテゴリ | ファイル/モジュール | 関連度 |
-|---------|---------------------|--------|
-| **マウス状態** | `ecs/mouse.rs` | 高 - MouseState, MouseLeave 定義 |
-| **ハンドラ** | `ecs/window_proc/handlers.rs` | 中 - WM_MOUSEMOVE でhit_test呼び出し |
-| **階層システム** | `ecs/common/tree_iter.rs` | 高 - DepthFirstReversePostOrder（ヒットテスト用） |
-| **階層コンポーネント** | bevy_ecs `ChildOf`/`Children` | 高 - 親子関係 |
-| **スケジュール** | `ecs/world.rs` | 高 - Input/Update スケジュール定義 |
-| **レイアウト** | `ecs/layout/hit_test.rs` | 中 - hit_test_in_window API |
-| **排他システム例** | `ecs/window_system.rs` | 中 - `fn create_windows(world: &mut World)` |
+| 資産 | ファイル | 責務 | 状態 |
+|------|----------|------|------|
+| **MouseState** | `ecs/mouse.rs` | マウス状態コンポーネント | ✅ 完成 |
+| **hit_test_in_window** | `ecs/layout/hit_test.rs` | ウィンドウ座標→Entity特定 | ✅ 完成 |
+| **DepthFirstReversePostOrder** | `ecs/common/tree_iter.rs` | 深さ優先逆順走査（最前面優先） | ✅ 完成 |
+| **ChildOf / Children** | bevy_ecs (re-exported) | ECS親子関係 | ✅ bevy_ecs標準 |
+| **handlers.rs** | `ecs/window_proc/handlers.rs` | WM_* → MouseState付与 | ✅ 完成 |
+| **world.rs** | `ecs/world.rs` | スケジュール登録 | ✅ 拡張ポイント確定 |
 
-### 2.2 Existing Patterns
+### 1.2 確立済みパターン
 
-#### ストレージ戦略
+#### 階層走査（バブリング用）
 ```rust
-// SparseSet: 頻繁な挿入/削除、少数エンティティ向け
-#[derive(Component)]
+// 子→親の走査パターン（ChildOf.parent()）
+// graphics/systems.rs:1017-1020 より
+let mut current = entity;
+while let Ok(co) = child_of_query.get(current) {
+    depth += 1;
+    current = co.parent();
+}
+```
+
+#### ヒットテスト統合
+```rust
+// handlers.rs:536-539 より
+let hit_entity = hit_test_in_window(
+    world_borrow.world(),
+    window_entity,
+    HitTestPoint::new(x as f32, y as f32),
+);
+```
+
+#### SparseSet コンポーネント
+```rust
+// mouse.rs:98-99 より
+#[derive(Component, Debug, Clone)]
 #[component(storage = "SparseSet")]
 pub struct MouseState { ... }
 ```
 
-#### 排他システム
-```rust
-// &mut World を受け取る排他システム
-pub fn create_windows(world: &mut World) {
-    // world.entity_mut(), world.get::<T>() 等を直接使用
-}
+### 1.3 スケジュール統合ポイント
+
 ```
+Input スケジュール:
+  ├── process_mouse_buffers  ← 既存
+  └── dispatch_mouse_events  ← 新規追加（process_mouse_buffersの後）
 
-#### 階層走査
-```rust
-// 子→親への走査には ChildOf.parent() を使用
-let parent_entity = world.get::<ChildOf>(entity)?.parent();
+FrameFinalize スケジュール:
+  └── clear_transient_mouse_state  ← 既存
 ```
-
-#### スケジュール統合
-```rust
-schedules.add_systems(
-    Input,
-    my_system.after(crate::ecs::mouse::process_mouse_buffers),
-);
-```
-
-### 2.3 Integration Surfaces
-
-| 統合ポイント | 詳細 |
-|-------------|------|
-| **MouseState** | 既存コンポーネントをEventContextに含める |
-| **Input スケジュール** | `process_mouse_buffers` の後に dispatch 実行 |
-| **ChildOf/Children** | バブリング経路の親子走査に使用 |
-| **hit_test_in_window** | ヒット対象エンティティの特定（既に handlers.rs で呼び出し中） |
 
 ---
 
-## 3. Requirements Feasibility Analysis
+## 2. Requirements Feasibility Analysis
 
-### 3.1 Requirements to Asset Mapping
+### 2.1 要件→資産マッピング
 
-| Requirement | 必要な実装 | 既存アセット | ギャップ |
-|-------------|-----------|-------------|---------|
-| R1: バブリング | 子→親経路収集 | `ChildOf.parent()` | 経路収集関数 (Missing) |
-| R2: キャプチャ | 親→子経路収集 | `DepthFirstReversePostOrder` | P2 (将来) |
-| R3: ハンドラコンポーネント | `MouseEventHandler` | なし | 新規作成 (Missing) |
-| R4: EventContext | コンテキスト構造体 | `MouseState` 参照可 | 新規作成 (Missing) |
-| R5: ディスパッチシステム | 排他システム | パターン確立済み | 新規作成 (Missing) |
-| R6: ECS統合 | スケジュール登録 | `world.rs` | 統合作業 (Constraint) |
-| R7: SparseSet | ストレージ戦略 | パターン確立済み | なし |
-| R8: 汎用ディスパッチ | ジェネリック設計 | なし | 新規作成 (Missing) |
-| R9: イベント履歴 | リングバッファ | なし | P2 (将来) |
+| Requirement | 必要資産 | 既存資産 | ギャップ |
+|-------------|----------|----------|----------|
+| R1: バブリング | 親取得API | `ChildOf.parent()` | なし |
+| R2: キャプチャ | 子走査API | `Children.iter()` | なし（P2） |
+| R3: ハンドラコンポーネント | `MouseEventHandler` | - | **Missing** |
+| R4: イベントコンテキスト | `EventContext<E>` | - | **Missing** |
+| R5: ディスパッチシステム | `dispatch_mouse_events` | - | **Missing** |
+| R6: ECS統合 | スケジュール登録 | `world.rs` | 拡張のみ |
+| R7: メモリ戦略 | SparseSet | 既存パターン | なし |
+| R8: 汎用ディスパッチ | ジェネリック設計 | - | **Missing** |
+| R9: イベント履歴 | リングバッファ | - | P2（後回し）|
 
-### 3.2 Technical Gaps
+### 2.2 ギャップ詳細
 
-#### G1: バブリング経路収集関数（Missing）
+#### G1: MouseEventHandler コンポーネント【Missing】
 ```rust
-// 必要な関数（未実装）
-fn collect_bubble_path(world: &World, target: Entity) -> Vec<Entity> {
-    let mut path = vec![target];
-    let mut current = target;
-    while let Some(child_of) = world.get::<ChildOf>(current) {
-        current = child_of.parent();
-        path.push(current);
-    }
-    path
-}
-```
-
-#### G2: MouseEventHandler コンポーネント（Missing）
-```rust
+/// 新規作成
 #[derive(Component, Clone, Copy)]
 #[component(storage = "SparseSet")]
 pub struct MouseEventHandler {
     pub handler: fn(&mut World, Entity, &EventContext<MouseState>) -> bool,
 }
 ```
+- **複雑度**: Low（単純な構造体）
+- **依存**: なし
 
-#### G3: ディスパッチシステム（Missing）
+#### G2: EventContext 構造体【Missing】
 ```rust
-// 排他システムとして実装
-pub fn dispatch_mouse_events(world: &mut World) {
-    // 1. MouseState を持つエンティティを収集
-    // 2. バブリング経路を構築
-    // 3. ハンドラを収集（fnポインタはCopy）
-    // 4. ハンドラを順次実行
+/// 新規作成
+#[derive(Clone)]
+pub struct EventContext<E> {
+    pub original_target: Entity,
+    pub event_data: E,
+    pub phase: Phase,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Phase {
+    Capture,
+    Target,
+    Bubble,
 }
 ```
+- **複雑度**: Low
+- **依存**: なし
 
-### 3.3 Constraints
+#### G3: dispatch_mouse_events システム【Missing】
+```rust
+/// 新規作成 - 排他システム
+pub fn dispatch_mouse_events(world: &mut World) {
+    // 1. MouseState を持つエンティティを収集
+    // 2. 各エンティティについて:
+    //    a. 親チェーンを収集（バブリングパス）
+    //    b. ハンドラをCopyで収集（fnポインタ）
+    //    c. 各ハンドラを順次呼び出し（target → bubble）
+    //    d. 戻り値trueで停止
+}
+```
+- **複雑度**: Medium（2パス実装、世界借用管理）
+- **依存**: G1, G2
 
-| 制約 | 詳細 |
-|------|------|
-| **フレーム遅延禁止** | 2パス方式で同一フレーム内完結必須 |
-| **排他システム必須** | ハンドラが `&mut World` を必要とするため |
-| **ハンドラ型制約** | `fn` ポインタのみ（クロージャ不可）、状態はコンポーネントに |
+#### G4: スケジュール登録【拡張のみ】
+```rust
+// world.rs への追加
+schedules.add_systems(
+    Input,
+    crate::ecs::dispatch::dispatch_mouse_events
+        .after(crate::ecs::mouse::process_mouse_buffers),
+);
+```
+- **複雑度**: Low
+- **依存**: G3
 
 ---
 
-## 4. Implementation Approach Options
+## 3. Implementation Approach Options
 
-### Option A: 既存 mouse.rs を拡張
+### Option A: 既存 mouse.rs 拡張
 
-**概要**: `ecs/mouse.rs` に `MouseEventHandler` と dispatch ロジックを追加
+**概要**: `mouse.rs` に `MouseEventHandler` とディスパッチロジックを追加
 
 **Trade-offs**:
-- ✅ ファイル数増加なし
-- ❌ mouse.rs が肥大化（既に 824 行）
-- ❌ 責務の混在（状態管理 + 伝播ロジック）
+- ✅ 既存モジュールとの統合が自然
+- ❌ mouse.rs が既に800行超、肥大化リスク
+- ❌ 単一責任原則違反（状態管理 + ディスパッチ）
 
-**推奨度**: ❌ 非推奨
+**評価**: 非推奨
 
----
+### Option B: 新規 dispatch.rs モジュール作成【推奨】
 
-### Option B: 新規 dispatch.rs モジュール作成 ⭐推奨
-
-**概要**: `ecs/dispatch.rs` を新規作成し、伝播ロジックを分離
+**概要**: `ecs/dispatch.rs` として独立モジュールを作成
 
 **構成**:
 ```
 ecs/
-├── mouse.rs         # MouseState, MouseLeave（既存）
-├── dispatch.rs      # MouseEventHandler, EventContext, dispatch_mouse_events（新規）
-└── dispatch/        # 将来の拡張用（汎用ディスパッチ等）
-    ├── mod.rs
-    ├── mouse.rs     # マウス固有
-    └── context.rs   # EventContext<E>
+├── dispatch.rs          ← 新規（ディスパッチシステム）
+│   ├── MouseEventHandler
+│   ├── EventContext<E>
+│   ├── Phase
+│   └── dispatch_mouse_events()
+├── mouse.rs             ← 既存（状態管理のみ）
+└── mod.rs               ← 追加: pub mod dispatch;
 ```
 
 **Trade-offs**:
-- ✅ 責務の明確な分離
-- ✅ 将来の拡張（キーボード、タイマー）に対応しやすい
-- ✅ テストが容易
+- ✅ 責務明確化（状態管理 vs ディスパッチ）
+- ✅ 既存コードへの影響最小
+- ✅ 汎用ディスパッチへの拡張容易
 - ❌ 新規ファイル追加
 
-**推奨度**: ⭐ 推奨
+**評価**: **推奨**
 
----
+### Option C: layout/event.rs としてレイアウトモジュールに配置
 
-### Option C: ハイブリッド（フェーズ分割）
-
-**概要**: Phase 1 で mouse.rs 拡張、Phase 2 で分離リファクタ
+**概要**: `ecs/layout/event.rs` としてレイアウトモジュール配下に配置
 
 **Trade-offs**:
-- ✅ 初期実装が速い
-- ❌ リファクタリングコスト
-- ❌ 技術的負債
+- ✅ hit_test.rs と近い位置
+- ❌ レイアウトとイベントは異なる責務
+- ❌ 将来のキーボード/タイマーイベントとの整合性低
 
-**推奨度**: △ 条件付き
-
----
-
-## 5. Implementation Complexity & Risk
-
-### Effort: M (3-7 days)
-
-**根拠**:
-- 新規コンポーネント/型: 3つ（MouseEventHandler, EventContext, Phase）
-- 新規関数: 2-3つ（バブリング経路収集、ディスパッチシステム）
-- スケジュール統合: 既存パターンあり
-- テスト: 単体テスト + 統合テスト
-
-### Risk: Low
-
-**根拠**:
-- 排他システムパターンが確立済み
-- SparseSet ストレージパターンが確立済み
-- ChildOf/Children 階層走査が実装済み
-- 複雑な外部統合なし
+**評価**: 非推奨
 
 ---
 
-## 6. Design Phase Recommendations
+## 4. Implementation Complexity & Risk
 
-### 6.1 Preferred Approach
+### 工数評価: M (3-7日)
+
+| タスク | 見積もり |
+|--------|----------|
+| G1: MouseEventHandler | 0.5日 |
+| G2: EventContext | 0.5日 |
+| G3: dispatch_mouse_events | 2-3日 |
+| G4: スケジュール統合 | 0.5日 |
+| テスト | 1-2日 |
+| **合計** | **4-6日** |
+
+**根拠**:
+- 既存パターン（SparseSet, 階層走査）の再利用
+- 排他システムはbevy_ecsの標準パターン
+- 複雑なアルゴリズムなし
+
+### リスク評価: Low
+
+| リスク要因 | 評価 | 軽減策 |
+|-----------|------|--------|
+| 世界借用競合 | Low | 排他システムで解決済み |
+| パフォーマンス | Low | fnポインタCopyで最適化済み |
+| 既存機能影響 | Low | 新規モジュールで分離 |
+
+---
+
+## 5. Recommendations for Design Phase
+
+### 推奨アプローチ
 
 **Option B: 新規 dispatch.rs モジュール作成**
 
-### 6.2 Key Design Decisions
+### 設計フェーズでの検討事項
 
-1. **モジュール構成**
-   - 初期: 単一ファイル `ecs/dispatch.rs`
-   - 拡張時: `ecs/dispatch/` ディレクトリ化
+1. **ディスパッチ順序の詳細設計**
+   - Target フェーズの扱い（最初に呼ぶ or バブリング中に呼ぶ）
+   - 複数エンティティに MouseState がある場合の処理順
 
-2. **型定義**
-   - `EventContext<E>` をジェネリックに（将来拡張対応）
-   - `MouseEventHandler` は具象型として開始
+2. **エラーハンドリング**
+   - ハンドラ内でのパニック対処
+   - エンティティ削除時の安全性
 
-3. **システム登録**
-   - Input スケジュール、`process_mouse_buffers` の後
+3. **テスト戦略**
+   - 単体テスト: ハンドラ呼び出し順序
+   - 統合テスト: hit_test → dispatch → 状態変更
 
-### 6.3 Research Items for Design Phase
+### Research Items
 
-| 項目 | 詳細 |
-|------|------|
-| なし | 主要な技術的不明点はすべて議論済み |
+- なし（技術的未知要素なし）
 
 ---
 
-## 7. Appendix: Code References
+## Appendix: 参照コード
 
-### A. 親エンティティ走査パターン
+### A. 親チェーン取得パターン
 ```rust
-// ecs/graphics/systems.rs:1023
-current = co.parent();
-
-// ecs/layout/systems.rs:166
-let parent_entity = parent_ref.parent();
+// graphics/systems.rs:1017-1020
+let mut current = entity;
+while let Ok(co) = child_of_query.get(current) {
+    depth += 1;
+    current = co.parent();
+}
 ```
 
-### B. 排他システムパターン
+### B. SparseSet コンポーネント定義
 ```rust
-// ecs/window_system.rs:22
-pub fn create_windows(world: &mut World) {
-    // ...
-}
+// mouse.rs:98-99
+#[derive(Component, Debug, Clone)]
+#[component(storage = "SparseSet")]
+pub struct MouseState { ... }
 ```
 
 ### C. スケジュール登録パターン
 ```rust
-// ecs/world.rs:254
+// world.rs:247-255
 schedules.add_systems(
     Input,
     crate::ecs::mouse::process_mouse_buffers
         .after(crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands),
 );
 ```
-
----
-
-## 8. Next Steps
-
-1. **設計フェーズ開始**: `/kiro-spec-design event-dispatch` を実行
-2. **設計ドキュメント**: dispatch.rs のモジュール構成、API 詳細、統合方法を記述
-3. **タスク分割**: 実装タスクを定義
