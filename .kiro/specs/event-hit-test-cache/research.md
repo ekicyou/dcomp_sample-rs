@@ -178,4 +178,79 @@ fn is_cache_valid(cached_frame: u32) -> bool {
 ---
 
 _Created: 2025-12-02_
+_Updated: 2025-12-03 (Design Phase)_
 _Source: event-mouse-basic 仕様レビュー議論_
+
+---
+
+## Design Phase 決定事項
+
+### Discovery Scope
+**Extension**（既存システムへの拡張）
+
+### Key Findings
+- `thread_local!` パターンは `window.rs` に2つの実装例（DpiChangeContext, SetWindowPosCommand）があり、参照可能
+- WM_NCHITTEST ハンドラは `handlers.rs:399-460` に実装済み、キャッシュ統合ポイントが明確
+- try_tick_world() は Layout スケジュールを含むため、1箇所のクリアで両トリガー（tick/layout）をカバー可能
+
+---
+
+## Design Decisions
+
+### Decision 1: HashMap を採用
+
+| 項目 | 内容 |
+|------|------|
+| Context | 座標→LRESULT のマッピングに使用するデータ構造の選択 |
+| Alternatives | 1. HashMap<HWND, CacheEntry> — O(1)<br>2. Vec<(HWND, CacheEntry)> — O(n)<br>3. 単一エントリ — 最もシンプル |
+| Selected | `HashMap<HWND, CacheEntry>` |
+| Rationale | ウィンドウ数が1-2でもオーバーヘッドは無視可能。将来的な複数ウィンドウ対応の拡張性 |
+| Trade-offs | 極小 N に対してオーバーヘッドがあるが実測可能な差にならない |
+
+### Decision 2: ecs/ 直下に新規モジュール配置
+
+| 項目 | 内容 |
+|------|------|
+| Context | キャッシュモジュールの配置場所 |
+| Alternatives | 1. window.rs 拡張<br>2. nchittest_cache.rs 新規（ecs/ 直下）<br>3. window_proc/ 配下 |
+| Selected | `ecs/nchittest_cache.rs` を新規作成 |
+| Rationale | 責務分離、handlers.rs と world.rs 両方からアクセス容易、テスト容易性 |
+| Trade-offs | モジュール数が1つ増加するが保守性向上のメリットが上回る |
+
+### Decision 3: try_tick_world() 終了時に1回クリア
+
+| 項目 | 内容 |
+|------|------|
+| Context | キャッシュクリアの呼び出しポイント |
+| Alternatives | 1. try_tick_world() 終了時のみ<br>2. tick と layout 更新を別々に検知 |
+| Selected | try_tick_world() 終了直前に1回クリア |
+| Rationale | try_tick_world() は Layout スケジュールを含むため、1箇所で両トリガーをカバー |
+| Trade-offs | tick 外で layout のみ更新されるケースは現在存在しない |
+
+### Decision 4: Phase 1 は LRESULT のみキャッシュ
+
+| 項目 | 内容 |
+|------|------|
+| Context | キャッシュする情報の範囲 |
+| Alternatives | 1. LRESULT のみ<br>2. Entity + LRESULT 両方 |
+| Selected | LRESULT（HTCLIENT/HTTRANSPARENT）のみ |
+| Rationale | WM_NCHITTEST ハンドラは Entity 情報を使用せず LRESULT のみ返す。Phase 1 最小実装として十分 |
+| Trade-offs | 将来 hit_test API 自体のキャッシュが必要になれば Phase 2 で対応 |
+
+---
+
+## Risks & Mitigations
+
+| リスク | 影響度 | 軽減策 |
+|-------|-------|-------|
+| パフォーマンス退行 | 低 | キャッシュオーバーヘッドは極小。問題発生時は単一エントリへ簡略化 |
+| メモリリーク | 低 | try_tick_world() で確実にクリア |
+| 借用競合 | 低 | thread_local! + RefCell パターンは既存コードで実績あり |
+
+---
+
+## References
+
+- [Rust std::collections::HashMap](https://doc.rust-lang.org/std/collections/struct.HashMap.html)
+- [Rust std::cell::RefCell](https://doc.rust-lang.org/std/cell/struct.RefCell.html)
+- [thread_local! マクロ](https://doc.rust-lang.org/std/macro.thread_local.html)

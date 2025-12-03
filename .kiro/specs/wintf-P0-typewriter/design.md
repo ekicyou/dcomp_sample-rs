@@ -340,20 +340,25 @@ pub enum TypewriterToken {
     Text(String),
     /// ウェイト（f64秒単位）
     Wait(f64),
-    /// イベント発火
+    /// イベント発火（対象 Entity の TypewriterEvent を設定）
     FireEvent {
         target: Entity,
-        event_type: TypewriterEventType,
+        event: TypewriterEvent,
     },
 }
 
-/// イベント種別
-#[derive(Debug, Clone)]
-pub enum TypewriterEventType {
+/// イベント通知用 enum Component
+/// Changed<TypewriterEvent> で検出、処理後に None へ戻す（set パターン）
+#[derive(Component, Debug, Clone, Default, PartialEq)]
+pub enum TypewriterEvent {
+    #[default]
+    None,
     /// 表示完了
     Complete,
-    /// カスタムイベント
-    Custom(String),
+    /// 一時停止
+    Paused,
+    /// 再開
+    Resumed,
 }
 ```
 
@@ -387,10 +392,10 @@ pub enum TimelineItem {
         /// ウェイト開始時刻
         start_at: f64,
     },
-    /// イベント発火
+    /// イベント発火（対象 Entity の TypewriterEvent を設定）
     FireEvent {
         target: Entity,
-        event_type: TypewriterEventType,
+        event: TypewriterEvent,
         /// 発火時刻
         fire_at: f64,
     },

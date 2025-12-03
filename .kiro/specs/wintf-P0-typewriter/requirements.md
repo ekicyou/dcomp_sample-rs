@@ -217,7 +217,8 @@ Track C: Typewriter本体（A, B 完了後）
 | TypewriterToken | Stage 1 IR内の個別要素 |
 | TimelineItem | Stage 2 IR内の個別要素 |
 | グリフ | DirectWriteにおける描画単位。合字・結合文字を含む |
-| FireEvent | IRトークンの一種。指定エンティティにコンポーネントを投入する |
+| FireEvent | IRトークンの一種。指定エンティティの TypewriterEvent を設定する |
+| TypewriterEvent | イベント通知用 enum Component。Changed クエリで検出、処理後に None へ戻す |
 | 論理エンティティ | Visualツリーに参加しない、処理用のエンティティ |
 
 ---
@@ -243,12 +244,25 @@ pub enum TypewriterToken {
     Text(String),
     /// ウェイト（f64秒単位、Windows Animation API互換）
     Wait(f64),
-    /// イベント発火（対象エンティティにコンポーネント投入）
+    /// イベント発火（対象エンティティの TypewriterEvent を設定）
     FireEvent {
         target: Entity,
-        event_type: String,
-        payload: Option<Value>,
+        event: TypewriterEvent,
     },
+}
+
+/// イベント通知用 enum Component
+/// Changed<TypewriterEvent> で検出、処理後に None へ戻す
+#[derive(Component, Debug, Clone, Default, PartialEq)]
+pub enum TypewriterEvent {
+    #[default]
+    None,
+    /// 表示完了
+    Complete,
+    /// 一時停止
+    Paused,
+    /// 再開
+    Resumed,
 }
 
 /// Stage 1 入力例: "こんにちは、今日もいい天気ですね。"
@@ -260,8 +274,7 @@ let stage1_tokens = vec![
     TypewriterToken::Text("いい天気ですね。".into()),
     TypewriterToken::FireEvent {
         target: callback_entity,
-        event_type: "talk_complete".into(),
-        payload: None,
+        event: TypewriterEvent::Complete,
     },
 ];
 
@@ -277,8 +290,7 @@ pub enum TimelineItem {
     /// イベント発火
     FireEvent {
         target: Entity,
-        event_type: String,
-        payload: Option<Value>,
+        event: TypewriterEvent,
     },
 }
 
