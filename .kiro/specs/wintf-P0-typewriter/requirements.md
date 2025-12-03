@@ -34,6 +34,27 @@ wintf フレームワークの既存 Label ウィジェットは静的テキス�
 - テキストアニメーション（揺れ、拡大縮小等）
 - 音声同期
 
+### 実装トラック（並行可能）
+
+本仕様は以下のトラックに分割し、**Track A と Track B は並行実装可能**:
+
+```
+Track A: 基盤層（依存なし）
+├─ A1: AnimationCore リソース実装
+├─ A2: DirectWrite 拡張（GetClusterMetrics/HitTestTextPosition）
+└─ A3: animation_tick_system
+
+Track B: IR型定義（依存なし）
+├─ B1: Stage 1 IR (TypewriterToken)
+└─ B2: Stage 2 IR (TimelineItem)
+
+Track C: Typewriter本体（A, B 完了後）
+├─ C1: Typewriter コンポーネント
+├─ C2: Stage1→Stage2 変換
+├─ C3: 描画システム
+└─ C4: FireEvent 処理
+```
+
 ### 親仕様からの要件マッピング
 
 本仕様は以下の親要件に対応する：
