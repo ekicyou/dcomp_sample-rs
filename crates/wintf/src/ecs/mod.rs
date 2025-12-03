@@ -3,6 +3,7 @@ pub mod common;
 mod graphics;
 pub mod layout;
 pub mod monitor;
+pub mod mouse;
 pub mod transform;
 pub mod widget;
 pub mod window;
@@ -17,6 +18,11 @@ pub use graphics::calculate_surface_size_from_global_arrangement;
 pub use graphics::*;
 pub use layout::*;
 pub use monitor::*;
+pub use mouse::{
+    clear_transient_mouse_state, debug_mouse_leave, debug_mouse_state_changes,
+    process_mouse_buffers, CursorVelocity, DoubleClick, MouseButton, MouseLeave, MouseState,
+    PhysicalPoint, WheelDelta, WindowMouseTracking,
+};
 pub use transform::*;
 pub use widget::{
     draw_bitmap_sources, BitmapSource, BitmapSourceGraphics, BitmapSourceResource, BoxedCommand,
@@ -28,5 +34,6 @@ pub use window::{
 };
 pub(crate) use window_proc::{ecs_wndproc, set_ecs_world};
 pub use world::{
-    FrameCount, Input, Layout, PostLayout, PreLayout, PreRenderSurface, UISetup, Update,
+    FrameCount, FrameFinalize, Input, Layout, PostLayout, PreLayout, PreRenderSurface, UISetup,
+    Update,
 };

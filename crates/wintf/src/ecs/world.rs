@@ -166,6 +166,14 @@ pub struct Composition;
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CommitComposition;
 
+/// フレーム終了時クリーンアップスケジュール
+///
+/// CommitComposition の後に実行される。
+/// - 一時的なマーカーコンポーネント（MouseLeave等）の除去
+/// - 1フレームのみ有効な状態（DoubleClick, Wheel等）のリセット
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FrameFinalize;
+
 /// ECSワールドのラッパー
 /// 初期化ロジックや拡張機能をここに集約
 pub struct EcsWorld {
@@ -224,6 +232,7 @@ impl EcsWorld {
             schedules.insert(Schedule::new(RenderSurface));
             schedules.insert(Schedule::new(Composition));
             schedules.insert(Schedule::new(CommitComposition));
+            schedules.insert(Schedule::new(FrameFinalize));
         }
 
         // デフォルトシステムの登録
@@ -234,6 +243,24 @@ impl EcsWorld {
             schedules.add_systems(
                 Input,
                 crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands,
+            );
+
+            // Inputスケジュール: マウスバッファ処理
+            schedules.add_systems(
+                Input,
+                crate::ecs::mouse::process_mouse_buffers
+                    .after(crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands),
+            );
+
+            // Inputスケジュール: マウスデバッグ監視（デバッグビルドのみ）
+            #[cfg(debug_assertions)]
+            schedules.add_systems(
+                Input,
+                (
+                    crate::ecs::mouse::debug_mouse_state_changes,
+                    crate::ecs::mouse::debug_mouse_leave,
+                )
+                    .after(crate::ecs::mouse::process_mouse_buffers),
             );
 
             // UISetupスケジュール：ウィンドウ作成とWindowPos反映
@@ -357,6 +384,12 @@ impl EcsWorld {
 
             // CommitCompositionスケジュールにコミットシステムを登録
             schedules.add_systems(CommitComposition, crate::ecs::graphics::commit_composition);
+
+            // FrameFinalizeスケジュール: 一時的マウス状態クリア
+            schedules.add_systems(
+                FrameFinalize,
+                crate::ecs::mouse::clear_transient_mouse_state,
+            );
         }
 
         Self {
@@ -499,6 +532,7 @@ impl EcsWorld {
         let _ = self.world.try_run_schedule(RenderSurface);
         let _ = self.world.try_run_schedule(Composition);
         let _ = self.world.try_run_schedule(CommitComposition);
+        let _ = self.world.try_run_schedule(FrameFinalize);
 
         true
     }

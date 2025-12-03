@@ -68,9 +68,10 @@ impl WinProcessSingleton {
             }
 
             // ECS用のウィンドウクラスを登録
+            // CS_DBLCLKS: ダブルクリックメッセージ（WM_*DBLCLK）を受信
             let ecs_wc = WNDCLASSEXW {
                 cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
-                style: CS_HREDRAW | CS_VREDRAW,
+                style: CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
                 lpfnWndProc: Some(crate::ecs::ecs_wndproc),
                 hInstance: instance,
                 hCursor: unsafe { LoadCursorW(None, IDC_ARROW).unwrap() },

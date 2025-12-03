@@ -6,6 +6,7 @@ mod handlers;
 
 use bevy_ecs::prelude::*;
 use windows::Win32::Foundation::*;
+use windows::Win32::UI::Controls::WM_MOUSELEAVE;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 use std::cell::RefCell;
@@ -48,6 +49,24 @@ pub(crate) extern "system" fn ecs_wndproc(
             WM_WINDOWPOSCHANGED => handlers::WM_WINDOWPOSCHANGED(hwnd, message, wparam, lparam),
             WM_DISPLAYCHANGE => handlers::WM_DISPLAYCHANGE(hwnd, message, wparam, lparam),
             WM_DPICHANGED => handlers::WM_DPICHANGED(hwnd, message, wparam, lparam),
+            // マウスメッセージ
+            WM_NCHITTEST => handlers::WM_NCHITTEST(hwnd, message, wparam, lparam),
+            WM_MOUSEMOVE => handlers::WM_MOUSEMOVE(hwnd, message, wparam, lparam),
+            WM_MOUSELEAVE => handlers::WM_MOUSELEAVE(hwnd, message, wparam, lparam),
+            WM_LBUTTONDOWN => handlers::WM_LBUTTONDOWN(hwnd, message, wparam, lparam),
+            WM_LBUTTONUP => handlers::WM_LBUTTONUP(hwnd, message, wparam, lparam),
+            WM_RBUTTONDOWN => handlers::WM_RBUTTONDOWN(hwnd, message, wparam, lparam),
+            WM_RBUTTONUP => handlers::WM_RBUTTONUP(hwnd, message, wparam, lparam),
+            WM_MBUTTONDOWN => handlers::WM_MBUTTONDOWN(hwnd, message, wparam, lparam),
+            WM_MBUTTONUP => handlers::WM_MBUTTONUP(hwnd, message, wparam, lparam),
+            WM_XBUTTONDOWN => handlers::WM_XBUTTONDOWN(hwnd, message, wparam, lparam),
+            WM_XBUTTONUP => handlers::WM_XBUTTONUP(hwnd, message, wparam, lparam),
+            WM_LBUTTONDBLCLK => handlers::WM_LBUTTONDBLCLK(hwnd, message, wparam, lparam),
+            WM_RBUTTONDBLCLK => handlers::WM_RBUTTONDBLCLK(hwnd, message, wparam, lparam),
+            WM_MBUTTONDBLCLK => handlers::WM_MBUTTONDBLCLK(hwnd, message, wparam, lparam),
+            WM_XBUTTONDBLCLK => handlers::WM_XBUTTONDBLCLK(hwnd, message, wparam, lparam),
+            WM_MOUSEWHEEL => handlers::WM_MOUSEWHEEL(hwnd, message, wparam, lparam),
+            WM_MOUSEHWHEEL => handlers::WM_MOUSEHWHEEL(hwnd, message, wparam, lparam),
             _ => None,
         }
     };

@@ -386,3 +386,491 @@ pub(super) unsafe fn WM_DPICHANGED(
 
     Some(LRESULT(0))
 }
+
+// ============================================================================
+// マウスメッセージハンドラ (Task 3.1-3.4, 4.1)
+// ============================================================================
+
+/// WM_NCHITTEST: 非クライアント領域ヒットテスト
+///
+/// クライアント領域判定を実装し、hit_test仮スタブを呼び出す。
+/// HTCLIENT / HTTRANSPARENT を返す（クリックスルー対応）。
+#[inline]
+pub(super) unsafe fn WM_NCHITTEST(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    lparam: LPARAM,
+) -> HandlerResult {
+    use windows::Win32::Graphics::Gdi::ScreenToClient;
+    use windows::Win32::UI::WindowsAndMessaging::GetClientRect;
+
+    // スクリーン座標を取得（lparam から）
+    let x = (lparam.0 & 0xFFFF) as i16 as i32;
+    let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
+
+    // クライアント座標に変換
+    let mut pt = POINT { x, y };
+    if !ScreenToClient(hwnd, &mut pt).as_bool() {
+        return None; // DefWindowProcW に委譲
+    }
+
+    // クライアント領域外の場合は DefWindowProcW に委譲
+    let mut rect = RECT::default();
+    if GetClientRect(hwnd, &mut rect).is_err() {
+        return None;
+    }
+    if pt.x < rect.left || pt.x >= rect.right || pt.y < rect.top || pt.y >= rect.bottom {
+        return None; // DefWindowProcW に委譲（非クライアント領域処理）
+    }
+
+    // Entity 取得
+    let Some(entity) = super::get_entity_from_hwnd(hwnd) else {
+        return None;
+    };
+
+    // World 借用して hit_test 実行
+    let Some(world) = super::try_get_ecs_world() else {
+        return None;
+    };
+
+    let hit_result = match world.try_borrow() {
+        Ok(world_ref) => {
+            // クライアント座標でhit_test実行
+            use crate::ecs::layout::hit_test::hit_test_in_window;
+            use crate::ecs::layout::hit_test::PhysicalPoint;
+            hit_test_in_window(
+                world_ref.world(),
+                entity,
+                PhysicalPoint::new(pt.x as f32, pt.y as f32),
+            )
+        }
+        Err(_) => {
+            return None; // 借用失敗時は DefWindowProcW に委譲
+        }
+    };
+
+    // HTCLIENT = 1, HTTRANSPARENT = -1
+    const HTCLIENT: i32 = 1;
+    const HTTRANSPARENT: i32 = -1;
+
+    // hit_test 結果に応じて HTCLIENT または HTTRANSPARENT を返す
+    if hit_result.is_some() {
+        Some(LRESULT(HTCLIENT as isize))
+    } else {
+        Some(LRESULT(HTTRANSPARENT as isize))
+    }
+}
+
+/// WM_MOUSEMOVE: マウス移動メッセージ
+///
+/// 位置をMouseBufferに蓄積し、hit_testでヒットしたエンティティにMouseStateを付与。
+/// 初回移動時にTrackMouseEventを設定。
+#[inline]
+pub(super) unsafe fn WM_MOUSEMOVE(
+    hwnd: HWND,
+    _message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> HandlerResult {
+    use crate::ecs::layout::hit_test::{hit_test_in_window, PhysicalPoint as HitTestPoint};
+    use crate::ecs::mouse::{
+        push_mouse_sample, set_modifier_state, MouseLeave, MouseState, WindowMouseTracking,
+    };
+    use std::time::Instant;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
+    };
+
+    let Some(window_entity) = super::get_entity_from_hwnd(hwnd) else {
+        return None;
+    };
+
+    // 位置取得（物理ピクセル、クライアント座標）
+    let x = (lparam.0 & 0xFFFF) as i16 as i32;
+    let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
+
+    // 修飾キー状態を抽出
+    let wparam_val = wparam.0 as u32;
+    let shift = (wparam_val & 0x04) != 0; // MK_SHIFT
+    let ctrl = (wparam_val & 0x08) != 0; // MK_CONTROL
+
+    // World借用してhit_testとMouseState管理
+    if let Some(world) = super::try_get_ecs_world() {
+        if let Ok(mut world_borrow) = world.try_borrow_mut() {
+            // TrackMouseEvent 設定（ウィンドウに対して）
+            if let Ok(mut entity_ref) = world_borrow.world_mut().get_entity_mut(window_entity) {
+                let needs_tracking = entity_ref
+                    .get::<WindowMouseTracking>()
+                    .is_none_or(|t| !t.0);
+
+                if needs_tracking {
+                    let mut tme = TRACKMOUSEEVENT {
+                        cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
+                        dwFlags: TME_LEAVE,
+                        hwndTrack: hwnd,
+                        dwHoverTime: 0,
+                    };
+                    let _ = TrackMouseEvent(&mut tme);
+
+                    if entity_ref.get::<WindowMouseTracking>().is_some() {
+                        if let Some(mut tracking) = entity_ref.get_mut::<WindowMouseTracking>() {
+                            tracking.0 = true;
+                        }
+                    } else {
+                        drop(entity_ref);
+                        world_borrow
+                            .world_mut()
+                            .entity_mut(window_entity)
+                            .insert(WindowMouseTracking(true));
+                    }
+
+                    trace!(
+                        entity = ?window_entity,
+                        hwnd = ?hwnd,
+                        "TrackMouseEvent(TME_LEAVE) set"
+                    );
+                }
+            }
+
+            // hit_test でヒットしたエンティティを取得
+            let hit_entity = hit_test_in_window(
+                world_borrow.world(),
+                window_entity,
+                HitTestPoint::new(x as f32, y as f32),
+            );
+
+            // ヒットしたエンティティが存在する場合
+            if let Some(target_entity) = hit_entity {
+                // バッファに蓄積
+                push_mouse_sample(target_entity, x as f32, y as f32, Instant::now());
+                set_modifier_state(target_entity, shift, ctrl);
+
+                // 現在MouseStateを持っている全エンティティを探す
+                // 異なるエンティティにMouseStateがある場合はLeave処理
+                let mut entities_to_leave = Vec::new();
+                {
+                    let world_mut = world_borrow.world_mut();
+                    let mut query = world_mut.query::<(bevy_ecs::prelude::Entity, &MouseState)>();
+                    for (e, _) in query.iter(world_mut) {
+                        if e != target_entity {
+                            entities_to_leave.push(e);
+                        }
+                    }
+                }
+
+                // 古いエンティティからMouseStateを削除し、MouseLeaveを付与
+                for old_entity in entities_to_leave {
+                    if let Ok(mut entity_ref) = world_borrow.world_mut().get_entity_mut(old_entity)
+                    {
+                        entity_ref.remove::<MouseState>();
+                        entity_ref.insert(MouseLeave);
+                        debug!(
+                            old_entity = ?old_entity,
+                            new_entity = ?target_entity,
+                            "MouseState moved, Leave marker inserted"
+                        );
+                    }
+                }
+
+                // 新しいエンティティにMouseStateを挿入または更新
+                if let Ok(entity_ref) = world_borrow.world_mut().get_entity_mut(target_entity) {
+                    let needs_insert = entity_ref.get::<MouseState>().is_none();
+                    drop(entity_ref);
+
+                    if needs_insert {
+                        world_borrow.world_mut().entity_mut(target_entity).insert(MouseState {
+                            screen_point: crate::ecs::mouse::PhysicalPoint::new(x, y),
+                            local_point: crate::ecs::mouse::PhysicalPoint::new(x, y),
+                            shift_down: shift,
+                            ctrl_down: ctrl,
+                            ..Default::default()
+                        });
+                        debug!(
+                            entity = ?target_entity,
+                            x, y,
+                            "MouseState inserted (Enter)"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    Some(LRESULT(0))
+}
+
+/// WM_MOUSELEAVE: マウス離脱メッセージ
+///
+/// 全エンティティのMouseStateを削除し、MouseLeaveマーカーを付与する。
+#[inline]
+pub(super) unsafe fn WM_MOUSELEAVE(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    use crate::ecs::mouse::{MouseLeave, MouseState, WindowMouseTracking};
+
+    let Some(window_entity) = super::get_entity_from_hwnd(hwnd) else {
+        return None;
+    };
+
+    if let Some(world) = super::try_get_ecs_world() {
+        if let Ok(mut world_borrow) = world.try_borrow_mut() {
+            // MouseStateを持つ全エンティティを収集
+            let mut entities_with_mouse_state = Vec::new();
+            {
+                let world_mut = world_borrow.world_mut();
+                let mut query = world_mut.query::<(bevy_ecs::prelude::Entity, &MouseState)>();
+                for (e, _) in query.iter(world_mut) {
+                    entities_with_mouse_state.push(e);
+                }
+            }
+
+            // 各エンティティからMouseStateを削除し、MouseLeaveを付与
+            for entity in entities_with_mouse_state {
+                if let Ok(mut entity_ref) = world_borrow.world_mut().get_entity_mut(entity) {
+                    entity_ref.remove::<MouseState>();
+                    entity_ref.insert(MouseLeave);
+                    debug!(
+                        entity = ?entity,
+                        hwnd = ?hwnd,
+                        "MouseLeave marker inserted"
+                    );
+                }
+            }
+
+            // WindowMouseTrackingを無効化
+            if let Ok(mut entity_ref) = world_borrow.world_mut().get_entity_mut(window_entity) {
+                if let Some(mut tracking) = entity_ref.get_mut::<WindowMouseTracking>() {
+                    tracking.0 = false;
+                }
+            }
+        }
+    }
+
+    Some(LRESULT(0))
+}
+
+/// ボタンメッセージハンドラ共通処理
+#[inline]
+unsafe fn handle_button_message(
+    hwnd: HWND,
+    button: crate::ecs::mouse::MouseButton,
+    is_down: bool,
+) -> HandlerResult {
+    let Some(entity) = super::get_entity_from_hwnd(hwnd) else {
+        return None;
+    };
+
+    if is_down {
+        crate::ecs::mouse::record_button_down(entity, button);
+    } else {
+        crate::ecs::mouse::record_button_up(entity, button);
+    }
+
+    Some(LRESULT(0))
+}
+
+/// WM_LBUTTONDOWN: 左ボタン押下
+#[inline]
+pub(super) unsafe fn WM_LBUTTONDOWN(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    handle_button_message(hwnd, crate::ecs::mouse::MouseButton::Left, true)
+}
+
+/// WM_LBUTTONUP: 左ボタン解放
+#[inline]
+pub(super) unsafe fn WM_LBUTTONUP(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    handle_button_message(hwnd, crate::ecs::mouse::MouseButton::Left, false)
+}
+
+/// WM_RBUTTONDOWN: 右ボタン押下
+#[inline]
+pub(super) unsafe fn WM_RBUTTONDOWN(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    handle_button_message(hwnd, crate::ecs::mouse::MouseButton::Right, true)
+}
+
+/// WM_RBUTTONUP: 右ボタン解放
+#[inline]
+pub(super) unsafe fn WM_RBUTTONUP(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    handle_button_message(hwnd, crate::ecs::mouse::MouseButton::Right, false)
+}
+
+/// WM_MBUTTONDOWN: 中ボタン押下
+#[inline]
+pub(super) unsafe fn WM_MBUTTONDOWN(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    handle_button_message(hwnd, crate::ecs::mouse::MouseButton::Middle, true)
+}
+
+/// WM_MBUTTONUP: 中ボタン解放
+#[inline]
+pub(super) unsafe fn WM_MBUTTONUP(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    handle_button_message(hwnd, crate::ecs::mouse::MouseButton::Middle, false)
+}
+
+/// WM_XBUTTONDOWN: 拡張ボタン押下
+#[inline]
+pub(super) unsafe fn WM_XBUTTONDOWN(
+    hwnd: HWND,
+    _message: u32,
+    wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    // GET_XBUTTON_WPARAM: HIWORD of wParam
+    let xbutton = ((wparam.0 >> 16) & 0xFFFF) as u16;
+    let button = if xbutton == 1 {
+        crate::ecs::mouse::MouseButton::XButton1
+    } else {
+        crate::ecs::mouse::MouseButton::XButton2
+    };
+    handle_button_message(hwnd, button, true)
+}
+
+/// WM_XBUTTONUP: 拡張ボタン解放
+#[inline]
+pub(super) unsafe fn WM_XBUTTONUP(
+    hwnd: HWND,
+    _message: u32,
+    wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    let xbutton = ((wparam.0 >> 16) & 0xFFFF) as u16;
+    let button = if xbutton == 1 {
+        crate::ecs::mouse::MouseButton::XButton1
+    } else {
+        crate::ecs::mouse::MouseButton::XButton2
+    };
+    handle_button_message(hwnd, button, false)
+}
+
+/// ダブルクリックメッセージハンドラ共通処理
+#[inline]
+unsafe fn handle_double_click_message(
+    hwnd: HWND,
+    double_click: crate::ecs::mouse::DoubleClick,
+) -> HandlerResult {
+    let Some(entity) = super::get_entity_from_hwnd(hwnd) else {
+        return None;
+    };
+
+    crate::ecs::mouse::set_double_click(entity, double_click);
+    Some(LRESULT(0))
+}
+
+/// WM_LBUTTONDBLCLK: 左ボタンダブルクリック
+#[inline]
+pub(super) unsafe fn WM_LBUTTONDBLCLK(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    handle_double_click_message(hwnd, crate::ecs::mouse::DoubleClick::Left)
+}
+
+/// WM_RBUTTONDBLCLK: 右ボタンダブルクリック
+#[inline]
+pub(super) unsafe fn WM_RBUTTONDBLCLK(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    handle_double_click_message(hwnd, crate::ecs::mouse::DoubleClick::Right)
+}
+
+/// WM_MBUTTONDBLCLK: 中ボタンダブルクリック
+#[inline]
+pub(super) unsafe fn WM_MBUTTONDBLCLK(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    handle_double_click_message(hwnd, crate::ecs::mouse::DoubleClick::Middle)
+}
+
+/// WM_XBUTTONDBLCLK: 拡張ボタンダブルクリック
+#[inline]
+pub(super) unsafe fn WM_XBUTTONDBLCLK(
+    hwnd: HWND,
+    _message: u32,
+    wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    let xbutton = ((wparam.0 >> 16) & 0xFFFF) as u16;
+    let double_click = if xbutton == 1 {
+        crate::ecs::mouse::DoubleClick::XButton1
+    } else {
+        crate::ecs::mouse::DoubleClick::XButton2
+    };
+    handle_double_click_message(hwnd, double_click)
+}
+
+/// WM_MOUSEWHEEL: 垂直ホイール回転
+#[inline]
+pub(super) unsafe fn WM_MOUSEWHEEL(
+    hwnd: HWND,
+    _message: u32,
+    wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    let Some(entity) = super::get_entity_from_hwnd(hwnd) else {
+        return None;
+    };
+
+    // GET_WHEEL_DELTA_WPARAM: HIWORD of wParam (signed)
+    let delta = ((wparam.0 >> 16) & 0xFFFF) as i16;
+    crate::ecs::mouse::add_wheel_vertical(entity, delta);
+
+    Some(LRESULT(0))
+}
+
+/// WM_MOUSEHWHEEL: 水平ホイール回転
+#[inline]
+pub(super) unsafe fn WM_MOUSEHWHEEL(
+    hwnd: HWND,
+    _message: u32,
+    wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    let Some(entity) = super::get_entity_from_hwnd(hwnd) else {
+        return None;
+    };
+
+    let delta = ((wparam.0 >> 16) & 0xFFFF) as i16;
+    crate::ecs::mouse::add_wheel_horizontal(entity, delta);
+
+    Some(LRESULT(0))
+}
