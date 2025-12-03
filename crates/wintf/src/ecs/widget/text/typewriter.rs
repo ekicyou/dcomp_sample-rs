@@ -4,7 +4,6 @@
 //! - TypewriterTalk: 1回のトーク（再生中のみ存在、終了で解放）
 
 use crate::com::dwrite::DWriteTextLayoutExt;
-use crate::ecs::graphics::AnimationCore;
 use crate::ecs::widget::text::label::TextDirection;
 use crate::ecs::widget::text::typewriter_ir::{
     TimelineItem, TypewriterEventKind, TypewriterTimeline, TypewriterToken,
@@ -70,7 +69,7 @@ fn on_typewriter_add(mut world: DeferredWorld, hook: HookContext) {
 }
 
 /// Typewriter削除時のフック
-fn on_typewriter_remove(_world: DeferredWorld, hook: DeferredHook) {
+fn on_typewriter_remove(_world: DeferredWorld, hook: HookContext) {
     trace!(entity = ?hook.entity, "[Typewriter] Removed");
 }
 
@@ -323,6 +322,6 @@ impl TypewriterTalk {
     }
 }
 
-fn on_typewriter_talk_remove(_world: DeferredWorld, hook: DeferredHook) {
+fn on_typewriter_talk_remove(_world: DeferredWorld, hook: HookContext) {
     trace!(entity = ?hook.entity, "[TypewriterTalk] Removed - resources released");
 }
