@@ -156,6 +156,10 @@ fn create_typewriter_demo_window(world: &mut World) {
                     width: None,
                     height: None,
                 }),
+                min_size: Some(BoxSize {
+                    width: Some(Dimension::Px(500.0)),
+                    height: Some(Dimension::Px(400.0)),
+                }),
                 margin: Some(BoxMargin(wintf::ecs::layout::Rect {
                     left: LengthPercentageAuto::Px(20.0),
                     right: LengthPercentageAuto::Px(20.0),
@@ -193,7 +197,7 @@ fn create_typewriter_demo_window(world: &mut World) {
                 bottom: LengthPercentageAuto::Px(5.0),
             })),
             size: Some(BoxSize {
-                width: Some(Dimension::Px(440.0)),
+                width: None,  // 親に追従
                 height: Some(Dimension::Px(60.0)),
             }),
             ..Default::default()
@@ -227,7 +231,7 @@ fn create_typewriter_demo_window(world: &mut World) {
             })),
             size: Some(BoxSize {
                 width: Some(Dimension::Px(60.0)),
-                height: Some(Dimension::Px(380.0)),
+                height: None,  // 親に追従
             }),
             ..Default::default()
         },
@@ -344,20 +348,5 @@ fn skip_typewriter(world: &mut World) {
         let total = layout_cache.timeline().total_cluster_count;
         talk.skip(total);
         println!("[Test] Typewriter skipped to end (progress: 100%)");
-    }
-}
-
-/// ウィンドウを閉じる
-fn close_window(world: &mut World) {
-    // 完了イベントを確認
-    let mut receiver_query = world.query_filtered::<&TypewriterEvent, With<CompletionReceiver>>();
-    for event in receiver_query.iter(world) {
-        println!("[Test] CompletionReceiver event: {:?}", event);
-    }
-
-    let mut query = world.query_filtered::<Entity, With<TypewriterDemoWindow>>();
-    if let Some(window) = query.iter(world).next() {
-        println!("[Test] Removing Window entity {:?}", window);
-        world.despawn(window);
     }
 }

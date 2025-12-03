@@ -31,7 +31,7 @@ pub fn invalidate_typewriter_layout_on_arrangement_change(
     query: Query<Entity, (With<TypewriterLayoutCache>, Changed<Arrangement>)>,
 ) {
     for entity in query.iter() {
-        trace!(entity = ?entity, "[invalidate_typewriter_layout] Arrangement changed, removing LayoutCache");
+        debug!(entity = ?entity, "[invalidate_typewriter_layout] Arrangement changed, removing LayoutCache");
         commands.entity(entity).remove::<TypewriterLayoutCache>();
     }
 }

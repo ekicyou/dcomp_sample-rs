@@ -36,6 +36,11 @@ STA (Single-Threaded Apartment) 要件により ECS マルチスレッドスケ�
 - デモコードの簡素化（トークン列を渡すだけでOK）
 - Arrangement 変更時にLayoutCache再生成でレイアウト追従
 
+### 設計変更: BoxStyle に min_size/max_size 追加
+
+レイアウト追従テストのため、BoxStyle に min_size/max_size フィールドを追加。
+Taffy の min_size/max_size プロパティに変換される。
+
 ---
 
 ## Tasks

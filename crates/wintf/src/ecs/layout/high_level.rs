@@ -423,6 +423,10 @@ pub struct BoxStyle {
     // === Box系プロパティ（ネスト構造） ===
     /// サイズ（width, height）
     pub size: Option<BoxSize>,
+    /// 最小サイズ（min_width, min_height）
+    pub min_size: Option<BoxSize>,
+    /// 最大サイズ（max_width, max_height）
+    pub max_size: Option<BoxSize>,
     /// マージン（外側余白）
     pub margin: Option<BoxMargin>,
     /// パディング（内側余白）
@@ -470,6 +474,22 @@ impl From<&BoxStyle> for taffy::Style {
             }
             if let Some(h) = size.height {
                 taffy_style.size.height = h.into();
+            }
+        }
+        if let Some(min_size) = &style.min_size {
+            if let Some(w) = min_size.width {
+                taffy_style.min_size.width = w.into();
+            }
+            if let Some(h) = min_size.height {
+                taffy_style.min_size.height = h.into();
+            }
+        }
+        if let Some(max_size) = &style.max_size {
+            if let Some(w) = max_size.width {
+                taffy_style.max_size.width = w.into();
+            }
+            if let Some(h) = max_size.height {
+                taffy_style.max_size.height = h.into();
             }
         }
         if let Some(margin) = &style.margin {
