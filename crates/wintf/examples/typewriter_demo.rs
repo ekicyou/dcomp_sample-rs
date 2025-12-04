@@ -166,10 +166,8 @@ fn create_typewriter_demo_window(world: &mut World) {
                 },
             },
             BoxStyle {
-                size: Some(BoxSize {
-                    width: Some(Dimension::Percent(100.0)),
-                    height: Some(Dimension::Percent(100.0)),
-                }),
+                // size 100% + margin は親をはみ出すため、flex_grow を使用
+                flex_grow: Some(1.0),
                 margin: Some(BoxMargin(wintf::ecs::layout::Rect {
                     left: LengthPercentageAuto::Px(20.0),
                     right: LengthPercentageAuto::Px(20.0),
