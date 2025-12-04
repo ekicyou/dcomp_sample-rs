@@ -233,7 +233,7 @@ fn create_typewriter_demo_window(world: &mut World) {
                 a: 1.0,
             }),
             direction: TextDirection::HorizontalLeftToRight,
-            default_char_wait: 0.08,
+            default_char_wait: 0.15, // 150ms/文字（ゆっくり表示）
             ..Default::default()
         },
         BoxStyle {
@@ -304,7 +304,7 @@ fn create_typewriter_demo_window(world: &mut World) {
                 a: 1.0,
             }),
             direction: TextDirection::VerticalRightToLeft,
-            default_char_wait: 0.08,
+            default_char_wait: 0.15, // 150ms/文字（ゆっくり表示）
             ..Default::default()
         },
         TypewriterTalk::new(vec![], 0.0), // 空のトークで初期化（背景描画用）
