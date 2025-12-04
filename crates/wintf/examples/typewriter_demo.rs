@@ -63,10 +63,10 @@ fn main() -> Result<()> {
     println!("  1. ウィンドウ作成とTypewriterエンティティ生成");
     println!("  2. Stage 1 IR でテキストを設定");
     println!("  3. 一文字ずつ表示（タイプライター効果）");
-    println!("  4. 5秒後: pause()");
-    println!("  5. 7秒後: resume()");
-    println!("  6. 9秒後: skip()（全文即時表示）");
-    println!("  7. 15秒後: ウィンドウ終了");
+    println!("  4. 3秒後: pause()");
+    println!("  5. 5秒後: resume()");
+    println!("  6. 6秒後: skip()（全文即時表示）");
+    println!("  7. 10秒後: ウィンドウ終了");
 
     // メッセージループを開始
     mgr.run()?;
@@ -87,32 +87,32 @@ async fn run_demo(tx: CommandSender) {
     println!("[Async] 1s: Starting typewriter talk");
     let _ = tx.send(Box::new(start_typewriter_talk));
 
-    // === 4秒待機 ===
-    async_io::Timer::after(Duration::from_secs(4)).await;
+    // === 2秒待機 ===
+    async_io::Timer::after(Duration::from_secs(2)).await;
 
-    // === 5秒: 一時停止 ===
-    println!("[Async] 5s: Pausing typewriter");
+    // === 3秒: 一時停止 ===
+    println!("[Async] 3s: Pausing typewriter");
     let _ = tx.send(Box::new(pause_typewriter));
 
     // === 2秒待機 ===
     async_io::Timer::after(Duration::from_secs(2)).await;
 
-    // === 7秒: 再開 ===
-    println!("[Async] 7s: Resuming typewriter");
+    // === 5秒: 再開 ===
+    println!("[Async] 5s: Resuming typewriter");
     let _ = tx.send(Box::new(resume_typewriter));
 
-    // === 2秒待機 ===
-    async_io::Timer::after(Duration::from_secs(2)).await;
+    // === 1秒待機 ===
+    async_io::Timer::after(Duration::from_secs(1)).await;
 
-    // === 9秒: スキップ ===
-    println!("[Async] 9s: Skipping to end");
+    // === 6秒: スキップ ===
+    println!("[Async] 6s: Skipping to end");
     let _ = tx.send(Box::new(skip_typewriter));
 
-    // === 6秒待機 ===
-    async_io::Timer::after(Duration::from_secs(6)).await;
+    // === 4秒待機 ===
+    async_io::Timer::after(Duration::from_secs(4)).await;
 
-    // === 15秒: ウィンドウ終了 ===
-    println!("[Async] 15s: Closing window");
+    // === 10秒: ウィンドウ終了 ===
+    println!("[Async] 10s: Closing window");
     let _ = tx.send(Box::new(close_window));
 }
 
