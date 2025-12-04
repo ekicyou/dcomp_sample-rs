@@ -358,10 +358,39 @@ pub fn draw_typewriters(
 
         // visible_count > 0 の場合のみ描画
         if visible_count > 0 && visible_text_length > 0 {
-            // 描画位置の調整（RTL/縦書き対応）
-            let origin = Vector2 {
-                X: -text_metrics.left,
-                Y: -text_metrics.top,
+            // 描画位置の調整
+            // DirectWriteはレイアウトボックス(layoutWidth x layoutHeight)を基準に描画する
+            //
+            // 横書きLTR: 原点はレイアウトボックス左上、テキストは右へ流れる
+            //   → left >= 0, origin.X = -left で左端を合わせる
+            //
+            // 縦書きRTL: 原点はレイアウトボックス左上、1行目はレイアウトボックスの右端から始まり左へ流れる
+            //   → テキストがはみ出すとleft < 0になる
+            //   → Surfaceはtext_metrics.width幅で作成される
+            //   → レイアウトボックスの右端をSurfaceの右端に合わせるには:
+            //     origin.X = text_metrics.width - layoutWidth
+            let origin = match typewriter.direction {
+                TextDirection::VerticalRightToLeft => {
+                    // 縦書きRTL: レイアウトボックスの右端をSurface右端に合わせる
+                    Vector2 {
+                        X: text_metrics.width - text_metrics.layoutWidth,
+                        Y: -text_metrics.top,
+                    }
+                }
+                TextDirection::VerticalLeftToRight => {
+                    // 縦書きLTR: 1行目は左端から始まる
+                    Vector2 {
+                        X: -text_metrics.left,
+                        Y: -text_metrics.top,
+                    }
+                }
+                _ => {
+                    // 横書き: 従来通り
+                    Vector2 {
+                        X: -text_metrics.left,
+                        Y: -text_metrics.top,
+                    }
+                }
             };
 
             // 非表示部分を透明にするため、visible_text_length以降に透明ブラシを設定

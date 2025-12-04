@@ -203,6 +203,8 @@ fn create_typewriter_demo_window(world: &mut World) {
         .id();
 
     // 横書き Typewriter エンティティ
+    // NOTE: Typewriterは描画コンテンツサイズを自己申告しないため、
+    // 親のサイズに合わせて固定サイズで指定する必要がある
     world.spawn((
         Name::new("HorizontalTypewriter"),
         HorizontalTypewriter,
@@ -221,8 +223,8 @@ fn create_typewriter_demo_window(world: &mut World) {
         },
         BoxStyle {
             size: Some(BoxSize {
-                width: Some(Dimension::Percent(1.0)),  // 親幅に追従 (100%)
-                height: Some(Dimension::Percent(1.0)), // 親高さに追従 (100%)
+                width: Some(Dimension::Px(440.0)),   // 親幅(460) - padding相当
+                height: Some(Dimension::Px(60.0)),  // 親高さ(80) - padding相当
             }),
             ..Default::default()
         },
@@ -244,7 +246,7 @@ fn create_typewriter_demo_window(world: &mut World) {
             BoxStyle {
                 size: Some(BoxSize {
                     width: Some(Dimension::Px(80.0)),
-                    height: Some(Dimension::Px(200.0)),
+                    height: Some(Dimension::Px(300.0)),  // 2行分の縦書きテキスト用
                 }),
                 margin: Some(BoxMargin(wintf::ecs::layout::Rect {
                     left: LengthPercentageAuto::Px(10.0),
@@ -260,6 +262,8 @@ fn create_typewriter_demo_window(world: &mut World) {
         .id();
 
     // 縦書き Typewriter エンティティ
+    // NOTE: Typewriterは描画コンテンツサイズを自己申告しないため、
+    // 親のサイズに合わせて固定サイズで指定する必要がある
     world.spawn((
         Name::new("VerticalTypewriter"),
         VerticalTypewriter,
@@ -278,8 +282,8 @@ fn create_typewriter_demo_window(world: &mut World) {
         },
         BoxStyle {
             size: Some(BoxSize {
-                width: Some(Dimension::Percent(1.0)),  // 親幅に追従 (100%)
-                height: Some(Dimension::Percent(1.0)), // 親高さに追従 (100%)
+                width: Some(Dimension::Px(85.0)),    // 3行分（テキスト幅81px + 余白）
+                height: Some(Dimension::Px(280.0)), // 約15文字分
             }),
             ..Default::default()
         },
