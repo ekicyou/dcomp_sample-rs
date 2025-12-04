@@ -1174,9 +1174,16 @@ pub fn visual_property_sync_system(
                 );
             }
 
-            // 正常パスのログは抑制（毎フレーム出力されるため）
-            // #[cfg(debug_assertions)]
-            // eprintln!("[visual_property_sync] Entity={}, offset=({}, {}) [physical], scale=({}, {})", entity_name, offset_x, offset_y, scale_x, scale_y);
+            // デバッグ: Visual offset と GlobalArrangement.bounds の比較
+            // Note: ログは抑制（毎フレーム出力されるため）
+            // info!(
+            //     entity = %entity_name,
+            //     visual_offset_x = offset_x,
+            //     visual_offset_y = offset_y,
+            //     bounds_left = global_arrangement.bounds.left,
+            //     bounds_top = global_arrangement.bounds.top,
+            //     "[visual_property_sync] Offset comparison"
+            // );
         } else {
             // 正常パスのログは抑制
             // #[cfg(debug_assertions)]

@@ -248,18 +248,19 @@ impl EcsWorld {
                 crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands,
             );
 
-            // Inputスケジュール: ポインターバッファ処理
-            schedules.add_systems(
-                Input,
-                crate::ecs::pointer::process_pointer_buffers
-                    .after(crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands),
-            );
-
-            // Inputスケジュール: ポインターイベントディスパッチ（process_pointer_buffersの後）
+            // Inputスケジュール: ポインターイベントディスパッチ（process_pointer_buffersの前）
+            // BUTTON_BUFFERSから直接ボタンイベントを取得し、ディスパッチ後にリセットする
             schedules.add_systems(
                 Input,
                 crate::ecs::pointer::dispatch_pointer_events
-                    .after(crate::ecs::pointer::process_pointer_buffers),
+                    .after(crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands),
+            );
+
+            // Inputスケジュール: ポインターバッファ処理（dispatch_pointer_eventsの後）
+            schedules.add_systems(
+                Input,
+                crate::ecs::pointer::process_pointer_buffers
+                    .after(crate::ecs::pointer::dispatch_pointer_events),
             );
 
             // Inputスケジュール: ポインターデバッグ監視（デバッグビルドのみ）
@@ -337,6 +338,10 @@ impl EcsWorld {
             schedules.add_systems(
                 PostLayout,
                 (
+                    // Note: sync_window_arrangement_from_window_pos は一旦無効化
+                    // Window の Arrangement.offset は DIP 座標であり、scale をかけて物理ピクセルになる
+                    // WindowPos.position を DIP に変換して offset に設定すると二重になる
+                    // crate::ecs::layout::sync_window_arrangement_from_window_pos,
                     crate::ecs::layout::sync_simple_arrangements,
                     crate::ecs::layout::mark_dirty_arrangement_trees
                         .after(crate::ecs::layout::sync_simple_arrangements),

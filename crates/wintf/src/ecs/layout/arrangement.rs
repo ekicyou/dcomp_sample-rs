@@ -198,13 +198,34 @@ impl std::ops::Mul<Arrangement> for GlobalArrangement {
     type Output = GlobalArrangement;
 
     fn mul(self, rhs: Arrangement) -> Self::Output {
-        // transform計算
+        // 親のスケールを取得
+        let parent_scale_x = self.transform.M11;
+        let parent_scale_y = self.transform.M22;
+
+        // transform計算（元のオフセットを使用）
         let child_matrix: Matrix3x2 = rhs.into();
         let result_transform = self.transform * child_matrix;
 
         // bounds計算
-        let child_bounds = rhs.local_bounds();
-        let result_bounds = transform_rect_axis_aligned(&child_bounds, &result_transform);
+        // 子のオフセットに親のスケールを適用してからローカル座標を変換
+        // これにより Visual の SetOffsetX(offset * scale) と同じ結果になる
+        let scaled_offset = Offset {
+            x: rhs.offset.x * parent_scale_x,
+            y: rhs.offset.y * parent_scale_y,
+        };
+        
+        // スケール済みオフセットを使って bounds を計算
+        // bounds.left = parent.bounds.left + scaled_offset.x
+        // bounds.right = bounds.left + size * result_scale
+        let result_scale_x = result_transform.M11;
+        let result_scale_y = result_transform.M22;
+        
+        let result_bounds = D2DRect {
+            left: self.bounds.left + scaled_offset.x,
+            top: self.bounds.top + scaled_offset.y,
+            right: self.bounds.left + scaled_offset.x + rhs.size.width * result_scale_x,
+            bottom: self.bounds.top + scaled_offset.y + rhs.size.height * result_scale_y,
+        };
 
         GlobalArrangement {
             transform: result_transform,

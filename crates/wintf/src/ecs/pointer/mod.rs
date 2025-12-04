@@ -423,9 +423,10 @@ pub fn hit_test_with_local_coords(
 ///
 /// Inputスケジュールで実行され、バッファ内容をPointerStateコンポーネントに反映する。
 pub fn process_pointer_buffers(mut query: Query<(Entity, &mut PointerState)>) {
-    // まずButtonBufferの内容をPointerStateに反映（エンティティIDで照合）
+    // ButtonBufferの内容をPointerStateに反映（エンティティIDで照合）
+    // Note: BUTTON_BUFFERSのリセットはdispatch_pointer_eventsで行われる
     BUTTON_BUFFERS.with(|buffers| {
-        let mut buffers = buffers.borrow_mut();
+        let buffers = buffers.borrow();
         
         for (entity, mut pointer) in query.iter_mut() {
             // 各ボタンの処理（DOWN優先ルール）
@@ -436,7 +437,7 @@ pub fn process_pointer_buffers(mut query: Query<(Entity, &mut PointerState)>) {
                 PointerButton::XButton1,
                 PointerButton::XButton2,
             ] {
-                if let Some(buf) = buffers.get_mut(&(entity, button)) {
+                if let Some(buf) = buffers.get(&(entity, button)) {
                     let is_down = if buf.down_received {
                         true
                     } else if buf.up_received {
@@ -462,15 +463,13 @@ pub fn process_pointer_buffers(mut query: Query<(Entity, &mut PointerState)>) {
 
                     // ログ出力（ボタン状態が変化した場合）
                     if buf.down_received || buf.up_received {
-                        tracing::info!(
+                        tracing::trace!(
                             entity = ?entity,
                             button = ?button,
                             is_down,
                             "[process_pointer_buffers] Button state updated"
                         );
                     }
-
-                    buf.reset();
                 }
             }
         }

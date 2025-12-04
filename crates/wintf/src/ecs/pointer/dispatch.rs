@@ -175,13 +175,7 @@ fn dispatch_event_for_handler<H: Component + Copy>(
 pub fn dispatch_pointer_events(world: &mut World) {
     use super::{PointerButton, BUTTON_BUFFERS};
     
-    // Pass 1: 全ての PointerState を持つエンティティを収集
-    let targets: Vec<(Entity, PointerState)> = {
-        let mut query = world.query::<(Entity, &PointerState)>();
-        query.iter(world).map(|(e, s)| (e, s.clone())).collect()
-    };
-
-    // Pass 2: ButtonBuffer から押下中のエンティティを収集
+    // Pass 1: ButtonBuffer から押下中のエンティティを収集（リセット前に取得）
     let button_pressed_entities: Vec<(Entity, bool, bool, bool)> = BUTTON_BUFFERS.with(|buffers| {
         let buffers = buffers.borrow();
         let mut result = std::collections::HashMap::<Entity, (bool, bool, bool)>::new();
@@ -201,49 +195,54 @@ pub fn dispatch_pointer_events(world: &mut World) {
         result.into_iter().map(|(e, (l, r, m))| (e, l, r, m)).collect()
     });
 
-    // 各ポインター状態について独立に dispatch
-    for (sender, state) in targets {
-        // 親チェーン構築
-        let path = build_bubble_path(world, sender);
+    // Pass 2: 全ての PointerState を持つエンティティを収集
+    let targets: Vec<(Entity, PointerState)> = {
+        let mut query = world.query::<(Entity, &PointerState)>();
+        query.iter(world).map(|(e, s)| (e, s.clone())).collect()
+    };
 
-        // OnPointerPressed: PointerState のボタン状態をチェック
-        if state.left_down || state.right_down || state.middle_down {
-            dispatch_event_for_handler::<OnPointerPressed>(
-                world,
-                sender,
-                &path,
-                &state,
-                |h| h.0,
-            );
-        }
+    // 各ポインター状態について独立に dispatch
+    for (sender, state) in &targets {
+        // 親チェーン構築
+        let path = build_bubble_path(world, *sender);
 
         // OnPointerMoved: 常に発火（移動イベント）
-        dispatch_event_for_handler::<OnPointerMoved>(world, sender, &path, &state, |h| h.0);
+        dispatch_event_for_handler::<OnPointerMoved>(world, *sender, &path, state, |h| h.0);
     }
     
-    // ButtonBuffer に記録されたが PointerState がないエンティティも処理
+    // ButtonBuffer に記録されたエンティティについて OnPointerPressed をディスパッチ
     for (entity, left, right, middle) in button_pressed_entities {
-        // 既に targets で処理済みか確認
-        if world.get::<PointerState>(entity).is_some() {
-            // PointerState があれば上のループで処理済み
+        if !left && !right && !middle {
             continue;
         }
         
-        // PointerState がないエンティティへのクリック
-        // 仮の PointerState を作成してディスパッチ
-        let state = PointerState {
-            left_down: left,
-            right_down: right,
-            middle_down: middle,
-            ..Default::default()
+        // PointerState を取得（あれば使用、なければ仮作成）
+        let state = if let Some(existing) = world.get::<PointerState>(entity) {
+            PointerState {
+                left_down: left,
+                right_down: right,
+                middle_down: middle,
+                screen_point: existing.screen_point,
+                local_point: existing.local_point,
+                shift_down: existing.shift_down,
+                ctrl_down: existing.ctrl_down,
+                ..Default::default()
+            }
+        } else {
+            PointerState {
+                left_down: left,
+                right_down: right,
+                middle_down: middle,
+                ..Default::default()
+            }
         };
         
         let path = build_bubble_path(world, entity);
         
-        tracing::info!(
+        tracing::debug!(
             entity = ?entity,
             left, right, middle,
-            "[dispatch_pointer_events] Processing button event without PointerState"
+            "[dispatch_pointer_events] Dispatching OnPointerPressed"
         );
         
         dispatch_event_for_handler::<OnPointerPressed>(
@@ -254,6 +253,14 @@ pub fn dispatch_pointer_events(world: &mut World) {
             |h| h.0,
         );
     }
+    
+    // BUTTON_BUFFERS をリセット（ディスパッチ完了後）
+    BUTTON_BUFFERS.with(|buffers| {
+        let mut buffers = buffers.borrow_mut();
+        for buf in buffers.values_mut() {
+            buf.reset();
+        }
+    });
 }
 
 // ============================================================================

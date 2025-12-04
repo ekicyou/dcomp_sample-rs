@@ -48,6 +48,14 @@ pub fn mark_dirty_arrangement_trees(
     orphaned: RemovedComponents<ChildOf>,
     transforms: Query<(Option<&ChildOf>, &mut ArrangementTreeChanged)>,
 ) {
+    let changed_count = changed.iter().count();
+    if changed_count > 0 {
+        // Note: 頻繁に呼ばれるためログは抑制
+        // tracing::info!(
+        //     changed_count,
+        //     "[mark_dirty_arrangement_trees] Detected changed arrangements"
+        // );
+    }
     mark_dirty_trees::<Arrangement, GlobalArrangement, ArrangementTreeChanged>(
         changed, orphaned, transforms,
     );
@@ -189,11 +197,15 @@ pub fn compute_taffy_layout_system(
     roots: Query<(Entity, Option<&BoxStyle>), With<LayoutRoot>>,
     // 変更検知用
     changed_styles: Query<(), Changed<TaffyStyle>>,
+    changed_box_styles: Query<(), Changed<BoxStyle>>,
     changed_hierarchy: Query<(), Changed<ChildOf>>,
     // TaffyComputedLayoutを書き込むクエリ
     mut all_taffy_entities: Query<(Entity, &mut TaffyComputedLayout), With<TaffyStyle>>,
 ) {
-    let has_changes = !changed_styles.is_empty() || !changed_hierarchy.is_empty();
+    // BoxStyleまたはTaffyStyleの変更、階層変更のいずれかで再計算
+    let has_changes = !changed_styles.is_empty() 
+        || !changed_box_styles.is_empty() 
+        || !changed_hierarchy.is_empty();
 
     // Changed検知時にレイアウト計算を実行
     if has_changes {
@@ -242,6 +254,14 @@ pub fn compute_taffy_layout_system(
                                 let new_layout = TaffyComputedLayout(*layout);
                                 // 値比較で変更検知を抑制
                                 if *computed != new_layout {
+                                    tracing::info!(
+                                        entity = ?entity,
+                                        old_width = computed.0.size.width,
+                                        old_height = computed.0.size.height,
+                                        new_width = new_layout.0.size.width,
+                                        new_height = new_layout.0.size.height,
+                                        "[compute_taffy_layout] Layout changed"
+                                    );
                                     *computed = new_layout;
                                 }
                             }
@@ -369,6 +389,69 @@ pub fn update_window_pos_system(
             cx: bounds.width() as i32,
             cy: bounds.height() as i32,
         });
+    }
+}
+
+/// WindowPos.position の変更を Window の Arrangement.offset に反映
+/// 
+/// WM_WINDOWPOSCHANGED で更新された WindowPos.position（クライアント領域のスクリーン座標）を
+/// Window の Arrangement.offset に反映する。
+/// 
+/// これにより GlobalArrangement.bounds が正しいスクリーン座標を持つようになり、
+/// hit_test が正しく動作する。
+/// 
+/// 毎フレーム Window の WindowPos と Arrangement.offset を同期する。
+/// 変更がない場合は何もしない。
+pub fn sync_window_arrangement_from_window_pos(
+    mut query: Query<
+        (Entity, &WindowPos, &DPI, &mut Arrangement, Option<&Name>),
+        With<Window>,
+    >,
+) {
+    use crate::ecs::graphics::format_entity_name;
+    
+    for (entity, window_pos, dpi, mut arrangement, name) in query.iter_mut() {
+        let Some(position) = window_pos.position else {
+            continue;
+        };
+
+        // CW_USEDEFAULT の場合はスキップ（ウィンドウ作成時の初期値）
+        if position.x == windows::Win32::UI::WindowsAndMessaging::CW_USEDEFAULT {
+            continue;
+        }
+
+        // WindowPos.position は物理ピクセル座標
+        // Arrangement.offset は DIP 座標なので、DPI スケールで割る
+        let scale_x = dpi.scale_x();
+        let scale_y = dpi.scale_y();
+
+        // ゼロ除算防止
+        if scale_x <= 0.0 || scale_y <= 0.0 {
+            continue;
+        }
+
+        let new_offset = Offset {
+            x: position.x as f32 / scale_x,
+            y: position.y as f32 / scale_y,
+        };
+
+        // 変更があった場合のみ更新
+        if arrangement.offset != new_offset {
+            let entity_name = format_entity_name(entity, name);
+            tracing::debug!(
+                entity = %entity_name,
+                old_x = arrangement.offset.x,
+                old_y = arrangement.offset.y,
+                new_x = new_offset.x,
+                new_y = new_offset.y,
+                position_x = position.x,
+                position_y = position.y,
+                scale_x,
+                scale_y,
+                "[sync_window_arrangement_from_window_pos] Updating Arrangement.offset"
+            );
+            arrangement.offset = new_offset;
+        }
     }
 }
 

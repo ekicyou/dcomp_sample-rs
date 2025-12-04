@@ -8,7 +8,7 @@
 
 #![allow(non_snake_case)]
 
-use tracing::{debug, trace, warn};
+use tracing::{debug, info, trace, warn};
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -662,11 +662,48 @@ unsafe fn handle_button_message(
     // hit_test でターゲットエンティティを特定し、PointerState を確保
     if let Some(world) = super::try_get_ecs_world() {
         if let Ok(mut world_borrow) = world.try_borrow_mut() {
+            // WindowPosを取得してスクリーン座標を計算
+            let window_pos = world_borrow.world().get::<crate::ecs::window::WindowPos>(window_entity);
+            let (screen_x, screen_y) = if let Some(wp) = window_pos {
+                if let Some(pos) = wp.position {
+                    (x + pos.x, y + pos.y)
+                } else {
+                    (x, y)
+                }
+            } else {
+                (x, y)
+            };
+            
             if let Some(target_entity) = hit_test_in_window(
                 world_borrow.world(),
                 window_entity,
                 HitTestPoint::new(x as f32, y as f32),
             ) {
+                // ヒットしたエンティティの名前とGlobalArrangement.boundsをログ出力
+                let entity_name = world_borrow
+                    .world()
+                    .get::<bevy_ecs::name::Name>(target_entity)
+                    .map(|n| n.as_str().to_string())
+                    .unwrap_or_else(|| format!("{:?}", target_entity));
+                let bounds_info = world_borrow
+                    .world()
+                    .get::<crate::ecs::layout::GlobalArrangement>(target_entity)
+                    .map(|g| format!("({:.0},{:.0})-({:.0},{:.0})", 
+                        g.bounds.left, g.bounds.top, g.bounds.right, g.bounds.bottom))
+                    .unwrap_or_else(|| "no bounds".to_string());
+                info!(
+                    target_entity = ?target_entity,
+                    entity_name = %entity_name,
+                    client_x = x, 
+                    client_y = y,
+                    screen_x,
+                    screen_y,
+                    bounds = %bounds_info,
+                    button = ?button,
+                    is_down,
+                    "[handle_button_message] hit_test result"
+                );
+
                 // PointerState がない場合は付与
                 if world_borrow.world().get::<PointerState>(target_entity).is_none() {
                     world_borrow.world_mut().entity_mut(target_entity).insert(PointerState {
