@@ -3,6 +3,7 @@
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use std::time::Duration;
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 use windows::core::Result;
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
@@ -10,6 +11,7 @@ use wintf::ecs::layout::{hit_test, GlobalArrangement, PhysicalPoint};
 use wintf::ecs::layout::{
     BoxInset, BoxMargin, BoxPosition, BoxSize, BoxStyle, Dimension, LengthPercentageAuto, Opacity,
 };
+use wintf::ecs::pointer::{OnPointerMoved, OnPointerPressed, Phase, PointerState};
 use wintf::ecs::widget::bitmap_source::{BitmapSource, CommandSender};
 use wintf::ecs::widget::shapes::Rectangle;
 use wintf::ecs::{Window, WindowPos};
@@ -82,25 +84,13 @@ async fn run_demo(tx: CommandSender) {
     println!("[Async] 1s: Running hit test verification");
     let _ = tx.send(Box::new(test_hit_test_1s));
 
-    // === 4秒待機 ===
-    async_io::Timer::after(Duration::from_secs(4)).await;
+    // === 長時間待機（ポインターイベントデモ用） ===
+    println!("[Async] Waiting 60 seconds for pointer event demo...");
+    println!("  Try: Left-click on RedBox, BlueBox, Right-click on Container");
+    async_io::Timer::after(Duration::from_secs(60)).await;
 
-    // === 5秒: レイアウト変更 ===
-    println!("[Async] 5s: Changing layout parameters");
-    let _ = tx.send(Box::new(change_layout_parameters));
-
-    // === 1秒待機 ===
-    async_io::Timer::after(Duration::from_secs(1)).await;
-
-    // === 6秒: ヒットテスト検証（レイアウト変更後） ===
-    println!("[Async] 6s: Running hit test verification after layout change");
-    let _ = tx.send(Box::new(test_hit_test_6s));
-
-    // === 4秒待機 ===
-    async_io::Timer::after(Duration::from_secs(4)).await;
-
-    // === 10秒: ウィンドウ終了 ===
-    println!("[Async] 10s: Closing window");
+    // === 61秒: ウィンドウ終了 ===
+    println!("[Async] 61s: Closing window");
     let _ = tx.send(Box::new(close_window));
 }
 
@@ -133,7 +123,7 @@ fn create_flexbox_window(world: &mut World) {
         ))
         .id();
 
-    // Flexコンテナ（横並び）
+    // Flexコンテナ（横並び）- 右クリックで色変更
     let flex_container = world
         .spawn((
             Name::new("FlexDemo-Container"),
@@ -162,11 +152,13 @@ fn create_flexbox_window(world: &mut World) {
                 })),
                 ..Default::default()
             },
+            // イベントハンドラ: 右クリックで色変更
+            OnPointerPressed(on_container_pressed),
             ChildOf(window_entity),
         ))
         .id();
 
-    // Flexアイテム1（赤、固定200px幅）
+    // Flexアイテム1（赤、固定200px幅）- 左クリックで不透明度変更
     let red_box = world
         .spawn((
             Name::new("RedBox"),
@@ -190,6 +182,8 @@ fn create_flexbox_window(world: &mut World) {
                 flex_basis: Some(Dimension::Px(200.0)),
                 ..Default::default()
             },
+            // イベントハンドラ: 左クリックで不透明度トグル
+            OnPointerPressed(on_red_box_pressed),
             ChildOf(flex_container),
         ))
         .id();
@@ -216,7 +210,7 @@ fn create_flexbox_window(world: &mut World) {
         ChildOf(red_box),
     ));
 
-    // Flexアイテム2（緑、growで伸縮）
+    // Flexアイテム2（緑、growで伸縮）- マウス移動でログ
     world.spawn((
         Name::new("GreenBox"),
         GreenBox,
@@ -239,10 +233,12 @@ fn create_flexbox_window(world: &mut World) {
             flex_basis: Some(Dimension::Auto),
             ..Default::default()
         },
+        // イベントハンドラ: ポインター移動でログ出力
+        OnPointerMoved(on_green_box_moved),
         ChildOf(flex_container),
     ));
 
-    // Flexアイテム3（青、growで伸縮、より大きなgrow値）
+    // Flexアイテム3（青、growで伸縮、より大きなgrow値）- 左クリックでサイズ変更
     world.spawn((
         Name::new("BlueBox"),
         BlueBox,
@@ -265,15 +261,22 @@ fn create_flexbox_window(world: &mut World) {
             flex_basis: Some(Dimension::Auto),
             ..Default::default()
         },
+        // イベントハンドラ: 左クリックでサイズトグル
+        OnPointerPressed(on_blue_box_pressed),
         ChildOf(flex_container),
     ));
 
     println!("[Test] Flexbox demo window created:");
     println!("  Window (root)");
-    println!("  └─ FlexContainer (Row, SpaceEvenly, Center) - 灰色背景、10pxマージン");
-    println!("     ├─ Rectangle (red, 200x100 fixed)");
-    println!("     ├─ Rectangle (green, 100x100, grow=1)");
-    println!("     └─ Rectangle (blue, 100x100, grow=2)");
+    println!("  └─ FlexContainer (Row, SpaceEvenly, Center) - 灰色背景、10pxマージン、右クリックで色変更");
+    println!("     ├─ Rectangle (red, 200x100 fixed) - 左クリックで不透明度トグル");
+    println!("     ├─ Rectangle (green, 100x100, grow=1) - マウス移動でログ");
+    println!("     └─ Rectangle (blue, 100x100, grow=2) - 左クリックでサイズトグル");
+    println!("\n[PointerEvent Demo]");
+    println!("  - 灰色コンテナを右クリック → 色がピンクに変化");
+    println!("  - 赤い矩形を左クリック → 不透明度が0.5⇔1.0トグル");
+    println!("  - 緑の矩形でマウス移動 → ログ出力（デバッグ）");
+    println!("  - 青い矩形を左クリック → サイズが100⇔150トグル");
 }
 
 /// レイアウトパラメーターを変更
@@ -616,4 +619,160 @@ fn dump_window_pos(world: &World, entity: Entity) {
     } else {
         println!("[HitTest] Window has no WindowPos");
     }
+}
+
+// ============================================================================
+// ポインターイベントハンドラ
+// ============================================================================
+
+/// FlexContainer の OnPointerPressed ハンドラ
+///
+/// 右クリックでコンテナの色をピンクに変更する。
+fn on_container_pressed(
+    world: &mut World,
+    sender: Entity,
+    entity: Entity,
+    ev: &Phase<PointerState>,
+) -> bool {
+    // Bubble フェーズでのみ処理
+    if !ev.is_bubble() {
+        return false;
+    }
+
+    let state = ev.value();
+
+    // 右クリック検出
+    if state.right_down {
+        info!(
+            sender = ?sender,
+            entity = ?entity,
+            "[PointerEvent] FlexContainer: Right-click detected! Changing color to pink."
+        );
+
+        // コンテナの色をピンクに変更
+        if let Some(mut rect) = world.get_mut::<Rectangle>(entity) {
+            rect.color = D2D1_COLOR_F {
+                r: 1.0,
+                g: 0.7,
+                b: 0.8,
+                a: 1.0,
+            };
+        }
+
+        return true; // イベント処理済み
+    }
+
+    false
+}
+
+/// RedBox の OnPointerPressed ハンドラ
+///
+/// 左クリックで不透明度をトグル（0.5 ⇔ 1.0）する。
+fn on_red_box_pressed(
+    world: &mut World,
+    sender: Entity,
+    entity: Entity,
+    ev: &Phase<PointerState>,
+) -> bool {
+    // Bubble フェーズでのみ処理
+    if !ev.is_bubble() {
+        return false;
+    }
+
+    let state = ev.value();
+
+    // 左クリック検出
+    if state.left_down {
+        info!(
+            sender = ?sender,
+            entity = ?entity,
+            "[PointerEvent] RedBox: Left-click detected! Toggling opacity."
+        );
+
+        // 不透明度をトグル
+        if let Some(mut opacity) = world.get_mut::<Opacity>(entity) {
+            opacity.0 = if opacity.0 < 0.75 { 1.0 } else { 0.5 };
+            info!(opacity = opacity.0, "[PointerEvent] RedBox: New opacity");
+        }
+
+        return true; // イベント処理済み、親に伝播しない
+    }
+
+    false
+}
+
+/// GreenBox の OnPointerMoved ハンドラ
+///
+/// マウス移動時にログを出力する（デバッグ用）。
+fn on_green_box_moved(
+    _world: &mut World,
+    sender: Entity,
+    entity: Entity,
+    ev: &Phase<PointerState>,
+) -> bool {
+    // Bubble フェーズでのみ処理（Tunnel でログ出力すると冗長）
+    if !ev.is_bubble() {
+        return false;
+    }
+
+    let state = ev.value();
+
+    // 10フレームに1回程度ログ出力（頻繁すぎないように）
+    static MOVE_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let count = MOVE_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    if count % 30 == 0 {
+        info!(
+            sender = ?sender,
+            entity = ?entity,
+            x = state.screen_point.x,
+            y = state.screen_point.y,
+            "[PointerEvent] GreenBox: Pointer moved"
+        );
+    }
+
+    false // 伝播続行（親にも通知）
+}
+
+/// BlueBox の OnPointerPressed ハンドラ
+///
+/// 左クリックでサイズをトグル（100 ⇔ 150）する。
+fn on_blue_box_pressed(
+    world: &mut World,
+    sender: Entity,
+    entity: Entity,
+    ev: &Phase<PointerState>,
+) -> bool {
+    // Bubble フェーズでのみ処理
+    if !ev.is_bubble() {
+        return false;
+    }
+
+    let state = ev.value();
+
+    // 左クリック検出
+    if state.left_down {
+        info!(
+            sender = ?sender,
+            entity = ?entity,
+            "[PointerEvent] BlueBox: Left-click detected! Toggling size."
+        );
+
+        // サイズをトグル
+        if let Some(mut style) = world.get_mut::<BoxStyle>(entity) {
+            if let Some(ref mut size) = style.size {
+                let new_size = if size.width == Some(Dimension::Px(100.0)) {
+                    150.0
+                } else {
+                    100.0
+                };
+                size.width = Some(Dimension::Px(new_size));
+                size.height = Some(Dimension::Px(new_size));
+                info!(new_size = new_size, "[PointerEvent] BlueBox: New size");
+            }
+        }
+
+        return true; // イベント処理済み
+    }
+
+    false
 }

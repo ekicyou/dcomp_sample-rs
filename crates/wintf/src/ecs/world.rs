@@ -248,22 +248,29 @@ impl EcsWorld {
                 crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands,
             );
 
-            // Inputスケジュール: マウスバッファ処理
+            // Inputスケジュール: ポインターバッファ処理
             schedules.add_systems(
                 Input,
-                crate::ecs::mouse::process_mouse_buffers
+                crate::ecs::pointer::process_pointer_buffers
                     .after(crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands),
             );
 
-            // Inputスケジュール: マウスデバッグ監視（デバッグビルドのみ）
+            // Inputスケジュール: ポインターイベントディスパッチ（process_pointer_buffersの後）
+            schedules.add_systems(
+                Input,
+                crate::ecs::pointer::dispatch_pointer_events
+                    .after(crate::ecs::pointer::process_pointer_buffers),
+            );
+
+            // Inputスケジュール: ポインターデバッグ監視（デバッグビルドのみ）
             #[cfg(debug_assertions)]
             schedules.add_systems(
                 Input,
                 (
-                    crate::ecs::mouse::debug_mouse_state_changes,
-                    crate::ecs::mouse::debug_mouse_leave,
+                    crate::ecs::pointer::debug_pointer_state_changes,
+                    crate::ecs::pointer::debug_pointer_leave,
                 )
-                    .after(crate::ecs::mouse::process_mouse_buffers),
+                    .after(crate::ecs::pointer::dispatch_pointer_events),
             );
 
             // UISetupスケジュール：ウィンドウ作成とWindowPos反映
@@ -400,10 +407,10 @@ impl EcsWorld {
             // CommitCompositionスケジュールにコミットシステムを登録
             schedules.add_systems(CommitComposition, crate::ecs::graphics::commit_composition);
 
-            // FrameFinalizeスケジュール: 一時的マウス状態クリア
+            // FrameFinalizeスケジュール: 一時的ポインター状態クリア
             schedules.add_systems(
                 FrameFinalize,
-                crate::ecs::mouse::clear_transient_mouse_state,
+                crate::ecs::pointer::clear_transient_pointer_state,
             );
         }
 

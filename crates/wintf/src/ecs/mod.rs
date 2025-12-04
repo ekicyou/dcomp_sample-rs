@@ -3,7 +3,7 @@ pub mod common;
 mod graphics;
 pub mod layout;
 pub mod monitor;
-pub mod mouse;
+pub mod pointer;
 mod nchittest_cache;
 pub mod transform;
 pub mod widget;
@@ -11,6 +11,12 @@ pub mod window;
 mod window_proc;
 mod window_system;
 pub mod world;
+
+/// 後方互換性のためのエイリアス
+#[deprecated(since = "0.1.0", note = "Use pointer module instead")]
+pub mod mouse {
+    pub use super::pointer::*;
+}
 
 pub use app::*;
 pub use bevy_ecs::hierarchy::{ChildOf, Children};
@@ -20,10 +26,18 @@ pub use graphics::FrameTime;
 pub use graphics::*;
 pub use layout::*;
 pub use monitor::*;
-pub use mouse::{
+pub use pointer::{
+    clear_transient_pointer_state, debug_pointer_leave, debug_pointer_state_changes,
+    dispatch_pointer_events, process_pointer_buffers, CursorVelocity, DoubleClick, EventHandler,
+    OnPointerEntered, OnPointerExited, OnPointerMoved, OnPointerPressed, OnPointerReleased,
+    Phase, PhysicalPoint, PointerButton, PointerEventHandler, PointerLeave, PointerState,
+    WheelDelta, WindowPointerTracking,
+};
+// 後方互換性エイリアス
+#[allow(deprecated)]
+pub use pointer::{
     clear_transient_mouse_state, debug_mouse_leave, debug_mouse_state_changes,
-    process_mouse_buffers, CursorVelocity, DoubleClick, MouseButton, MouseLeave, MouseState,
-    PhysicalPoint, WheelDelta, WindowMouseTracking,
+    process_mouse_buffers, MouseButton, MouseLeave, MouseState, WindowMouseTracking,
 };
 pub use transform::*;
 pub use widget::{
