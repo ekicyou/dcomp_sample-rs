@@ -66,6 +66,7 @@ fn main() -> Result<()> {
     println!("  4. 5秒後: pause()");
     println!("  5. 7秒後: resume()");
     println!("  6. 9秒後: skip()（全文即時表示）");
+    println!("  7. 15秒後: ウィンドウ終了");
 
     // メッセージループを開始
     mgr.run()?;
@@ -109,6 +110,19 @@ async fn run_demo(tx: CommandSender) {
 
     // === 6秒待機 ===
     async_io::Timer::after(Duration::from_secs(6)).await;
+
+    // === 15秒: ウィンドウ終了 ===
+    println!("[Async] 15s: Closing window");
+    let _ = tx.send(Box::new(close_window));
+}
+
+/// ウィンドウを閉じる
+fn close_window(world: &mut World) {
+    let mut query = world.query_filtered::<Entity, With<TypewriterDemoWindow>>();
+    if let Some(window) = query.iter(world).next() {
+        println!("[Test] Removing Window entity {:?}", window);
+        world.despawn(window);
+    }
 }
 
 /// Typewriterデモウィンドウを作成
@@ -175,9 +189,9 @@ fn create_typewriter_demo_window(world: &mut World) {
             Name::new("HorizontalBox"),
             Rectangle {
                 color: D2D1_COLOR_F {
-                    r: 0.9,
-                    g: 0.9,
-                    b: 1.0,
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
                     a: 1.0,
                 },
             },
@@ -201,6 +215,7 @@ fn create_typewriter_demo_window(world: &mut World) {
     // 横書き Typewriter エンティティ
     // NOTE: Typewriterは描画コンテンツサイズを自己申告しないため、
     // 親のサイズに合わせて固定サイズで指定する必要がある
+    // NOTE: 空のTypewriterTalkを初期設定することで、会話開始前も背景が描画される
     world.spawn((
         Name::new("HorizontalTypewriter"),
         HorizontalTypewriter,
@@ -213,16 +228,25 @@ fn create_typewriter_demo_window(world: &mut World) {
                 b: 0.1,
                 a: 1.0,
             },
-            background: None,
+            background: Some(D2D1_COLOR_F {
+                r: 0.9,
+                g: 0.9,
+                b: 1.0,
+                a: 1.0,
+            }),
             direction: TextDirection::HorizontalLeftToRight,
             default_char_wait: 0.08,
             ..Default::default()
         },
         BoxStyle {
-            size: Some(BoxSize {
-                width: Some(Dimension::Percent(100.0)),  // 親幅に追従
-                height: Some(Dimension::Percent(100.0)), // 親高さに追従
-            }),
+            // size 100% + margin は親をはみ出すため、flex_grow を使用
+            flex_grow: Some(1.0),
+            margin: Some(BoxMargin(wintf::ecs::layout::Rect {
+                left: LengthPercentageAuto::Px(1.0),
+                right: LengthPercentageAuto::Px(1.0),
+                top: LengthPercentageAuto::Px(1.0),
+                bottom: LengthPercentageAuto::Px(1.0),
+            })),
             ..Default::default()
         },
         ChildOf(horizontal_box),
@@ -234,18 +258,18 @@ fn create_typewriter_demo_window(world: &mut World) {
             Name::new("VerticalBox"),
             Rectangle {
                 color: D2D1_COLOR_F {
-                    r: 0.9,
-                    g: 1.0,
-                    b: 0.9,
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
                     a: 1.0,
                 },
             },
             BoxStyle {
                 size: Some(BoxSize {
                     width: Some(Dimension::Px(80.0)),
-                    height: None,  // 高さは flex_grow で自動調整
+                    height: None, // 高さは flex_grow で自動調整
                 }),
-                flex_grow: Some(1.0),  // 残りの空間を埋める
+                flex_grow: Some(1.0), // 残りの空間を埋める
                 margin: Some(BoxMargin(wintf::ecs::layout::Rect {
                     left: LengthPercentageAuto::Px(10.0),
                     right: LengthPercentageAuto::Px(10.0),
@@ -262,6 +286,7 @@ fn create_typewriter_demo_window(world: &mut World) {
     // 縦書き Typewriter エンティティ
     // NOTE: Typewriterは描画コンテンツサイズを自己申告しないため、
     // 親のサイズに合わせて固定サイズで指定する必要がある
+    // NOTE: 空のTypewriterTalkを初期設定することで、会話開始前も背景が描画される
     world.spawn((
         Name::new("VerticalTypewriter"),
         VerticalTypewriter,
@@ -284,11 +309,20 @@ fn create_typewriter_demo_window(world: &mut World) {
             default_char_wait: 0.08,
             ..Default::default()
         },
+        TypewriterTalk::new(vec![], 0.0), // 空のトークで初期化（背景描画用）
         BoxStyle {
+            // size 100% + margin は親をはみ出すため、flex_grow を使用
             size: Some(BoxSize {
-                width: Some(Dimension::Px(85.0)),      // 3行分（テキスト幅81px + 余白）
-                height: Some(Dimension::Percent(100.0)), // 親の高さに追従
+                width: Some(Dimension::Px(85.0)), // 3行分（テキスト幅81px + 余白）
+                height: None,
             }),
+            flex_grow: Some(1.0),
+            margin: Some(BoxMargin(wintf::ecs::layout::Rect {
+                left: LengthPercentageAuto::Px(1.0),
+                right: LengthPercentageAuto::Px(1.0),
+                top: LengthPercentageAuto::Px(1.0),
+                bottom: LengthPercentageAuto::Px(1.0),
+            })),
             ..Default::default()
         },
         ChildOf(vertical_box),

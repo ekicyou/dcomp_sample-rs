@@ -11,6 +11,6 @@ pub use typewriter_ir::{
     TimelineItem, TypewriterEvent, TypewriterEventKind, TypewriterTimeline, TypewriterToken,
 };
 pub use typewriter_systems::{
-    draw_typewriters, init_typewriter_layout, invalidate_typewriter_layout_on_arrangement_change,
-    update_typewriters,
+    draw_typewriter_backgrounds, draw_typewriters, init_typewriter_layout,
+    invalidate_typewriter_layout_on_arrangement_change, update_typewriters,
 };

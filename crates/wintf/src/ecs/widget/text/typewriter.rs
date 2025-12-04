@@ -62,15 +62,24 @@ impl Default for Typewriter {
     }
 }
 
-/// Typewriter追加時のフック: Visualコンポーネントを自動挿入
+/// Typewriter追加時のフック: VisualコンポーネントとTyperwriterTalk（空）を自動挿入
 fn on_typewriter_add(mut world: DeferredWorld, hook: HookContext) {
-    if world.get::<Visual>(hook.entity).is_some() {
-        return;
+    let entity = hook.entity;
+    let needs_visual = world.get::<Visual>(entity).is_none();
+    let needs_talk = world.get::<TypewriterTalk>(entity).is_none();
+
+    if needs_visual || needs_talk {
+        let mut cmds = world.commands();
+        let mut entity_cmds = cmds.entity(entity);
+        
+        if needs_visual {
+            entity_cmds.insert(Visual::default());
+        }
+        if needs_talk {
+            // 空のトークを登録（背景描画のため）
+            entity_cmds.insert(TypewriterTalk::new(vec![], 0.0));
+        }
     }
-    world
-        .commands()
-        .entity(hook.entity)
-        .insert(Visual::default());
 }
 
 /// Typewriter削除時のフック

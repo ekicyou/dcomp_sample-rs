@@ -369,6 +369,9 @@ impl EcsWorld {
                         .after(crate::ecs::widget::text::invalidate_typewriter_layout_on_arrangement_change),
                     crate::ecs::widget::text::draw_typewriters
                         .after(crate::ecs::widget::text::init_typewriter_layout),
+                    // 空トーク時の背景描画（draw_typewritersの後）
+                    crate::ecs::widget::text::draw_typewriter_backgrounds
+                        .after(crate::ecs::widget::text::draw_typewriters),
                     crate::ecs::widget::bitmap_source::draw_bitmap_sources,
                     // 遅延Surface作成（GraphicsCommandList存在時、GlobalArrangementベース）
                     crate::ecs::graphics::deferred_surface_creation_system

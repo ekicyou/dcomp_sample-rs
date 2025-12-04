@@ -16,7 +16,6 @@ use crate::ecs::widget::text::typewriter::{
 use crate::ecs::widget::text::typewriter_ir::{
     TimelineItem, TypewriterEvent, TypewriterTimeline, TypewriterToken,
 };
-use crate::ecs::TextLayoutMetrics;
 use bevy_ecs::prelude::*;
 use tracing::{debug, trace, warn};
 use windows::Win32::Graphics::Direct2D::D2D1_DRAW_TEXT_OPTIONS_NONE;
@@ -124,18 +123,30 @@ pub fn init_typewriter_layout(
                 TextDirection::HorizontalLeftToRight => {
                     let _ = text_format.SetReadingDirection(DWRITE_READING_DIRECTION_LEFT_TO_RIGHT);
                     let _ = text_format.SetFlowDirection(DWRITE_FLOW_DIRECTION_TOP_TO_BOTTOM);
+                    // 横書きLTR: 左寄せ（デフォルト）、上寄せ
+                    let _ = text_format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+                    let _ = text_format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
                 }
                 TextDirection::HorizontalRightToLeft => {
                     let _ = text_format.SetReadingDirection(DWRITE_READING_DIRECTION_RIGHT_TO_LEFT);
                     let _ = text_format.SetFlowDirection(DWRITE_FLOW_DIRECTION_TOP_TO_BOTTOM);
+                    // 横書きRTL: 右寄せ、上寄せ
+                    let _ = text_format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+                    let _ = text_format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
                 }
                 TextDirection::VerticalRightToLeft => {
                     let _ = text_format.SetReadingDirection(DWRITE_READING_DIRECTION_TOP_TO_BOTTOM);
                     let _ = text_format.SetFlowDirection(DWRITE_FLOW_DIRECTION_RIGHT_TO_LEFT);
+                    // 縦書きRTL: 上寄せ、右寄せ（1行目を右端に）
+                    let _ = text_format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+                    let _ = text_format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
                 }
                 TextDirection::VerticalLeftToRight => {
                     let _ = text_format.SetReadingDirection(DWRITE_READING_DIRECTION_TOP_TO_BOTTOM);
                     let _ = text_format.SetFlowDirection(DWRITE_FLOW_DIRECTION_LEFT_TO_RIGHT);
+                    // 縦書きLTR: 上寄せ、左寄せ
+                    let _ = text_format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+                    let _ = text_format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
                 }
             }
         }
@@ -274,7 +285,7 @@ pub fn update_typewriters(
 /// visible_cluster_count までのグリフを描画する。
 pub fn draw_typewriters(
     mut commands: Commands,
-    query: Query<(Entity, &Typewriter, &TypewriterTalk, &TypewriterLayoutCache)>,
+    query: Query<(Entity, &Typewriter, &TypewriterTalk, &TypewriterLayoutCache, &Arrangement)>,
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
     let Some(graphics_core) = graphics_core else {
@@ -287,7 +298,7 @@ pub fn draw_typewriters(
         return;
     };
 
-    for (entity, typewriter, talk, layout_cache) in query.iter() {
+    for (entity, typewriter, talk, layout_cache, arrangement) in query.iter() {
         let text_layout = layout_cache.text_layout();
         let timeline = layout_cache.timeline();
         let visible_count = talk.visible_cluster_count();
@@ -345,13 +356,14 @@ pub fn draw_typewriters(
         dc.clear(Some(&colors::TRANSPARENT));
 
         // バックグラウンド描画（指定されている場合）
+        // Rectangleと同様にarrangement.sizeを使用
         if let Some(ref bg_color) = typewriter.background {
             if let Ok(bg_brush) = dc.create_solid_color_brush(bg_color, None) {
                 let bg_rect = windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F {
                     left: 0.0,
                     top: 0.0,
-                    right: text_metrics.layoutWidth,
-                    bottom: text_metrics.layoutHeight,
+                    right: arrangement.size.width,
+                    bottom: arrangement.size.height,
                 };
                 unsafe {
                     dc.FillRectangle(&bg_rect, &bg_brush);
@@ -386,17 +398,18 @@ pub fn draw_typewriters(
             //     origin.X = text_metrics.width - layoutWidth
             let origin = match typewriter.direction {
                 TextDirection::VerticalRightToLeft => {
-                    // 縦書きRTL: レイアウトボックスの右端をSurface右端に合わせる
+                    // 縦書きRTL: テキストはlayoutWidthの右端から始まり左へ流れる
+                    // originは(0,0)で、DirectWriteが自動的に右端から配置
                     Vector2 {
-                        X: text_metrics.width - text_metrics.layoutWidth,
-                        Y: -text_metrics.top,
+                        X: 0.0,
+                        Y: 0.0,
                     }
                 }
                 TextDirection::VerticalLeftToRight => {
                     // 縦書きLTR: 1行目は左端から始まる
                     Vector2 {
-                        X: -text_metrics.left,
-                        Y: -text_metrics.top,
+                        X: 0.0,
+                        Y: 0.0,
                     }
                 }
                 _ => {
@@ -468,13 +481,89 @@ pub fn draw_typewriters(
             continue;
         }
 
-        // GraphicsCommandList と TextLayoutMetrics をエンティティに挿入
-        commands.entity(entity).insert((
-            GraphicsCommandList::new(command_list),
-            TextLayoutMetrics {
-                width: text_metrics.width,
-                height: text_metrics.height,
-            },
-        ));
+        // GraphicsCommandListをエンティティに挿入
+        // Surfaceサイズは GlobalArrangement.bounds から計算される（Rectangleと同じ）
+        commands.entity(entity).insert(GraphicsCommandList::new(command_list));
+    }
+}
+
+/// 空トークのTypewriter背景描画システム（Draw スケジュール）
+///
+/// TypewriterTalkはあるがTyperwriterLayoutCacheがない（空トーク）の場合、
+/// 背景色のみを描画する。
+pub fn draw_typewriter_backgrounds(
+    mut commands: Commands,
+    query: Query<
+        (Entity, &Typewriter, &TypewriterTalk, &Arrangement),
+        (Without<TypewriterLayoutCache>, Without<GraphicsCommandList>),
+    >,
+    graphics_core: Option<Res<GraphicsCore>>,
+) {
+    let Some(graphics_core) = graphics_core else {
+        return;
+    };
+
+    let Some(dc) = graphics_core.device_context() else {
+        return;
+    };
+
+    for (entity, typewriter, talk, arrangement) in query.iter() {
+        // テキストがある場合はdraw_typewritersが処理するのでスキップ
+        let has_text = talk.tokens().iter().any(|t| matches!(t, TypewriterToken::Text(s) if !s.is_empty()));
+        if has_text {
+            continue;
+        }
+
+        // 背景色がない場合はスキップ
+        let Some(ref bg_color) = typewriter.background else {
+            continue;
+        };
+
+        // Arrangementがまだ計算されていない場合はスキップ
+        const MIN_LAYOUT_SIZE: f32 = 10.0;
+        if arrangement.size.width < MIN_LAYOUT_SIZE || arrangement.size.height < MIN_LAYOUT_SIZE {
+            continue;
+        }
+
+        // CommandList生成
+        let command_list = match unsafe { dc.CreateCommandList() } {
+            Ok(cl) => cl,
+            Err(_) => continue,
+        };
+
+        unsafe {
+            dc.SetTarget(&command_list);
+            dc.BeginDraw();
+        }
+
+        // 透明でクリア
+        dc.clear(Some(&colors::TRANSPARENT));
+
+        // 背景描画
+        if let Ok(bg_brush) = dc.create_solid_color_brush(bg_color, None) {
+            let bg_rect = windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F {
+                left: 0.0,
+                top: 0.0,
+                right: arrangement.size.width,
+                bottom: arrangement.size.height,
+            };
+            unsafe {
+                dc.FillRectangle(&bg_rect, &bg_brush);
+            }
+        }
+
+        // 描画終了
+        if unsafe { dc.EndDraw(None, None) }.is_err() {
+            continue;
+        }
+
+        // CommandListを閉じる
+        if command_list.close().is_err() {
+            continue;
+        }
+
+        // GraphicsCommandListをエンティティに挿入
+        // Surfaceサイズは GlobalArrangement.bounds から計算される（Rectangleと同じ）
+        commands.entity(entity).insert(GraphicsCommandList::new(command_list));
     }
 }
