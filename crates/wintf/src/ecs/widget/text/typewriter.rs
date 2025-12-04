@@ -33,7 +33,10 @@ pub struct Typewriter {
     // === スタイル設定（Label互換） ===
     pub font_family: String,
     pub font_size: f32,
-    pub color: Color,
+    /// フォアグラウンド色（テキスト色）
+    pub foreground: Color,
+    /// バックグラウンド色（None: 透明）
+    pub background: Option<Color>,
     pub direction: TextDirection,
 
     // === デフォルト設定 ===
@@ -46,12 +49,13 @@ impl Default for Typewriter {
         Self {
             font_family: "メイリオ".to_string(),
             font_size: 16.0,
-            color: Color {
+            foreground: Color {
                 r: 0.0,
                 g: 0.0,
                 b: 0.0,
                 a: 1.0,
             },
+            background: None,
             direction: TextDirection::default(),
             default_char_wait: 0.05, // 50ms
         }

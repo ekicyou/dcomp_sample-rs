@@ -344,8 +344,23 @@ pub fn draw_typewriters(
         // 透明でクリア
         dc.clear(Some(&colors::TRANSPARENT));
 
-        // ブラシ作成
-        let brush = match dc.create_solid_color_brush(&typewriter.color, None) {
+        // バックグラウンド描画（指定されている場合）
+        if let Some(ref bg_color) = typewriter.background {
+            if let Ok(bg_brush) = dc.create_solid_color_brush(bg_color, None) {
+                let bg_rect = windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F {
+                    left: 0.0,
+                    top: 0.0,
+                    right: text_metrics.layoutWidth,
+                    bottom: text_metrics.layoutHeight,
+                };
+                unsafe {
+                    dc.FillRectangle(&bg_rect, &bg_brush);
+                }
+            }
+        }
+
+        // フォアグラウンドブラシ作成
+        let brush = match dc.create_solid_color_brush(&typewriter.foreground, None) {
             Ok(b) => b,
             Err(err) => {
                 warn!(entity = ?entity, error = ?err, "Failed to create brush");

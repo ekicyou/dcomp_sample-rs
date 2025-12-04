@@ -127,8 +127,8 @@ fn create_typewriter_demo_window(world: &mut World) {
                     bottom: LengthPercentageAuto::Auto,
                 })),
                 size: Some(BoxSize {
-                    width: None,  // 子要素に追従
-                    height: None, // 子要素に追従
+                    width: Some(Dimension::Px(500.0)),
+                    height: Some(Dimension::Px(500.0)),
                 }),
                 ..Default::default()
             },
@@ -153,12 +153,8 @@ fn create_typewriter_demo_window(world: &mut World) {
             },
             BoxStyle {
                 size: Some(BoxSize {
-                    width: None,
-                    height: None,
-                }),
-                min_size: Some(BoxSize {
-                    width: Some(Dimension::Px(500.0)),
-                    height: Some(Dimension::Px(400.0)),
+                    width: Some(Dimension::Percent(100.0)),
+                    height: Some(Dimension::Percent(100.0)),
                 }),
                 margin: Some(BoxMargin(wintf::ecs::layout::Rect {
                     left: LengthPercentageAuto::Px(20.0),
@@ -187,7 +183,7 @@ fn create_typewriter_demo_window(world: &mut World) {
             },
             BoxStyle {
                 size: Some(BoxSize {
-                    width: Some(Dimension::Px(460.0)),  // 親幅より小さい固定値
+                    width: None,
                     height: Some(Dimension::Px(80.0)),
                 }),
                 margin: Some(BoxMargin(wintf::ecs::layout::Rect {
@@ -211,20 +207,21 @@ fn create_typewriter_demo_window(world: &mut World) {
         Typewriter {
             font_family: "メイリオ".to_string(),
             font_size: 18.0,
-            color: D2D1_COLOR_F {
+            foreground: D2D1_COLOR_F {
                 r: 0.1,
                 g: 0.1,
                 b: 0.1,
                 a: 1.0,
             },
+            background: None,
             direction: TextDirection::HorizontalLeftToRight,
             default_char_wait: 0.08,
             ..Default::default()
         },
         BoxStyle {
             size: Some(BoxSize {
-                width: Some(Dimension::Px(440.0)),   // 親幅(460) - padding相当
-                height: Some(Dimension::Px(60.0)),  // 親高さ(80) - padding相当
+                width: Some(Dimension::Percent(100.0)),  // 親幅に追従
+                height: Some(Dimension::Percent(100.0)), // 親高さに追従
             }),
             ..Default::default()
         },
@@ -246,15 +243,16 @@ fn create_typewriter_demo_window(world: &mut World) {
             BoxStyle {
                 size: Some(BoxSize {
                     width: Some(Dimension::Px(80.0)),
-                    height: Some(Dimension::Px(300.0)),  // 2行分の縦書きテキスト用
+                    height: None,  // 高さは flex_grow で自動調整
                 }),
+                flex_grow: Some(1.0),  // 残りの空間を埋める
                 margin: Some(BoxMargin(wintf::ecs::layout::Rect {
                     left: LengthPercentageAuto::Px(10.0),
                     right: LengthPercentageAuto::Px(10.0),
                     top: LengthPercentageAuto::Px(10.0),
                     bottom: LengthPercentageAuto::Px(10.0),
                 })),
-                align_self: Some(wintf::ecs::layout::AlignSelf::FlexEnd),  // 右寄せ
+                align_self: Some(wintf::ecs::layout::AlignSelf::FlexEnd), // 右寄せ
                 ..Default::default()
             },
             ChildOf(background),
@@ -270,20 +268,26 @@ fn create_typewriter_demo_window(world: &mut World) {
         Typewriter {
             font_family: "メイリオ".to_string(),
             font_size: 18.0,
-            color: D2D1_COLOR_F {
+            foreground: D2D1_COLOR_F {
                 r: 0.1,
                 g: 0.1,
                 b: 0.5,
                 a: 1.0,
             },
+            background: Some(D2D1_COLOR_F {
+                r: 1.0,
+                g: 1.0,
+                b: 0.9,
+                a: 1.0,
+            }),
             direction: TextDirection::VerticalRightToLeft,
             default_char_wait: 0.08,
             ..Default::default()
         },
         BoxStyle {
             size: Some(BoxSize {
-                width: Some(Dimension::Px(85.0)),    // 3行分（テキスト幅81px + 余白）
-                height: Some(Dimension::Px(280.0)), // 約15文字分
+                width: Some(Dimension::Px(85.0)),      // 3行分（テキスト幅81px + 余白）
+                height: Some(Dimension::Percent(100.0)), // 親の高さに追従
             }),
             ..Default::default()
         },
