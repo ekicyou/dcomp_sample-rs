@@ -327,6 +327,7 @@ Typewriter { foreground: D2D1_COLOR_F { ... }, background: Some(D2D1_COLOR_F { .
 - on_add時: `Brushes::default()`（全プロパティ`Inherit`）を挿入
 - 描画前: `resolve_inherited_brushes`システムで親を辿って解決
 - ルートまでInheritの場合: foreground=BLACK, background=TRANSPARENT
+- **静的解決**: 初回描画時のみ解決、親変更追従は別仕様スコープ
 
 ### 次のステップ
 

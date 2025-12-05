@@ -75,6 +75,7 @@
   - foreground → `Brush::BLACK`
   - background → `Brush::TRANSPARENT`
 - ユーザーが明示的に`Brush::Solid(...)`を設定すれば継承しない
+- **静的解決**: 継承は初回描画時のみ解決し、一度確定後の親変更には追従しない（別仕様スコープ）
 
 ---
 
