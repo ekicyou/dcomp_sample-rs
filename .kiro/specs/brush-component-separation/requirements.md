@@ -58,9 +58,16 @@
 | `background` | `Option<Brush>` | 背景色 | Typewriter |
 | `stroke` | `Option<Brush>` | 輪郭線、文字縁取り | 将来のShape、テキスト縁取り |
 
-#### 決定事項（議題2）
+#### 決定事項（議題2, 3）
 
 **fillを削除しforegroundに統合** - テキスト色と図形塗りつぶしは意味的に重複するため、汎用的な「前景色」としてforegroundに統合。3プロパティ構成によりAPIをシンプル化。
+
+**デフォルト値と親継承ルール（議題3）**:
+- `Brushes::default()` = 全プロパティNone
+- Noneは常に透明として扱う
+- Brushesコンポーネントが存在しない場合、描画システムは親ウィジェットのBrushes値を継承する
+- ライフタイムイベント（on_add等）でのBrushes自動挿入は本仕様のスコープ外
+- 将来拡張: `Brush`型に`Inherit`（親から継承）バリアントを追加する可能性あり
 
 ---
 
@@ -81,7 +88,12 @@
 1. The Rectangle component shall マイグレーション後、色関連プロパティを一切含んではならない。
 2. The Label component shall マイグレーション後、色関連プロパティを一切含んではならない。
 3. The Typewriter component shall マイグレーション後、色関連プロパティを一切含んではならない。
-4. When ウィジェットコンポーネントが追加される場合 and Brushesコンポーネントが存在しない場合, the system shall デフォルト色（前景は黒、その他は透明）を使用しなければならない。
+4. When ウィジェットコンポーネントが追加される場合 and Brushesコンポーネントが存在しない場合, the rendering system shall 親ウィジェットのBrushes値を継承しなければならない。
+5. When ルートウィジェットにBrushesが存在しない場合, the rendering system shall デフォルト色（foreground=黒、その他=透明）を使用しなければならない。
+
+#### スコープ外
+
+- ウィジェットのライフタイムイベント（on_add/on_remove）でのBrushes自動挿入・デフォルト値設定は本仕様のスコープ外とする
 
 ---
 
@@ -100,8 +112,9 @@
 1. When Rectangleを描画する場合, the rendering system shall Brushesコンポーネントからforeground色を読み取らなければならない。
 2. When Labelを描画する場合, the rendering system shall Brushesコンポーネントからforeground色を読み取らなければならない。
 3. When Typewriterを描画する場合, the rendering system shall Brushesコンポーネントからforeground色とbackground色を読み取らなければならない。
-4. If Brushesコンポーネントが存在しない場合, the rendering system shall デフォルト色にフォールバックしなければならない。
-5. The rendering system shall 効率的なダーティ検出のため`Changed<Brushes>`フィルタを使用しなければならない。
+4. If Brushesコンポーネントが存在しない場合, the rendering system shall 親ウィジェットのBrushes値を継承しなければならない。
+5. If ルートウィジェットにBrushesが存在しない場合, the rendering system shall デフォルト色（foreground=黒、その他=透明）を使用しなければならない。
+6. The rendering system shall 効率的なダーティ検出のため`Changed<Brushes>`フィルタを使用しなければならない。
 
 ---
 
