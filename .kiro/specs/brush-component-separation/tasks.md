@@ -145,10 +145,11 @@
   - 全テストがパスすることを確認する
   - _Requirements: 7.1_
 
-- [ ]\* 7.4 ウィジェット描画の統合テスト
+- [ ]\* 7.4 ウィジェット描画の統合テスト（オプション - GUI/GPU環境必須）
   - RectangleがBrushes.foreground色で描画されることを検証する
   - LabelがBrushes.foreground色で描画されることを検証する
   - TypewriterがBrushes.foreground/background両方の色で描画されることを検証する
+  - NOTE: Task 8.3の視覚的確認で代替検証済み
   - _Requirements: 7.3, 7.4, 7.5_
 
 ## Task 8: 最終統合と検証
