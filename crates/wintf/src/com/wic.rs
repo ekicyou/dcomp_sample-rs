@@ -99,3 +99,51 @@ impl WICFormatConverterExt for IWICFormatConverter {
         }
     }
 }
+
+/// IWICBitmapSource 拡張トレイト
+pub trait WICBitmapSourceExt {
+    /// 画像サイズを取得
+    fn get_size(&self) -> Result<(u32, u32)>;
+
+    /// ピクセルデータをバッファにコピー
+    ///
+    /// # Arguments
+    /// - `rect`: コピー対象の矩形（Noneで全体）
+    /// - `stride`: 行あたりのバイト数
+    /// - `buffer`: 出力バッファ
+    fn copy_pixels(
+        &self,
+        rect: Option<&WICRect>,
+        stride: u32,
+        buffer: &mut [u8],
+    ) -> Result<()>;
+}
+
+impl WICBitmapSourceExt for IWICBitmapSource {
+    #[inline(always)]
+    fn get_size(&self) -> Result<(u32, u32)> {
+        let mut width = 0u32;
+        let mut height = 0u32;
+        unsafe {
+            self.GetSize(&mut width, &mut height)?;
+        }
+        Ok((width, height))
+    }
+
+    #[inline(always)]
+    fn copy_pixels(
+        &self,
+        rect: Option<&WICRect>,
+        stride: u32,
+        buffer: &mut [u8],
+    ) -> Result<()> {
+        let rect_ptr = rect.map(|r| r as *const WICRect).unwrap_or(std::ptr::null());
+        unsafe {
+            self.CopyPixels(
+                rect_ptr,
+                stride,
+                buffer,
+            )
+        }
+    }
+}

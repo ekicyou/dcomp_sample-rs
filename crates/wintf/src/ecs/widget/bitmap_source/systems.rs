@@ -295,3 +295,97 @@ pub fn drain_task_pool_commands(world: &mut World) {
         cmd(world);
     }
 }
+
+// ============================================================
+// αマスク生成システム
+// ============================================================
+
+use super::alpha_mask::AlphaMask;
+use crate::com::wic::WICBitmapSourceExt;
+use crate::ecs::layout::{HitTest, HitTestMode};
+use tracing::error;
+
+/// αマスク生成完了時にBitmapSourceResourceにαマスクを設定するCommand
+struct SetAlphaMaskCommand {
+    entity: Entity,
+    mask: AlphaMask,
+}
+
+impl Command for SetAlphaMaskCommand {
+    fn apply(self, world: &mut World) {
+        // エンティティが存在し、BitmapSourceResourceを持っているか確認
+        if let Ok(mut entity_ref) = world.get_entity_mut(self.entity) {
+            if let Some(mut resource) = entity_ref.get_mut::<BitmapSourceResource>() {
+                resource.set_alpha_mask(self.mask);
+            }
+        }
+    }
+}
+
+/// αマスク生成システム
+///
+/// BitmapSourceResourceが追加された時、HitTestMode::AlphaMaskの場合のみ
+/// 非同期でαマスクを生成する。
+///
+/// # Trigger
+/// - `Added<BitmapSourceResource>` + `With<HitTest>`
+/// - `HitTestMode::AlphaMask` の場合のみ実行
+///
+/// # Flow
+/// 1. WIC BitmapSource からピクセルデータを取得（同期）
+/// 2. 非同期タスクでAlphaMask::from_pbgra32() でマスク生成
+/// 3. Command 経由で BitmapSourceResource.alpha_mask に設定
+pub fn generate_alpha_mask_system(
+    query: Query<(Entity, &BitmapSourceResource, &HitTest), Added<BitmapSourceResource>>,
+    task_pool: Option<Res<WintfTaskPool>>,
+) {
+    let Some(task_pool) = task_pool else {
+        return;
+    };
+
+    for (entity, resource, hit_test) in query.iter() {
+        // HitTestMode::AlphaMask 以外はスキップ
+        if hit_test.mode != HitTestMode::AlphaMask {
+            continue;
+        }
+
+        // 既にαマスクが生成済みの場合はスキップ
+        if resource.alpha_mask().is_some() {
+            continue;
+        }
+
+        // 同期でピクセルデータを取得（IWICBitmapSourceはSendでないため）
+        let source = resource.source();
+
+        // 画像サイズを取得
+        let (width, height) = match source.get_size() {
+            Ok(size) => size,
+            Err(e) => {
+                error!(entity = ?entity, error = ?e, "Failed to get bitmap size for alpha mask");
+                continue;
+            }
+        };
+
+        // ピクセルデータを取得
+        let stride = width * 4; // PBGRA32 = 4 bytes/pixel
+        let buffer_size = (stride * height) as usize;
+        let mut buffer = vec![0u8; buffer_size];
+
+        if let Err(e) = source.copy_pixels(None, stride, &mut buffer) {
+            error!(entity = ?entity, error = ?e, "Failed to copy pixels for alpha mask");
+            continue;
+        }
+
+        // 非同期でαマスクを生成（ピクセルデータはSend可能）
+        task_pool.spawn(move |tx| async move {
+            // αマスクを生成
+            let mask = AlphaMask::from_pbgra32(&buffer, width, height, stride);
+
+            // Commandを送信してBitmapSourceResourceにαマスクを設定
+            let cmd: super::task_pool::BoxedCommand = Box::new(move |world: &mut World| {
+                SetAlphaMaskCommand { entity, mask }.apply(world);
+            });
+            let _ = tx.send(cmd);
+        });
+    }
+}

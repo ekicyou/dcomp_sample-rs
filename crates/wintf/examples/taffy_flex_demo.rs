@@ -158,12 +158,13 @@ fn create_flexbox_window(world: &mut World) {
         ))
         .id();
 
-    // Flexアイテム1（赤、固定200px幅）- 左クリックで不透明度変更
+    // Flexアイテム1（赤、固定200px幅）- 左クリックで色トグル（αマスクデモ用）
+    // SeikatuImage（子）の透明部分をクリックするとRedBoxにイベントが伝播し色が変わる
     let red_box = world
         .spawn((
             Name::new("RedBox"),
             RedBox,
-            Opacity(0.5),
+            Opacity(1.0),
             Rectangle {
                 color: D2D1_COLOR_F {
                     r: 1.0,
@@ -182,13 +183,15 @@ fn create_flexbox_window(world: &mut World) {
                 flex_basis: Some(Dimension::Px(200.0)),
                 ..Default::default()
             },
-            // イベントハンドラ: 左クリックで不透明度トグル
+            // イベントハンドラ: 左クリックで色トグル（赤 ⇔ 黄）
             OnPointerPressed(on_red_box_pressed),
             ChildOf(flex_container),
         ))
         .id();
 
-    // 赤ボックスの子として画像を追加（BitmapSourceデモ）
+    // 赤ボックスの子として画像を追加（αマスクヒットテストデモ）
+    // 透明部分クリック → 親(RedBox)に伝播して色が変わる
+    // 不透明部分クリック → 画像がイベント消費して親に伝播しない
     const SEIKATU_IMAGE_PATH: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/tests/assets/seikatu_0_0.webp");
     world.spawn((
@@ -207,6 +210,8 @@ fn create_flexbox_window(world: &mut World) {
             })),
             ..Default::default()
         },
+        // イベントハンドラ: 不透明部分クリックでイベント消費（親に伝播しない）
+        OnPointerPressed(on_image_pressed),
         ChildOf(red_box),
     ));
 
@@ -269,12 +274,15 @@ fn create_flexbox_window(world: &mut World) {
     println!("[Test] Flexbox demo window created:");
     println!("  Window (root)");
     println!("  └─ FlexContainer (Row, SpaceEvenly, Center) - 灰色背景、10pxマージン、右クリックで色変更");
-    println!("     ├─ Rectangle (red, 200x100 fixed) - 左クリックで不透明度トグル");
+    println!("     ├─ Rectangle (red, 200x100 fixed) - 左クリックで色トグル");
+    println!("     │   └─ BitmapSource (seikatu_0_0.webp) - αマスクヒットテスト有効、透明部分は親に透過");
     println!("     ├─ Rectangle (green, 100x100, grow=1) - マウス移動でログ");
     println!("     └─ Rectangle (blue, 100x100, grow=2) - 左クリックでサイズトグル");
     println!("\n[PointerEvent Demo]");
     println!("  - 灰色コンテナを右クリック → 色がピンクに変化");
-    println!("  - 赤い矩形を左クリック → 不透明度が0.5⇔1.0トグル");
+    println!("  - 赤い矩形を左クリック → 色が赤⇔黄トグル");
+    println!("  - 画像の透明部分を左クリック → 背景(RedBox)の色が変わる（αマスクヒットテスト）");
+    println!("  - 画像の不透明部分を左クリック → 画像がクリックされ背景は変わらない");
     println!("  - 緑の矩形でマウス移動 → ログ出力（デバッグ）");
     println!("  - 青い矩形を左クリック → サイズが100⇔150トグル");
 }
@@ -667,10 +675,12 @@ fn on_container_pressed(
 
 /// RedBox の OnPointerPressed ハンドラ
 ///
-/// 左クリックで不透明度をトグル（0.5 ⇔ 1.0）する。
+/// 左クリックで色をトグル（赤 ⇔ 黄）する。
+/// αマスクヒットテストのデモ: 画像の透明部分をクリックすると
+/// イベントが親(RedBox)に伝播してこのハンドラが呼ばれる。
 fn on_red_box_pressed(
     world: &mut World,
-    sender: Entity,
+    _sender: Entity,
     entity: Entity,
     ev: &Phase<PointerState>,
 ) -> bool {
@@ -683,19 +693,60 @@ fn on_red_box_pressed(
 
     // 左クリック検出
     if state.left_down {
-        info!(
-            sender = ?sender,
-            entity = ?entity,
-            "[PointerEvent] RedBox: Left-click detected! Toggling opacity."
-        );
-
-        // 不透明度をトグル
-        if let Some(mut opacity) = world.get_mut::<Opacity>(entity) {
-            opacity.0 = if opacity.0 < 0.75 { 1.0 } else { 0.5 };
-            info!(opacity = opacity.0, "[PointerEvent] RedBox: New opacity");
+        // 色をトグル（赤 ⇔ 黄）
+        if let Some(mut rect) = world.get_mut::<Rectangle>(entity) {
+            let is_red = rect.color.r > 0.9 && rect.color.g < 0.1;
+            if is_red {
+                // 黄色に変更
+                rect.color = D2D1_COLOR_F {
+                    r: 1.0,
+                    g: 1.0,
+                    b: 0.0,
+                    a: 1.0,
+                };
+                info!("[AlphaMask Demo] BACKGROUND clicked (transparent area) - color: RED -> YELLOW");
+            } else {
+                // 赤に戻す
+                rect.color = D2D1_COLOR_F {
+                    r: 1.0,
+                    g: 0.0,
+                    b: 0.0,
+                    a: 1.0,
+                };
+                info!("[AlphaMask Demo] BACKGROUND clicked (transparent area) - color: YELLOW -> RED");
+            }
         }
 
         return true; // イベント処理済み、親に伝播しない
+    }
+
+    false
+}
+
+/// SeikatuImage の OnPointerPressed ハンドラ
+///
+/// αマスクヒットテストのデモ用。
+/// 不透明部分がクリックされた場合のみこのハンドラが呼ばれる。
+/// イベントを消費して親(RedBox)に伝播させない。
+fn on_image_pressed(
+    _world: &mut World,
+    _sender: Entity,
+    _entity: Entity,
+    ev: &Phase<PointerState>,
+) -> bool {
+    // Bubble フェーズでのみ処理
+    if !ev.is_bubble() {
+        return false;
+    }
+
+    let state = ev.value();
+
+    // 左クリック検出
+    if state.left_down {
+        info!(
+            "[AlphaMask Demo] IMAGE clicked (opaque area) - event consumed, background unchanged"
+        );
+        return true; // イベント処理済み、親(RedBox)に伝播しない
     }
 
     false

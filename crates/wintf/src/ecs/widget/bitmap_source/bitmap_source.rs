@@ -32,29 +32,51 @@ impl BitmapSource {
 
 /// BitmapSource追加時のフック
 ///
-/// - Visual + BitmapSourceGraphicsを自動挿入
+/// - Visual + BitmapSourceGraphics + HitTest::alpha_mask()を自動挿入
 /// - 非同期読み込みタスクを起動
 fn on_bitmap_source_add(mut world: DeferredWorld, hook: HookContext) {
     use super::resource::BitmapSourceGraphics;
     use super::task_pool::BoxedCommand;
     use super::wic_core::WicCore;
     use super::WintfTaskPool;
+    use crate::ecs::layout::HitTest;
     use crate::ecs::Visual;
     use tracing::warn;
 
     let entity = hook.entity;
 
-    // Visual + BitmapSourceGraphicsを自動挿入（Rectangle/Labelパターン踏襲）
-    if world.get::<Visual>(entity).is_none() {
+    // Visual + BitmapSourceGraphics + HitTest::alpha_mask()を自動挿入（Rectangle/Labelパターン踏襲）
+    // HitTestが未設定の場合のみデフォルトでαマスクモードを設定
+    let has_visual = world.get::<Visual>(entity).is_some();
+    let has_graphics = world.get::<BitmapSourceGraphics>(entity).is_some();
+    let has_hit_test = world.get::<HitTest>(entity).is_some();
+
+    if !has_visual && !has_graphics && !has_hit_test {
+        world.commands().entity(entity).insert((
+            Visual::default(),
+            BitmapSourceGraphics::new(),
+            HitTest::alpha_mask(),
+        ));
+    } else if !has_visual && !has_graphics {
         world
             .commands()
             .entity(entity)
             .insert((Visual::default(), BitmapSourceGraphics::new()));
-    } else if world.get::<BitmapSourceGraphics>(entity).is_none() {
+    } else if !has_visual {
+        world.commands().entity(entity).insert(Visual::default());
+    } else if !has_graphics {
         world
             .commands()
             .entity(entity)
             .insert(BitmapSourceGraphics::new());
+    }
+
+    // HitTestが未設定の場合のみデフォルトでαマスクモードを追加
+    if !has_hit_test {
+        world
+            .commands()
+            .entity(entity)
+            .insert(HitTest::alpha_mask());
     }
 
     // WicCoreをcloneして取得

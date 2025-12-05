@@ -2,11 +2,12 @@
 //!
 //! CPU側（BitmapSourceResource）とGPU側（BitmapSourceGraphics）のリソース。
 
+use super::alpha_mask::AlphaMask;
 use bevy_ecs::prelude::*;
 use windows::Win32::Graphics::Direct2D::ID2D1Bitmap1;
 use windows::Win32::Graphics::Imaging::IWICBitmapSource;
 
-/// CPU側画像リソース（WIC BitmapSource）
+/// CPU側画像リソース（WIC BitmapSource + αマスク）
 ///
 /// # Thread Safety
 /// IWICBitmapSourceはthread-free marshaling対応のため
@@ -14,6 +15,7 @@ use windows::Win32::Graphics::Imaging::IWICBitmapSource;
 #[derive(Component)]
 pub struct BitmapSourceResource {
     source: IWICBitmapSource,
+    alpha_mask: Option<AlphaMask>,
 }
 
 unsafe impl Send for BitmapSourceResource {}
@@ -22,12 +24,25 @@ unsafe impl Sync for BitmapSourceResource {}
 impl BitmapSourceResource {
     /// WIC BitmapSourceから作成
     pub fn new(source: IWICBitmapSource) -> Self {
-        Self { source }
+        Self {
+            source,
+            alpha_mask: None,
+        }
     }
 
     /// BitmapSourceへの参照を取得
     pub fn source(&self) -> &IWICBitmapSource {
         &self.source
+    }
+
+    /// αマスクへの参照を取得
+    pub fn alpha_mask(&self) -> Option<&AlphaMask> {
+        self.alpha_mask.as_ref()
+    }
+
+    /// αマスクを設定（非同期生成完了時に呼び出し）
+    pub fn set_alpha_mask(&mut self, mask: AlphaMask) {
+        self.alpha_mask = Some(mask);
     }
 }
 

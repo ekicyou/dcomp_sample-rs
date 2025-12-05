@@ -385,9 +385,12 @@ impl EcsWorld {
                     crate::ecs::widget::text::draw_typewriter_backgrounds
                         .after(crate::ecs::widget::text::draw_typewriters),
                     crate::ecs::widget::bitmap_source::draw_bitmap_sources,
+                    // αマスク生成（draw_bitmap_sourcesの後、BitmapSourceResource追加検出時に実行）
+                    crate::ecs::widget::bitmap_source::generate_alpha_mask_system
+                        .after(crate::ecs::widget::bitmap_source::draw_bitmap_sources),
                     // 遅延Surface作成（GraphicsCommandList存在時、GlobalArrangementベース）
                     crate::ecs::graphics::deferred_surface_creation_system
-                        .after(crate::ecs::widget::bitmap_source::draw_bitmap_sources),
+                        .after(crate::ecs::widget::bitmap_source::generate_alpha_mask_system),
                     // GraphicsCommandList削除時のSurface解放（Req 1.3, 1.4）
                     crate::ecs::graphics::cleanup_surface_on_commandlist_removed
                         .after(crate::ecs::graphics::deferred_surface_creation_system),

@@ -71,6 +71,9 @@ impl PhysicalPoint {
 ///
 /// // 矩形領域でヒットテスト（デフォルト）
 /// let hit_test = HitTest::bounds();
+///
+/// // αマスクによるピクセル単位ヒットテスト
+/// let hit_test = HitTest::alpha_mask();
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HitTestMode {
@@ -79,9 +82,8 @@ pub enum HitTestMode {
     /// バウンディングボックス（GlobalArrangement.bounds）でヒットテスト
     #[default]
     Bounds,
-    // 将来の拡張:
-    // AlphaMask,  // αマスクによるピクセル単位判定
-    // Polygon,    // 多角形によるヒットテスト
+    /// αマスクによるピクセル単位ヒットテスト
+    AlphaMask,
 }
 
 // ============================================================================
@@ -122,6 +124,13 @@ impl HitTest {
             mode: HitTestMode::Bounds,
         }
     }
+
+    /// αマスクによるピクセル単位ヒットテスト
+    pub fn alpha_mask() -> Self {
+        Self {
+            mode: HitTestMode::AlphaMask,
+        }
+    }
 }
 
 // ============================================================================
@@ -143,7 +152,17 @@ impl HitTest {
 ///
 /// # Note
 /// `HitTest` コンポーネントがない場合は `HitTestMode::Bounds` として扱います。
+///
+/// # AlphaMask判定
+/// `HitTestMode::AlphaMask` の場合:
+/// 1. まず矩形判定（早期リターン）
+/// 2. BitmapSourceResource.alpha_mask を取得
+/// 3. 座標変換（スクリーン → マスク座標）
+/// 4. AlphaMask.is_hit() 呼び出し
+/// 5. αマスク未生成時は矩形判定にフォールバック
 pub fn hit_test_entity(world: &World, entity: Entity, point: PhysicalPoint) -> bool {
+    use crate::ecs::widget::bitmap_source::BitmapSourceResource;
+
     // HitTest コンポーネントを取得（なければデフォルト = Bounds）
     let mode = world
         .get::<HitTest>(entity)
@@ -160,8 +179,48 @@ pub fn hit_test_entity(world: &World, entity: Entity, point: PhysicalPoint) -> b
         return false;
     };
 
-    // bounds 内に座標が含まれるか判定
-    global.bounds.contains(point.x, point.y)
+    // まず矩形判定（全モード共通の早期リターン）
+    if !global.bounds.contains(point.x, point.y) {
+        return false;
+    }
+
+    // HitTestMode::Bounds の場合は矩形判定のみ
+    if mode == HitTestMode::Bounds {
+        return true;
+    }
+
+    // HitTestMode::AlphaMask の場合
+    // BitmapSourceResource を取得
+    let Some(resource) = world.get::<BitmapSourceResource>(entity) else {
+        // BitmapSourceResource がない場合は矩形判定にフォールバック
+        return true;
+    };
+
+    // αマスクを取得
+    let Some(alpha_mask) = resource.alpha_mask() else {
+        // αマスク未生成の場合は矩形判定にフォールバック
+        return true;
+    };
+
+    // スクリーン座標 → マスク座標への変換
+    let bounds = &global.bounds;
+    let bounds_width = bounds.right - bounds.left;
+    let bounds_height = bounds.bottom - bounds.top;
+
+    if bounds_width <= 0.0 || bounds_height <= 0.0 {
+        return true; // サイズが0以下の場合はフォールバック
+    }
+
+    // 相対座標を計算（0.0〜1.0）
+    let rel_x = (point.x - bounds.left) / bounds_width;
+    let rel_y = (point.y - bounds.top) / bounds_height;
+
+    // マスク座標に変換（切り捨て、範囲チェックはis_hit内で行う）
+    let mask_x = (rel_x * alpha_mask.width() as f32) as u32;
+    let mask_y = (rel_y * alpha_mask.height() as f32) as u32;
+
+    // αマスクで判定
+    alpha_mask.is_hit(mask_x, mask_y)
 }
 
 // ============================================================================
@@ -562,5 +621,71 @@ mod tests {
         let result = hit_test_in_window(&world, window, client_point);
 
         assert_eq!(result, None);
+    }
+
+    // ========================================================================
+    // HitTestMode::AlphaMask テスト
+    // ========================================================================
+
+    #[test]
+    fn test_hit_test_alpha_mask_constructor() {
+        let hit_test = HitTest::alpha_mask();
+        assert_eq!(hit_test.mode, HitTestMode::AlphaMask);
+    }
+
+    /// αマスク未設定時は矩形判定にフォールバック
+    #[test]
+    fn test_hit_test_alpha_mask_fallback_no_bitmap_source() {
+        let mut world = World::new();
+
+        // BitmapSourceResourceなし、αマスクモード
+        let entity = world
+            .spawn((
+                make_global_arrangement(0.0, 0.0, 100.0, 100.0),
+                HitTest::alpha_mask(),
+            ))
+            .id();
+
+        // BitmapSourceResourceがないので矩形判定にフォールバック
+        let point = PhysicalPoint::new(50.0, 50.0);
+        assert!(hit_test_entity(&world, entity, point));
+    }
+
+    /// αマスク未生成時は矩形判定にフォールバック
+    #[test]
+    fn test_hit_test_alpha_mask_fallback_no_mask() {
+        let mut world = World::new();
+
+        // BitmapSourceResourceはあるがαマスク未生成
+        // Note: 実際のIWICBitmapSourceを作成するのは困難なため、
+        // ここではBitmapSourceResourceなしの場合と同じくフォールバックを確認
+
+        let entity = world
+            .spawn((
+                make_global_arrangement(0.0, 0.0, 100.0, 100.0),
+                HitTest::alpha_mask(),
+            ))
+            .id();
+
+        let point = PhysicalPoint::new(50.0, 50.0);
+        // フォールバックでヒット
+        assert!(hit_test_entity(&world, entity, point));
+    }
+
+    /// αマスクモードでも矩形外はヒットしない
+    #[test]
+    fn test_hit_test_alpha_mask_outside_bounds() {
+        let mut world = World::new();
+
+        let entity = world
+            .spawn((
+                make_global_arrangement(0.0, 0.0, 100.0, 100.0),
+                HitTest::alpha_mask(),
+            ))
+            .id();
+
+        // bounds外の座標
+        let point = PhysicalPoint::new(200.0, 200.0);
+        assert!(!hit_test_entity(&world, entity, point));
     }
 }
