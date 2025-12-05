@@ -26,16 +26,14 @@
 #### Acceptance Criteria
 
 1. When 統合ブラシコンポーネントを定義する場合, the wintf library shall ECSコンポーネント名として`Brushes`を使用しなければならない。
-2. When 個別のブラシ値を扱う場合, the wintf library shall 最初からenum型`Brush`を定義しなければならない（初期バリアントは`Solid(D2D1_COLOR_F)`のみ）。
-3. When グラデーションブラシ機能が追加される場合, the wintf library shall 既存の`Brush::Solid`を破壊せず、新しいバリアント（`LinearGradient`, `RadialGradient`等）を追加しなければならない。
+2. When 個別のブラシ値を扱う場合, the wintf library shall enum型`Brush`を定義しなければならない（バリアント: `Inherit`, `Solid(D2D1_COLOR_F)`）。
+3. When グラデーションブラシ機能が追加される場合, the wintf library shall 既存の`Brush::Inherit`/`Brush::Solid`を破壊せず、新しいバリアント（`LinearGradient`, `RadialGradient`等）を追加しなければならない。
 
 #### 決定事項
 
-**採用: `Brushes`** - 4つのブラシプロパティ（Foreground/Background/Fill/Stroke）を含むコンテナであることを名前で明示。将来のグラデーション対応時も`Brush`型を拡張すれば`Brushes`コンポーネント名は変更不要。
+**採用: `Brushes`** - 2つのブラシプロパティ（Foreground/Background）を含むコンテナであることを名前で明示。将来のグラデーション対応時も`Brush`型を拡張すれば`Brushes`コンポーネント名は変更不要。
 
-**Brush型設計: enum（議題1で決定）** - 将来のグラデーション拡張が確定しているため、最初から`enum Brush { Solid(D2D1_COLOR_F) }`として定義。非破壊的拡張を優先。
-
-**プロパティ構成: 3プロパティ（議題2で決定）** - fillを削除しforegroundに統合。foreground/background/strokeの3プロパティ構成でAPIをシンプル化。
+**Brush型設計: enum（議題1, 6で決定）** - `enum Brush { Inherit, Solid(D2D1_COLOR_F) }`として定義。`Inherit`は親継承マーカー、描画前に解決される。将来のグラデーション拡張も非破壊的に追加可能。
 
 ---
 
@@ -61,16 +59,22 @@
 
 - `stroke`（輪郭線）は本仕様のスコープ外。ストロークは色以外の関心事項（幅、破線設定等）があるため、将来的に独立した`Stroke`コンポーネントとして設計する。
 
-#### 決定事項（議題2, 3）
+#### 決定事項（議題2, 3, 6）
 
 **fillを削除しforegroundに統合** - テキスト色と図形塗りつぶしは意味的に重複するため、汎用的な「前景色」としてforegroundに統合。2プロパティ構成によりAPIをシンプル化。
 
-**デフォルト値と親継承ルール（議題3）**:
-- `Brushes::default()` = 全プロパティNone
-- Noneは常に透明として扱う
-- Brushesコンポーネントが存在しない場合、描画システムは親ウィジェットのBrushes値を継承する
-- Visualコンポーネントのon_addでBrushesデフォルト値を自動挿入（全ウィジェット共通の処理）
-- 将来拡張: `Brush`型に`Inherit`（親から継承）バリアントを追加する可能性あり
+**デフォルト値と親継承ルール（議題3, 6）**:
+- `Brush`型に`Inherit`バリアントを含める: `enum Brush { Inherit, Solid(D2D1_COLOR_F) }`
+- `Brushes::default()` = 全プロパティ`Brush::Inherit`
+- Visualコンポーネントのon_addでBrushesデフォルト値を自動挿入
+
+**ハイブリッド継承方式（議題6: C+A採用）**:
+- on_add時: `Brush::Inherit`を設定（親未確定パターンに対応）
+- 描画スケジュール直前: `resolve_inherited_brushes`システムで親を辿って解決
+- ルートまでInheritの場合のデフォルト色:
+  - foreground → `Brush::BLACK`
+  - background → `Brush::TRANSPARENT`
+- ユーザーが明示的に`Brush::Solid(...)`を設定すれば継承しない
 
 ---
 
@@ -91,9 +95,8 @@
 1. The Rectangle component shall マイグレーション後、色関連プロパティを一切含んではならない。
 2. The Label component shall マイグレーション後、色関連プロパティを一切含んではならない。
 3. The Typewriter component shall マイグレーション後、色関連プロパティを一切含んではならない。
-4. When ウィジェットコンポーネントが追加される場合 and Brushesコンポーネントが存在しない場合, the rendering system shall 親ウィジェットのBrushes値を継承しなければならない。
-5. When ルートウィジェットにBrushesが存在しない場合, the rendering system shall デフォルト色（foreground=黒、その他=透明）を使用しなければならない。
-6. When Visualコンポーネントが追加される場合, the Visual on_add hook shall Brushesコンポーネント（デフォルト値）を自動挿入しなければならない。
+4. When Visualコンポーネントが追加される場合, the Visual on_add hook shall Brushesコンポーネント（デフォルト値: 全プロパティ`Brush::Inherit`）を自動挿入しなければならない。
+5. When ウィジェットに特定の色を設定する場合, the user shall ビルダーメソッド（例: `.with_foreground(Brush::Solid(...))`）を使用できなければならない。
 
 ---
 
@@ -112,8 +115,8 @@
 1. When Rectangleを描画する場合, the rendering system shall Brushesコンポーネントからforeground色を読み取らなければならない。
 2. When Labelを描画する場合, the rendering system shall Brushesコンポーネントからforeground色を読み取らなければならない。
 3. When Typewriterを描画する場合, the rendering system shall Brushesコンポーネントからforeground色とbackground色を読み取らなければならない。
-4. If Brushesコンポーネントが存在しない場合, the rendering system shall 親ウィジェットのBrushes値を継承しなければならない。
-5. If ルートウィジェットにBrushesが存在しない場合, the rendering system shall デフォルト色（foreground=黒、その他=透明）を使用しなければならない。
+4. The wintf library shall 描画スケジュール直前に`resolve_inherited_brushes`システムを実行し、`Brush::Inherit`を親の値で解決しなければならない。
+5. If ルートまで`Brush::Inherit`が続く場合, the resolve system shall デフォルト色（foreground=BLACK、background=TRANSPARENT）を適用しなければならない。
 6. The rendering system shall 効率的なダーティ検出のため`Changed<Brushes>`フィルタを使用しなければならない。
 
 ---
@@ -146,7 +149,7 @@
 
 #### Acceptance Criteria
 
-1. The Brush type shall 最初から`enum Brush { Solid(D2D1_COLOR_F) }`として定義され、将来的なバリアント追加（LinearGradient, RadialGradient等）が非破壊的に可能でなければならない。
+1. The Brush type shall `enum Brush { Inherit, Solid(D2D1_COLOR_F) }`として定義され、将来的なバリアント追加（LinearGradient, RadialGradient等）が非破壊的に可能でなければならない。
 2. The Brushes component structure shall ソリッドカラーのみを前提としてはならない。
 3. When shape-brush-system仕様が実装される場合, the Brushes component shall グラデーションブラシとシームレスに統合されなければならない。
 
@@ -159,9 +162,10 @@
 #### Acceptance Criteria
 
 1. The wintf library shall マイグレーション後、`cargo test --all-targets`がテスト失敗なく成功しなければならない。
-2. The wintf library shall Brushesコンポーネントの作成とデフォルト値に関するユニットテストを含めなければならない。
+2. The wintf library shall Brushesコンポーネントの作成とデフォルト値（`Brush::Inherit`）に関するユニットテストを含めなければならない。
 3. The wintf library shall RectangleがBrushes.foreground色で描画されることを検証する統合テストを含めなければならない。
 4. The wintf library shall LabelがBrushes.foreground色で描画されることを検証する統合テストを含めなければならない。
 5. The wintf library shall TypewriterがBrushes.foregroundとBrushes.background色で描画されることを検証する統合テストを含めなければならない。
-6. The wintf library shall Brushesコンポーネントが存在しない場合のフォールバック動作のテストを含めなければならない。
+6. The wintf library shall `resolve_inherited_brushes`システムが`Brush::Inherit`を正しく解決することを検証するテストを含めなければならない。
+7. The wintf library shall ルートまでInheritの場合にデフォルト色が適用されることを検証するテストを含めなければならない。
 
