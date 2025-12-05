@@ -135,6 +135,23 @@
   - ❌ 拡大時に判定精度がやや低下（元画像解像度依存）
 - **Follow-up**: 極端な拡大時の動作確認
 
+### Decision: ビットパックのビットオーダー
+
+- **Context**: αマスクのビットパック形式でMSBファースト or LSBファーストを選択
+- **Alternatives Considered**:
+  1. MSBファースト（ビット7が最左ピクセル）
+  2. LSBファースト（ビット0が最左ピクセル）
+- **Selected Approach**: Option 1 - MSBファースト
+- **Rationale**: 
+  - BMP/PNG等の画像フォーマットで一般的な慣例
+  - ビジュアル的に左→右の順序が自然でデバッグしやすい
+  - WIC 1bppへの変換は検討したが、COM呼び出しオーバーヘッドと閾値制御不可のため不採用
+- **Trade-offs**:
+  - ✅ 画像フォーマットの慣例に準拠
+  - ✅ デバッグ時のバイト内容が直感的
+  - ❌ 計算式に `7 -` が必要（軽微）
+- **Follow-up**: なし
+
 ## Risks & Mitigations
 
 | Risk | Mitigation |
