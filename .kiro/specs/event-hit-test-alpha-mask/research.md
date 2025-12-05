@@ -214,6 +214,31 @@
   - ❌ わずかな計算コスト増（無視可能）
 - **Follow-up**: なし
 
+### Decision: エラー時のログレベル
+
+- **Context**: WIC CopyPixels 失敗等のエラー時のログレベルとシステム動作
+- **Alternatives Considered**:
+  1. `warn` レベル
+  2. `error` レベル
+  3. `trace` / `debug` レベル
+- **Selected Approach**: シナリオ別にログレベルを設定
+- **Rationale**: 
+  - WIC CopyPixels失敗は通常起こらない異常事態 → `error`
+  - ただしECSシステムは停止できないためフォールバック継続
+  - エンティティ削除済みは正常なレースコンディション → `debug`
+  - 範囲外座標は正常動作 → ログなし
+- **Implementation**:
+  | シナリオ | ログレベル | 動作 |
+  |----------|-----------|------|
+  | WIC CopyPixels失敗 | `error` | Boundsフォールバック |
+  | エンティティ削除済み | `debug` | 処理スキップ |
+  | 範囲外座標 | なし | `is_hit()` が `false` |
+- **Trade-offs**:
+  - ✅ 異常事態は `error` で可視化
+  - ✅ システムは継続動作（フォールバック）
+  - ✅ 正常なレースコンディションはノイズにならない
+- **Follow-up**: なし
+
 ## Risks & Mitigations
 
 | Risk | Mitigation |
