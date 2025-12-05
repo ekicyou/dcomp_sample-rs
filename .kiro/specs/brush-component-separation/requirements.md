@@ -45,7 +45,7 @@
 
 #### Acceptance Criteria
 
-1. The Brushes component shall `foreground`、`background`、`stroke`の3つのオプショナルなブラシプロパティを含まなければならない。
+1. The Brushes component shall `foreground`、`background`の2つのオプショナルなブラシプロパティを含まなければならない。
 2. When ブラシプロパティがNoneである場合, the rendering system shall 透明として扱い、描画操作を行わない。
 3. The Brushes component shall 効率的な動的追加/削除のためSparseSetストレージ戦略を使用しなければならない。
 4. When Brushesコンポーネントが追加される場合, the system shall Visualコンポーネントを自動挿入してはならない（ウィジェットコンポーネント側の責務）。
@@ -56,11 +56,14 @@
 |-----------|-----|------|-------------------|
 | `foreground` | `Option<Brush>` | テキスト色、図形塗りつぶし、前景描画全般 | Label, Typewriter, Rectangle |
 | `background` | `Option<Brush>` | 背景色 | Typewriter |
-| `stroke` | `Option<Brush>` | 輪郭線、文字縁取り | 将来のShape、テキスト縁取り |
+
+#### スコープ外
+
+- `stroke`（輪郭線）は本仕様のスコープ外。ストロークは色以外の関心事項（幅、破線設定等）があるため、将来的に独立した`Stroke`コンポーネントとして設計する。
 
 #### 決定事項（議題2, 3）
 
-**fillを削除しforegroundに統合** - テキスト色と図形塗りつぶしは意味的に重複するため、汎用的な「前景色」としてforegroundに統合。3プロパティ構成によりAPIをシンプル化。
+**fillを削除しforegroundに統合** - テキスト色と図形塗りつぶしは意味的に重複するため、汎用的な「前景色」としてforegroundに統合。2プロパティ構成によりAPIをシンプル化。
 
 **デフォルト値と親継承ルール（議題3）**:
 - `Brushes::default()` = 全プロパティNone
