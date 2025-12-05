@@ -53,21 +53,28 @@
 
 ---
 
-### Requirement 2: AlphaMaskコンポーネント
+### Requirement 2: AlphaMask データ構造
 
-**Objective:** 開発者として、画像のαマスク情報をエンティティに関連付けたい。それによりヒットテスト時に効率的な判定が可能になる。
+**Objective:** 開発者として、画像のαマスク情報を効率的に保持・判定したい。それによりヒットテスト時の高速な判定が可能になる。
 
 #### Acceptance Criteria
 
-1. The HitTest System shall `AlphaMask` コンポーネントを `ecs::layout` モジュールに提供する
-2. The `AlphaMask` component shall 以下のフィールドを持つ：
+1. The HitTest System shall `AlphaMask` 構造体を `ecs::widget::bitmap_source` モジュールに提供する
+2. The `BitmapSourceResource` shall `alpha_mask: Option<AlphaMask>` フィールドを持つ
+3. The `AlphaMask` struct shall 以下のフィールドを持つ：
    - `data: Vec<u8>` - 1ビット/ピクセルのマスクデータ（ビットパック）
    - `width: u32` - マスクの幅（ピクセル）
    - `height: u32` - マスクの高さ（ピクセル）
-3. The `AlphaMask` component shall `is_hit(x: u32, y: u32) -> bool` メソッドを提供する
-4. When 座標がマスク範囲外の時, the `is_hit` method shall `false` を返す
+4. The `AlphaMask` struct shall `is_hit(x: u32, y: u32) -> bool` メソッドを提供する
+5. When 座標がマスク範囲外の時, the `is_hit` method shall `false` を返す
+6. The `BitmapSourceResource` shall `alpha_mask()` アクセサメソッドを提供する
 
 #### 設計決定
+
+**配置モジュール: `ecs::widget::bitmap_source`**
+- αマスクはWICピクセルデータから生成されるため、WICリソースと強く関連
+- `BitmapSourceResource` の `Option<AlphaMask>` として保持
+- 独立したECSコンポーネントではなく、リソースの一部として管理
 
 **ビットパック方式**:
 - 1ピクセル = 1ビットで保持（8ピクセル/バイト）
@@ -86,16 +93,16 @@
 
 #### Acceptance Criteria
 
-1. When `BitmapSourceResource` が挿入され、かつ `HitTest { mode: AlphaMask }` が設定されている時, the HitTest System shall 非同期でαマスクを生成する
-2. When `HitTest { mode: Bounds }` または `HitTest` コンポーネントがない時, the HitTest System shall αマスク生成をスキップする
+1. When `BitmapSourceResource` が生成され、かつ `HitTest { mode: AlphaMask }` が設定されている時, the HitTest System shall 非同期でαマスクを生成する
+2. When `HitTest { mode: Bounds }` または `HitTest` コンポーネントがない時, the HitTest System shall αマスク生成をスキップする（`alpha_mask` は `None`）
 3. The αマスク生成 shall WICのピクセルデータからα値を抽出してビットマスクに変換する
-4. The HitTest System shall αマスク生成完了時に `AlphaMask` コンポーネントをエンティティに挿入する
+4. The HitTest System shall αマスク生成完了時に `BitmapSourceResource.alpha_mask` に `Some(AlphaMask)` を設定する
 5. When αマスク生成中の時, the HitTest System shall `HitTestMode::Bounds` として動作する（フォールバック）
 6. The HitTest System shall αマスク生成を `WintfTaskPool` を使用して非同期実行する
 
 #### 設計決定: ハイブリッド生成トリガー
 
-**方針**: `HitTest::alpha_mask()` が設定されている場合のみ、`BitmapSourceResource` 挿入時にαマスクを自動生成する。
+**方針**: `HitTest::alpha_mask()` が設定されている場合のみ、`BitmapSourceResource` 生成時にαマスクを自動生成する。
 
 **理由**:
 - 不要な画像（背景、装飾等）でのマスク生成を回避し、メモリ・CPU使用量を削減
@@ -249,14 +256,18 @@ let mask_y = ((screen_y - bounds.top) / (bounds.bottom - bounds.top) * mask.heig
 - BitmapSourceウィジェット: `crates/wintf/src/ecs/widget/bitmap_source/`
 - ヒットテストシステム: `crates/wintf/src/ecs/layout/hit_test.rs`
 
-### B. AlphaMaskコンポーネント設計
+### B. AlphaMask データ構造設計
+
+`AlphaMask` は `ecs::widget::bitmap_source` モジュール内の `BitmapSourceResource` に `Option<AlphaMask>` として保持される。
 
 ```rust
-/// αマスクコンポーネント
+/// αマスクデータ構造
 /// 
 /// 画像のα値を2値化したビットマスクを保持する。
 /// ヒットテスト時にピクセル単位の判定に使用。
-#[derive(Component, Debug, Clone)]
+/// 
+/// 配置: `BitmapSourceResource.alpha_mask: Option<AlphaMask>`
+#[derive(Debug, Clone)]
 pub struct AlphaMask {
     /// 1ビット/ピクセルのマスクデータ（ビットパック）
     /// 行ごとに8ピクセル単位でアラインメント
