@@ -171,6 +171,27 @@
   - ✅ unsafe呼び出しが `com/` に集約
 - **Follow-up**: なし
 
+### Decision: generate_alpha_mask_system のスケジュールと検知
+
+- **Context**: αマスク生成システムの実行タイミングと変更検知方法
+- **Alternatives Considered**:
+  1. `Added<BitmapSourceResource>` のみで検知
+  2. `Or<(Changed<BitmapSourceResource>, Changed<HitTest>)>` で検知
+- **Selected Approach**: Option 2 - `Changed` ベースの検知
+- **Rationale**: 
+  - `BitmapSourceResource` 追加時は常に `alpha_mask: None`（`new()` で初期化）
+  - `Changed<HitTest>` で動的なモード変更にも対応
+  - 生成済みチェック（`alpha_mask.is_some()`）で無駄な再生成を防止
+- **Implementation Details**:
+  - スケジュール: `WidgetGraphics`（既存BitmapSourceシステムと同じ）
+  - 順序: `draw_bitmap_sources` の直後（`.after(draw_bitmap_sources)`）
+  - スキップ条件: `HitTestMode != AlphaMask` または `alpha_mask.is_some()`
+- **Trade-offs**:
+  - ✅ `draw_bitmap_sources` 直後で依存関係が明確
+  - ✅ 動的なHitTest変更にも対応
+  - ✅ 既存パターン（Changed検知 + スキップ条件）に準拠
+- **Follow-up**: なし
+
 ## Risks & Mitigations
 
 | Risk | Mitigation |
