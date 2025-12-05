@@ -97,7 +97,7 @@
 2. The Label component shall マイグレーション後、色関連プロパティを一切含んではならない。
 3. The Typewriter component shall マイグレーション後、色関連プロパティを一切含んではならない。
 4. When Visualコンポーネントが追加される場合, the Visual on_add hook shall Brushesコンポーネント（デフォルト値: 全プロパティ`Brush::Inherit`）を自動挿入しなければならない。
-5. When ウィジェットに特定の色を設定する場合, the user shall ビルダーメソッド（例: `.with_foreground(Brush::Solid(...))`）を使用できなければならない。
+5. When ウィジェットに特定の色を設定する場合, the user shall Brushesコンポーネントを明示的にspawnバンドルに含めて上書きできなければならない（例: `world.spawn((Widget::new(), Brushes::with_foreground(...)));`）。
 
 ---
 

@@ -325,22 +325,28 @@ const DEFAULT_BACKGROUND: Brush = Brush::TRANSPARENT;
 **Changes**
 - 除去: `pub color: Color`
 - 除去: `colors`サブモジュール（brushes.rsに移動）
-- 追加: ビルダーメソッド
+- 追加: `new()`コンストラクタ
+
+**決定事項（議題7）**: ビルダーメソッドではなくBrushes別途指定方式を採用。シンプルさ優先、追加型不要。
 
 ```rust
 #[derive(Component, Debug, Clone)]
 #[component(on_add = on_rectangle_add, on_remove = on_rectangle_remove)]
 pub struct Rectangle {
-    // colorフィールド削除
+    // colorフィールド削除（フィールドなし）
 }
 
 impl Rectangle {
     /// 新しいRectangleを作成
     pub fn new() -> Self { Self {} }
-    
-    /// 前景色（塗りつぶし）を設定したRectangleを作成
-    pub fn with_foreground(color: D2D1_COLOR_F) -> (Self, Brushes);
 }
+
+// 使用例
+world.spawn((
+    Rectangle::new(),
+    Brushes::with_foreground(Brush::RED),  // 別途指定
+    BoxStyle { ... },
+));
 ```
 
 #### Label (修正)
@@ -352,7 +358,8 @@ impl Rectangle {
 
 **Changes**
 - 除去: `pub color: Color`
-- 追加: ビルダーメソッド
+
+**決定事項（議題7）**: ビルダーメソッドではなくBrushes別途指定方式を採用。
 
 ```rust
 #[derive(Component)]
@@ -365,10 +372,16 @@ pub struct Label {
     pub direction: TextDirection,
 }
 
-impl Label {
-    /// 前景色（テキスト色）を設定したLabelを作成
-    pub fn with_foreground(self, color: D2D1_COLOR_F) -> (Self, Brushes);
-}
+// 使用例
+world.spawn((
+    Label {
+        text: "Hello".to_string(),
+        font_family: "メイリオ".to_string(),
+        font_size: 16.0,
+        direction: TextDirection::default(),
+    },
+    Brushes::with_foreground(Brush::BLACK),  // 別途指定
+));
 ```
 
 #### Typewriter (修正)
@@ -381,7 +394,8 @@ impl Label {
 **Changes**
 - 除去: `pub foreground: Color`
 - 除去: `pub background: Option<Color>`
-- 追加: ビルダーメソッド
+
+**決定事項（議題7）**: ビルダーメソッドではなくBrushes別途指定方式を採用。
 
 ```rust
 #[derive(Component)]
@@ -395,10 +409,17 @@ pub struct Typewriter {
     // ... その他フィールド
 }
 
-impl Typewriter {
-    /// 前景色・背景色を設定したTypewriterを作成
-    pub fn with_colors(self, foreground: D2D1_COLOR_F, background: D2D1_COLOR_F) -> (Self, Brushes);
-}
+// 使用例
+world.spawn((
+    Typewriter {
+        font_family: "メイリオ".to_string(),
+        font_size: 18.0,
+        direction: TextDirection::HorizontalLeftToRight,
+        default_char_wait: 0.15,
+        ..Default::default()
+    },
+    Brushes::with_colors(Brush::Solid(fg_color), Brush::Solid(bg_color)),  // 別途指定
+));
 ```
 
 ### Drawing System Modifications
