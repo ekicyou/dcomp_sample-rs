@@ -5,7 +5,7 @@ pub mod typewriter_ir;
 pub mod typewriter_systems;
 
 pub use draw_labels::draw_labels;
-pub use label::{Color, Label, TextDirection, TextLayoutResource};
+pub use label::{Label, TextDirection, TextLayoutResource};
 pub use typewriter::{Typewriter, TypewriterLayoutCache, TypewriterState, TypewriterTalk};
 pub use typewriter_ir::{
     TimelineItem, TypewriterEvent, TypewriterEventKind, TypewriterTimeline, TypewriterToken,

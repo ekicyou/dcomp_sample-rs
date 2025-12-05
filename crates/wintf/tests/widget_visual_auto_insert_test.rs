@@ -3,7 +3,7 @@
 //! Label/Rectangle コンポーネント追加時に Visual が自動的に挿入されることをテストする。
 
 use bevy_ecs::prelude::*;
-use wintf::ecs::widget::shapes::{colors, Rectangle};
+use wintf::ecs::widget::shapes::Rectangle;
 use wintf::ecs::widget::text::Label;
 use wintf::ecs::Visual;
 
@@ -34,7 +34,7 @@ fn test_rectangle_auto_inserts_visual() {
     let mut world = World::new();
 
     // Rectangle を追加
-    let entity = world.spawn(Rectangle { color: colors::RED }).id();
+    let entity = world.spawn(Rectangle::new()).id();
 
     // Visual が自動的に追加されていることを確認
     let visual = world.get::<Visual>(entity);
@@ -81,11 +81,7 @@ fn test_multiple_widgets_get_visuals() {
         })
         .id();
 
-    let rect_entity = world
-        .spawn(Rectangle {
-            color: colors::BLUE,
-        })
-        .id();
+    let rect_entity = world.spawn(Rectangle::new()).id();
 
     assert!(world.get::<Visual>(label_entity).is_some());
     assert!(world.get::<Visual>(rect_entity).is_some());

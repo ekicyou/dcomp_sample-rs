@@ -370,13 +370,19 @@ impl EcsWorld {
 
             // Drawスケジュールにクリーンアップシステムとウィジェット描画システムを登録
             // Surface生成とクリーンアップを統合管理
+            // Brush継承解決を最初に実行し、その後ウィジェット描画
             schedules.add_systems(
                 Draw,
                 (
-                    crate::ecs::widget::shapes::rectangle::draw_rectangles,
-                    crate::ecs::widget::text::draw_labels,
+                    // Brush継承解決（描画システムより前に実行）
+                    crate::ecs::graphics::resolve_inherited_brushes,
+                    crate::ecs::widget::shapes::rectangle::draw_rectangles
+                        .after(crate::ecs::graphics::resolve_inherited_brushes),
+                    crate::ecs::widget::text::draw_labels
+                        .after(crate::ecs::graphics::resolve_inherited_brushes),
                     // Typewriter: Arrangement変更で無効化 → LayoutCache初期化 → 描画の順
-                    crate::ecs::widget::text::invalidate_typewriter_layout_on_arrangement_change,
+                    crate::ecs::widget::text::invalidate_typewriter_layout_on_arrangement_change
+                        .after(crate::ecs::graphics::resolve_inherited_brushes),
                     crate::ecs::widget::text::init_typewriter_layout
                         .after(crate::ecs::widget::text::invalidate_typewriter_layout_on_arrangement_change),
                     crate::ecs::widget::text::draw_typewriters
@@ -384,7 +390,8 @@ impl EcsWorld {
                     // 空トーク時の背景描画（draw_typewritersの後）
                     crate::ecs::widget::text::draw_typewriter_backgrounds
                         .after(crate::ecs::widget::text::draw_typewriters),
-                    crate::ecs::widget::bitmap_source::draw_bitmap_sources,
+                    crate::ecs::widget::bitmap_source::draw_bitmap_sources
+                        .after(crate::ecs::graphics::resolve_inherited_brushes),
                     // αマスク生成（draw_bitmap_sourcesの後、BitmapSourceResource追加検出時に実行）
                     crate::ecs::widget::bitmap_source::generate_alpha_mask_system
                         .after(crate::ecs::widget::bitmap_source::draw_bitmap_sources),

@@ -12,7 +12,6 @@ use bevy_ecs::component::Component;
 use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::world::DeferredWorld;
 use tracing::trace;
-use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use windows::Win32::Graphics::DirectWrite::IDWriteTextLayout;
 
 // re-export TextDirection from label
@@ -22,21 +21,27 @@ pub use crate::ecs::widget::text::label::TextDirection;
 // Typewriter - ウィジェット論理コンポーネント（永続）
 // ============================================================
 
-/// テキスト色の型エイリアス
-pub type Color = D2D1_COLOR_F;
-
 /// ウィジェット論理コンポーネント（永続）
 /// メモリ戦略: SparseSet（動的追加/削除）
+///
+/// 色は`Brushes`コンポーネントで指定します。
+/// ```ignore
+/// world.spawn((
+///     Typewriter {
+///         font_family: "メイリオ".to_string(),
+///         font_size: 18.0,
+///         direction: TextDirection::HorizontalLeftToRight,
+///         default_char_wait: 0.15,
+///     },
+///     Brushes::with_colors(fg_color, bg_color),
+/// ));
+/// ```
 #[derive(Component)]
 #[component(storage = "SparseSet", on_add = on_typewriter_add, on_remove = on_typewriter_remove)]
 pub struct Typewriter {
     // === スタイル設定（Label互換） ===
     pub font_family: String,
     pub font_size: f32,
-    /// フォアグラウンド色（テキスト色）
-    pub foreground: Color,
-    /// バックグラウンド色（None: 透明）
-    pub background: Option<Color>,
     pub direction: TextDirection,
 
     // === デフォルト設定 ===
@@ -49,13 +54,6 @@ impl Default for Typewriter {
         Self {
             font_family: "メイリオ".to_string(),
             font_size: 16.0,
-            foreground: Color {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 1.0,
-            },
-            background: None,
             direction: TextDirection::default(),
             default_char_wait: 0.05, // 50ms
         }

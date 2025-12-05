@@ -5,7 +5,6 @@ use bevy_ecs::component::Component;
 use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::world::DeferredWorld;
 use tracing::trace;
-use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use windows::Win32::Graphics::DirectWrite::IDWriteTextLayout;
 
 /// テキストの方向
@@ -18,16 +17,25 @@ pub enum TextDirection {
     VerticalLeftToRight,   // writing-mode: vertical-lr
 }
 
-/// 色の型エイリアス（shapes/rectangleと共通）
-pub type Color = D2D1_COLOR_F;
-
 /// Labelコンポーネント: テキスト表示ウィジット
+///
+/// 色は`Brushes`コンポーネントで指定します。
+/// ```ignore
+/// world.spawn((
+///     Label {
+///         text: "Hello".to_string(),
+///         font_family: "メイリオ".to_string(),
+///         font_size: 16.0,
+///         direction: TextDirection::default(),
+///     },
+///     Brushes::with_foreground(Brush::BLACK.as_color().unwrap()),
+/// ));
+/// ```
 ///
 /// # フィールド
 /// - `text`: 表示するテキスト (UTF-8)
 /// - `font_family`: フォントファミリー名 (例: "メイリオ", "Arial")
 /// - `font_size`: フォントサイズ (pt単位, 範囲: 8.0～72.0)
-/// - `color`: テキスト色 (RGBA, 各成分 0.0～1.0)
 /// - `direction`: テキストの方向
 #[derive(Component)]
 // NOTE: on_add フックは既存の描画フロー（draw_recursive方式）と競合する
@@ -37,7 +45,6 @@ pub struct Label {
     pub text: String,
     pub font_family: String,
     pub font_size: f32,
-    pub color: Color,
     pub direction: TextDirection,
 }
 
@@ -59,12 +66,6 @@ impl Default for Label {
             text: String::new(),
             font_family: "メイリオ".to_string(),
             font_size: 16.0,
-            color: Color {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 1.0,
-            }, // 黒色
             direction: Default::default(),
         }
     }

@@ -244,6 +244,7 @@ pub struct Visual {
 /// - Arrangementを自動挿入（既に存在する場合はスキップ）
 /// - VisualGraphics::default()を自動挿入（GPUリソースはシステムで作成）
 /// - SurfaceGraphics::default()とSurfaceGraphicsDirty::default()を自動挿入
+/// - BrushInheritマーカーを自動挿入（継承解決用）
 fn on_visual_add(mut world: DeferredWorld, context: HookContext) {
     let entity = context.entity;
 
@@ -254,6 +255,9 @@ fn on_visual_add(mut world: DeferredWorld, context: HookContext) {
     let needs_visual_graphics = world.get::<VisualGraphics>(entity).is_none();
     let needs_surface_graphics = world.get::<SurfaceGraphics>(entity).is_none();
     let needs_surface_dirty = world.get::<SurfaceGraphicsDirty>(entity).is_none();
+    let needs_brush_inherit = world
+        .get::<crate::ecs::widget::BrushInherit>(entity)
+        .is_none();
 
     // コマンドを発行
     let mut cmds = world.commands();
@@ -277,6 +281,12 @@ fn on_visual_add(mut world: DeferredWorld, context: HookContext) {
     }
     if needs_surface_dirty {
         entity_cmds.insert(SurfaceGraphicsDirty::default());
+    }
+
+    // BrushInheritマーカーを挿入（継承解決システムで処理される）
+    // Note: Brushesコンポーネントは挿入しない（オプショナル設計）
+    if needs_brush_inherit {
+        entity_cmds.insert(crate::ecs::widget::BrushInherit);
     }
 }
 

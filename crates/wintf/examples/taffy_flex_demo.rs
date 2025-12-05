@@ -13,6 +13,7 @@ use wintf::ecs::layout::{
 };
 use wintf::ecs::pointer::{OnPointerMoved, OnPointerPressed, Phase, PointerState};
 use wintf::ecs::widget::bitmap_source::{BitmapSource, CommandSender};
+use wintf::ecs::widget::brushes::Brushes;
 use wintf::ecs::widget::shapes::Rectangle;
 use wintf::ecs::{Window, WindowPos};
 use wintf::*;
@@ -128,14 +129,13 @@ fn create_flexbox_window(world: &mut World) {
         .spawn((
             Name::new("FlexDemo-Container"),
             FlexDemoContainer,
-            Rectangle {
-                color: D2D1_COLOR_F {
-                    r: 0.9,
-                    g: 0.9,
-                    b: 0.9,
-                    a: 1.0,
-                },
-            },
+            Rectangle::new(),
+            Brushes::with_foreground(D2D1_COLOR_F {
+                r: 0.9,
+                g: 0.9,
+                b: 0.9,
+                a: 1.0,
+            }),
             BoxStyle {
                 flex_direction: Some(taffy::FlexDirection::Row),
                 justify_content: Some(taffy::JustifyContent::SpaceEvenly),
@@ -165,14 +165,13 @@ fn create_flexbox_window(world: &mut World) {
             Name::new("RedBox"),
             RedBox,
             Opacity(1.0),
-            Rectangle {
-                color: D2D1_COLOR_F {
-                    r: 1.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 1.0,
-                },
-            },
+            Rectangle::new(),
+            Brushes::with_foreground(D2D1_COLOR_F {
+                r: 1.0,
+                g: 0.0,
+                b: 0.0,
+                a: 1.0,
+            }),
             BoxStyle {
                 size: Some(BoxSize {
                     width: Some(Dimension::Px(200.0)),
@@ -220,14 +219,13 @@ fn create_flexbox_window(world: &mut World) {
         Name::new("GreenBox"),
         GreenBox,
         Opacity(0.5),
-        Rectangle {
-            color: D2D1_COLOR_F {
-                r: 0.0,
-                g: 1.0,
-                b: 0.0,
-                a: 1.0,
-            },
-        },
+        Rectangle::new(),
+        Brushes::with_foreground(D2D1_COLOR_F {
+            r: 0.0,
+            g: 1.0,
+            b: 0.0,
+            a: 1.0,
+        }),
         BoxStyle {
             size: Some(BoxSize {
                 width: Some(Dimension::Px(100.0)),
@@ -248,14 +246,13 @@ fn create_flexbox_window(world: &mut World) {
         Name::new("BlueBox"),
         BlueBox,
         Opacity(0.5),
-        Rectangle {
-            color: D2D1_COLOR_F {
-                r: 0.0,
-                g: 0.0,
-                b: 1.0,
-                a: 1.0,
-            },
-        },
+        Rectangle::new(),
+        Brushes::with_foreground(D2D1_COLOR_F {
+            r: 0.0,
+            g: 0.0,
+            b: 1.0,
+            a: 1.0,
+        }),
         BoxStyle {
             size: Some(BoxSize {
                 width: Some(Dimension::Px(100.0)),
@@ -658,13 +655,13 @@ fn on_container_pressed(
         );
 
         // コンテナの色をピンクに変更
-        if let Some(mut rect) = world.get_mut::<Rectangle>(entity) {
-            rect.color = D2D1_COLOR_F {
+        if let Some(mut brushes) = world.get_mut::<Brushes>(entity) {
+            brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
                 r: 1.0,
                 g: 0.7,
                 b: 0.8,
                 a: 1.0,
-            };
+            });
         }
 
         return true; // イベント処理済み
@@ -694,25 +691,28 @@ fn on_red_box_pressed(
     // 左クリック検出
     if state.left_down {
         // 色をトグル（赤 ⇔ 黄）
-        if let Some(mut rect) = world.get_mut::<Rectangle>(entity) {
-            let is_red = rect.color.r > 0.9 && rect.color.g < 0.1;
+        if let Some(mut brushes) = world.get_mut::<Brushes>(entity) {
+            let is_red = match brushes.foreground.as_color() {
+                Some(c) => c.r > 0.9 && c.g < 0.1,
+                None => false,
+            };
             if is_red {
                 // 黄色に変更
-                rect.color = D2D1_COLOR_F {
+                brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
                     r: 1.0,
                     g: 1.0,
                     b: 0.0,
                     a: 1.0,
-                };
+                });
                 info!("[AlphaMask Demo] BACKGROUND clicked (transparent area) - color: RED -> YELLOW");
             } else {
                 // 赤に戻す
-                rect.color = D2D1_COLOR_F {
+                brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
                     r: 1.0,
                     g: 0.0,
                     b: 0.0,
                     a: 1.0,
-                };
+                });
                 info!("[AlphaMask Demo] BACKGROUND clicked (transparent area) - color: YELLOW -> RED");
             }
         }

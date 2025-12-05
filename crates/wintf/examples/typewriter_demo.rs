@@ -18,6 +18,7 @@ use wintf::ecs::layout::{
     BoxInset, BoxMargin, BoxPosition, BoxSize, BoxStyle, Dimension, LengthPercentageAuto,
 };
 use wintf::ecs::widget::bitmap_source::CommandSender;
+use wintf::ecs::widget::brushes::Brushes;
 use wintf::ecs::widget::shapes::Rectangle;
 use wintf::ecs::widget::text::{
     TextDirection, Typewriter, TypewriterEvent, TypewriterEventKind, TypewriterLayoutCache,
@@ -157,14 +158,13 @@ fn create_typewriter_demo_window(world: &mut World) {
     let background = world
         .spawn((
             Name::new("Background"),
-            Rectangle {
-                color: D2D1_COLOR_F {
-                    r: 0.95,
-                    g: 0.95,
-                    b: 0.95,
-                    a: 1.0,
-                },
-            },
+            Rectangle::new(),
+            Brushes::with_foreground(D2D1_COLOR_F {
+                r: 0.95,
+                g: 0.95,
+                b: 0.95,
+                a: 1.0,
+            }),
             BoxStyle {
                 // size 100% + margin は親をはみ出すため、flex_grow を使用
                 flex_grow: Some(1.0),
@@ -185,14 +185,13 @@ fn create_typewriter_demo_window(world: &mut World) {
     let horizontal_box = world
         .spawn((
             Name::new("HorizontalBox"),
-            Rectangle {
-                color: D2D1_COLOR_F {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 1.0,
-                },
-            },
+            Rectangle::new(),
+            Brushes::with_foreground(D2D1_COLOR_F {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 1.0,
+            }),
             BoxStyle {
                 size: Some(BoxSize {
                     width: None,
@@ -220,22 +219,24 @@ fn create_typewriter_demo_window(world: &mut World) {
         Typewriter {
             font_family: "メイリオ".to_string(),
             font_size: 18.0,
-            foreground: D2D1_COLOR_F {
+            direction: TextDirection::HorizontalLeftToRight,
+            default_char_wait: 0.15, // 150ms/文字（ゆっくり表示）
+            ..Default::default()
+        },
+        Brushes::with_colors(
+            D2D1_COLOR_F {
                 r: 0.1,
                 g: 0.1,
                 b: 0.1,
                 a: 1.0,
             },
-            background: Some(D2D1_COLOR_F {
+            D2D1_COLOR_F {
                 r: 0.9,
                 g: 0.9,
                 b: 1.0,
                 a: 1.0,
-            }),
-            direction: TextDirection::HorizontalLeftToRight,
-            default_char_wait: 0.15, // 150ms/文字（ゆっくり表示）
-            ..Default::default()
-        },
+            },
+        ),
         BoxStyle {
             // size 100% + margin は親をはみ出すため、flex_grow を使用
             flex_grow: Some(1.0),
@@ -254,14 +255,13 @@ fn create_typewriter_demo_window(world: &mut World) {
     let vertical_box = world
         .spawn((
             Name::new("VerticalBox"),
-            Rectangle {
-                color: D2D1_COLOR_F {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 1.0,
-                },
-            },
+            Rectangle::new(),
+            Brushes::with_foreground(D2D1_COLOR_F {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 1.0,
+            }),
             BoxStyle {
                 size: Some(BoxSize {
                     width: Some(Dimension::Px(80.0)),
@@ -291,22 +291,24 @@ fn create_typewriter_demo_window(world: &mut World) {
         Typewriter {
             font_family: "メイリオ".to_string(),
             font_size: 18.0,
-            foreground: D2D1_COLOR_F {
+            direction: TextDirection::VerticalRightToLeft,
+            default_char_wait: 0.15, // 150ms/文字（ゆっくり表示）
+            ..Default::default()
+        },
+        Brushes::with_colors(
+            D2D1_COLOR_F {
                 r: 0.1,
                 g: 0.1,
                 b: 0.5,
                 a: 1.0,
             },
-            background: Some(D2D1_COLOR_F {
+            D2D1_COLOR_F {
                 r: 1.0,
                 g: 1.0,
                 b: 0.9,
                 a: 1.0,
-            }),
-            direction: TextDirection::VerticalRightToLeft,
-            default_char_wait: 0.15, // 150ms/文字（ゆっくり表示）
-            ..Default::default()
-        },
+            },
+        ),
         TypewriterTalk::new(vec![], 0.0), // 空のトークで初期化（背景描画用）
         BoxStyle {
             // size 100% + margin は親をはみ出すため、flex_grow を使用

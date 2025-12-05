@@ -8,7 +8,7 @@ use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt};
 use crate::com::dwrite::{DWriteFactoryExt, DWriteTextLayoutExt};
 use crate::ecs::graphics::{FrameTime, GraphicsCommandList, GraphicsCore};
 use crate::ecs::layout::Arrangement;
-use crate::ecs::widget::shapes::rectangle::colors;
+use crate::ecs::widget::brushes::{Brushes, DEFAULT_FOREGROUND};
 use crate::ecs::widget::text::label::TextDirection;
 use crate::ecs::widget::text::typewriter::{
     Typewriter, TypewriterLayoutCache, TypewriterState, TypewriterTalk,
@@ -18,9 +18,18 @@ use crate::ecs::widget::text::typewriter_ir::{
 };
 use bevy_ecs::prelude::*;
 use tracing::{debug, trace, warn};
+use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use windows::Win32::Graphics::Direct2D::D2D1_DRAW_TEXT_OPTIONS_NONE;
 use windows::Win32::Graphics::DirectWrite::*;
 use windows_numerics::Vector2;
+
+/// 透明色定数（内部使用）
+const TRANSPARENT_COLOR: D2D1_COLOR_F = D2D1_COLOR_F {
+    r: 0.0,
+    g: 0.0,
+    b: 0.0,
+    a: 0.0,
+};
 
 /// TypewriterLayoutCache 無効化システム（Draw スケジュール）
 ///
@@ -283,9 +292,17 @@ pub fn update_typewriters(
 ///
 /// TypewriterLayoutCache から TextLayout を取得し、
 /// visible_cluster_count までのグリフを描画する。
+/// 色は`Brushes`コンポーネントから取得される。
 pub fn draw_typewriters(
     mut commands: Commands,
-    query: Query<(Entity, &Typewriter, &TypewriterTalk, &TypewriterLayoutCache, &Arrangement)>,
+    query: Query<(
+        Entity,
+        &Typewriter,
+        &TypewriterTalk,
+        &TypewriterLayoutCache,
+        &Arrangement,
+        &Brushes,
+    )>,
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
     let Some(graphics_core) = graphics_core else {
@@ -298,10 +315,17 @@ pub fn draw_typewriters(
         return;
     };
 
-    for (entity, typewriter, talk, layout_cache, arrangement) in query.iter() {
+    for (entity, typewriter, talk, layout_cache, arrangement, brushes) in query.iter() {
         let text_layout = layout_cache.text_layout();
         let timeline = layout_cache.timeline();
         let visible_count = talk.visible_cluster_count();
+
+        // Brushes から色を取得
+        let fg_color = brushes
+            .foreground
+            .as_color()
+            .unwrap_or_else(|| DEFAULT_FOREGROUND.as_color().unwrap());
+        let bg_color_opt = brushes.background.as_color();
 
         #[cfg(debug_assertions)]
         debug!(
@@ -353,12 +377,12 @@ pub fn draw_typewriters(
         }
 
         // 透明でクリア
-        dc.clear(Some(&colors::TRANSPARENT));
+        dc.clear(Some(&TRANSPARENT_COLOR));
 
         // バックグラウンド描画（指定されている場合）
         // Rectangleと同様にarrangement.sizeを使用
-        if let Some(ref bg_color) = typewriter.background {
-            if let Ok(bg_brush) = dc.create_solid_color_brush(bg_color, None) {
+        if let Some(bg_color) = bg_color_opt {
+            if let Ok(bg_brush) = dc.create_solid_color_brush(&bg_color, None) {
                 let bg_rect = windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F {
                     left: 0.0,
                     top: 0.0,
@@ -372,7 +396,7 @@ pub fn draw_typewriters(
         }
 
         // フォアグラウンドブラシ作成
-        let brush = match dc.create_solid_color_brush(&typewriter.foreground, None) {
+        let brush = match dc.create_solid_color_brush(&fg_color, None) {
             Ok(b) => b,
             Err(err) => {
                 warn!(entity = ?entity, error = ?err, "Failed to create brush");
@@ -427,7 +451,7 @@ pub fn draw_typewriters(
             if visible_text_length < total_text_length {
                 // 透明ブラシ作成
                 let transparent_brush =
-                    match dc.create_solid_color_brush(&colors::TRANSPARENT, None) {
+                    match dc.create_solid_color_brush(&TRANSPARENT_COLOR, None) {
                         Ok(b) => b,
                         Err(_) => {
                             // フォールバック: 全文描画
@@ -490,11 +514,11 @@ pub fn draw_typewriters(
 /// 空トークのTypewriter背景描画システム（Draw スケジュール）
 ///
 /// TypewriterTalkはあるがTyperwriterLayoutCacheがない（空トーク）の場合、
-/// 背景色のみを描画する。
+/// 背景色のみを描画する。色は`Brushes`コンポーネントから取得される。
 pub fn draw_typewriter_backgrounds(
     mut commands: Commands,
     query: Query<
-        (Entity, &Typewriter, &TypewriterTalk, &Arrangement),
+        (Entity, &Typewriter, &TypewriterTalk, &Arrangement, &Brushes),
         (Without<TypewriterLayoutCache>, Without<GraphicsCommandList>),
     >,
     graphics_core: Option<Res<GraphicsCore>>,
@@ -507,15 +531,15 @@ pub fn draw_typewriter_backgrounds(
         return;
     };
 
-    for (entity, typewriter, talk, arrangement) in query.iter() {
+    for (entity, _typewriter, talk, arrangement, brushes) in query.iter() {
         // テキストがある場合はdraw_typewritersが処理するのでスキップ
         let has_text = talk.tokens().iter().any(|t| matches!(t, TypewriterToken::Text(s) if !s.is_empty()));
         if has_text {
             continue;
         }
 
-        // 背景色がない場合はスキップ
-        let Some(ref bg_color) = typewriter.background else {
+        // 背景色がない場合はスキップ（Brushes.backgroundから取得）
+        let Some(bg_color) = brushes.background.as_color() else {
             continue;
         };
 
@@ -537,10 +561,10 @@ pub fn draw_typewriter_backgrounds(
         }
 
         // 透明でクリア
-        dc.clear(Some(&colors::TRANSPARENT));
+        dc.clear(Some(&TRANSPARENT_COLOR));
 
         // 背景描画
-        if let Ok(bg_brush) = dc.create_solid_color_brush(bg_color, None) {
+        if let Ok(bg_brush) = dc.create_solid_color_brush(&bg_color, None) {
             let bg_rect = windows::Win32::Graphics::Direct2D::Common::D2D_RECT_F {
                 left: 0.0,
                 top: 0.0,

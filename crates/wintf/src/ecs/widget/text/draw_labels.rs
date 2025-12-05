@@ -1,24 +1,37 @@
 use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt};
 use crate::com::dwrite::DWriteFactoryExt;
 use crate::ecs::graphics::{GraphicsCommandList, GraphicsCore};
-use crate::ecs::widget::shapes::rectangle::colors;
+use crate::ecs::widget::brushes::{Brushes, DEFAULT_FOREGROUND};
 use crate::ecs::widget::text::label::TextDirection;
 use crate::ecs::widget::text::{Label, TextLayoutResource};
 use crate::ecs::TextLayoutMetrics;
 use bevy_ecs::prelude::*;
 use tracing::{debug, warn};
+use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use windows::Win32::Graphics::Direct2D::D2D1_DRAW_TEXT_OPTIONS_NONE;
 use windows::Win32::Graphics::DirectWrite::*;
 use windows_numerics::Vector2;
 
+/// 透明色定数（内部使用）
+const TRANSPARENT_COLOR: D2D1_COLOR_F = D2D1_COLOR_F {
+    r: 0.0,
+    g: 0.0,
+    b: 0.0,
+    a: 0.0,
+};
+
 /// Labelコンポーネントから GraphicsCommandList を生成
 ///
-/// Changed<Label> または GraphicsCommandList がないエンティティを対象に、
+/// Changed<Label>、Changed<Brushes> または GraphicsCommandList がないエンティティを対象に、
 /// DirectWrite を使用してテキストレイアウトを生成し、
 /// Direct2D の CommandList に描画命令を記録する。
+/// 色は`Brushes`コンポーネントのforegroundから取得されます。
 pub fn draw_labels(
     mut commands: Commands,
-    query: Query<(Entity, &Label), Or<(Changed<Label>, Without<GraphicsCommandList>)>>,
+    query: Query<
+        (Entity, &Label, &Brushes),
+        Or<(Changed<Label>, Changed<Brushes>, Without<GraphicsCommandList>)>,
+    >,
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
     let Some(graphics_core) = graphics_core else {
@@ -37,7 +50,7 @@ pub fn draw_labels(
         return;
     };
 
-    for (entity, label) in query.iter() {
+    for (entity, label, brushes) in query.iter() {
         #[cfg(debug_assertions)]
         debug!(
             entity = ?entity,
@@ -46,6 +59,12 @@ pub fn draw_labels(
             size_pt = label.font_size,
             "Drawing label"
         );
+
+        // Brushes.foregroundから色を取得
+        let color = brushes
+            .foreground
+            .as_color()
+            .unwrap_or_else(|| DEFAULT_FOREGROUND.as_color().unwrap());
 
         // TextFormat作成
         let font_family_hstring = windows::core::HSTRING::from(&label.font_family);
@@ -143,10 +162,10 @@ pub fn draw_labels(
         }
 
         // 透明でクリア
-        dc.clear(Some(&colors::TRANSPARENT));
+        dc.clear(Some(&TRANSPARENT_COLOR));
 
         // ブラシ作成
-        let brush = match dc.create_solid_color_brush(&label.color, None) {
+        let brush = match dc.create_solid_color_brush(&color, None) {
             Ok(b) => b,
             Err(err) => {
                 warn!(

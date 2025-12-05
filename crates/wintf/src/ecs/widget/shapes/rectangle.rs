@@ -1,6 +1,7 @@
 use crate::com::d2d::{D2D1CommandListExt, D2D1DeviceContextExt};
 use crate::ecs::graphics::{format_entity_name, GraphicsCommandList, GraphicsCore};
 use crate::ecs::layout::Arrangement;
+use crate::ecs::widget::brushes::{Brushes, DEFAULT_FOREGROUND};
 use crate::ecs::Visual;
 use bevy_ecs::component::Component;
 use bevy_ecs::lifecycle::HookContext;
@@ -13,7 +14,8 @@ use windows::Win32::Graphics::Direct2D::Common::{D2D1_COLOR_F, D2D_RECT_F};
 /// 色の型エイリアス（D2D1_COLOR_Fをそのまま使用）
 pub type Color = D2D1_COLOR_F;
 
-/// 基本色定義
+/// 基本色定数（Brush::XXXを使用する新しい方式を推奨）
+#[deprecated(since = "0.1.0", note = "Use Brush::XXX constants instead")]
 pub mod colors {
     use super::Color;
 
@@ -61,18 +63,38 @@ pub mod colors {
     };
 }
 
+/// 透明色定数（内部使用）
+const TRANSPARENT_COLOR: Color = Color {
+    r: 0.0,
+    g: 0.0,
+    b: 0.0,
+    a: 0.0,
+};
+
 /// 四角形ウィジット
 ///
 /// サイズは`Arrangement`コンポーネントで管理されます。
 /// レイアウトシステム（`BoxSize` → Taffy → `Arrangement`）との統合により、
 /// 動的なサイズ変更が自動的に反映されます。
-#[derive(Component, Debug, Clone)]
+///
+/// 色は`Brushes`コンポーネントで指定します。
+/// ```ignore
+/// world.spawn((
+///     Rectangle::new(),
+///     Brushes::with_foreground(Brush::RED.as_color().unwrap()),
+/// ));
+/// ```
+#[derive(Component, Debug, Clone, Default)]
 // NOTE: on_add フックは既存の描画フロー（draw_recursive方式）と競合する
 // Phase 4（自己描画方式への移行）完了後に正常表示される
 #[component(on_add = on_rectangle_add, on_remove = on_rectangle_remove)]
-pub struct Rectangle {
-    /// 塗りつぶし色
-    pub color: Color,
+pub struct Rectangle;
+
+impl Rectangle {
+    /// 新しいRectangleを作成
+    pub fn new() -> Self {
+        Self
+    }
 }
 
 /// Rectangle追加時のフック: Visualコンポーネントを自動挿入 (R4)
@@ -95,9 +117,11 @@ fn on_rectangle_remove(mut world: DeferredWorld, hook: HookContext) {
         cmd_list.set_if_neq(GraphicsCommandList::empty());
     }
 }
+
 /// RectangleコンポーネントからGraphicsCommandListを生成
 ///
 /// Rectangleのサイズは`Arrangement`コンポーネントから取得されます。
+/// 色は`Brushes`コンポーネントのforegroundから取得されます。
 pub fn draw_rectangles(
     mut commands: Commands,
     query: Query<
@@ -105,10 +129,11 @@ pub fn draw_rectangles(
             Entity,
             &Rectangle,
             &Arrangement,
+            &Brushes,
             Option<&GraphicsCommandList>,
             Option<&Name>,
         ),
-        Or<(Changed<Rectangle>, Changed<Arrangement>)>,
+        Or<(Changed<Rectangle>, Changed<Arrangement>, Changed<Brushes>)>,
     >,
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
@@ -117,7 +142,7 @@ pub fn draw_rectangles(
         return;
     };
 
-    for (entity, rectangle, arrangement, cmd_list_opt, name) in query.iter() {
+    for (entity, _rectangle, arrangement, brushes, cmd_list_opt, name) in query.iter() {
         let entity_name = format_entity_name(entity, name);
         trace!(
             entity = %entity_name,
@@ -125,6 +150,12 @@ pub fn draw_rectangles(
             height = arrangement.size.height,
             "Drawing rectangle"
         );
+
+        // Brushes.foregroundから色を取得
+        let color = brushes
+            .foreground
+            .as_color()
+            .unwrap_or_else(|| DEFAULT_FOREGROUND.as_color().unwrap());
 
         // DeviceContextとCommandList生成
         // グローバル共有DeviceContextを取得
@@ -161,7 +192,7 @@ pub fn draw_rectangles(
             dc.BeginDraw();
 
             // 透明色クリア
-            dc.clear(Some(&colors::TRANSPARENT));
+            dc.clear(Some(&TRANSPARENT_COLOR));
 
             // 四角形描画（原点0,0から描画）
             let rect = D2D_RECT_F {
@@ -177,15 +208,15 @@ pub fn draw_rectangles(
                 top = rect.top,
                 right = rect.right,
                 bottom = rect.bottom,
-                r = format_args!("{:.2}", rectangle.color.r),
-                g = format_args!("{:.2}", rectangle.color.g),
-                b = format_args!("{:.2}", rectangle.color.b),
-                a = format_args!("{:.2}", rectangle.color.a),
+                r = format_args!("{:.2}", color.r),
+                g = format_args!("{:.2}", color.g),
+                b = format_args!("{:.2}", color.b),
+                a = format_args!("{:.2}", color.a),
                 "Rectangle details"
             );
 
             // ソリッドカラーブラシ作成
-            let brush = match dc.create_solid_color_brush(&rectangle.color, None) {
+            let brush = match dc.create_solid_color_brush(&color, None) {
                 Ok(b) => b,
                 Err(err) => {
                     warn!(

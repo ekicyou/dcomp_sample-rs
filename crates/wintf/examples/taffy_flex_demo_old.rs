@@ -13,6 +13,7 @@ use wintf::ecs::layout::{
     BoxInset, BoxMargin, BoxPosition, BoxSize, BoxStyle, Dimension, LengthPercentageAuto, Opacity,
 };
 use wintf::ecs::widget::bitmap_source::BitmapSource;
+use wintf::ecs::widget::brushes::Brushes;
 use wintf::ecs::widget::shapes::Rectangle;
 use wintf::ecs::Window;
 use wintf::*;
@@ -94,14 +95,13 @@ fn main() -> Result<()> {
                 .spawn((
                     Name::new("FlexDemo-Container"), // R1.2: FlexContainerエンティティに名前を付与
                     FlexDemoContainer,               // マーカー追加
-                    Rectangle {
-                        color: D2D1_COLOR_F {
-                            r: 0.9,
-                            g: 0.9,
-                            b: 0.9,
-                            a: 1.0,
-                        }, // 灰色（背景）
-                    },
+                    Rectangle::new(),
+                    Brushes::with_foreground(D2D1_COLOR_F {
+                        r: 0.9,
+                        g: 0.9,
+                        b: 0.9,
+                        a: 1.0,
+                    }), // 灰色（背景）
                     BoxStyle {
                         flex_direction: Some(taffy::FlexDirection::Row),
                         justify_content: Some(taffy::JustifyContent::SpaceEvenly),
@@ -126,14 +126,13 @@ fn main() -> Result<()> {
                     Name::new("RedBox"), // R1.3: RedBoxエンティティに名前を付与
                     RedBox,              // マーカー追加
                     Opacity(0.5),        // 50%透明度
-                    Rectangle {
-                        color: D2D1_COLOR_F {
-                            r: 1.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 1.0,
-                        }, // 赤
-                    },
+                    Rectangle::new(),
+                    Brushes::with_foreground(D2D1_COLOR_F {
+                        r: 1.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 1.0,
+                    }), // 赤
                     BoxStyle {
                         size: Some(BoxSize {
                             width: Some(Dimension::Px(200.0)),
@@ -176,14 +175,13 @@ fn main() -> Result<()> {
                 Name::new("GreenBox"), // R1.4: GreenBoxエンティティに名前を付与
                 GreenBox,              // マーカー追加
                 Opacity(0.5),          // 50%透明度
-                Rectangle {
-                    color: D2D1_COLOR_F {
-                        r: 0.0,
-                        g: 1.0,
-                        b: 0.0,
-                        a: 1.0,
-                    }, // 緑
-                },
+                Rectangle::new(),
+                Brushes::with_foreground(D2D1_COLOR_F {
+                    r: 0.0,
+                    g: 1.0,
+                    b: 0.0,
+                    a: 1.0,
+                }), // 緑
                 BoxStyle {
                     size: Some(BoxSize {
                         width: Some(Dimension::Px(100.0)),
@@ -202,14 +200,13 @@ fn main() -> Result<()> {
                 Name::new("BlueBox"), // R1.5: BlueBoxエンティティに名前を付与
                 BlueBox,              // マーカー追加
                 Opacity(0.5),         // 50%透明度
-                Rectangle {
-                    color: D2D1_COLOR_F {
-                        r: 0.0,
-                        g: 0.0,
-                        b: 1.0,
-                        a: 1.0,
-                    }, // 青
-                },
+                Rectangle::new(),
+                Brushes::with_foreground(D2D1_COLOR_F {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 1.0,
+                    a: 1.0,
+                }), // 青
                 BoxStyle {
                     size: Some(BoxSize {
                         width: Some(Dimension::Px(100.0)),

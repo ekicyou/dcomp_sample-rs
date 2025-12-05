@@ -7,7 +7,8 @@ use std::thread;
 use std::time::Duration;
 use windows::core::Result;
 use windows::Win32::Foundation::{POINT, SIZE};
-use wintf::ecs::widget::shapes::{colors, Rectangle};
+use wintf::ecs::widget::brushes::{Brush, Brushes};
+use wintf::ecs::widget::shapes::Rectangle;
 use wintf::ecs::Window;
 use wintf::ecs::{
     GraphicsCore, SurfaceGraphics, VisualGraphics, WindowGraphics, WindowHandle, WindowPos,
@@ -50,9 +51,8 @@ fn main() -> Result<()> {
                     size: Some(SIZE { cx: 600, cy: 400 }),
                     ..Default::default()
                 },
-                Rectangle {
-                    color: colors::RED,
-                },
+                Rectangle::new(),
+                Brushes::with_foreground(Brush::RED.as_color().unwrap()),
             ));
 
             world.spawn((
@@ -65,9 +65,8 @@ fn main() -> Result<()> {
                     size: Some(SIZE { cx: 600, cy: 400 }),
                     ..Default::default()
                 },
-                Rectangle {
-                    color: colors::BLUE,
-                },
+                Rectangle::new(),
+                Brushes::with_foreground(Brush::BLUE.as_color().unwrap()),
             ));
 
             println!("[Test] Two windows spawned");
