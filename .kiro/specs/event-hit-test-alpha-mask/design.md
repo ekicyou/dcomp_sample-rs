@@ -645,7 +645,7 @@ bit_index = 7 - (bit_offset % 8)  // MSBファースト
 ### B. 座標変換アルゴリズム
 
 ```rust
-/// スクリーン座標 → マスク座標への変換
+/// スクリーン座標 → マスク座標への変換（四捨五入）
 fn screen_to_mask(
     screen_point: PhysicalPoint,
     bounds: &D2D_RECT_F,
@@ -661,8 +661,9 @@ fn screen_to_mask(
     let rel_x = (screen_point.x - bounds.left) / bounds_width;
     let rel_y = (screen_point.y - bounds.top) / bounds_height;
     
-    let mask_x = (rel_x * mask.width() as f32) as u32;
-    let mask_y = (rel_y * mask.height() as f32) as u32;
+    // 四捨五入で正確な座標変換
+    let mask_x = (rel_x * mask.width() as f32 + 0.5) as u32;
+    let mask_y = (rel_y * mask.height() as f32 + 0.5) as u32;
     
     Some((mask_x, mask_y))
 }

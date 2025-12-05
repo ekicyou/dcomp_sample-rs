@@ -192,6 +192,28 @@
   - ✅ 既存パターン（Changed検知 + スキップ条件）に準拠
 - **Follow-up**: なし
 
+### Decision: 座標変換の丸め処理
+
+- **Context**: スクリーン座標→マスク座標変換時の丸め方法
+- **Alternatives Considered**:
+  1. 切り捨て（`as u32`）
+  2. 四捨五入（`(x + 0.5) as u32` または `.round() as u32`）
+  3. floor明示（`.floor() as u32`）
+- **Selected Approach**: Option 2 - 四捨五入
+- **Rationale**: 
+  - 拡大時の境界ピクセルで正確な判定が可能
+  - 気にするユーザーへの配慮
+  - 計算コストの増加は軽微（`+ 0.5` のみ）
+- **Implementation**:
+  ```rust
+  let mask_x = (rel_x * mask.width() as f32 + 0.5) as u32;
+  let mask_y = (rel_y * mask.height() as f32 + 0.5) as u32;
+  ```
+- **Trade-offs**:
+  - ✅ より正確な座標変換
+  - ❌ わずかな計算コスト増（無視可能）
+- **Follow-up**: なし
+
 ## Risks & Mitigations
 
 | Risk | Mitigation |
