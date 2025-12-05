@@ -3,7 +3,7 @@
     "created_at": "2025-12-01T00:00:00Z",
     "updated_at": "2025-12-05T00:00:00Z",
     "language": "ja",
-    "phase": "design",
+    "phase": "design-generated",
     "parent_spec": "event-hit-test",
     "approvals": {
         "requirements": {
@@ -11,7 +11,7 @@
             "approved": true
         },
         "design": {
-            "generated": false,
+            "generated": true,
             "approved": false
         },
         "tasks": {
