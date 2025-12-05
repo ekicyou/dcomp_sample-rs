@@ -217,40 +217,35 @@ pub(super) unsafe fn WM_WINDOWPOSCHANGED(
                                     BoxInset, BoxSize, Dimension, LengthPercentageAuto, Rect,
                                 };
 
-                                // 物理ピクセルサイズ→DIPサイズに変換（新DPIを使用）
-                                let (logical_width, logical_height) =
-                                    dpi.to_logical_size(client_size.cx, client_size.cy);
-                                // 物理ピクセル位置→DIP位置に変換（新DPIを使用）
-                                let (logical_x, logical_y) =
-                                    dpi.to_logical_point(client_pos.x, client_pos.y);
+                                // Window の offset/size は物理ピクセル単位で管理
+                                // LayoutRoot は scale=1.0 なので、物理ピクセル座標系
+                                // Window 内部に入って初めて DPI スケールが適用される
+                                let physical_x = client_pos.x as f32;
+                                let physical_y = client_pos.y as f32;
+                                let physical_width = client_size.cx as f32;
+                                let physical_height = client_size.cy as f32;
 
-                                // サイズを更新（DIP単位）
+                                // サイズを更新（物理ピクセル単位）
                                 box_style.size = Some(BoxSize {
-                                    width: Some(Dimension::Px(logical_width)),
-                                    height: Some(Dimension::Px(logical_height)),
+                                    width: Some(Dimension::Px(physical_width)),
+                                    height: Some(Dimension::Px(physical_height)),
                                 });
 
-                                // 位置を更新（絶対配置のinset、DIP単位）
+                                // 位置を更新（絶対配置のinset、物理ピクセル単位）
                                 box_style.inset = Some(BoxInset(Rect {
-                                    left: LengthPercentageAuto::Px(logical_x),
-                                    top: LengthPercentageAuto::Px(logical_y),
+                                    left: LengthPercentageAuto::Px(physical_x),
+                                    top: LengthPercentageAuto::Px(physical_y),
                                     right: LengthPercentageAuto::Auto,
                                     bottom: LengthPercentageAuto::Auto,
                                 }));
 
                                 trace!(
                                     entity = ?entity,
-                                    physical_x = client_pos.x,
-                                    physical_y = client_pos.y,
-                                    physical_cx = client_size.cx,
-                                    physical_cy = client_size.cy,
-                                    logical_x = format_args!("{:.1}", logical_x),
-                                    logical_y = format_args!("{:.1}", logical_y),
-                                    logical_width = format_args!("{:.1}", logical_width),
-                                    logical_height = format_args!("{:.1}", logical_height),
-                                    scale_x = format_args!("{:.2}", dpi.scale_x()),
-                                    scale_y = format_args!("{:.2}", dpi.scale_y()),
-                                    "BoxStyle updated (DIP)"
+                                    physical_x = physical_x,
+                                    physical_y = physical_y,
+                                    physical_width = physical_width,
+                                    physical_height = physical_height,
+                                    "BoxStyle updated (physical pixels)"
                                 );
                             }
                         }

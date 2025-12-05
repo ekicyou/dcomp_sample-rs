@@ -237,3 +237,73 @@ fn test_complex_scale_hierarchy() {
     assert_eq!(level2_global.bounds.right, 65.0);
     assert_eq!(level2_global.bounds.bottom, 65.0);
 }
+
+/// LayoutRoot → Window のDPIスケール適用テスト (Task 6 検証)
+/// 
+/// LayoutRoot は物理ピクセル座標系（スケール 1.0）
+/// Window は DIP 座標で offset を指定し、自身の scale で DPI スケールを表現
+/// Window の内部に入って初めて DPI スケールが適用される
+#[test]
+fn test_layout_root_to_window_dpi_scale() {
+    // LayoutRoot: 仮想デスクトップ原点、スケール 1.0（物理ピクセル座標系）
+    let layout_root = Arrangement {
+        offset: Offset { x: 0.0, y: 0.0 },
+        scale: LayoutScale { x: 1.0, y: 1.0 },
+        size: Size {
+            width: 9999.0,
+            height: 9999.0,
+        },
+    };
+    let layout_root_global: GlobalArrangement = layout_root.into();
+
+    // LayoutRoot の bounds は原点から
+    assert_eq!(layout_root_global.bounds.left, 0.0);
+    assert_eq!(layout_root_global.bounds.top, 0.0);
+
+    // Window: offset=100 DIP, scale=1.25 (DPI 125%)
+    // Window の位置は DIP で指定されるが、LayoutRoot の scale=1.0 なので
+    // bounds.left = 100 * 1.0 = 100 となる
+    let window = Arrangement {
+        offset: Offset { x: 100.0, y: 100.0 },
+        scale: LayoutScale { x: 1.25, y: 1.25 },
+        size: Size {
+            width: 800.0,
+            height: 600.0,
+        },
+    };
+    let window_global = layout_root_global * window;
+
+    // Window の bounds:
+    // - parent(LayoutRoot).scale = 1.0
+    // - scaled_offset = (100 * 1.0, 100 * 1.0) = (100, 100)
+    // - bounds.left = 0 + 100 = 100
+    // - result_scale = 1.0 * 1.25 = 1.25
+    // - bounds.right = 100 + 800 * 1.25 = 100 + 1000 = 1100
+    assert_eq!(window_global.bounds.left, 100.0);
+    assert_eq!(window_global.bounds.top, 100.0);
+    assert_eq!(window_global.bounds.right, 1100.0);
+    assert_eq!(window_global.bounds.bottom, 850.0); // 100 + 600 * 1.25
+
+    // Window 内部の Container: offset=10 DIP
+    // Window の scale=1.25 が適用される
+    let container = Arrangement {
+        offset: Offset { x: 10.0, y: 10.0 },
+        scale: LayoutScale { x: 1.0, y: 1.0 },
+        size: Size {
+            width: 400.0,
+            height: 300.0,
+        },
+    };
+    let container_global = window_global * container;
+
+    // Container の bounds:
+    // - parent(Window).scale = 1.25 (累積)
+    // - scaled_offset = (10 * 1.25, 10 * 1.25) = (12.5, 12.5)
+    // - bounds.left = 100 + 12.5 = 112.5
+    // - result_scale = 1.25 * 1.0 = 1.25
+    // - bounds.right = 112.5 + 400 * 1.25 = 112.5 + 500 = 612.5
+    assert_eq!(container_global.bounds.left, 112.5);
+    assert_eq!(container_global.bounds.top, 112.5);
+    assert_eq!(container_global.bounds.right, 612.5);
+    assert_eq!(container_global.bounds.bottom, 487.5); // 112.5 + 300 * 1.25
+}

@@ -96,23 +96,28 @@
   - ハンドラ内で親エンティティを削除しても panic せず終了することを確認する
   - _Requirements: 5.2, 5.5_
 
-- [ ] 6. GlobalArrangement.bounds と DPI スケールの整合性修正
+- [x] 6. GlobalArrangement.bounds と DPI スケールの整合性修正
 
-- [ ] 6.1 スケール適用タイミングの設計見直し
-  - 現状: Window の bounds.left が (80, 80) になる~~（期待値: 125, 125）~~（期待値: 100, 100）
-  - LayoutRoot は物理ピクセル座標系（スケール 1.0）
-  - Window の **内部** に入って初めて DPI スケールが適用されるべき
-  - 「移動してからスケール」の考え方で bounds 計算を再設計する
+- [x] 6.1 スケール適用タイミングの設計見直し
+  - ✅ LayoutRoot は物理ピクセル座標系（スケール 1.0）
+  - ✅ Window の **内部** に入って初めて DPI スケールが適用される設計
+  - ✅ 「移動してからスケール」の考え方で bounds 計算は正しく動作
+  - ✅ Window の bounds.left = 100（期待値どおり）
 
-- [ ] 6.2 GlobalArrangement::mul の bounds 計算修正
-  - 現在の修正: `offset × parent_scale` で scaled_offset を計算
-  - 問題: Window の場合、parent(LayoutRoot).scale = 1.0 なので offset がスケールされない
-  - しかし Window 自身の scale (1.25) を適用する必要がある
-  - 解決策: `offset × child.scale` を使うか、スケール適用のセマンティクスを再検討
+- [x] 6.2 GlobalArrangement::mul の bounds 計算修正
+  - ✅ 現在の実装: `offset × parent_scale` で scaled_offset を計算
+  - ✅ Window の場合: parent(LayoutRoot).scale = 1.0、offset = 100 → bounds.left = 100
+  - ✅ Container の場合: parent(Window).scale = 1.25、offset = 10 → bounds.left = 100 + 12.5 = 112.5
 
-- [ ] 6.3 hierarchical_bounds_test.rs の期待値調整
-  - 新しいスケール適用ロジックに合わせてテスト期待値を更新
-  - 全テストが通ることを確認
+- [x] 6.3 hierarchical_bounds_test.rs の期待値調整
+  - ✅ `test_layout_root_to_window_dpi_scale` テストを追加
+  - ✅ LayoutRoot → Window → Container の階層で bounds 計算を検証
+  - ✅ 全テストが通ることを確認
+
+- [x] 6.4 WM_WINDOWPOSCHANGED での BoxStyle 更新ロジック修正
+  - ✅ 問題: 物理ピクセル → DIP 変換が二重適用されていた
+  - ✅ 修正: Window の offset/size は物理ピクセル単位で管理するため、DIP 変換を削除
+  - ✅ ファイル: `crates/wintf/src/ecs/window_proc/handlers.rs`
 
 ---
 
@@ -279,35 +284,28 @@ let result_bounds = D2DRect {
 };
 ```
 
-### 残課題 (2025-12-04 21:46)
+### ✅ 解決済み (2025-12-05)
 
-現在の状態:
-- **クリック判定は動作する**: BlueBox のクリックイベントは正しく発火
-- **Window の bounds.left が (80, 80)**: 期待値は (125, 125)
-- **テストは全て通る**: `cargo test --all-targets` パス
+**問題の解析結果**:
+- Window の bounds.left が 80 になる問題が発生していた
+- 原因: WM_WINDOWPOSCHANGED ハンドラで物理ピクセル→DIP 変換が二重適用されていた
+- 修正: `handlers.rs` の BoxStyle 更新で DIP 変換を削除（Window は物理ピクセル単位）
 
-#### 問題の核心
+**修正内容**:
+1. `crates/wintf/src/ecs/window_proc/handlers.rs`
+   - `to_logical_point` / `to_logical_size` の呼び出しを削除
+   - クライアント座標を物理ピクセルのまま BoxStyle に設定
 
-`offset × parent_scale` のロジックでは:
-- Window: `100 × 1.0 = 100` (LayoutRoot.scale = 1.0)
-- しかし実際は `100 × 1.25 = 125` になるべき
+**検証結果**:
+- Window.bounds.left = 100（期待値どおり）
+- Container.bounds.left = 112.5（100 + 10 × 1.25）
+- 全テスト成功
 
-**スケール適用のセマンティクス**:
-- LayoutRoot は物理ピクセル座標系（マルチモニター環境でモニターごとに DPI が異なる）
-- Window の **内部に入って初めて** DPI スケールが適用される
-- 「移動してからスケール」の順序で考えるべき
-
-#### 解決方針
-
-`offset × child.scale` を使うべきか？
-- Window.offset = 100 DIP × Window.scale = 1.25 → 125 物理ピクセル
-- Container.offset = 10 DIP × Container.scale = 1.0 だが、親(Window)のスケールが既に適用済み
-
-より正確には:
-- **Window**: `offset × self.scale`（DIP を物理ピクセルに変換）
-- **Window の子**: `offset × parent_scale`（親座標系で既にスケール済み）
-
-次回セッションで Task 6 を実装する際に検討。
+**現在の設計**:
+- LayoutRoot は物理ピクセル座標系（scale = 1.0）
+- Window の offset/size は物理ピクセル単位で管理
+- Window の内部（Container 等）では Window.scale が適用される
+- `offset × parent_scale` のロジックは正しく動作
 
 ### 関連ファイル
 - `crates/wintf/src/ecs/layout/arrangement.rs` - Matrix3x2 変換、GlobalArrangement::mul
