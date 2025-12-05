@@ -25,7 +25,6 @@
 - 画像読み込み時の2値マスク（ヒットマスク）自動生成
 - ピクセル座標からのヒット判定API
 - αマスクコンポーネントとキャッシュ管理
-- 閾値のカスタマイズ機能
 
 **含まれないもの**:
 - 多角形・カスタム形状によるヒットテスト（将来の仕様）
@@ -66,10 +65,8 @@
    - `data: Vec<u8>` - 1ビット/ピクセルのマスクデータ（ビットパック）
    - `width: u32` - マスクの幅（ピクセル）
    - `height: u32` - マスクの高さ（ピクセル）
-   - `threshold: u8` - ヒット判定閾値（デフォルト: 128 = 50%）
 3. The `AlphaMask` component shall `is_hit(x: u32, y: u32) -> bool` メソッドを提供する
 4. When 座標がマスク範囲外の時, the `is_hit` method shall `false` を返す
-5. The `AlphaMask` component shall `with_threshold(threshold: u8)` ビルダーメソッドを提供する
 
 #### 設計決定
 
@@ -78,9 +75,9 @@
 - メモリ効率: 1000x1000画像で約125KB（元の4MBから97%削減）
 - バイト境界: 各行は8ピクセル単位でアラインメント
 
-**閾値のデフォルト値**:
-- `threshold = 128`（50%）: α ≧ 128 の領域がヒット対象
-- 0-255の範囲で指定可能（0 = 完全透明以外すべてヒット、255 = 完全不透明のみヒット）
+**閾値の固定値（セキュリティ要件）**:
+- 閾値は **128（50%）で固定**: α ≧ 128 の領域のみヒット対象
+- カスタマイズ不可（セキュリティ上、50%未満の透明領域でのクリック捕捉を防止）
 
 ---
 
@@ -228,7 +225,7 @@ let mask_y = ((screen_y - bounds.top) / (bounds.bottom - bounds.top) * mask.heig
 | ヒットマスク | αマスクの別名、ヒットテスト用マスク |
 | ビットパック | 1ビット/ピクセルでデータを格納する方式 |
 | PBGRA32 | Pre-multiplied Blue-Green-Red-Alpha 32bit形式 |
-| 閾値 | ヒット判定の境界となるα値（デフォルト128） |
+| 閾値 | ヒット判定の境界となるα値（固定値128 = 50%） |
 
 ---
 
@@ -256,18 +253,19 @@ pub struct AlphaMask {
     width: u32,
     /// マスクの高さ（ピクセル）
     height: u32,
-    /// ヒット判定閾値（α ≧ threshold でヒット）
-    threshold: u8,
 }
+
+/// 固定閾値（セキュリティ要件: 50%未満の透明領域でのクリック捕捉を防止）
+const ALPHA_THRESHOLD: u8 = 128;
 
 impl AlphaMask {
     /// PBGRA32ピクセルデータからαマスクを生成
+    /// 閾値は128（50%）で固定
     pub fn from_pbgra32(
         pixels: &[u8],
         width: u32,
         height: u32,
         stride: u32,
-        threshold: u8,
     ) -> Self {
         // 行あたりのバイト数（8ピクセル単位に切り上げ）
         let row_bytes = (width + 7) / 8;
@@ -277,7 +275,7 @@ impl AlphaMask {
             for x in 0..width {
                 let pixel_offset = (y * stride + x * 4) as usize;
                 let alpha = pixels.get(pixel_offset + 3).copied().unwrap_or(0);
-                if alpha >= threshold {
+                if alpha >= ALPHA_THRESHOLD {
                     let bit_offset = (y * row_bytes * 8 + x) as usize;
                     let byte_index = bit_offset / 8;
                     let bit_index = 7 - (bit_offset % 8);  // MSBファースト
@@ -286,7 +284,7 @@ impl AlphaMask {
             }
         }
         
-        Self { data, width, height, threshold }
+        Self { data, width, height }
     }
     
     /// 指定座標がヒット対象かを判定
@@ -299,12 +297,6 @@ impl AlphaMask {
         let byte_index = bit_offset / 8;
         let bit_index = 7 - (bit_offset % 8);
         (self.data[byte_index] >> bit_index) & 1 == 1
-    }
-    
-    /// 閾値を指定してビルド
-    pub fn with_threshold(mut self, threshold: u8) -> Self {
-        self.threshold = threshold;
-        self
     }
 }
 ```
@@ -331,16 +323,10 @@ pub enum HitTestMode {
 use wintf::ecs::{BitmapSource, HitTest};
 
 // 透明部分をクリック透過させる画像
+// α ≧ 128（50%）の領域のみヒット対象（閾値は固定）
 commands.spawn((
     BitmapSource::new("assets/character.png"),
     HitTest::alpha_mask(),
     BoxSize::fixed(256.0, 256.0),
-));
-
-// カスタム閾値（25% = 64）で判定
-commands.spawn((
-    BitmapSource::new("assets/semi_transparent.png"),
-    HitTest::alpha_mask(),
-    AlphaMaskConfig { threshold: 64 },  // 将来の拡張
 ));
 ```
