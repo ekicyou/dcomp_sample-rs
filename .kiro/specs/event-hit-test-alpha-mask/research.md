@@ -152,6 +152,25 @@
   - ❌ 計算式に `7 -` が必要（軽微）
 - **Follow-up**: なし
 
+### Decision: WICBitmapSourceExt の配置
+
+- **Context**: `IWICBitmapSource` の `GetSize` / `CopyPixels` ラッパーをどこに配置するか
+- **Alternatives Considered**:
+  1. `com/wic.rs` に追加（既存パターンに従う）
+  2. 独立ファイル `com/wic_ext.rs` 
+  3. `ecs::widget::bitmap_source` 内にプライベート実装
+- **Selected Approach**: Option 1 - `com/wic.rs` に追加
+- **Rationale**: 
+  - `IWICBitmapSource` はWICのCOMインターフェース
+  - `GetSize()` / `CopyPixels()` は unsafe COM呼び出し
+  - 既存パターン（`WICImagingFactoryExt`, `WICBitmapDecoderExt`, `WICFormatConverterExt`）と同じ設計
+  - `com/` 階層はCOMクラスのunsafe呼び出しをラップする場所
+- **Trade-offs**:
+  - ✅ 既存設計パターンとの一貫性
+  - ✅ 他機能からも再利用可能
+  - ✅ unsafe呼び出しが `com/` に集約
+- **Follow-up**: なし
+
 ## Risks & Mitigations
 
 | Risk | Mitigation |
