@@ -122,12 +122,18 @@
 #### Acceptance Criteria
 
 1. The wintf library shall 各ウィジェット型にブラシ設定を含むインスタンス生成メソッドを提供しなければならない（例: `Rectangle::new().with_foreground(brush)`）。
-2. The colors module shall 後方互換性のため`ecs::widget::shapes::rectangle::colors`に維持されなければならない。
-3. Where 新しいBrushesベースAPIが導入される場合, the documentation shall 旧APIからのマイグレーション例を含めなければならない。
+2. The Brush type shall 基本色定数を関連定数として提供しなければならない（例: `Brush::BLACK`, `Brush::WHITE`, `Brush::TRANSPARENT`等）。
+3. The Brush/Brushes types shall `ecs::widget::brushes`モジュールに配置されなければならない。
+4. Where 新しいBrushesベースAPIが導入される場合, the documentation shall 旧APIからのマイグレーション例を含めなければならない。
 
-#### 決定事項（議題4）
+#### 決定事項（議題4, 5）
 
 **ウィジェット起点のビルダーパターン** - ユーザーの関心順序（「どのウィジェットか」→「どのブラシか」）に沿い、各ウィジェット型にブラシ設定メソッドを提供。今後ウィジェット属性が増加した際も同様のパターンで拡張可能。
+
+**モジュール配置とcolors統合（議題5）**:
+- `Brush`/`Brushes`は`ecs::widget::brushes`に配置（論理階層、GPUリソースではない）
+- `colors`モジュールは廃止し`brushes`に統合
+- 色定数は`Brush::BLACK`等の関連定数として提供
 
 ---
 
