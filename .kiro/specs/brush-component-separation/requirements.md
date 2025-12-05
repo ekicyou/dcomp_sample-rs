@@ -35,6 +35,8 @@
 
 **Brush型設計: enum（議題1で決定）** - 将来のグラデーション拡張が確定しているため、最初から`enum Brush { Solid(D2D1_COLOR_F) }`として定義。非破壊的拡張を優先。
 
+**プロパティ構成: 3プロパティ（議題2で決定）** - fillを削除しforegroundに統合。foreground/background/strokeの3プロパティ構成でAPIをシンプル化。
+
 ---
 
 ### Requirement 2: Brushesコンポーネント構造
@@ -43,7 +45,7 @@
 
 #### Acceptance Criteria
 
-1. The Brushes component shall `foreground`、`background`、`fill`、`stroke`の4つのオプショナルなブラシプロパティを含まなければならない。
+1. The Brushes component shall `foreground`、`background`、`stroke`の3つのオプショナルなブラシプロパティを含まなければならない。
 2. When ブラシプロパティがNoneである場合, the rendering system shall 透明として扱い、描画操作を行わない。
 3. The Brushes component shall 効率的な動的追加/削除のためSparseSetストレージ戦略を使用しなければならない。
 4. When Brushesコンポーネントが追加される場合, the system shall Visualコンポーネントを自動挿入してはならない（ウィジェットコンポーネント側の責務）。
@@ -52,10 +54,13 @@
 
 | プロパティ | 型 | 用途 | 対応ウィジェット例 |
 |-----------|-----|------|-------------------|
-| `foreground` | `Option<Brush>` | テキスト色、前景描画 | Label, Typewriter |
+| `foreground` | `Option<Brush>` | テキスト色、図形塗りつぶし、前景描画全般 | Label, Typewriter, Rectangle |
 | `background` | `Option<Brush>` | 背景色 | Typewriter |
-| `fill` | `Option<Brush>` | 図形塗りつぶし | Rectangle, 将来のShape |
-| `stroke` | `Option<Brush>` | 図形輪郭線 | 将来のShape |
+| `stroke` | `Option<Brush>` | 輪郭線、文字縁取り | 将来のShape、テキスト縁取り |
+
+#### 決定事項（議題2）
+
+**fillを削除しforegroundに統合** - テキスト色と図形塗りつぶしは意味的に重複するため、汎用的な「前景色」としてforegroundに統合。3プロパティ構成によりAPIをシンプル化。
 
 ---
 
@@ -67,7 +72,7 @@
 
 | ウィジェット | 現在のプロパティ | 移行先 |
 |-------------|-----------------|--------|
-| `Rectangle` | `color: Color` | `Brushes.fill` |
+| `Rectangle` | `color: Color` | `Brushes.foreground` |
 | `Label` | `color: Color` | `Brushes.foreground` |
 | `Typewriter` | `foreground: Color`, `background: Option<Color>` | `Brushes.foreground`, `Brushes.background` |
 
@@ -92,7 +97,7 @@
 
 #### Acceptance Criteria
 
-1. When Rectangleを描画する場合, the rendering system shall Brushesコンポーネントからfill色を読み取らなければならない。
+1. When Rectangleを描画する場合, the rendering system shall Brushesコンポーネントからforeground色を読み取らなければならない。
 2. When Labelを描画する場合, the rendering system shall Brushesコンポーネントからforeground色を読み取らなければならない。
 3. When Typewriterを描画する場合, the rendering system shall Brushesコンポーネントからforeground色とbackground色を読み取らなければならない。
 4. If Brushesコンポーネントが存在しない場合, the rendering system shall デフォルト色にフォールバックしなければならない。
@@ -106,7 +111,7 @@
 
 #### Acceptance Criteria
 
-1. The wintf library shall 各ウィジェットに便利なブラシ設定用ビルダーメソッドを提供しなければならない（例: `Rectangle::with_fill(color)`）。
+1. The wintf library shall 各ウィジェットに便利なブラシ設定用ビルダーメソッドを提供しなければならない（例: `Rectangle::with_foreground(color)}）。
 2. The colors module shall 後方互換性のため`ecs::widget::shapes::rectangle::colors`に維持されなければならない。
 3. Where 新しいBrushesベースAPIが導入される場合, the documentation shall 旧APIからのマイグレーション例を含めなければならない。
 
@@ -132,7 +137,7 @@
 
 1. The wintf library shall マイグレーション後、`cargo test --all-targets`がテスト失敗なく成功しなければならない。
 2. The wintf library shall Brushesコンポーネントの作成とデフォルト値に関するユニットテストを含めなければならない。
-3. The wintf library shall RectangleがBrushes.fill色で描画されることを検証する統合テストを含めなければならない。
+3. The wintf library shall RectangleがBrushes.foreground色で描画されることを検証する統合テストを含めなければならない。
 4. The wintf library shall LabelがBrushes.foreground色で描画されることを検証する統合テストを含めなければならない。
 5. The wintf library shall TypewriterがBrushes.foregroundとBrushes.background色で描画されることを検証する統合テストを含めなければならない。
 6. The wintf library shall Brushesコンポーネントが存在しない場合のフォールバック動作のテストを含めなければならない。
