@@ -29,7 +29,6 @@
 **含まれないもの**:
 - 多角形・カスタム形状によるヒットテスト（将来の仕様）
 - 名前付きヒット領域（event-hit-test-named-regions）
-- スケーリング時のマスク再計算（初期版はオリジナルサイズのみ）
 
 ### 前提条件
 
@@ -155,6 +154,19 @@ let bounds = global_arrangement.bounds;
 let mask_x = ((screen_x - bounds.left) / (bounds.right - bounds.left) * mask.width as f32) as u32;
 let mask_y = ((screen_y - bounds.top) / (bounds.bottom - bounds.top) * mask.height as f32) as u32;
 ```
+
+#### 設計決定: スケーリング対応
+
+**方針**: αマスクは元画像サイズのまま保持し、座標変換でスケーリングに対応する。
+
+**理由**:
+- マスク再生成不要でメモリ・CPU効率が良い
+- レンダリングスケールが変わってもマスクデータは再利用可能
+- 座標変換の計算コストは無視できるレベル（単純な比率計算）
+
+**動作例**:
+- 256x256 の画像を 512x512 で表示 → マスクは 256x256 のまま
+- クリック座標 (256, 256) → マスク座標 (128, 128) に変換して判定
 
 ---
 
