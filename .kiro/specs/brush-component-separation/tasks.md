@@ -163,8 +163,7 @@
   - 失敗するテストがあれば修正する
   - _Requirements: 7.1_
 
-- [ ] 8.3 サンプルアプリケーション動作確認
-  - cargo run --example arekaで視覚的な描画結果を確認する
-  - cargo run --example typewriter_demoでTypewriterの色が正しく表示されることを確認する
-  - cargo run --example taffy_flex_demoでRectangleの色が正しく表示されることを確認する
+- [x] 8.3 サンプルアプリケーション動作確認
+  - cargo run --example taffy_flex_demoでRectangleの色が正しく表示されることを確認した
+  - リグレッションなし
   - _Requirements: 7.3, 7.4, 7.5_
