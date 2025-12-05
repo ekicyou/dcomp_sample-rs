@@ -121,9 +121,13 @@
 
 #### Acceptance Criteria
 
-1. The wintf library shall 各ウィジェットに便利なブラシ設定用ビルダーメソッドを提供しなければならない（例: `Rectangle::with_foreground(color)}）。
+1. The wintf library shall 各ウィジェット型にブラシ設定を含むインスタンス生成メソッドを提供しなければならない（例: `Rectangle::new().with_foreground(brush)`）。
 2. The colors module shall 後方互換性のため`ecs::widget::shapes::rectangle::colors`に維持されなければならない。
 3. Where 新しいBrushesベースAPIが導入される場合, the documentation shall 旧APIからのマイグレーション例を含めなければならない。
+
+#### 決定事項（議題4）
+
+**ウィジェット起点のビルダーパターン** - ユーザーの関心順序（「どのウィジェットか」→「どのブラシか」）に沿い、各ウィジェット型にブラシ設定メソッドを提供。今後ウィジェット属性が増加した際も同様のパターンで拡張可能。
 
 ---
 
