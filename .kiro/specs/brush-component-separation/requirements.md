@@ -68,14 +68,15 @@
 - `Brushes::default()` = 全プロパティ`Brush::Inherit`
 - Visualコンポーネントのon_addでBrushesデフォルト値を自動挿入
 
-**ハイブリッド継承方式（議題6: C+A採用）**:
-- on_add時: `Brush::Inherit`を設定（親未確定パターンに対応）
-- 描画スケジュール直前: `resolve_inherited_brushes`システムで親を辿って解決
-- ルートまでInheritの場合のデフォルト色:
+**ハイブリッド継承方式（議題6: C+A採用、議題8: BrushInheritマーカー採用）**:
+- on_add時: `BrushInherit`マーカーコンポーネントを挿入（Brushesは挿入しない）
+- Drawスケジュール: `resolve_inherited_brushes`システムで`With<BrushInherit>`をクエリし、親を辿って解決
+- ルートまでBrushesがない場合のデフォルト色:
   - foreground → `Brush::BLACK`
   - background → `Brush::TRANSPARENT`
-- ユーザーが明示的に`Brush::Solid(...)`を設定すれば継承しない
+- ユーザーがspawn時に`Brushes`を明示指定すれば、そのInheritフィールドのみ解決
 - **静的解決**: 継承は初回描画時のみ解決し、一度確定後の親変更には追従しない（別仕様スコープ）
+- **効率性**: 解決後はBrushInheritマーカーを除去。以降はO(0)で処理対象外
 
 ---
 
@@ -96,7 +97,7 @@
 1. The Rectangle component shall マイグレーション後、色関連プロパティを一切含んではならない。
 2. The Label component shall マイグレーション後、色関連プロパティを一切含んではならない。
 3. The Typewriter component shall マイグレーション後、色関連プロパティを一切含んではならない。
-4. When Visualコンポーネントが追加される場合, the Visual on_add hook shall Brushesコンポーネント（デフォルト値: 全プロパティ`Brush::Inherit`）を自動挿入しなければならない。
+4. When Visualコンポーネントが追加される場合, the Visual on_add hook shall `BrushInherit`マーカーコンポーネントを自動挿入しなければならない（Brushesは挿入しない）。
 5. When ウィジェットに特定の色を設定する場合, the user shall Brushesコンポーネントを明示的にspawnバンドルに含めて上書きできなければならない（例: `world.spawn((Widget::new(), Brushes::with_foreground(...)));`）。
 
 ---
@@ -116,8 +117,8 @@
 1. When Rectangleを描画する場合, the rendering system shall Brushesコンポーネントからforeground色を読み取らなければならない。
 2. When Labelを描画する場合, the rendering system shall Brushesコンポーネントからforeground色を読み取らなければならない。
 3. When Typewriterを描画する場合, the rendering system shall Brushesコンポーネントからforeground色とbackground色を読み取らなければならない。
-4. The wintf library shall 描画スケジュール直前に`resolve_inherited_brushes`システムを実行し、`Brush::Inherit`を親の値で解決しなければならない。
-5. If ルートまで`Brush::Inherit`が続く場合, the resolve system shall デフォルト色（foreground=BLACK、background=TRANSPARENT）を適用しなければならない。
+4. The wintf library shall Drawスケジュール内で`resolve_inherited_brushes`システムを実行し、`BrushInherit`マーカーを持つエンティティのBrushesを解決しなければならない（bevy_ecsの順序最適化に委ねる）。
+5. If ルートまでBrushesコンポーネントがない場合, the resolve system shall デフォルト色（foreground=BLACK、background=TRANSPARENT）を適用しなければならない。
 6. The rendering system shall 効率的なダーティ検出のため`Changed<Brushes>`フィルタを使用しなければならない。
 
 ---

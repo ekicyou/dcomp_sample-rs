@@ -56,14 +56,18 @@ graph TB
         resolve[resolve_inherited_brushes]
     end
     
+    subgraph "Markers"
+        brushinherit[BrushInherit<br/>未解決マーカー]
+    end
+    
     subgraph "Schedule"
-        PreRenderSurface --> Draw
+        Draw[Draw Schedule]
     end
     
     rectangle -->|on_add| visual
     label -->|on_add| visual
     typewriter -->|on_add| visual
-    visual -->|on_add inserts| brushes
+    visual -->|on_add inserts| brushinherit
     
     resolve -->|runs in| PreRenderSurface
     draw_rect -->|reads| brushes
@@ -99,15 +103,14 @@ sequenceDiagram
     
     App->>Widget: spawn(Rectangle)
     Widget->>Visual: insert(Visual::default())
-    Visual->>Visual: insert(Brushes::default())<br/>[Inherit, Inherit]
-    
-    Note over App,Draw: --- PreRenderSurface Schedule ---
-    
-    Resolve->>Resolve: Query entities with Brush::Inherit
-    Resolve->>Resolve: Traverse parent via ChildOf
-    Resolve->>Resolve: Replace Inherit with resolved Solid
+    Visual->>Visual: insert(BrushInherit)<br/>[マーカーのみ、Brushesなし]
     
     Note over App,Draw: --- Draw Schedule ---
+    
+    Resolve->>Resolve: Query entities With<BrushInherit>
+    Resolve->>Resolve: Traverse parent via ChildOf
+    Resolve->>Resolve: Insert resolved Brushes
+    Resolve->>Resolve: Remove BrushInherit marker
     
     Draw->>Draw: Read Brushes.foreground/background
     Draw->>Draw: Apply color to rendering
@@ -117,18 +120,20 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[Entity Spawned] --> B{Has Brush::Inherit?}
-    B -->|No| C[Use explicit Brush::Solid]
-    B -->|Yes| D[First PreRenderSurface]
-    D --> E{Parent exists?}
-    E -->|Yes| F[Copy parent's Brush value]
-    E -->|No| G[Apply default<br/>foreground=BLACK<br/>background=TRANSPARENT]
-    F --> H[Replace Inherit with Solid]
-    G --> H
-    H --> I[Subsequent frames:<br/>Use resolved value]
-    I --> J{Parent changed?}
-    J -->|Yes| K[NOT updated<br/>別仕様スコープ]
-    J -->|No| I
+    A[Entity Spawned] --> B{Has Brushes component?}
+    B -->|No| C[Has BrushInherit marker]
+    B -->|Yes| D[User-specified Brushes]
+    C --> E[Draw Schedule: resolve_inherited_brushes]
+    D --> E
+    E --> F{Has BrushInherit?}
+    F -->|No| G[Already resolved, skip]
+    F -->|Yes| H{Parent has Brushes?}
+    H -->|Yes| I[Copy parent's values]
+    H -->|No| J[Apply default<br/>foreground=BLACK<br/>background=TRANSPARENT]
+    I --> K[Insert/Update Brushes]
+    J --> K
+    K --> L[Remove BrushInherit marker]
+    L --> M[Subsequent frames:<br/>No BrushInherit = O(0)]
 ```
 
 ## Requirements Traceability
@@ -229,12 +234,13 @@ impl Brush {
 - 2つのブラシプロパティ（foreground, background）を保持
 - デフォルト値は両方ともBrush::Inherit
 - SparseSetストレージ（動的追加/削除効率化）
-- Visual on_addで自動挿入される
+- **オプショナル**: Visual on_addでは挿入されない（BrushInheritマーカーのみ）
+- ユーザーがspawn時に明示指定、または resolve_inherited_brushes が自動挿入
 
 **Dependencies**
-- Inbound: Visual on_add — 自動挿入 (P0)
+- Inbound: User spawn — 明示指定 (P1)
+- Inbound: resolve_inherited_brushes — 自動挿入 (P0)
 - Inbound: Drawing systems — 色参照 (P0)
-- Inbound: resolve_inherited_brushes — Inherit解決 (P0)
 
 **Contracts**: State [x]
 
@@ -276,34 +282,42 @@ impl Brushes {
 
 | Field | Detail |
 |-------|--------|
-| Intent | Brush::Inheritを親の値で解決するシステム |
+| Intent | BrushInheritマーカーを持つエンティティのBrushes解決 |
 | Requirements | 4.4, 4.5 |
 
 **Responsibilities & Constraints**
-- PreRenderSurfaceスケジュールで実行（Draw直前）
+- Drawスケジュールで実行（bevy_ecsの順序最適化に委ねる）
+- With<BrushInherit>フィルタで未解決エンティティのみ処理（O(m)、m=未解決数）
 - ChildOfを辿って親のBrushes値を取得
-- ルートまでInheritの場合はデフォルト色を適用
-- 静的解決: 初回のみ解決、以降は解決済みの値を使用
+- ルートまでBrushesがない場合はデフォルト色を適用
+- Brushesコンポーネントがなければ新規挿入、あればInheritフィールドを解決
+- 解決後はBrushInheritマーカーを除去
 
 **Dependencies**
-- Inbound: Brushes with Inherit — 解決対象 (P0)
+- Inbound: BrushInherit marker — 処理対象判定 (P0)
 - External: ChildOf — 親エンティティ取得 (P0)
+- External: Commands — Brushes挿入/BrushInherit除去 (P0)
 
 **Contracts**: Service [x]
 
 ##### Service Interface
 
 ```rust
-/// Brush::Inheritを親の値で解決するシステム
+/// 未解決マーカー（Visual on_addで自動挿入）
+#[derive(Component, Default)]
+pub struct BrushInherit;
+
+/// BrushInheritマーカーを持つエンティティのBrushesを解決するシステム
 /// 
 /// # 処理フロー
-/// 1. Brush::Inheritを持つエンティティをクエリ
-/// 2. ChildOfを辿って親のBrushes.foreground/backgroundを取得
-/// 3. 親もInheritなら更に親を辿る
+/// 1. With<BrushInherit>でクエリ（未解決のみ）
+/// 2. Brushesがあれば Inherit フィールドのみ解決
+/// 3. Brushesがなければ親から継承して新規挿入
 /// 4. ルートに到達したらデフォルト値を適用
-/// 5. Inheritを解決済みのSolid値で置換
+/// 5. BrushInheritマーカーを除去
 fn resolve_inherited_brushes(
-    mut brushes_query: Query<(Entity, &mut Brushes)>,
+    mut commands: Commands,
+    mut query: Query<(Entity, Option<&mut Brushes>), With<BrushInherit>>,
     parent_query: Query<&ChildOf>,
     all_brushes: Query<&Brushes>,
 );
@@ -516,8 +530,12 @@ classDiagram
         +direction: TextDirection
     }
     
+    class BrushInherit {
+        <<Component, Marker>>
+    }
+    
     Brushes --> Brush : contains
-    Visual ..> Brushes : on_add inserts
+    Visual ..> BrushInherit : on_add inserts
     Rectangle ..> Visual : on_add inserts
     Label ..> Visual : on_add inserts
     Typewriter ..> Visual : on_add inserts
@@ -527,8 +545,8 @@ classDiagram
 
 ### Error Strategy
 
-- **Brush::Inherit未解決**: resolve_inherited_brushesで必ず解決。解決失敗時はデフォルト色適用
-- **Brushesコンポーネント欠落**: Visual on_addで必ず挿入されるため発生しない。万一の場合は描画スキップ
+- **BrushInherit未解決**: resolve_inherited_brushesで必ず解決。解決失敗時はデフォルト色適用
+- **Brushesコンポーネント欠落**: BrushInheritマーカーがあればresolve_inherited_brushesが自動挿入。マーカーもなければ描画スキップ
 
 ### Error Categories and Responses
 
@@ -564,9 +582,10 @@ classDiagram
 3. `widget/mod.rs`でexport
 
 ### Phase 2: Visual Hook拡張
-1. `on_visual_add`にBrushes挿入追加
-2. `resolve_inherited_brushes`システム追加
-3. PreRenderSurfaceスケジュールに登録
+1. `BrushInherit`マーカーコンポーネント追加
+2. `on_visual_add`にBrushInherit挿入追加（Brushesは挿入しない）
+3. `resolve_inherited_brushes`システム追加
+4. Drawスケジュールに登録（順序はbevy_ecsに委ねる）
 
 ### Phase 3: ウィジェット修正
 1. Rectangle: color除去、with_foreground追加
