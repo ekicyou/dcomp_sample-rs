@@ -303,8 +303,10 @@ impl Brushes {
 ##### Service Interface
 
 ```rust
-/// 未解決マーカー（Visual on_addで自動挿入）
+/// 未解決マーカー（Visual on_addで自動挿入、解決後に除去）
+/// SparseSet: 一時的マーカーに最適（挿入/削除O(1)、archetype変更なし）
 #[derive(Component, Default)]
+#[component(storage = "SparseSet")]
 pub struct BrushInherit;
 
 /// BrushInheritマーカーを持つエンティティのBrushesを解決するシステム
