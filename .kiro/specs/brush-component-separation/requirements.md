@@ -66,7 +66,7 @@
 - `Brushes::default()` = 全プロパティNone
 - Noneは常に透明として扱う
 - Brushesコンポーネントが存在しない場合、描画システムは親ウィジェットのBrushes値を継承する
-- ライフタイムイベント（on_add等）でのBrushes自動挿入は本仕様のスコープ外
+- Visualコンポーネントのon_addでBrushesデフォルト値を自動挿入（全ウィジェット共通の処理）
 - 将来拡張: `Brush`型に`Inherit`（親から継承）バリアントを追加する可能性あり
 
 ---
@@ -90,10 +90,7 @@
 3. The Typewriter component shall マイグレーション後、色関連プロパティを一切含んではならない。
 4. When ウィジェットコンポーネントが追加される場合 and Brushesコンポーネントが存在しない場合, the rendering system shall 親ウィジェットのBrushes値を継承しなければならない。
 5. When ルートウィジェットにBrushesが存在しない場合, the rendering system shall デフォルト色（foreground=黒、その他=透明）を使用しなければならない。
-
-#### スコープ外
-
-- ウィジェットのライフタイムイベント（on_add/on_remove）でのBrushes自動挿入・デフォルト値設定は本仕様のスコープ外とする
+6. When Visualコンポーネントが追加される場合, the Visual on_add hook shall Brushesコンポーネント（デフォルト値）を自動挿入しなければならない。
 
 ---
 
