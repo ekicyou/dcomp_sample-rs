@@ -21,9 +21,9 @@
 
 | Status | Count | 割合 |
 |--------|-------|------|
-| 🟢 Completed | 3 | 9% |
+| 🟢 Completed | 4 | 13% |
 | 🔵 In Progress | 1 | 3% |
-| ⚪ Not Started | 28 | 88% |
+| ⚪ Not Started | 27 | 84% |
 | **Total** | **32** | 100% |
 
 ---
@@ -97,6 +97,7 @@ graph TB
 | `event-hit-test` | 🟢 completed | ヒットテストAPI |
 | `event-hit-test-cache` | 🟢 completed | ヒットテストキャッシュ |
 | `event-mouse-basic` | 🟢 completed | マウス入力ECS統合 |
+| `event-parent-to-child-routing` | 🟢 completed | Tunnelフェーズデモ実装 |
 | `event-dispatch` | ⚪ not-started | イベントバブリング・キャプチャ |
 | `event-drag-system` | ⚪ not-started | ドラッグ＆ドロップ |
 
@@ -170,6 +171,7 @@ graph TB
 
 | Date | Update |
 |------|--------|
+| 2025-12-08 | **event-parent-to-child-routing 完了** - Tunnelフェーズデモ実装、GreenBoxChild追加、階層的キャプチャ実証 |
 | 2025-12-03 | **event-hit-test-cache 完了** - スレッドローカルキャッシュ、WM_NCHITTEST最適化、try_tick_world連動クリア |
 | 2025-12-03 | **event-mouse-basic 完了** - マウス入力ECS統合、MouseState/MouseLeave実装、hit_test統合 |
 | 2025-11-30 | **wintf-P0-image-widget 完了** - BitmapSource実装、completed/ へ移動 |
