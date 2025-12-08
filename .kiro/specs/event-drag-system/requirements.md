@@ -216,11 +216,12 @@
 
 #### Acceptance Criteria
 
-1. **The** Drag System **shall** taffy_flex_demoサンプルにウィンドウドラッグ機能を統合する
-2. **When** taffy_flex_demoのウィジェットをドラッグした時, **the** Drag System **shall** ウィンドウ全体を移動する
-3. **The** Drag System **shall** taffy_flex_demoでドラッグ可能なウィジェットを視覚的に識別可能にする
-4. **The** Drag System **shall** taffy_flex_demoでドラッグ状態をログ出力する（デバッグ用）
-5. **When** taffy_flex_demoを実行した時, **the** Drag System **shall** READMEまたはコメントでドラッグ機能の使い方を説明する
+1. **The** Drag System **shall** FlexDemoContainer（トップレベルコンテナ）をドラッグ可能にする
+2. **When** FlexDemoContainerを左ボタンでドラッグした時, **the** Drag System **shall** ウィンドウ全体を移動する
+3. **The** Drag System **shall** OnDragStart/OnDrag/OnDragEndハンドラをFlexDemoContainerに実装する
+4. **The** Drag System **shall** 各ドラッグイベントで以下をログ出力する：イベント種別、sender/entityのName、画面座標、移動量
+5. **The** Drag System **shall** ドラッグ可能であることをサンプルコード冒頭のコメントに記載する
+6. **When** FlexDemoContainerをドラッグした時, **the** Drag System **shall** 既存のTunnel/Bubbleフェーズログと区別可能な "[Drag]" プレフィックスでログ出力する
 
 ---
 
