@@ -131,7 +131,22 @@
 
 ---
 
-### Requirement 7: マルチモニター対応
+### Requirement 7: イベント配信とバブリング/トンネリング
+
+**Objective:** 開発者として、ドラッグイベントの伝播を制御したい。それにより親要素による介入や子要素による伝播停止を実装できる。
+
+#### Acceptance Criteria
+
+1. **The** Drag System **shall** 親仕様のイベントシステムのPhase enum（Tunnel/Bubble）を使用する
+2. **When** ドラッグイベントが発生した時, **the** Drag System **shall** Tunnelフェーズ（root→sender）とBubbleフェーズ（sender→root）の2フェーズで配信する
+3. **When** Tunnelフェーズでハンドラがtrueを返した時, **the** Drag System **shall** イベント伝播を停止する（Bubbleフェーズは実行しない）
+4. **When** Bubbleフェーズでハンドラがtrueを返した時, **the** Drag System **shall** それ以降の親への伝播を停止する
+5. **The** Drag System **shall** ハンドラに sender（元のヒット対象）と entity（現在処理中のエンティティ）を引数として渡す
+6. **When** 子ウィジェットがドラッグイベントを消費した時, **the** Drag System **shall** ウィンドウ移動を実行しない
+
+---
+
+### Requirement 8: マルチモニター対応
 
 **Objective:** ユーザーとして、マルチモニター環境でキャラクターを任意のモニターに移動させたい。それにより複数のディスプレイを有効活用できる。
 
@@ -145,7 +160,7 @@
 
 ---
 
-### Requirement 8: ドラッグ制約
+### Requirement 9: ドラッグ制約
 
 **Objective:** 開発者として、ドラッグ範囲を制限したい。それにより特定領域内でのみドラッグを許可する機能を実装できる。
 
@@ -159,7 +174,7 @@
 
 ---
 
-### Requirement 9: ECS統合
+### Requirement 10: ECS統合
 
 **Objective:** 開発者として、ドラッグシステムをECSアーキテクチャに統合したい。それにより既存のwintfパターンと一貫性を保てる。
 
@@ -173,7 +188,7 @@
 
 ---
 
-### Requirement 10: ドラッグ位置通知
+### Requirement 11: ドラッグ位置通知
 
 **Objective:** 開発者として、ドラッグによるウィンドウ移動の最終位置を保存したい。それによりアプリケーション再起動時に前回の位置を復元できる。
 
@@ -187,7 +202,7 @@
 
 ---
 
-### Requirement 11: taffy_flex_demo統合
+### Requirement 12: taffy_flex_demo統合
 
 **Objective:** 開発者として、taffy_flex_demoサンプルアプリケーションでドラッグ機能を実際に試したい。それにより実装の動作確認と使用例の提供ができる。
 
@@ -234,6 +249,9 @@
 | ローカル座標 | エンティティ内部の相対座標 |
 | イベントキャプチャ | ドラッグイベントを処理する要素が決定されること |
 | ウィンドウエンティティ | ウィンドウ全体を表すトップレベルエンティティ（Windowコンポーネント保持） |
+| Tunnelフェーズ | イベントが親から子へ伝播するフェーズ（root→sender、WinUI3 PreviewXxx相当） |
+| Bubbleフェーズ | イベントが子から親へ伝播するフェーズ（sender→root、WinUI3 Xxx相当） |
+| stopPropagation | ハンドラがtrueを返すことでイベント伝播を停止する動作 |
 
 ---
 
@@ -266,6 +284,29 @@ struct DragConfig {
     right_button_enabled: bool,   // 右ボタンでドラッグ可
     middle_button_enabled: bool,  // 中ボタンでドラッグ可
     drag_threshold: f32,          // ドラッグ閾値（ピクセル）
+}
+
+// イベント伝播制御の例（参考実装イメージ）
+fn on_drag_handler(
+    world: &mut World,
+    sender: Entity,      // 元のヒット対象
+    entity: Entity,      // 現在処理中のエンティティ
+    ev: &Phase<DragEvent>
+) -> bool {
+    match ev {
+        Phase::Tunnel(drag_event) => {
+            // 親が子のドラッグを事前に介入
+            if should_prevent_child_drag(world, entity) {
+                return true; // stopPropagation
+            }
+            false
+        }
+        Phase::Bubble(drag_event) => {
+            // 通常のドラッグ処理
+            handle_drag(world, entity, drag_event);
+            true // イベント消費、ウィンドウ移動させない
+        }
+    }
 }
 ```
 
