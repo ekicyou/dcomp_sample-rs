@@ -1,9 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-//! # Taffy Flexbox Demo - Tunnel/Bubbleフェーズのイベント伝播デモ
+//! # Taffy Flexbox Demo - Tunnel/Bubbleフェーズのイベント伝播デモ + ドラッグ移動
 //!
 //! このサンプルは、wintfフレームワークのポインターイベントシステムにおける
 //! Tunnel（親→子）とBubble（子→親）の2フェーズイベント伝播を実演します。
+//! また、ウィンドウドラッグ移動機能も実装されています。
 //!
 //! ## イベントフェーズの概念
 //!
@@ -24,15 +25,19 @@
 //!
 //! ## デモの操作例
 //!
-//! 1. **GreenBoxChild（黄色矩形）を左クリック**
+//! 1. **FlexDemo-Container（灰色背景）を左クリック＆ドラッグ**
+//!    - 期待: ウィンドウがドラッグ移動する
+//!    - ログ: `[Drag] DragStart/Drag/DragEnd` が出力される
+//!
+//! 2. **GreenBoxChild（黄色矩形）を左クリック**
 //!    - 期待: `[Tunnel] GreenBox: Captured event` のみ出力
 //!    - GreenBoxChildのログは出ない（親がTunnelでキャプチャ）
 //!
-//! 2. **GreenBoxChild（黄色矩形）を右クリック**
+//! 3. **GreenBoxChild（黄色矩形）を右クリック**
 //!    - 期待: `[Tunnel] GreenBox` → `[Tunnel] GreenBoxChild` → `[Bubble] GreenBoxChild`
 //!    - 両エンティティがログ出力（親がキャプチャしない）
 //!
-//! 3. **Ctrl+左クリックでRedBox**
+//! 4. **Ctrl+左クリックでRedBox**
 //!    - 期待: `[Tunnel] FlexContainer: Event stopped` のみ出力
 //!    - RedBoxのログは出ない（Containerで停止）
 //!
@@ -72,6 +77,7 @@ use wintf::ecs::layout::{
     BoxInset, BoxMargin, BoxPosition, BoxSize, BoxStyle, Dimension, LengthPercentageAuto, Opacity,
 };
 use wintf::ecs::pointer::{OnPointerMoved, OnPointerPressed, Phase, PointerState};
+use wintf::ecs::drag::{OnDragStart, OnDrag, OnDragEnd, DragConfig, DragStartEvent, DragEvent, DragEndEvent};
 use wintf::ecs::widget::bitmap_source::{BitmapSource, CommandSender};
 use wintf::ecs::widget::brushes::Brushes;
 use wintf::ecs::widget::shapes::Rectangle;
@@ -218,6 +224,11 @@ fn create_flexbox_window(world: &mut World) {
             },
             // イベントハンドラ: 右クリックで色変更
             OnPointerPressed(on_container_pressed),
+            // ドラッグハンドラ: ウィンドウドラッグ移動
+            DragConfig::default(),
+            OnDragStart(on_container_drag_start),
+            OnDrag(on_container_drag),
+            OnDragEnd(on_container_drag_end),
             ChildOf(window_entity),
         ))
         .id();
@@ -799,6 +810,93 @@ fn on_container_pressed(
                 return true; // イベント処理済み
             }
 
+            false
+        }
+    }
+}
+
+/// FlexContainer の OnDragStart ハンドラ
+fn on_container_drag_start(
+    world: &mut World,
+    sender: Entity,
+    entity: Entity,
+    ev: &wintf::ecs::pointer::Phase<DragStartEvent>,
+) -> bool {
+    match ev {
+        wintf::ecs::pointer::Phase::Tunnel(_) => false,
+        wintf::ecs::pointer::Phase::Bubble(event) => {
+            let sender_name = world
+                .get::<Name>(sender)
+                .map(|n| n.as_str())
+                .unwrap_or("unknown");
+            let entity_name = world
+                .get::<Name>(entity)
+                .map(|n| n.as_str())
+                .unwrap_or("unknown");
+            
+            info!(
+                "[Drag] DragStart: sender={}, entity={}, pos=({},{})",
+                sender_name, entity_name, event.position.x, event.position.y
+            );
+            false
+        }
+    }
+}
+
+/// FlexContainer の OnDrag ハンドラ
+fn on_container_drag(
+    world: &mut World,
+    sender: Entity,
+    entity: Entity,
+    ev: &wintf::ecs::pointer::Phase<DragEvent>,
+) -> bool {
+    match ev {
+        wintf::ecs::pointer::Phase::Tunnel(_) => false,
+        wintf::ecs::pointer::Phase::Bubble(event) => {
+            let sender_name = world
+                .get::<Name>(sender)
+                .map(|n| n.as_str())
+                .unwrap_or("unknown");
+            let entity_name = world
+                .get::<Name>(entity)
+                .map(|n| n.as_str())
+                .unwrap_or("unknown");
+            
+            info!(
+                "[Drag] Drag: sender={}, entity={}, delta=({},{}), pos=({},{})",
+                sender_name, entity_name, 
+                event.delta.x, event.delta.y,
+                event.position.x, event.position.y
+            );
+            false
+        }
+    }
+}
+
+/// FlexContainer の OnDragEnd ハンドラ
+fn on_container_drag_end(
+    world: &mut World,
+    sender: Entity,
+    entity: Entity,
+    ev: &wintf::ecs::pointer::Phase<DragEndEvent>,
+) -> bool {
+    match ev {
+        wintf::ecs::pointer::Phase::Tunnel(_) => false,
+        wintf::ecs::pointer::Phase::Bubble(event) => {
+            let sender_name = world
+                .get::<Name>(sender)
+                .map(|n| n.as_str())
+                .unwrap_or("unknown");
+            let entity_name = world
+                .get::<Name>(entity)
+                .map(|n| n.as_str())
+                .unwrap_or("unknown");
+            
+            info!(
+                "[Drag] DragEnd: sender={}, entity={}, pos=({},{}), cancelled={}",
+                sender_name, entity_name, 
+                event.position.x, event.position.y, event.cancelled
+            );
             false
         }
     }
