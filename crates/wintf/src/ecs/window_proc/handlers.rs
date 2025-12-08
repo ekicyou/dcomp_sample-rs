@@ -538,15 +538,38 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                     (x, y)
                 };
                 
-                // ドラッグ閾値チェック
+                // DraggingState管理
                 if let Some(drag_config) = world_borrow.world().get::<crate::ecs::drag::DragConfig>(target_entity) {
                     if drag_config.enabled {
                         let current_pos = crate::ecs::pointer::PhysicalPoint::new(screen_x, screen_y);
-                        if crate::ecs::drag::check_threshold(current_pos, drag_config.threshold) {
-                            crate::ecs::drag::start_dragging(current_pos);
-                        } else {
-                            // Dragging状態の場合は位置更新
-                            crate::ecs::drag::update_dragging(current_pos);
+                        
+                        // 既にDraggingStateがあれば何もしない（ECS側で管理）
+                        // なければthread_local DragStateで閾値チェック
+                        let has_dragging_state = world_borrow.world().get::<crate::ecs::drag::DraggingState>(target_entity).is_some();
+                        
+                        if !has_dragging_state {
+                            // 閾値チェック（Preparing → JustStarted遷移）
+                            if crate::ecs::drag::check_threshold(current_pos, drag_config.threshold) {
+                                crate::ecs::drag::start_dragging(current_pos);
+                                
+                                // DraggingStateコンポーネント挿入
+                                if let Ok(mut entity_mut) = world_borrow.world_mut().get_entity_mut(target_entity) {
+                                    entity_mut.insert(crate::ecs::drag::DraggingState {
+                                        drag_start_pos: current_pos,
+                                        prev_frame_pos: current_pos,
+                                    });
+                                    
+                                    tracing::info!(
+                                        entity = ?target_entity,
+                                        x = current_pos.x,
+                                        y = current_pos.y,
+                                        "[WM_MOUSEMOVE] DraggingState inserted"
+                                    );
+                                }
+                            } else {
+                                // Preparing状態継続（位置更新のみ）
+                                crate::ecs::drag::update_dragging(current_pos);
+                            }
                         }
                     }
                 }
