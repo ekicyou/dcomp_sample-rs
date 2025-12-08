@@ -11,6 +11,8 @@
 use tracing::{debug, info, trace, warn};
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
+// Note: SetCapture/ReleaseCapture might require additional features or might not be exposed
+// For MVP, we'll implement drag without explicit capture (Windows provides implicit capture during drag)
 
 /// メッセージハンドラの戻り値型
 /// - Some(LRESULT): 処理完了、この値を返す
@@ -524,6 +526,31 @@ pub(super) unsafe fn WM_MOUSEMOVE(
 
             // ヒットしたエンティティが存在する場合
             if let Some(target_entity) = hit_entity {
+                // WindowPosを取得してスクリーン座標を計算
+                let window_pos = world_borrow.world().get::<crate::ecs::window::WindowPos>(window_entity);
+                let (screen_x, screen_y) = if let Some(wp) = window_pos {
+                    if let Some(pos) = wp.position {
+                        (x + pos.x, y + pos.y)
+                    } else {
+                        (x, y)
+                    }
+                } else {
+                    (x, y)
+                };
+                
+                // ドラッグ閾値チェック
+                if let Some(drag_config) = world_borrow.world().get::<crate::ecs::drag::DragConfig>(target_entity) {
+                    if drag_config.enabled {
+                        let current_pos = crate::ecs::pointer::PhysicalPoint::new(screen_x, screen_y);
+                        if crate::ecs::drag::check_threshold(current_pos, drag_config.threshold) {
+                            crate::ecs::drag::start_dragging(current_pos);
+                        } else {
+                            // Dragging状態の場合は位置更新
+                            crate::ecs::drag::update_dragging(current_pos);
+                        }
+                    }
+                }
+                
                 // バッファに蓄積
                 push_pointer_sample(target_entity, x as f32, y as f32, Instant::now());
                 set_modifier_state(target_entity, shift, ctrl);
@@ -734,8 +761,32 @@ unsafe fn handle_button_message(
                 // ボタン状態をバッファに記録
                 if is_down {
                     crate::ecs::pointer::record_button_down(target_entity, button);
+                    
+                    // ドラッグ準備開始（DragConfigがあり、有効な場合）
+                    if button == crate::ecs::pointer::PointerButton::Left {
+                        if let Some(drag_config) = world_borrow.world().get::<crate::ecs::drag::DragConfig>(target_entity) {
+                            if drag_config.enabled && drag_config.left_button {
+                                crate::ecs::drag::start_preparing(
+                                    target_entity,
+                                    PhysicalPoint::new(screen_x, screen_y),
+                                );
+                                // TODO: SetCapture for proper mouse capture (not available in current windows crate version)
+                                // let _ = unsafe { SetCapture(hwnd) };
+                            }
+                        }
+                    }
                 } else {
                     crate::ecs::pointer::record_button_up(target_entity, button);
+                    
+                    // ドラッグ終了
+                    if button == crate::ecs::pointer::PointerButton::Left {
+                        crate::ecs::drag::end_dragging(
+                            PhysicalPoint::new(screen_x, screen_y),
+                            false,
+                        );
+                        // TODO: ReleaseCapture (not available in current windows crate version)
+                        // let _ = unsafe { ReleaseCapture() };
+                    }
                 }
 
                 return Some(LRESULT(0));
@@ -953,4 +1004,43 @@ pub(super) unsafe fn WM_MOUSEHWHEEL(
     crate::ecs::pointer::add_wheel_horizontal(entity, delta);
 
     Some(LRESULT(0))
+}
+
+/// WM_KEYDOWN: キー押下
+#[inline]
+pub(super) unsafe fn WM_KEYDOWN(
+    _hwnd: HWND,
+    _message: u32,
+    wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_ESCAPE;
+    
+    // ESCキーでドラッグキャンセル
+    if wparam.0 == VK_ESCAPE.0 as usize {
+        crate::ecs::drag::cancel_dragging();
+        // ReleaseCapture
+        // TODO: ReleaseCapture (not available in current windows crate version)
+        // let _ = unsafe { ReleaseCapture() };
+        
+        tracing::debug!("[WM_KEYDOWN] ESC key pressed, drag cancelled");
+    }
+    
+    None // DefWindowProcWに委譲
+}
+
+/// WM_CANCELMODE: システムキャンセル
+#[inline]
+pub(super) unsafe fn WM_CANCELMODE(
+    _hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    // ドラッグキャンセル
+    crate::ecs::drag::cancel_dragging();
+    
+    tracing::debug!("[WM_CANCELMODE] System cancel, drag cancelled");
+    
+    None // DefWindowProcWに委譲（ReleaseCapture自動実行）
 }

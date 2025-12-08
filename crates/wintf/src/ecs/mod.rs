@@ -1,5 +1,6 @@
 mod app;
 pub mod common;
+pub mod drag;
 mod graphics;
 pub mod layout;
 pub mod monitor;
@@ -21,6 +22,11 @@ pub mod mouse {
 pub use app::*;
 pub use bevy_ecs::hierarchy::{ChildOf, Children};
 pub use common::tree_system::*;
+pub use drag::{
+    apply_window_drag_movement, cleanup_drag_state, dispatch_drag_events, 
+    DragConfig, DragConstraint, DragEndEvent, DragEvent, DragStartEvent, 
+    DraggingMarker, OnDrag, OnDragEnd, OnDragStart,
+};
 pub use graphics::calculate_surface_size_from_global_arrangement;
 pub use graphics::FrameTime;
 pub use graphics::*;

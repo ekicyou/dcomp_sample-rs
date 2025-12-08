@@ -67,6 +67,8 @@ pub(crate) extern "system" fn ecs_wndproc(
             WM_XBUTTONDBLCLK => handlers::WM_XBUTTONDBLCLK(hwnd, message, wparam, lparam),
             WM_MOUSEWHEEL => handlers::WM_MOUSEWHEEL(hwnd, message, wparam, lparam),
             WM_MOUSEHWHEEL => handlers::WM_MOUSEHWHEEL(hwnd, message, wparam, lparam),
+            WM_KEYDOWN => handlers::WM_KEYDOWN(hwnd, message, wparam, lparam),
+            WM_CANCELMODE => handlers::WM_CANCELMODE(hwnd, message, wparam, lparam),
             _ => None,
         }
     };

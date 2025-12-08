@@ -1,6 +1,7 @@
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::*;
 use bevy_ecs::system::*;
+use bevy_ecs::message::Messages;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
@@ -211,6 +212,11 @@ impl EcsWorld {
         // LayoutRootとMonitor階層を初期化（Window spawnより前に必要）
         crate::ecs::layout::initialize_layout_root(&mut world);
 
+        // イベントの登録
+        world.init_resource::<Messages<crate::ecs::drag::DragStartEvent>>();
+        world.init_resource::<Messages<crate::ecs::drag::DragEvent>>();
+        world.init_resource::<Messages<crate::ecs::drag::DragEndEvent>>();
+
         // スケジュールの登録
         {
             world.init_resource::<Schedules>();
@@ -261,6 +267,27 @@ impl EcsWorld {
                 Input,
                 crate::ecs::pointer::process_pointer_buffers
                     .after(crate::ecs::pointer::dispatch_pointer_events),
+            );
+
+            // Inputスケジュール: ドラッグイベントディスパッチ（process_pointer_buffersの後）
+            schedules.add_systems(
+                Input,
+                crate::ecs::drag::dispatch_drag_events
+                    .after(crate::ecs::pointer::process_pointer_buffers),
+            );
+
+            // Inputスケジュール: ウィンドウドラッグ移動適用（dispatch_drag_eventsの後）
+            schedules.add_systems(
+                Input,
+                crate::ecs::drag::apply_window_drag_movement
+                    .after(crate::ecs::drag::dispatch_drag_events),
+            );
+
+            // Inputスケジュール: ドラッグ状態クリーンアップ（apply_window_drag_movementの後）
+            schedules.add_systems(
+                Input,
+                crate::ecs::drag::cleanup_drag_state
+                    .after(crate::ecs::drag::apply_window_drag_movement),
             );
 
             // Inputスケジュール: ポインターデバッグ監視（デバッグビルドのみ）
