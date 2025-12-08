@@ -217,6 +217,7 @@ sequenceDiagram
 | on_green_box_pressed | Examples / Handler | GreenBoxのTunnel/Bubbleハンドラ、左クリックキャプチャ | 3.3, 3.4 | Brushes (P0), PointerState (P0) | Service |
 | on_green_child_pressed | Examples / Handler | GreenBoxChildのTunnel/Bubbleハンドラ、到達確認用 | 3.6, 3.7 | Brushes (P0), PointerState (P0) | Service |
 | on_container_pressed | Examples / Handler | ContainerのTunnel拡張、Ctrl+クリックキャプチャ | 2.1, 2.2, 2.3 | Brushes (P0), PointerState (P0) | Service |
+| on_green_box_moved | Examples / Handler | GreenBoxのPointerMovedハンドラ（既存、変更なし） | - | PointerState (P0) | Service |
 
 ### Examples Layer / UI Entities
 
@@ -311,9 +312,9 @@ fn on_green_box_pressed(
 - `entity == GreenBox entity`（このハンドラはGreenBoxに登録）
 
 **実装ノート**:
-- **統合**: GreenBoxエンティティ生成時に`OnPointerPressed(on_green_box_pressed)`を追加
+- **統合**: GreenBoxエンティティ生成時に`OnPointerPressed(on_green_box_pressed)`を追加（既存の`OnPointerMoved`と共存）
 - **検証**: 左クリック時に`[Tunnel] GreenBox: Captured event`ログが出力され、GreenBoxChildのログが出ないこと
-- **リスク**: `OnPointerMoved`との競合（軽減策: `OnPointerMoved`は削除または条件分岐追加）
+- **OnPointerMovedとの共存**: `OnPointerMoved`は現状維持（Bubbleのみ処理）。両イベントタイプが登録されている状態で、`OnPointerPressed`のTunnelキャプチャが`OnPointerMoved`に影響しないことを確認可能
 
 #### on_green_child_pressed
 
@@ -474,15 +475,19 @@ Window
    - 操作: GreenBoxChild（黄色矩形）を右クリック
    - 期待: `[Tunnel] GreenBox` → `[Tunnel] GreenBoxChild` → `[Bubble] GreenBoxChild`の順でログ出力、GreenBoxChildがオレンジに変更
 
-3. **Container Ctrl+クリック確認**:
+3. **OnPointerMoved共存確認**:
+   - 操作: GreenBoxChild上でマウス移動
+   - 期待: `[Bubble] GreenBox: Pointer moved`ログが出力される（OnPointerMovedは既存のまま、Tunnel非対応でも正常動作）
+
+4. **Container Ctrl+クリック確認**:
    - 操作: Ctrlキーを押しながらRedBoxを左クリック
    - 期待: `[Tunnel] FlexContainer: Event stopped`ログが出力、RedBoxのログは出ない
 
-4. **PointerState情報確認**:
+5. **PointerState情報確認**:
    - 操作: 各ボックスをクリック
    - 期待: ログに`sender`, `entity`, `screen_point`, `local_point`, `left_down`, `right_down`, `ctrl_down`が記録される
 
-5. **実行順序確認**:
+6. **実行順序確認**:
    - 操作: BlueBoxを左クリック
    - 期待: `[Tunnel] Container → [Tunnel] BlueBox → [Bubble] BlueBox → [Bubble] Container`の順でログ出力
 
