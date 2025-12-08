@@ -654,6 +654,38 @@ pub fn cleanup_drag_state(
 
 **実行タイミング**: DragEndEvent受信後
 
+#### WM_CANCELMODE（window_proc統合）
+**目的**: システムキャンセル（Alt+Tab等）時のドラッグ強制終了
+
+**実装場所**: `crates/wintf/src/ecs/window_proc/handlers.rs`
+
+**関数シグネチャ**:
+```rust
+#[inline]
+pub(super) unsafe fn WM_CANCELMODE(
+    hwnd: HWND,
+    _message: u32,
+    _wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    // アクティブなドラッグを強制キャンセル
+    drag::cancel_active_drag();
+    None // DefWindowProcWに委譲
+}
+```
+
+**命名規則**: handlers.rsの関数は全てWin32メッセージ定数と同名（デバッグ容易性のため）
+
+**処理フロー**:
+1. WM_CANCELMODEメッセージ受信
+2. `drag::cancel_active_drag()`呼び出し
+3. DragState::Cancelled遷移
+4. ReleaseCapture()実行
+5. DragEndEvent（cancelled=true）発火
+6. cleanup_drag_state()でDraggingMarker削除
+
+**要件対応**: Requirement 5 AC 3、Requirement 6（システムキャンセル）、research.md「Win32 API マウスキャプチャ」
+
 ## データモデル
 
 ### 状態管理
