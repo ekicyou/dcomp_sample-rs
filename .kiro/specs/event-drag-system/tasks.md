@@ -29,6 +29,11 @@
 3. **ログと実際の動作の乖離**：
    - `dx=1`でログ上は1px増加
    - 実際には約1.25px増加している
+4. **🔑 重要なヒント：1.25という数字の意味**：
+   - **最初のDPIスケールが1.25倍だった**
+   - **この値が更新されずに使われ続けている可能性が高い**
+   - モニタを2.0倍スケールに移動しても1.25倍速 → スケール値が古いまま
+   - プログラム起動時のDPIスケール（1.25倍）が固定されている？
 
 #### 調査済み事項
 1. ✅ DPI変換の追加・削除を試行
@@ -52,40 +57,51 @@
   - `apply_window_pos_changes`での`SetWindowPos`呼び出し時の座標系
 
 #### 次回の調査手順
-1. **マウス座標の生値を確認**
+1. **🔍 最優先：初回DPIスケール値（1.25）が固定化されている変数を探す**
+   - `apply_window_drag_movement`で使用される可能性のある変数
+   - ウィンドウ作成時に初期化され、その後更新されない変数
+   - `BoxStyle.inset`から`SetWindowPos`への変換処理で使われる係数
+   - `apply_window_pos_changes`システム内の固定DPI係数
+2. **マウス座標の生値を確認**
    ```rust
    // WM_MOUSEMOVEハンドラで
    let x_raw = (lparam.0 & 0xFFFF) as i16 as i32;
    tracing::info!("RAW mouse x={}, screen_x={}", x_raw, screen_x);
    ```
-2. **WindowPosの生値を確認**
+3. **WindowPosの生値を確認**
    ```rust
    // WM_WINDOWPOSCHANGEDで
    tracing::info!("WINDOWPOS: x={}, y={} (window coords)", wp.x, wp.y);
    ```
-3. **DPIスケールの確認**
+4. **DPIスケールの確認**
    ```rust
    // GlobalArrangementから
    let dpi_scale = ga.scale_x();
    tracing::info!("DPI scale={}", dpi_scale);
    ```
-4. **ウィンドウ座標変換の確認**
+5. **ウィンドウ座標変換の確認**
    - `WindowHandle::window_to_client_coords`の実装を確認
    - 座標変換時にDPIスケールが適用されているか確認
+6. **`apply_window_pos_changes`システムを確認**
+   - `BoxStyle.inset`から`WindowPos`への変換処理
+   - ここで初回DPIスケール（1.25）が固定使用されている可能性が高い
 
 #### 疑わしいポイント
-1. **固定の1.25倍係数が別の場所で適用されている**
-   - DPIスケールとは無関係に1.25倍される処理が存在する？
-   - 既存のレイアウトシステムやウィンドウ位置計算で固定係数？
+1. **🔥 最有力：初回DPIスケール（1.25）が固定化されている変数**
+   - ウィンドウ作成時に1.25倍スケールで初期化
+   - その後、モニタ移動してもこの値が更新されない
+   - `apply_window_pos_changes`システムで使われている？
+   - `BoxStyle.inset` → `WindowPos` 変換時の係数？
 2. **`BoxStyle.inset`への書き込みと実際のSetWindowPos間の変換**
    - `apply_window_pos_changes`でのinset→WindowPos変換
-   - ここで1.25倍の変換が入っている可能性
+   - ここで初回DPIスケール（1.25）が固定使用されている可能性
 3. **ログに出ている`client_x`が実は別の座標系**
    - `WindowPos.position`が既に変換済みの座標？
    - 実際のウィンドウ位置とは異なる値？
 4. **既存のウィンドウ移動処理との重複適用**
    - `BoxStyle.inset`更新とWindowPos更新の両方が動いている？
    - 2つの更新が重なって1.25倍になっている？
+   - ただし、これだと2.0倍環境でも1.25倍になる説明がつかない
 
 ### 以前の問題（解決済み）
 - ~~thread_local DragStateがwndprocスレッドとECSスレッドで共有されない問題~~
