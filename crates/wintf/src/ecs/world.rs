@@ -212,6 +212,9 @@ impl EcsWorld {
         // LayoutRootとMonitor階層を初期化（Window spawnより前に必要）
         crate::ecs::layout::initialize_layout_root(&mut world);
 
+        // ドラッグ累積器の登録
+        world.insert_resource(crate::ecs::drag::DragAccumulatorResource::new());
+
         // イベントの登録
         world.init_resource::<Messages<crate::ecs::drag::DragStartEvent>>();
         world.init_resource::<Messages<crate::ecs::drag::DragEvent>>();

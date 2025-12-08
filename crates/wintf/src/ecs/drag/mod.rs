@@ -7,6 +7,7 @@
 mod state;
 mod dispatch;
 mod systems;
+mod accumulator;
 
 pub use state::{DragState, update_drag_state, read_drag_state, reset_to_idle, 
                 start_preparing, start_dragging, update_dragging, end_dragging, 
@@ -18,6 +19,7 @@ pub use dispatch::{
 pub use systems::{
     apply_window_drag_movement, cleanup_drag_state,
 };
+pub use accumulator::{DragAccumulator, DragAccumulatorResource, DragTransition, FlushResult};
 
 use bevy_ecs::prelude::*;
 use crate::ecs::pointer::PhysicalPoint;

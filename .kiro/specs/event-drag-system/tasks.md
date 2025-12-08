@@ -47,13 +47,14 @@
 ### Phase 2: ドラッグ累積器とスレッド間転送
 
 - [ ] 2. ドラッグ累積器の実装とスレッド間データ転送
-- [ ] 2.1 DragAccumulatorとDragAccumulatorResource定義
+- [x] 2.1 DragAccumulatorとDragAccumulatorResource定義
   - DragAccumulator構造体（accumulated_delta, pending_transition）を定義
   - DragTransition enum（Started/Ended）を定義
   - DragAccumulatorResource（Arc<Mutex<DragAccumulator>>）をECSリソースとして定義
   - accumulate_delta(), set_transition(), flush()メソッドを実装
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 13.1, 13.2_
   - **FILE: crates/wintf/src/ecs/drag/accumulator.rs (新規作成)**
+  - **STATUS: 完了**
 
 - [ ] 2.2 DragStateとPhysicalPoint定義（thread_local専用）
   - DragState enum（Idle/Preparing/Dragging）をthread_local! + RefCellで実装
