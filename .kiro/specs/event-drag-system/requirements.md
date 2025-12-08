@@ -1,25 +1,264 @@
 # Requirements Document
 
-## Project Description (Input)
-wintf-P0-event-system の孫仕様：ドラッグシステム
+| 項目 | 内容 |
+|------|------|
+| **Document Title** | event-drag-system 要件定義書 |
+| **Version** | 0.1 (Draft) |
+| **Date** | 2025-12-08 |
+| **Parent Spec** | wintf-P0-event-system |
+| **Author** | AI-DLC System |
 
-親仕様の Requirement 5（ドラッグイベント）と Requirement 6（ウィンドウドラッグ移動）を実装する。
-エンティティのドラッグ操作とウィンドウ全体の移動機能を提供する。
+---
 
-### 対応する親仕様の要件
+## Introduction
+
+本仕様書は wintf フレームワークにおけるドラッグシステムの要件を定義する。親仕様「wintf-P0-event-system」の Requirement 5（ドラッグイベント）および Requirement 6（ウィンドウドラッグ移動）の実装を担当し、エンティティのドラッグ操作とウィンドウ全体の移動機能を提供する。
+
+### 背景
+
+デスクトップマスコットアプリケーションでは、キャラクターをドラッグして自由に配置する操作が必須機能である。本仕様は、マウスボタンが押下されてから移動、そして解放されるまでの一連のドラッグ操作を管理し、エンティティレベルのドラッグイベントとウィンドウレベルの位置更新を統合的に提供する。
+
+### スコープ
+
+**含まれるもの**:
+- ドラッグイベント（DragStart, Drag, DragEnd）の発火と管理
+- ドラッグ閾値に基づくドラッグ開始判定
+- ドラッグ中の位置情報追跡（開始位置、現在位置、差分）
+- ドラッグキャンセル機能（Escキー等）
+- ウィンドウドラッグによるリアルタイム位置更新
+- マルチモニター環境でのウィンドウ移動サポート
+- ドラッグ可能性の制御機能（有効/無効切り替え）
+
+**含まれないもの**:
+- ドロップターゲット検出（Drag & Drop機能は将来拡張）
+- ドラッグプレビュー表示（カーソル形状変更等）
+- ドラッグによるエンティティの親子関係変更
+- タッチデバイスのドラッグジェスチャー
+
+### 親仕様からの要件マッピング
+
+本仕様は以下の親要件に対応する：
 - **Requirement 5**: ドラッグイベント
 - **Requirement 6**: ウィンドウドラッグ移動
 
-### 親仕様からのAcceptance Criteria
-- DragStart/Drag/DragEnd イベント
-- ドラッグ開始位置と現在位置の差分
-- ドラッグ対象エンティティ識別
-- ドラッグ閾値（例: 5ピクセル）によるDragStart発火
-- ドラッグキャンセル（Escキー等）
-- ウィンドウ位置のリアルタイム更新
-- マルチモニター環境サポート
-- ウィンドウ移動の有効/無効切り替え
-- ドラッグ終了時の最終位置通知
+---
 
 ## Requirements
-<!-- Will be generated in /kiro-spec-requirements phase -->
+
+### Requirement 1: ドラッグ状態管理
+
+**Objective:** 開発者として、エンティティのドラッグ状態を追跡したい。それによりドラッグ中の処理やキャンセル処理を適切に実装できる。
+
+#### Acceptance Criteria
+
+1. **The** Drag System **shall** エンティティごとのドラッグ状態（非ドラッグ、ドラッグ準備、ドラッグ中）を管理する
+2. **When** マウスボタンが押下された時, **the** Drag System **shall** ドラッグ準備状態に遷移する
+3. **When** ドラッグ準備状態でマウスが移動し閾値を超えた時, **the** Drag System **shall** ドラッグ中状態に遷移する
+4. **When** マウスボタンが解放された時, **the** Drag System **shall** 非ドラッグ状態に遷移する
+5. **The** Drag System **shall** 現在ドラッグ中のエンティティを一意に識別できる
+
+---
+
+### Requirement 2: ドラッグ開始イベント
+
+**Objective:** 開発者として、ドラッグ操作の開始を検知したい。それによりドラッグ開始時の初期化処理を実装できる。
+
+#### Acceptance Criteria
+
+1. **When** マウスボタンが押下されてから閾値（デフォルト5ピクセル）を超えて移動した時, **the** Drag System **shall** DragStart イベントを発火する
+2. **The** Drag System **shall** ドラッグ開始位置（画面座標・ローカル座標）をイベント情報に含める
+3. **The** Drag System **shall** ドラッグ対象エンティティの識別子をイベント情報に含める
+4. **The** Drag System **shall** ドラッグ閾値をエンティティごとに設定可能にする
+5. **When** ドラッグ閾値が0に設定された場合, **the** Drag System **shall** マウスボタン押下直後にDragStartを発火する
+
+---
+
+### Requirement 3: ドラッグ中イベント
+
+**Objective:** 開発者として、ドラッグ中のマウス移動を追跡したい。それによりリアルタイムなドラッグフィードバックを実装できる。
+
+#### Acceptance Criteria
+
+1. **While** ドラッグ中状態である間, **the** Drag System **shall** マウス移動時に Drag イベントを継続的に発火する
+2. **The** Drag System **shall** 現在のマウス位置（画面座標・ローカル座標）をイベント情報に含める
+3. **The** Drag System **shall** ドラッグ開始位置からの差分（dx, dy）をイベント情報に含める
+4. **The** Drag System **shall** 前フレームからの移動量をイベント情報に含める
+5. **The** Drag System **shall** ドラッグ経過時間をイベント情報に含める
+
+---
+
+### Requirement 4: ドラッグ終了イベント
+
+**Objective:** 開発者として、ドラッグ操作の完了を検知したい。それによりドラッグ完了時の後処理を実装できる。
+
+#### Acceptance Criteria
+
+1. **When** ドラッグ中にマウスボタンが解放された時, **the** Drag System **shall** DragEnd イベントを発火する
+2. **The** Drag System **shall** 最終マウス位置（画面座標・ローカル座標）をイベント情報に含める
+3. **The** Drag System **shall** ドラッグ開始位置から最終位置までの総移動量をイベント情報に含める
+4. **The** Drag System **shall** ドラッグ操作が正常終了か、キャンセルかを識別できる
+5. **When** DragEnd イベント発火後, **the** Drag System **shall** ドラッグ状態をクリアする
+
+---
+
+### Requirement 5: ドラッグキャンセル
+
+**Objective:** ユーザーとして、ドラッグ操作を途中でキャンセルしたい。それによりドラッグによる意図しない変更を回避できる。
+
+#### Acceptance Criteria
+
+1. **When** ドラッグ中にEscキーが押された時, **the** Drag System **shall** ドラッグをキャンセルする
+2. **When** ドラッグがキャンセルされた時, **the** Drag System **shall** DragEnd イベントをキャンセルフラグ付きで発火する
+3. **The** Drag System **shall** プログラムからのドラッグキャンセル要求を受け付ける
+4. **When** ドラッグ対象エンティティが削除された時, **the** Drag System **shall** 自動的にドラッグをキャンセルする
+5. **When** ウィンドウがフォーカスを失った時, **the** Drag System **shall** ドラッグをキャンセルするオプションを提供する
+
+---
+
+### Requirement 6: ウィンドウドラッグ移動
+
+**Objective:** ユーザーとして、キャラクターをドラッグしてウィンドウ全体を移動させたい。それによりデスクトップ上の好きな位置にキャラクターを配置できる。
+
+#### Acceptance Criteria
+
+1. **When** ドラッグ可能なエンティティがドラッグされた時, **the** Drag System **shall** 所属するウィンドウの位置を更新する
+2. **While** ドラッグ中, **the** Drag System **shall** マウスカーソルに追従してウィンドウ位置をリアルタイム更新する
+3. **The** Drag System **shall** ウィンドウ位置の更新にWin32 API（SetWindowPos等）を使用する
+4. **The** Drag System **shall** ドラッグによるウィンドウ移動の有効/無効をエンティティごとに設定可能にする
+5. **When** 複数のドラッグ可能エンティティが存在する場合, **the** Drag System **shall** Z順序最前面のエンティティのみをドラッグ対象とする
+
+---
+
+### Requirement 7: マルチモニター対応
+
+**Objective:** ユーザーとして、マルチモニター環境でキャラクターを任意のモニターに移動させたい。それにより複数のディスプレイを有効活用できる。
+
+#### Acceptance Criteria
+
+1. **When** ドラッグがモニター境界を越えた時, **the** Drag System **shall** 正常にウィンドウを移動する
+2. **The** Drag System **shall** 仮想スクリーン座標系でのウィンドウ位置計算を行う
+3. **When** ドラッグ終了時にウィンドウが画面外に配置された時, **the** Drag System **shall** 可視領域に補正するオプションを提供する
+4. **The** Drag System **shall** 高DPI環境における座標変換を正確に行う
+5. **When** モニター構成が変更された時, **the** Drag System **shall** ウィンドウ位置を再計算する
+
+---
+
+### Requirement 8: ドラッグ制約
+
+**Objective:** 開発者として、ドラッグ範囲を制限したい。それにより特定領域内でのみドラッグを許可する機能を実装できる。
+
+#### Acceptance Criteria
+
+1. **The** Drag System **shall** ドラッグ範囲を矩形領域で制約できる
+2. **When** ドラッグが制約範囲外に到達した時, **the** Drag System **shall** 範囲境界でウィンドウ移動を停止する
+3. **The** Drag System **shall** 軸ごとのドラッグ制約（水平のみ、垂直のみ）をサポートする
+4. **The** Drag System **shall** ドラッグ制約の有効/無効を動的に切り替えられる
+5. **When** ドラッグ制約が設定されている場合, **the** Drag System **shall** Dragイベント情報に制約適用後の位置を含める
+
+---
+
+### Requirement 9: ECS統合
+
+**Objective:** 開発者として、ドラッグシステムをECSアーキテクチャに統合したい。それにより既存のwintfパターンと一貫性を保てる。
+
+#### Acceptance Criteria
+
+1. **The** Drag System **shall** ECSシステムとして実装される
+2. **The** Drag System **shall** ドラッグ状態をECSコンポーネントとして管理する
+3. **The** Drag System **shall** ドラッグイベントをECSリソースとして配信する
+4. **The** Drag System **shall** 親仕様のイベントシステムと統合される
+5. **When** エンティティが削除された時, **the** Drag System **shall** 関連するドラッグ状態をクリーンアップする
+
+---
+
+### Requirement 10: ドラッグ位置通知
+
+**Objective:** 開発者として、ドラッグによるウィンドウ移動の最終位置を保存したい。それによりアプリケーション再起動時に前回の位置を復元できる。
+
+#### Acceptance Criteria
+
+1. **When** ドラッグが終了した時, **the** Drag System **shall** 最終ウィンドウ位置をイベントとして通知する
+2. **The** Drag System **shall** 最終位置の画面座標と仮想スクリーン座標を提供する
+3. **The** Drag System **shall** ドラッグによる総移動量を提供する
+4. **The** Drag System **shall** ウィンドウが配置されたモニター情報を提供する
+5. **When** ドラッグがキャンセルされた場合, **the** Drag System **shall** 位置変更通知を送信しない
+
+---
+
+### Requirement 11: taffy_flex_demo統合
+
+**Objective:** 開発者として、taffy_flex_demoサンプルアプリケーションでドラッグ機能を実際に試したい。それにより実装の動作確認と使用例の提供ができる。
+
+#### Acceptance Criteria
+
+1. **The** Drag System **shall** taffy_flex_demoサンプルにウィンドウドラッグ機能を統合する
+2. **When** taffy_flex_demoのウィジェットをドラッグした時, **the** Drag System **shall** ウィンドウ全体を移動する
+3. **The** Drag System **shall** taffy_flex_demoでドラッグ可能なウィジェットを視覚的に識別可能にする
+4. **The** Drag System **shall** taffy_flex_demoでドラッグ状態をログ出力する（デバッグ用）
+5. **When** taffy_flex_demoを実行した時, **the** Drag System **shall** READMEまたはコメントでドラッグ機能の使い方を説明する
+
+---
+
+## Non-Functional Requirements
+
+### NFR-1: パフォーマンス
+
+- ドラッグイベント処理: 16ms以内で完了（60fps維持）
+- ウィンドウ位置更新: 1フレーム遅延以内
+- ドラッグ状態管理オーバーヘッド: 無視できるレベル（< 0.1ms）
+
+### NFR-2: レスポンス
+
+- マウス移動からウィンドウ移動まで: 遅延なくリアルタイム追従
+- ドラッグ開始判定: マウス移動1フレーム以内
+- ドラッグキャンセル: Escキー押下後即座に反映
+
+### NFR-3: 信頼性
+
+- ドラッグイベントの取りこぼしなし
+- マウスボタン状態とドラッグ状態の整合性保証
+- マルチモニター環境での正確な座標計算
+
+---
+
+## Glossary
+
+| 用語 | 説明 |
+|------|------|
+| ドラッグ閾値 | ドラッグ開始と判定するための最小移動距離（デフォルト5ピクセル） |
+| ドラッグ準備状態 | マウスボタン押下後、閾値未達の状態 |
+| ドラッグ中状態 | 閾値を超えてドラッグが開始された状態 |
+| 仮想スクリーン座標 | マルチモニター環境における全ディスプレイを統合した座標系 |
+| ローカル座標 | エンティティ内部の相対座標 |
+
+---
+
+## Appendix
+
+### A. 関連ドキュメント
+
+- 親仕様: `.kiro/specs/wintf-P0-event-system/requirements.md`
+- イベントシステム設計: `doc/spec/08-event-system.md`
+- ヒットテスト設計: `doc/spec/09-hit-test.md`
+
+### B. ドラッグイベントデータ構造（参考）
+
+```rust
+// 参考実装イメージ（要件定義段階の例示）
+struct DragEvent {
+    entity: Entity,
+    start_position: Point2D,      // 画面座標
+    current_position: Point2D,    // 画面座標
+    delta: Vector2D,              // 開始位置からの差分
+    delta_from_last: Vector2D,    // 前フレームからの差分
+    elapsed_time: Duration,       // 経過時間
+    is_cancelled: bool,           // キャンセルフラグ
+}
+```
+
+### C. Win32 API連携
+
+- `SetWindowPos`: ウィンドウ位置更新
+- `GetCursorPos`: カーソル位置取得
+- `MonitorFromWindow`: ウィンドウが配置されたモニター取得
+- `GetSystemMetrics(SM_XVIRTUALSCREEN/SM_YVIRTUALSCREEN)`: 仮想スクリーン座標取得
