@@ -507,13 +507,36 @@ commands.entity(titlebar_entity)
 ```rust
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-pub struct DraggingMarker;
+pub struct DraggingMarker {
+    /// ドラッグ発動元エンティティ（OnDragStartを最初に処理した子エンティティ）
+    pub sender: Entity,
+}
 ```
 
+**設計根拠**:
+- **スパースストレージ**: 常時少数（通常0〜1個）のエンティティのみ保持、SparseSet最適
+- **senderフィールド**: イベント伝播でどの子エンティティが発動したか追跡可能
+  - タイトルバーウィジェットがドラッグ開始 → senderはタイトルバーEntity
+  - ウィンドウ全体がドラッグ開始 → senderはウィンドウEntity
+
+**挿入ロジック**:
+- Phase::Tunnel/Bubbleで**最初にOnDragStartハンドラを実行したエンティティ**に挿入
+- hit_testの結果エンティティではなく、**イベント処理エンティティ**が対象
+- アプリ側で柔軟に制御可能:
+  - タイトルバーのみにハンドラ登録 → タイトルバーにMarker挿入、ウィンドウ移動
+  - ウィンドウ全体にハンドラ登録 → ウィンドウにMarker挿入、ウィンドウ移動
+  - 子ウィジェットにハンドラ登録 → ウィジェットにMarker挿入、独自処理（将来拡張）
+
+**ウィンドウ移動との分離**:
+- DraggingMarkerはイベント処理エンティティを示すのみ
+- ウィンドウ移動は別System (`apply_window_drag_movement`) が全DragEventを監視
+- `apply_window_drag_movement`が`event.target`の親階層から`Window`コンポーネント探索
+- 見つかれば`SetWindowPos`実行、なければスキップ（将来の非ウィンドウドラッグ対応）
+
 **使用パターン**:
-- OnDragStart実行時に自動挿入
+- OnDragStart実行時に自動挿入（senderは処理エンティティ）
 - OnDragEnd実行時に自動削除
-- `Query<Entity, With<DraggingMarker>>`でドラッグ中エンティティ取得可能
+- `Query<(Entity, &DraggingMarker)>`でドラッグ中エンティティとsender取得可能
 
 ### イベント定義
 
@@ -588,6 +611,23 @@ pub fn dispatch_drag_events(world: &mut World) {
     DRAG_STATE.with(|state| {
         let state = state.borrow();
         match *state {
+            DragState::JustStarted { entity, position, .. } => {
+                let event = DragStartEvent {
+                    target: entity,
+                    position,
+                    is_primary: true,
+                    timestamp: Instant::now(),
+                };
+                // Phase::Tunnel/Bubbleで配信
+                let sender = dispatch_event(event, entity, world);
+                
+                // OnDragStartハンドラを最初に実行したエンティティにDraggingMarker挿入
+                if let Some(sender_entity) = sender {
+                    world.entity_mut(sender_entity).insert(DraggingMarker {
+                        sender: sender_entity,
+                    });
+                }
+            }
             DragState::Dragging { entity, current_pos, .. } => {
                 let event = DragEvent {
                     target: entity,
@@ -598,12 +638,27 @@ pub fn dispatch_drag_events(world: &mut World) {
                 };
                 dispatch_event(event, entity, world);
             }
-            // DragStartEvent、DragEndEventも同様
+            DragState::JustEnded { entity, position, cancelled, .. } => {
+                let event = DragEndEvent {
+                    target: entity,
+                    position,
+                    cancelled,
+                    is_primary: true,
+                    timestamp: Instant::now(),
+                };
+                dispatch_event(event, entity, world);
+            }
             _ => {}
         }
     });
 }
 ```
+
+**DraggingMarker挿入ロジック**:
+- `dispatch_event()`がPhase::Tunnel/Bubbleで伝播し、最初にハンドラを実行したエンティティを返す
+- そのエンティティに`DraggingMarker { sender }`を挿入
+- hit_testの結果エンティティではなく、**イベント処理エンティティ**が対象
+- アプリ側でハンドラ登録位置を変えることで挙動制御可能
 
 **実行タイミング**: 毎フレーム、ポインターイベント処理後
 
@@ -647,6 +702,7 @@ pub fn cleanup_drag_state(
     mut drag_end_events: EventReader<DragEndEvent>,
 ) {
     for event in drag_end_events.read() {
+        // DraggingMarkerはsenderフィールドを持つが、削除時は無視
         commands.entity(event.target).remove::<DraggingMarker>();
     }
 }

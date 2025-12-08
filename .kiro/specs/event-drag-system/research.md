@@ -179,6 +179,34 @@
   - 軽減策: 各ハンドラの責務最小化、drag::update_drag_state()への委譲
 - **リスク3: マルチモニター座標系** - 仮想スクリーン座標の負の値
   - 軽減策: 調査完了、GlobalArrangementで既対応、追加実装不要
+
+### 決定: DraggingMarker挿入ロジックとsenderフィールド
+
+- **コンテキスト**: DraggingMarkerをどのエンティティに挿入するか、およびsender情報の保持
+- **検討した代替案**:
+  1. hit_testの結果エンティティに挿入 - 常にリーフウィジェットがターゲット、柔軟性なし
+  2. ウィンドウエンティティに固定挿入 - タイトルバー限定ドラッグ不可
+  3. イベント処理エンティティに挿入（sender記録なし） - 発動元追跡不可
+- **選択したアプローチ**: イベント処理エンティティに挿入 + senderフィールド追加
+  - `DraggingMarker { sender: Entity }`構造体に変更
+  - Phase::Tunnel/Bubbleで**最初にOnDragStartハンドラを実行したエンティティ**に挿入
+  - senderはそのエンティティ自身を記録（発動元追跡可能）
+- **根拠**:
+  - **3段階の挙動モデル**対応:
+    1. taffy_flex_demoアプリ: タイトルバーウィジェットにハンドラ → タイトルバーにMarker → apply_window_drag_movementが親Window探索
+    2. wintfフレームワーク: Phase::Tunnel/Bubble伝播で柔軟なハンドラ配置
+    3. 将来拡張: 子ウィジェット独自ドラッグ（ウィンドウ移動なし）も可能
+  - **スパースストレージ戦略**: 常時0〜1個のエンティティのみ保持、SparseSet最適
+  - **sender情報**: どの子エンティティが発動したか追跡可能、デバッグ容易
+  - **ウィンドウ移動との分離**: DraggingMarkerはイベント処理エンティティ示すのみ、実際のウィンドウ移動はapply_window_drag_movementが全DragEventを監視しWindow探索
+- **トレードオフ**:
+  - ✅ アプリ側で柔軟にドラッグ挙動制御、将来の非ウィンドウドラッグ対応、sender追跡可能
+  - ❌ DraggingMarkerが構造体に（8バイト増加、ただしSparseSetで影響最小）
+- **実装詳細**:
+  - dispatch_drag_events()でdispatch_event()の戻り値（最初のハンドラ実行エンティティ）を取得
+  - そのエンティティに`DraggingMarker { sender }`挿入
+  - Query<(Entity, &DraggingMarker)>でターゲットとsender両方取得可能
+
 - **リスク4: DPI環境での閾値調整** - 物理ピクセル5pxの体感差
   - 軽減策: DragConfigでエンティティごとに調整可能、将来的にDPI係数対応可能
 
