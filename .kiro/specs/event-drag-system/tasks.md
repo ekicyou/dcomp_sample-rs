@@ -6,104 +6,155 @@
 
 ---
 
+## 実装状況メモ
+
+### 現在の問題（2025-12-08）
+- thread_local DragStateがwndprocスレッドとECSスレッドで共有されない問題が発覚
+- wndprocでPreparing→JustStarted遷移してもECSスレッドからは見えない
+- 結果：ドラッグイベントがとびとびにしか発火しない（イベントロス）
+
+### 新設計方針
+- **wndprocスレッド**: thread_local DragStateで状態管理 + デルタを累積
+- **ECSスレッド**: 累積量をflushしてイベント配信
+- **データ転送**: DragAccumulatorResourceをECSワールドリソースとして共有（Arc<Mutex>）
+
+### 更新されたタスク
+- Phase 2を「ドラッグ累積器とスレッド間転送」に変更
+- wndprocでの累積処理とECS側でのflush処理を明確化
+
+---
+
 ## タスク一覧
 
 ### Phase 1: Phase<T>ジェネリック化とリグレッション対策
 
-- [ ] 1. Phase<T>ジェネリック関数への変換とPointerEvent回帰テスト
-- [ ] 1.1 pointer/dispatch.rsをPhase<T>ジェネリック関数化
+- [x] 1. Phase<T>ジェネリック関数への変換とPointerEvent回帰テスト
+- [x] 1.1 pointer/dispatch.rsをPhase<T>ジェネリック関数化
   - 既存dispatch_pointer_eventsをPhase<T>ジェネリック関数に変換
   - OnPointerDown/OnPointerMove/OnPointerUp/OnPointerEnter/OnPointerLeaveの5種類でPhase<T>配信を確認
   - 型推論エラーは型注釈で解決
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
+  - **STATUS: 完了（コミット済み）**
   
-- [ ] 1.2 PointerEventの既存動作リグレッションテスト
+- [x] 1.2 PointerEventの既存動作リグレッションテスト
   - areka.rsサンプルで既存PointerEvent配信が正常動作することを確認
   - Tunnel/Bubbleフェーズログ出力が正しい順序であることを確認
   - dcomp_demo.rsサンプルで既存動作が維持されることを確認
   - コミット前に全サンプルが正常実行できることを保証
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
+  - **STATUS: 完了（コミット済み）**
 
-### Phase 2: ドラッグ状態管理とWin32メッセージハンドラ
+### Phase 2: ドラッグ累積器とスレッド間転送
 
-- [ ] 2. ドラッグ状態管理の基盤構築
-- [ ] 2.1 (P) DragStateとPhysicalPoint定義
+- [ ] 2. ドラッグ累積器の実装とスレッド間データ転送
+- [ ] 2.1 DragAccumulatorとDragAccumulatorResource定義
+  - DragAccumulator構造体（accumulated_delta, pending_transition）を定義
+  - DragTransition enum（Started/Ended）を定義
+  - DragAccumulatorResource（Arc<Mutex<DragAccumulator>>）をECSリソースとして定義
+  - accumulate_delta(), set_transition(), flush()メソッドを実装
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 13.1, 13.2_
+  - **FILE: crates/wintf/src/ecs/drag/accumulator.rs (新規作成)**
+
+- [ ] 2.2 DragStateとPhysicalPoint定義（thread_local専用）
   - DragState enum（Idle/Preparing/Dragging）をthread_local! + RefCellで実装
   - PhysicalPoint構造体を定義（x, y: i32）
   - DragStateがEntity、開始位置、現在位置を保持する構造を設計
   - 単一DragState（複数ボタン同時ドラッグ禁止）を明確化
+  - update_drag_state(), read_drag_state()ヘルパー関数を実装
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.7, 13.1, 13.2, 13.3_
+  - **FILE: crates/wintf/src/ecs/drag/state.rs (既存)**
 
-- [ ] 2.2 (P) DragConfigコンポーネント定義
+- [ ] 2.3 DragConfigコンポーネント定義
   - DragConfigコンポーネント構造体を定義（enabled, threshold, buttons）
   - デフォルト値（enabled: true, threshold: 5px, buttons: 左ボタンのみ）を実装
   - ボタンごとの有効/無効フラグを実装
   - _Requirements: 1.6, 2.5, 2.6, 2.8_
+  - **FILE: crates/wintf/src/ecs/drag/config.rs (既存)**
 
-- [ ] 2.3 WM_LBUTTONDOWNハンドラでドラッグ準備開始
+- [ ] 2.4 WM_LBUTTONDOWNハンドラでドラッグ準備開始
   - WM_LBUTTONDOWNメッセージハンドラにドラッグ準備ロジックを追加
   - hit_testでEntity取得、DragConfigの有効性チェック
-  - DragState::Preparing遷移とSetCapture呼び出し
+  - thread_local DragState::Preparing遷移とSetCapture呼び出し
   - 開始位置（PhysicalPoint）と開始時刻を記録
   - 既にPreparing/Dragging状態の場合は早期リターン（複数ボタンドラッグ禁止）
   - _Requirements: 1.2, 1.7, 2.2, 14.1_
+  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs**
 
-- [ ] 2.4 WM_MOUSEMOVEハンドラで閾値判定とドラッグ開始
+- [ ] 2.5 WM_MOUSEMOVEハンドラで閾値判定とデルタ累積
   - WM_MOUSEMOVEメッセージハンドラにドラッグ閾値判定を追加
   - Preparing状態でユークリッド距離計算（√(dx²+dy²)）
   - 閾値（デフォルト5px）到達でDragging状態に遷移
-  - current_pos更新とDragState内部状態変更
+  - DragAccumulatorResource.set_transition(Started)を呼び出し
+  - Dragging状態では current_pos - prev_pos を計算してDragAccumulatorResource.accumulate_delta()
+  - thread_local DragState.prev_posを更新
   - _Requirements: 1.3, 2.1, 2.7, 13.2_
+  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs**
 
-- [ ] 2.5 WM_LBUTTONUPハンドラでドラッグ終了
+- [ ] 2.6 WM_LBUTTONUPハンドラでドラッグ終了
   - WM_LBUTTONUPメッセージハンドラにドラッグ終了ロジックを追加
-  - Preparing/Dragging状態からIdle遷移
+  - Dragging状態からIdle遷移
+  - DragAccumulatorResource.set_transition(Ended)を呼び出し
   - ReleaseCapture呼び出し
   - 最終位置の記録
   - _Requirements: 1.4, 4.1, 4.2, 4.6, 14.3_
+  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs**
 
-- [ ] 2.6 WM_KEYDOWNハンドラでESCキーキャンセル
+- [ ] 2.7 WM_KEYDOWNハンドラでESCキーキャンセル
   - WM_KEYDOWNメッセージハンドラにESCキー検知を追加
   - ESCキー押下でDragging→Idle遷移
-  - ReleaseCapture呼び出しとcancelledフラグ設定
+  - DragAccumulatorResource.set_transition(Ended { cancelled: true })
+  - ReleaseCapture呼び出し
   - _Requirements: 5.1, 5.2, 5.3_
+  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs**
 
-- [ ] 2.7 WM_CANCELMODEハンドラで強制キャンセル
+- [ ] 2.8 WM_CANCELMODEハンドラで強制キャンセル
   - WM_CANCELMODEメッセージハンドラを実装
   - ドラッグ状態クリーンアップ（Dragging→Idle）
+  - DragAccumulatorResource.set_transition(Ended { cancelled: true })
   - DefWindowProcWへの委譲（None返却）でReleaseCapture自動実行
-  - cancelledフラグを設定してDragEndEvent発火
   - _Requirements: 5.4, 14.4_
+  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs**
 
 ### Phase 3: ドラッグイベント配信とECS統合
 
 - [ ] 3. ドラッグイベント定義とPhase<T>配信
-- [ ] 3.1 (P) DragStartEvent/DragEvent/DragEndEvent定義
+- [ ] 3.1 DragStartEvent/DragEvent/DragEndEvent定義
   - DragStartEvent構造体（target, position, is_primary, timestamp）
   - DragEvent構造体（target, delta, position, is_primary, timestamp）
   - DragEndEvent構造体（target, position, cancelled, is_primary, timestamp）
   - 各イベントにEntity、PhysicalPoint、時刻情報を含める
   - _Requirements: 2.3, 2.4, 3.1, 3.2, 3.3, 3.4, 3.5, 4.3, 4.4, 4.5_
+  - **FILE: crates/wintf/src/ecs/drag/events.rs (既存)**
 
-- [ ] 3.2 dispatch_drag_events Systemでイベント配信
-  - dispatch_drag_events()関数を実装（毎フレーム実行）
-  - DragState状態に応じてDragStartEvent/DragEvent/DragEndEventを生成
-  - Phase<T>ジェネリック関数でTunnel/Bubble配信
-  - JustStarted状態でDraggingMarker挿入（dispatch_event戻り値のsenderエンティティに）
+- [ ] 3.2 dispatch_drag_events SystemでDragAccumulator flush
+  - dispatch_drag_events()関数を実装（毎ECSフレーム実行）
+  - DragAccumulatorResource.flush()で累積量と遷移を取得
+  - pending_transitionがStartedなら:
+    - DragStartEvent配信（Phase<T>ジェネリック関数）
+    - DraggingStateコンポーネント挿入（target entityに）
+  - accumulated_deltaが非ゼロなら:
+    - DragEvent配信（Phase<T>ジェネリック関数、deltaに累積量設定）
+    - DraggingState.prev_frame_posを更新
+  - pending_transitionがEndedなら:
+    - DragEndEvent配信（Phase<T>ジェネリック関数）
+    - DraggingStateコンポーネント削除
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 13.4_
+  - **FILE: crates/wintf/src/ecs/drag/dispatch.rs (既存)**
 
-- [ ] 3.3 (P) OnDragStart/OnDrag/OnDragEndハンドラコンポーネント定義
+- [ ] 3.3 OnDragStart/OnDrag/OnDragEndハンドラコンポーネント定義
   - OnDragStartコンポーネント（Phase<DragStartEvent>ハンドラ）
   - OnDragコンポーネント（Phase<DragEvent>ハンドラ）
   - OnDragEndコンポーネント（Phase<DragEndEvent>ハンドラ）
   - SparseSet storageで効率的な管理
   - _Requirements: 7.1, 7.2, 7.5_
+  - **FILE: crates/wintf/src/ecs/drag/handlers.rs (既存)**
 
-- [ ] 3.4 (P) DraggingMarkerコンポーネント定義
-  - DraggingMarker構造体（sender: Entity）をSparseSetで定義
+- [ ] 3.4 DraggingStateコンポーネント定義
+  - DraggingState構造体（drag_start_pos, prev_frame_pos）をSparseSetで定義
   - ドラッグ中エンティティの識別を可能にする
-  - Query<(Entity, &DraggingMarker)>でアプリからアクセス可能
+  - Query<(Entity, &DraggingState)>でアプリからアクセス可能
   - _Requirements: 1.5, 10.2_
+  - **FILE: crates/wintf/src/ecs/drag/components.rs (既存)**
 
 ### Phase 4: ウィンドウ移動とドラッグ制約
 
