@@ -1,5 +1,65 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+//! # Taffy Flexbox Demo - Tunnel/Bubbleフェーズのイベント伝播デモ
+//!
+//! このサンプルは、wintfフレームワークのポインターイベントシステムにおける
+//! Tunnel（親→子）とBubble（子→親）の2フェーズイベント伝播を実演します。
+//!
+//! ## イベントフェーズの概念
+//!
+//! wintfのイベントシステムは、WinUI3/WPF/DOMイベントモデルと同様の2フェーズを実装:
+//!
+//! - **Tunnelフェーズ** (親→子): イベント発生前に親が介入可能
+//! - **Bubbleフェーズ** (子→親): イベント発生後に親が処理可能
+//!
+//! ## 他のフレームワークとの対応表
+//!
+//! | wintf             | WinUI3           | WPF              | DOM Level 3      |
+//! |-------------------|------------------|------------------|------------------|
+//! | Phase::Tunnel     | PreviewMouseDown | PreviewMouseDown | Capture Phase    |
+//! | Phase::Bubble     | MouseDown        | MouseDown        | Bubble Phase     |
+//! | handler return    | e.Handled = true | e.Handled = true | stopPropagation()|
+//! | sender引数        | e.OriginalSource | e.OriginalSource | event.target     |
+//! | entity引数        | sender引数       | sender引数       | currentTarget    |
+//!
+//! ## デモの操作例
+//!
+//! 1. **GreenBoxChild（黄色矩形）を左クリック**
+//!    - 期待: `[Tunnel] GreenBox: Captured event` のみ出力
+//!    - GreenBoxChildのログは出ない（親がTunnelでキャプチャ）
+//!
+//! 2. **GreenBoxChild（黄色矩形）を右クリック**
+//!    - 期待: `[Tunnel] GreenBox` → `[Tunnel] GreenBoxChild` → `[Bubble] GreenBoxChild`
+//!    - 両エンティティがログ出力（親がキャプチャしない）
+//!
+//! 3. **Ctrl+左クリックでRedBox**
+//!    - 期待: `[Tunnel] FlexContainer: Event stopped` のみ出力
+//!    - RedBoxのログは出ない（Containerで停止）
+//!
+//! ## 実装パターン
+//!
+//! ```rust
+//! fn handler(world: &mut World, sender: Entity, entity: Entity, ev: &Phase<PointerState>) -> bool {
+//!     match ev {
+//!         Phase::Tunnel(state) => {
+//!             if state.ctrl_down && state.left_down {
+//!                 // 親で事前処理してイベントを停止
+//!                 return true; // stopPropagation相当
+//!             }
+//!             false
+//!         }
+//!         Phase::Bubble(state) => {
+//!             // 通常のイベント処理
+//!             if state.right_down {
+//!                 // 処理...
+//!                 return true;
+//!             }
+//!             false
+//!         }
+//!     }
+//! }
+//! ```
+
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use std::time::Duration;
@@ -36,6 +96,10 @@ pub struct GreenBox;
 /// 青い矩形（grow=2）を識別するマーカー
 #[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
 pub struct BlueBox;
+
+/// GreenBoxの子矩形を識別するマーカー
+#[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
+pub struct GreenBoxChild;
 
 fn main() -> Result<()> {
     human_panic::setup_panic!();
@@ -214,31 +278,60 @@ fn create_flexbox_window(world: &mut World) {
         ChildOf(red_box),
     ));
 
-    // Flexアイテム2（緑、growで伸縮）- マウス移動でログ
+    // Flexアイテム2（緑、growで伸縮）- マウス移動でログ、左クリックでTunnelキャプチャ
+    let green_box = world
+        .spawn((
+            Name::new("GreenBox"),
+            GreenBox,
+            Opacity(0.5),
+            Rectangle::new(),
+            Brushes::with_foreground(D2D1_COLOR_F {
+                r: 0.0,
+                g: 1.0,
+                b: 0.0,
+                a: 1.0,
+            }),
+            BoxStyle {
+                flex_direction: Some(taffy::FlexDirection::Column),
+                size: Some(BoxSize {
+                    width: Some(Dimension::Px(100.0)),
+                    height: Some(Dimension::Px(100.0)),
+                }),
+                flex_grow: Some(1.0),
+                flex_shrink: Some(1.0),
+                flex_basis: Some(Dimension::Auto),
+                ..Default::default()
+            },
+            // イベントハンドラ: ポインター移動でログ出力
+            OnPointerMoved(on_green_box_moved),
+            // イベントハンドラ: ポインター押下でTunnelキャプチャ
+            OnPointerPressed(on_green_box_pressed),
+            ChildOf(flex_container),
+        ))
+        .id();
+
+    // GreenBoxの子エンティティ（黄色矩形、半透明）
     world.spawn((
-        Name::new("GreenBox"),
-        GreenBox,
+        Name::new("GreenBoxChild"),
+        GreenBoxChild,
         Opacity(0.5),
         Rectangle::new(),
         Brushes::with_foreground(D2D1_COLOR_F {
-            r: 0.0,
+            r: 1.0,
             g: 1.0,
             b: 0.0,
             a: 1.0,
         }),
         BoxStyle {
             size: Some(BoxSize {
-                width: Some(Dimension::Px(100.0)),
-                height: Some(Dimension::Px(100.0)),
+                width: Some(Dimension::Px(50.0)),
+                height: Some(Dimension::Px(50.0)),
             }),
-            flex_grow: Some(1.0),
-            flex_shrink: Some(1.0),
-            flex_basis: Some(Dimension::Auto),
             ..Default::default()
         },
-        // イベントハンドラ: ポインター移動でログ出力
-        OnPointerMoved(on_green_box_moved),
-        ChildOf(flex_container),
+        // イベントハンドラ: Tunnelキャプチャ検証用
+        OnPointerPressed(on_green_child_pressed),
+        ChildOf(green_box),
     ));
 
     // Flexアイテム3（青、growで伸縮、より大きなgrow値）- 左クリックでサイズ変更
@@ -270,13 +363,17 @@ fn create_flexbox_window(world: &mut World) {
 
     println!("[Test] Flexbox demo window created:");
     println!("  Window (root)");
-    println!("  └─ FlexContainer (Row, SpaceEvenly, Center) - 灰色背景、10pxマージン、右クリックで色変更");
+    println!("  └─ FlexContainer (Row, SpaceEvenly, Center) - 灰色背景、10pxマージン、右クリック/Ctrl+左クリックでTunnelデモ");
     println!("     ├─ Rectangle (red, 200x100 fixed) - 左クリックで色トグル");
     println!("     │   └─ BitmapSource (seikatu_0_0.webp) - αマスクヒットテスト有効、透明部分は親に透過");
-    println!("     ├─ Rectangle (green, 100x100, grow=1) - マウス移動でログ");
+    println!("     ├─ Rectangle (green, 100x100, grow=1, Column) - マウス移動でログ、左クリックでTunnelキャプチャ");
+    println!("     │   └─ Rectangle (yellow, 50x50) - Tunnelキャプチャ検証用子エンティティ");
     println!("     └─ Rectangle (blue, 100x100, grow=2) - 左クリックでサイズトグル");
     println!("\n[PointerEvent Demo]");
     println!("  - 灰色コンテナを右クリック → 色がピンクに変化");
+    println!("  - 灰色コンテナをCtrl+左クリック → Tunnelで停止、子にイベント到達せず");
+    println!("  - 黄色矩形(GreenBoxChild)を左クリック → 親(GreenBox)がTunnelキャプチャ、子は到達しない");
+    println!("  - 黄色矩形(GreenBoxChild)を右クリック → 親がキャプチャせず、Tunnel/Bubble両フェーズ実行");
     println!("  - 赤い矩形を左クリック → 色が赤⇔黄トグル");
     println!("  - 画像の透明部分を左クリック → 背景(RedBox)の色が変わる（αマスクヒットテスト）");
     println!("  - 画像の不透明部分を左クリック → 画像がクリックされ背景は変わらない");
@@ -630,44 +727,81 @@ fn dump_window_pos(world: &World, entity: Entity) {
 // ポインターイベントハンドラ
 // ============================================================================
 
-/// FlexContainer の OnPointerPressed ハンドラ
+/// FlexContainer の OnPointerPressed ハンドラ（拡張版）
 ///
-/// 右クリックでコンテナの色をピンクに変更する。
+/// **Tunnelフェーズ**: Ctrl+左クリックでキャプチャ（条件付き前処理の例）
+/// **Bubbleフェーズ**: 右クリックで色変更（既存）
+///
+/// # パラメータ
+/// - `sender`: イベント発生元エンティティ（e.OriginalSource相当）
+/// - `entity`: 現在処理中のエンティティ（e.currentTarget相当）
+/// - `ev`: Tunnel/Bubbleフェーズを含むイベント情報
+///
+/// # 戻り値
+/// - `true`: イベント伝播を停止（stopPropagation相当）
+/// - `false`: イベント伝播を継続
 fn on_container_pressed(
     world: &mut World,
     sender: Entity,
     entity: Entity,
     ev: &Phase<PointerState>,
 ) -> bool {
-    // Bubble フェーズでのみ処理
-    if !ev.is_bubble() {
-        return false;
-    }
+    match ev {
+        Phase::Tunnel(state) => {
+            // Ctrl+左クリックでイベントを停止
+            if state.ctrl_down && state.left_down {
+                info!(
+                    "[Tunnel] FlexContainer: Event stopped at Container (Ctrl+Left), sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
+                    sender, entity,
+                    state.screen_point.x, state.screen_point.y,
+                    state.local_point.x, state.local_point.y,
+                );
 
-    let state = ev.value();
+                // コンテナの色をピンクに変更
+                if let Some(mut brushes) = world.get_mut::<Brushes>(entity) {
+                    brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
+                        r: 1.0,
+                        g: 0.4,
+                        b: 0.8,
+                        a: 1.0,
+                    });
+                }
 
-    // 右クリック検出
-    if state.right_down {
-        info!(
-            sender = ?sender,
-            entity = ?entity,
-            "[PointerEvent] FlexContainer: Right-click detected! Changing color to pink."
-        );
+                return true; // イベント停止、子に到達しない
+            }
 
-        // コンテナの色をピンクに変更
-        if let Some(mut brushes) = world.get_mut::<Brushes>(entity) {
-            brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
-                r: 1.0,
-                g: 0.7,
-                b: 0.8,
-                a: 1.0,
-            });
+            info!(
+                "[Tunnel] FlexContainer: Passing through, sender={:?}, entity={:?}",
+                sender, entity,
+            );
+            false
         }
+        Phase::Bubble(state) => {
+            // 右クリック検出
+            if state.right_down {
+                info!(
+                    "[Bubble] FlexContainer: Right-click detected! sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
+                    sender, entity,
+                    state.screen_point.x, state.screen_point.y,
+                    state.local_point.x, state.local_point.y,
+                );
 
-        return true; // イベント処理済み
+                // コンテナの色をピンクに変更
+                if let Some(mut brushes) = world.get_mut::<Brushes>(entity) {
+                    brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
+                        r: 1.0,
+                        g: 0.7,
+                        b: 0.8,
+                        a: 1.0,
+                    });
+                }
+
+                return true; // イベント処理済み
+            }
+
+            false
+        }
     }
-
-    false
 }
 
 /// RedBox の OnPointerPressed ハンドラ
@@ -677,12 +811,16 @@ fn on_container_pressed(
 /// イベントが親(RedBox)に伝播してこのハンドラが呼ばれる。
 fn on_red_box_pressed(
     world: &mut World,
-    _sender: Entity,
+    sender: Entity,
     entity: Entity,
     ev: &Phase<PointerState>,
 ) -> bool {
     // Bubble フェーズでのみ処理
     if !ev.is_bubble() {
+        info!(
+            "[Tunnel] RedBox: Passing through, sender={:?}, entity={:?}",
+            sender, entity,
+        );
         return false;
     }
 
@@ -690,6 +828,14 @@ fn on_red_box_pressed(
 
     // 左クリック検出
     if state.left_down {
+        info!(
+            "[Bubble] RedBox: Left-click, sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1}), L={}, R={}, Ctrl={}",
+            sender, entity,
+            state.screen_point.x, state.screen_point.y,
+            state.local_point.x, state.local_point.y,
+            state.left_down, state.right_down, state.ctrl_down,
+        );
+
         // 色をトグル（赤 ⇔ 黄）
         if let Some(mut brushes) = world.get_mut::<Brushes>(entity) {
             let is_red = match brushes.foreground.as_color() {
@@ -752,6 +898,155 @@ fn on_image_pressed(
     false
 }
 
+/// GreenBox の OnPointerPressed ハンドラ
+///
+/// **Tunnelフェーズ**: 左クリックでキャプチャし、子（GreenBoxChild）に到達させない
+/// **Bubbleフェーズ**: 右クリックで色を変更
+///
+/// # stopPropagation使用例
+/// Tunnelフェーズでtrueを返すことで、親エンティティが子のイベント処理前に
+/// 介入できます。これはWinUI3/WPFの`PreviewMouseDown`やDOMの`Capture Phase`と
+/// 同じ動作です。
+///
+/// # sender vs entity
+/// - `sender`: 常にイベント発生元（例: GreenBoxChild）
+/// - `entity`: 現在処理中のエンティティ（この場合はGreenBox）
+fn on_green_box_pressed(
+    world: &mut World,
+    sender: Entity,
+    entity: Entity,
+    ev: &Phase<PointerState>,
+) -> bool {
+    match ev {
+        Phase::Tunnel(state) => {
+            // 左クリックでキャプチャ
+            if state.left_down {
+                info!(
+                    "[Tunnel] GreenBox: Captured event, stopping propagation (Left), sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
+                    sender, entity,
+                    state.screen_point.x, state.screen_point.y,
+                    state.local_point.x, state.local_point.y,
+                );
+
+                // 色をトグル（緑 ⇔ 黄緑）
+                if let Some(mut brushes) = world.get_mut::<Brushes>(entity) {
+                    let is_green = match brushes.foreground.as_color() {
+                        Some(c) => c.r < 0.1 && c.g > 0.9,
+                        None => false,
+                    };
+                    if is_green {
+                        // 黄緑に変更
+                        brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
+                            r: 0.5,
+                            g: 1.0,
+                            b: 0.0,
+                            a: 1.0,
+                        });
+                        info!("[Tunnel] GreenBox: Color changed GREEN -> YELLOW-GREEN");
+                    } else {
+                        // 緑に戻す
+                        brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
+                            r: 0.0,
+                            g: 1.0,
+                            b: 0.0,
+                            a: 1.0,
+                        });
+                        info!("[Tunnel] GreenBox: Color changed YELLOW-GREEN -> GREEN");
+                    }
+                }
+
+                return true; // イベント停止、子に到達しない
+            }
+
+            info!(
+                "[Tunnel] GreenBox: Passing through, sender={:?}, entity={:?}",
+                sender, entity,
+            );
+            false
+        }
+        Phase::Bubble(state) => {
+            // 右クリック処理
+            if state.right_down {
+                info!(
+                    "[Bubble] GreenBox: Right-click, sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
+                    sender, entity,
+                    state.screen_point.x, state.screen_point.y,
+                    state.local_point.x, state.local_point.y,
+                );
+
+                // 色を変更
+                if let Some(mut brushes) = world.get_mut::<Brushes>(entity) {
+                    brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
+                        r: 0.0,
+                        g: 0.8,
+                        b: 0.8,
+                        a: 1.0,
+                    });
+                }
+
+                return true;
+            }
+
+            false
+        }
+    }
+}
+
+/// GreenBoxChild の OnPointerPressed ハンドラ
+///
+/// 親（GreenBox）がTunnelでキャプチャした場合、このハンドラは呼ばれない。
+/// 右クリック時は親がキャプチャしないため、Tunnel/Bubble両方で実行される。
+///
+/// # ev.value()の使用例
+/// `Phase::Tunnel(state)` や `Phase::Bubble(state)` でパターンマッチする代わりに、
+/// `ev.value()` で `PointerState` を直接取得できます。
+fn on_green_child_pressed(
+    world: &mut World,
+    sender: Entity,
+    entity: Entity,
+    ev: &Phase<PointerState>,
+) -> bool {
+    let state = ev.value();
+
+    match ev {
+        Phase::Tunnel(_) => {
+            info!(
+                "[Tunnel] GreenBoxChild: This should NOT be called if parent captured (Left), sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1}), L={}, R={}, Ctrl={}",
+                sender, entity,
+                state.screen_point.x, state.screen_point.y,
+                state.local_point.x, state.local_point.y,
+                state.left_down, state.right_down, state.ctrl_down,
+            );
+            false
+        }
+        Phase::Bubble(_) => {
+            // 右クリック処理
+            if state.right_down {
+                info!(
+                    "[Bubble] GreenBoxChild: Right-click detected, changing to orange, sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
+                    sender, entity,
+                    state.screen_point.x, state.screen_point.y,
+                    state.local_point.x, state.local_point.y,
+                );
+
+                // 色をオレンジに変更
+                if let Some(mut brushes) = world.get_mut::<Brushes>(entity) {
+                    brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
+                        r: 1.0,
+                        g: 0.5,
+                        b: 0.0,
+                        a: 1.0,
+                    });
+                }
+
+                return true;
+            }
+
+            false
+        }
+    }
+}
+
 /// GreenBox の OnPointerMoved ハンドラ
 ///
 /// マウス移動時にログを出力する（デバッグ用）。
@@ -777,7 +1072,7 @@ fn on_green_box_moved(
             entity = ?entity,
             x = state.screen_point.x,
             y = state.screen_point.y,
-            "[PointerEvent] GreenBox: Pointer moved"
+            "[Bubble] GreenBox: Pointer moved"
         );
     }
 
@@ -795,6 +1090,10 @@ fn on_blue_box_pressed(
 ) -> bool {
     // Bubble フェーズでのみ処理
     if !ev.is_bubble() {
+        info!(
+            "[Tunnel] BlueBox: Passing through, sender={:?}, entity={:?}",
+            sender, entity,
+        );
         return false;
     }
 
@@ -803,9 +1102,11 @@ fn on_blue_box_pressed(
     // 左クリック検出
     if state.left_down {
         info!(
-            sender = ?sender,
-            entity = ?entity,
-            "[PointerEvent] BlueBox: Left-click detected! Toggling size."
+            "[Bubble] BlueBox: Left-click detected! Toggling size, sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1}), L={}, R={}, Ctrl={}",
+            sender, entity,
+            state.screen_point.x, state.screen_point.y,
+            state.local_point.x, state.local_point.y,
+            state.left_down, state.right_down, state.ctrl_down,
         );
 
         // サイズをトグル
