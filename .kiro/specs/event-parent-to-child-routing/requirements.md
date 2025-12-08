@@ -69,17 +69,19 @@
 
 ---
 
-### Requirement 3: 階層的イベント処理のデモ
+### Requirement 3: 階層的イベント処理とTunnelキャプチャのデモ
 
-**Objective:** 開発者として、エンティティ階層でのイベント処理順序を理解したい。それにより複雑なUI構造でのイベントフローを設計できる。
+**Objective:** 開発者として、親エンティティがTunnelフェーズでイベントをキャプチャし、子エンティティに到達させない動作を理解したい。それにより親での事前処理やフィルタリングのユースケースを実装できる。
 
 #### Acceptance Criteria
 
-1. **The** taffy_flex_demo **shall** Window → Container → ChildWidget の3階層でTunnel/Bubbleを実行する
-2. **The** taffy_flex_demo **shall** コンソールログにエンティティ名とフェーズを明示する（例: "[Tunnel] Window", "[Tunnel] Container", "[Tunnel] RedBox", "[Bubble] RedBox", "[Bubble] Container", "[Bubble] Window"）
-3. **The** taffy_flex_demo **shall** 各階層のハンドラで`sender`と`entity`の違いを説明するコメントを含める
-4. **The** taffy_flex_demo **shall** クリック時にどのエンティティがイベント発生元（sender）かをログ出力する
-5. **The** taffy_flex_demo **shall** 実行順序がWinUI3/WPF/DOMイベントモデルと一致することをコメントで明記する
+1. **The** taffy_flex_demo **shall** GreenBoxに子エンティティ（GreenBoxChild等の新規マーカー）を追加する
+2. **The** taffy_flex_demo **shall** GreenBoxとGreenBoxChildの両方に`OnPointerPressed`ハンドラを登録する
+3. **The** taffy_flex_demo **shall** GreenBoxのTunnelフェーズハンドラで、特定条件（左クリック）でイベントをキャプチャし`true`を返す
+4. **When** GreenBoxがTunnelフェーズでイベントをキャプチャした時, **the** taffy_flex_demo **shall** 「[Tunnel] GreenBox: Captured event, stopping propagation」をログ出力し、色を変更する（例: 緑→黄緑）
+5. **When** GreenBoxChildがイベントを受信できなかった時, **the** taffy_flex_demo **shall** GreenBoxChildのハンドラが呼ばれないことをログ不在で確認可能にする
+6. **The** taffy_flex_demo **shall** GreenBoxChildのハンドラにも「[Tunnel] GreenBoxChild: This should NOT be called if parent captured」と「[Bubble] GreenBoxChild: Processing event」のログを実装し、動作確認を容易にする
+7. **The** taffy_flex_demo **shall** Tunnelキャプチャが発生しない条件（右クリック等）でGreenBoxChildまでイベントが到達することも確認できるようにする
 
 ---
 
