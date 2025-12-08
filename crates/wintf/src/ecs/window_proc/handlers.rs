@@ -538,38 +538,16 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                     (x, y)
                 };
                 
-                // DraggingState管理
+                // DraggingState管理（ECS側で行うため、ここでは挿入しない）
                 if let Some(drag_config) = world_borrow.world().get::<crate::ecs::drag::DragConfig>(target_entity) {
                     if drag_config.enabled {
                         let current_pos = crate::ecs::pointer::PhysicalPoint::new(screen_x, screen_y);
                         
-                        // 既にDraggingStateがあれば何もしない（ECS側で管理）
-                        // なければthread_local DragStateで閾値チェック
-                        let has_dragging_state = world_borrow.world().get::<crate::ecs::drag::DraggingState>(target_entity).is_some();
-                        
-                        if !has_dragging_state {
-                            // 閾値チェック（Preparing → JustStarted遷移）
-                            if crate::ecs::drag::check_threshold(current_pos, drag_config.threshold) {
-                                crate::ecs::drag::start_dragging(current_pos);
-                                
-                                // DraggingStateコンポーネント挿入
-                                if let Ok(mut entity_mut) = world_borrow.world_mut().get_entity_mut(target_entity) {
-                                    entity_mut.insert(crate::ecs::drag::DraggingState {
-                                        drag_start_pos: current_pos,
-                                        prev_frame_pos: current_pos,
-                                    });
-                                    
-                                    tracing::info!(
-                                        entity = ?target_entity,
-                                        x = current_pos.x,
-                                        y = current_pos.y,
-                                        "[WM_MOUSEMOVE] DraggingState inserted"
-                                    );
-                                }
-                            } else {
-                                // Preparing状態継続（位置更新のみ）
-                                crate::ecs::drag::update_dragging(current_pos);
-                            }
+                        // 閾値チェックのみ実行（thread_local DragStateを更新）
+                        if crate::ecs::drag::check_threshold(current_pos, drag_config.threshold) {
+                            crate::ecs::drag::start_dragging(current_pos);
+                        } else {
+                            crate::ecs::drag::update_dragging(current_pos);
                         }
                     }
                 }
@@ -789,6 +767,12 @@ unsafe fn handle_button_message(
                     if button == crate::ecs::pointer::PointerButton::Left {
                         if let Some(drag_config) = world_borrow.world().get::<crate::ecs::drag::DragConfig>(target_entity) {
                             if drag_config.enabled && drag_config.left_button {
+                                tracing::info!(
+                                    entity = ?target_entity,
+                                    x = screen_x,
+                                    y = screen_y,
+                                    "[handle_button_message] Calling start_preparing"
+                                );
                                 crate::ecs::drag::start_preparing(
                                     target_entity,
                                     PhysicalPoint::new(screen_x, screen_y),

@@ -110,6 +110,14 @@ pub fn start_preparing(entity: Entity, pos: PhysicalPoint) {
             "[drag] Preparing started"
         );
     });
+    
+    // 確認用ログ
+    read_drag_state(|state| {
+        tracing::info!(
+            state = ?state,
+            "[start_preparing] DragState updated"
+        );
+    });
 }
 
 /// ドラッグ開始（閾値到達時）
@@ -240,8 +248,23 @@ pub fn check_threshold(current_pos: PhysicalPoint, threshold: i32) -> bool {
             let dy = current_pos.y - start_pos.y;
             let distance_sq = dx * dx + dy * dy;
             let threshold_sq = threshold * threshold;
-            distance_sq >= threshold_sq
+            let result = distance_sq >= threshold_sq;
+            
+            tracing::info!(
+                start_x = start_pos.x,
+                start_y = start_pos.y,
+                current_x = current_pos.x,
+                current_y = current_pos.y,
+                dx, dy,
+                distance_sq,
+                threshold_sq,
+                result,
+                "[check_threshold] Calculation"
+            );
+            
+            result
         } else {
+            tracing::warn!(state = ?state, "[check_threshold] Not in Preparing state");
             false
         }
     })

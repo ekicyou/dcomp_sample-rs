@@ -76,6 +76,21 @@ pub fn dispatch_drag_events(world: &mut World) {
     
     match state_snapshot {
         DragState::JustStarted { entity, start_pos, .. } => {
+            // DraggingStateコンポーネント挿入
+            if let Ok(mut entity_mut) = world.get_entity_mut(entity) {
+                entity_mut.insert(crate::ecs::drag::DraggingState {
+                    drag_start_pos: start_pos,
+                    prev_frame_pos: start_pos,
+                });
+                
+                tracing::info!(
+                    entity = ?entity,
+                    x = start_pos.x,
+                    y = start_pos.y,
+                    "[dispatch_drag_events] DraggingState inserted"
+                );
+            }
+            
             // DragStartEvent送信
             let event = DragStartEvent {
                 target: entity,
