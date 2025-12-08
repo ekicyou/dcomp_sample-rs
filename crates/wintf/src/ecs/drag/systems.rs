@@ -4,7 +4,8 @@
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::message::{Messages, MessageReader};
-use super::{DragEvent, DragEndEvent, DragConstraint, DraggingMarker};
+use super::{DragEvent, DragEndEvent};
+use crate::ecs::drag::{DragConstraint};
 use crate::ecs::window::Window;
 
 /// ウィンドウドラッグ移動システム
@@ -83,22 +84,18 @@ pub fn apply_window_drag_movement(
 
 /// ドラッグ状態クリーンアップシステム
 ///
-/// DragEndEventを監視し、DraggingMarkerを削除する。
+/// DragEndEventを監視し、DraggingStateを削除する。
 pub fn cleanup_drag_state(
     mut commands: Commands,
     mut drag_end_events: MessageReader<DragEndEvent>,
-    dragging_query: Query<Entity, With<DraggingMarker>>,
 ) {
     for event in drag_end_events.read() {
-        // DraggingMarkerを持つエンティティを全て削除
-        for entity in dragging_query.iter() {
-            commands.entity(entity).remove::<DraggingMarker>();
-            
-            tracing::debug!(
-                entity = ?entity,
-                target = ?event.target,
-                "[cleanup_drag_state] DraggingMarker removed"
-            );
-        }
+        // DraggingStateを削除
+        commands.entity(event.target).remove::<crate::ecs::drag::DraggingState>();
+        
+        tracing::debug!(
+            target = ?event.target,
+            "[cleanup_drag_state] DraggingState removed"
+        );
     }
 }

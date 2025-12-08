@@ -20,6 +20,7 @@ pub use systems::{
 };
 
 use bevy_ecs::prelude::*;
+use crate::ecs::pointer::PhysicalPoint;
 
 /// ドラッグ設定コンポーネント
 ///
@@ -49,6 +50,20 @@ impl Default for DragConfig {
     }
 }
 
+/// ドラッグ状態コンポーネント
+///
+/// エンティティがドラッグ中であることを示す。
+/// PointerStateと組み合わせて使用し、ECSフレーム間のデルタ計算に使う。
+/// このコンポーネントの存在自体がドラッグ中であることを意味する。
+#[derive(Component, Debug, Clone, Copy)]
+#[component(storage = "SparseSet")]
+pub struct DraggingState {
+    /// ドラッグ開始位置（スクリーン座標）
+    pub drag_start_pos: PhysicalPoint,
+    /// 前回ECSフレームの位置（デルタ計算用）
+    pub prev_frame_pos: PhysicalPoint,
+}
+
 /// ドラッグ制約コンポーネント
 ///
 /// ドラッグ移動の範囲制約を定義する。
@@ -74,14 +89,4 @@ impl DragConstraint {
         let y = self.max_y.map_or(y, |max| y.min(max));
         (x, y)
     }
-}
-
-/// ドラッグ中マーカーコンポーネント
-///
-/// ドラッグ中のエンティティを識別する。
-#[derive(Component, Clone, Debug)]
-#[component(storage = "SparseSet")]
-pub struct DraggingMarker {
-    /// ドラッグ発動元エンティティ
-    pub sender: Entity,
 }

@@ -6,7 +6,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::message::Message;
 use std::time::Instant;
 use crate::ecs::pointer::{PhysicalPoint, build_bubble_path, EventHandler};
-use super::{DragState, DraggingMarker};
+use super::DragState;
 use super::state::{read_drag_state, reset_to_idle, update_dragging};
 
 /// ドラッグ開始イベント
@@ -99,18 +99,6 @@ pub fn dispatch_drag_events(world: &mut World) {
                 &event,
                 |h| h.0,
             );
-            
-            // DraggingMarker挿入（先頭エンティティに）
-            if let Some(&first_entity) = path.first() {
-                if let Ok(mut entity_mut) = world.get_entity_mut(first_entity) {
-                    entity_mut.insert(DraggingMarker { sender: first_entity });
-                    
-                    tracing::debug!(
-                        sender = ?first_entity,
-                        "[DraggingMarker] Inserted"
-                    );
-                }
-            }
             
             // JustStarted → Dragging遷移
             update_dragging(current_pos);
