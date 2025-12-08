@@ -5,7 +5,7 @@
 use bevy_ecs::prelude::*;
 use bevy_ecs::message::Message;
 use std::time::Instant;
-use crate::ecs::pointer::{Phase, PhysicalPoint};
+use crate::ecs::pointer::{PhysicalPoint, build_bubble_path, EventHandler};
 use super::{DragState, DraggingMarker};
 use super::state::{read_drag_state, reset_to_idle, update_dragging};
 
@@ -53,87 +53,19 @@ pub struct DragEndEvent {
 }
 
 /// ドラッグ開始ハンドラコンポーネント
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 #[component(storage = "SparseSet")]
-pub struct OnDragStart(pub Box<dyn Fn(Phase<DragStartEvent>, &mut World) + Send + Sync>);
+pub struct OnDragStart(pub EventHandler<DragStartEvent>);
 
 /// ドラッグ中ハンドラコンポーネント
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 #[component(storage = "SparseSet")]
-pub struct OnDrag(pub Box<dyn Fn(Phase<DragEvent>, &mut World) + Send + Sync>);
+pub struct OnDrag(pub EventHandler<DragEvent>);
 
 /// ドラッグ終了ハンドラコンポーネント
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 #[component(storage = "SparseSet")]
-pub struct OnDragEnd(pub Box<dyn Fn(Phase<DragEndEvent>, &mut World) + Send + Sync>);
-
-/// Phase<T>でイベントを配信する汎用関数
-fn dispatch_event<E: Message + Clone, H: Component>(
-    world: &mut World,
-    event: E,
-    target: Entity,
-    call_handler: impl Fn(&H, Phase<E>, &mut World),
-) -> Option<Entity> {
-    use bevy_ecs::hierarchy::ChildOf;
-    
-    // 親チェーン構築
-    let mut path = vec![target];
-    let mut current = target;
-    while let Some(child_of) = world.get::<ChildOf>(current) {
-        let parent = child_of.parent();
-        path.push(parent);
-        current = parent;
-    }
-    
-    let mut sender_entity: Option<Entity> = None;
-    
-    // Tunnelフェーズ（親→子）
-    for &entity in path.iter().rev() {
-        if world.get_entity(entity).is_err() {
-            return sender_entity;
-        }
-        
-        // ハンドラがあるかチェック
-        let has_handler = world.get::<H>(entity).is_some();
-        if has_handler {
-            // Worldから一時的に借用を外してハンドラを呼び出す
-            // SAFETY: この関数は排他的アクセスを保証している
-            let world_ptr = world as *mut World;
-            unsafe {
-                if let Some(handler_comp) = (*world_ptr).get::<H>(entity) {
-                    call_handler(handler_comp, Phase::Tunnel(event.clone()), &mut *world_ptr);
-                }
-            }
-            
-            if sender_entity.is_none() {
-                sender_entity = Some(entity);
-            }
-        }
-    }
-    
-    // Bubbleフェーズ（子→親）
-    for &entity in path.iter() {
-        if world.get_entity(entity).is_err() {
-            return sender_entity;
-        }
-        
-        let has_handler = world.get::<H>(entity).is_some();
-        if has_handler {
-            let world_ptr = world as *mut World;
-            unsafe {
-                if let Some(handler_comp) = (*world_ptr).get::<H>(entity) {
-                    call_handler(handler_comp, Phase::Bubble(event.clone()), &mut *world_ptr);
-                }
-            }
-            
-            if sender_entity.is_none() {
-                sender_entity = Some(entity);
-            }
-        }
-    }
-    
-    sender_entity
-}
+pub struct OnDragEnd(pub EventHandler<DragEndEvent>);
 
 /// ドラッグイベントディスパッチシステム
 pub fn dispatch_drag_events(world: &mut World) {
@@ -155,21 +87,23 @@ pub fn dispatch_drag_events(world: &mut World) {
                 "[DragStartEvent] Dispatching"
             );
             
-            // Phase<T>配信し、最初にハンドラを実行したエンティティを取得
-            let sender = dispatch_event::<DragStartEvent, OnDragStart>(
+            // Phase<T>配信（pointer::dispatch_event_for_handlerを使用）
+            let path = build_bubble_path(world, entity);
+            crate::ecs::pointer::dispatch_event_for_handler::<DragStartEvent, OnDragStart>(
                 world,
-                event,
                 entity,
-                |h, phase, w| (h.0)(phase, w),
+                &path,
+                &event,
+                |h| h.0,
             );
             
-            // DraggingMarker挿入
-            if let Some(sender_entity) = sender {
-                if let Ok(mut entity_mut) = world.get_entity_mut(sender_entity) {
-                    entity_mut.insert(DraggingMarker { sender: sender_entity });
+            // DraggingMarker挿入（先頭エンティティに）
+            if let Some(&first_entity) = path.first() {
+                if let Ok(mut entity_mut) = world.get_entity_mut(first_entity) {
+                    entity_mut.insert(DraggingMarker { sender: first_entity });
                     
                     tracing::debug!(
-                        sender = ?sender_entity,
+                        sender = ?first_entity,
                         "[DraggingMarker] Inserted"
                     );
                 }
@@ -193,11 +127,13 @@ pub fn dispatch_drag_events(world: &mut World) {
                 timestamp: Instant::now(),
             };
             
-            dispatch_event::<DragEvent, OnDrag>(
+            let path = build_bubble_path(world, entity);
+            crate::ecs::pointer::dispatch_event_for_handler::<DragEvent, OnDrag>(
                 world,
-                event,
                 entity,
-                |h, phase, w| (h.0)(phase, w),
+                &path,
+                &event,
+                |h| h.0,
             );
         }
         
@@ -218,11 +154,13 @@ pub fn dispatch_drag_events(world: &mut World) {
                 "[DragEndEvent] Dispatching"
             );
             
-            dispatch_event::<DragEndEvent, OnDragEnd>(
+            let path = build_bubble_path(world, entity);
+            crate::ecs::pointer::dispatch_event_for_handler::<DragEndEvent, OnDragEnd>(
                 world,
-                event,
                 entity,
-                |h, phase, w| (h.0)(phase, w),
+                &path,
+                &event,
+                |h| h.0,
             );
             
             // JustEnded → Idle遷移

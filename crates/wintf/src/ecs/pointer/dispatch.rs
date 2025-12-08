@@ -106,7 +106,10 @@ pub struct OnPointerMoved(pub PointerEventHandler);
 // ============================================================================
 
 /// 親チェーン構築（sender → root の順で格納）
-fn build_bubble_path(world: &World, start: Entity) -> Vec<Entity> {
+///
+/// バブリング経路を構築する汎用ヘルパー関数。
+/// 公開APIとして、他のイベントシステム（ドラッグ等）でも利用可能。
+pub fn build_bubble_path(world: &World, start: Entity) -> Vec<Entity> {
     let mut path = vec![start];
     let mut current = start;
     while let Some(child_of) = world.get::<ChildOf>(current) {
@@ -117,13 +120,28 @@ fn build_bubble_path(world: &World, start: Entity) -> Vec<Entity> {
     path
 }
 
-/// イベント種別を判定してハンドラを呼び出す内部関数
-fn dispatch_event_for_handler<H: Component + Copy>(
+/// イベント種別を判定してハンドラを呼び出す内部関数（ジェネリック版）
+///
+/// Phase<T>でイベントを配信する汎用関数。
+/// 任意のイベント型TとハンドラコンポーネントHに対して、Tunnel/Bubble伝播を実行する。
+/// 公開APIとして、他のイベントシステム（ドラッグ等）でも利用可能。
+///
+/// # Type Parameters
+/// - `T`: イベントデータ型（Clone可能である必要がある）
+/// - `H`: ハンドラコンポーネント型（Copy可能である必要がある）
+///
+/// # Arguments
+/// - `world`: 可変World参照
+/// - `sender`: イベント発生元エンティティ
+/// - `path`: バブリングパス（sender → root）
+/// - `event`: イベントデータ
+/// - `get_handler`: ハンドラコンポーネントからハンドラ関数を取得する関数
+pub fn dispatch_event_for_handler<T: Clone, H: Component + Copy>(
     world: &mut World,
     sender: Entity,
     path: &[Entity],
-    state: &PointerState,
-    get_handler: fn(&H) -> PointerEventHandler,
+    event: &T,
+    get_handler: fn(&H) -> EventHandler<T>,
 ) {
     // Tunnel フェーズ: root → sender
     for &entity in path.iter().rev() {
@@ -135,7 +153,7 @@ fn dispatch_event_for_handler<H: Component + Copy>(
         // ハンドラ取得
         if let Some(handler_comp) = world.get::<H>(entity).copied() {
             let handler = get_handler(&handler_comp);
-            if handler(world, sender, entity, &Phase::Tunnel(state.clone())) {
+            if handler(world, sender, entity, &Phase::Tunnel(event.clone())) {
                 return; // handled
             }
         }
@@ -151,7 +169,7 @@ fn dispatch_event_for_handler<H: Component + Copy>(
         // ハンドラ取得
         if let Some(handler_comp) = world.get::<H>(entity).copied() {
             let handler = get_handler(&handler_comp);
-            if handler(world, sender, entity, &Phase::Bubble(state.clone())) {
+            if handler(world, sender, entity, &Phase::Bubble(event.clone())) {
                 return; // handled
             }
         }
@@ -207,7 +225,7 @@ pub fn dispatch_pointer_events(world: &mut World) {
         let path = build_bubble_path(world, *sender);
 
         // OnPointerMoved: 常に発火（移動イベント）
-        dispatch_event_for_handler::<OnPointerMoved>(world, *sender, &path, state, |h| h.0);
+        dispatch_event_for_handler::<PointerState, OnPointerMoved>(world, *sender, &path, state, |h| h.0);
     }
     
     // ButtonBuffer に記録されたエンティティについて OnPointerPressed をディスパッチ
@@ -245,7 +263,7 @@ pub fn dispatch_pointer_events(world: &mut World) {
             "[dispatch_pointer_events] Dispatching OnPointerPressed"
         );
         
-        dispatch_event_for_handler::<OnPointerPressed>(
+        dispatch_event_for_handler::<PointerState, OnPointerPressed>(
             world,
             entity,
             &path,

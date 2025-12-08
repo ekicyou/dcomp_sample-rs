@@ -8,7 +8,8 @@
 mod dispatch;
 
 pub use dispatch::{
-    dispatch_pointer_events, EventHandler, OnPointerEntered, OnPointerExited, OnPointerMoved,
+    dispatch_pointer_events, dispatch_event_for_handler, build_bubble_path,
+    EventHandler, OnPointerEntered, OnPointerExited, OnPointerMoved,
     OnPointerPressed, OnPointerReleased, Phase, PointerEventHandler,
 };
 
