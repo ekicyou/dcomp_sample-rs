@@ -454,6 +454,16 @@ impl EcsWorld {
                 FrameFinalize,
                 crate::ecs::pointer::clear_transient_pointer_state,
             );
+            
+            // FrameFinalizeスケジュール: Messagesの更新
+            schedules.add_systems(
+                FrameFinalize,
+                (
+                    |world: &mut World| world.resource_mut::<Messages<crate::ecs::drag::DragStartEvent>>().update(),
+                    |world: &mut World| world.resource_mut::<Messages<crate::ecs::drag::DragEvent>>().update(),
+                    |world: &mut World| world.resource_mut::<Messages<crate::ecs::drag::DragEndEvent>>().update(),
+                ),
+            );
         }
 
         Self {

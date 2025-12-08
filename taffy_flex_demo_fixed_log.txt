@@ -1,0 +1,182 @@
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+  --> crates\wintf\src\ecs\drag\systems.rs:49:17
+   |
+49 |                 drop(entity_ref);
+   |                 ^^^^^----------^
+   |                      |
+   |                      argument has type `EntityRef<'_>`
+   |
+   = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+   |
+49 -                 drop(entity_ref);
+49 +                 let _ = entity_ref;
+   |
+
+warning: `wintf` (lib) generated 1 warning
+warning: function `change_layout_parameters` is never used
+   --> crates\wintf\examples\taffy_flex_demo.rs:396:4
+    |
+396 | fn change_layout_parameters(world: &mut World) {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `test_hit_test_6s` is never used
+   --> crates\wintf\examples\taffy_flex_demo.rs:587:4
+    |
+587 | fn test_hit_test_6s(world: &mut World) {
+    |    ^^^^^^^^^^^^^^^^
+
+warning: `wintf` (example "taffy_flex_demo") generated 2 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.19s
+     Running `target\debug\examples\taffy_flex_demo.exe`
+[2m2025-12-08T10:32:04.139698Z[0m [32m INFO[0m [2mwintf::process_singleton[0m[2m:[0m Window classes created
+[2m2025-12-08T10:32:04.144397Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [initialize_layout_root] Creating LayoutRoot singleton
+
+Taffy Flexbox繝ｬ繧､繧｢繧ｦ繝医・繝・Δ:
+  1. Window Entity (繝ｫ繝ｼ繝・ - 800x600
+  2. FlexContainer (讓ｪ荳ｦ縺ｳ縲∝插遲蛾・鄂ｮ縲∽ｸｭ螟ｮ謠・∴) - 轣ｰ濶ｲ閭梧勹
+  3. 襍､縺・洸蠖｢ (蝗ｺ螳・00x100)
+  4. 邱代・遏ｩ蠖｢ (100x100, grow=1.0縲∵ｮ九ｊ繧ｹ繝壹・繧ｹ縺ｮ1/3)
+  5. 髱偵＞遏ｩ蠖｢ (100x100, grow=2.0縲∵ｮ九ｊ繧ｹ繝壹・繧ｹ縺ｮ2/3)
+
+5遘貞ｾ後↓繝ｬ繧､繧｢繧ｦ繝医ヱ繝ｩ繝｡繝ｼ繧ｿ繝ｼ繧貞､画峩縺励∪縺吶・10遘貞ｾ後↓閾ｪ蜍慕噪縺ｫWindow繧帝哩縺倥※繧｢繝励Μ邨ゆｺ・＠縺ｾ縺吶・[Async] 0s: Creating Flexbox demo window
+[Test] Flexbox demo window created:
+  Window (root)
+  笏披楳 FlexContainer (Row, SpaceEvenly, Center) - 轣ｰ濶ｲ閭梧勹縲・0px繝槭・繧ｸ繝ｳ縲∝承繧ｯ繝ｪ繝・け/Ctrl+蟾ｦ繧ｯ繝ｪ繝・け縺ｧTunnel繝・Δ
+     笏懌楳 Rectangle (red, 200x100 fixed) - 蟾ｦ繧ｯ繝ｪ繝・け縺ｧ濶ｲ繝医げ繝ｫ
+     笏・  笏披楳 BitmapSource (seikatu_0_0.webp) - ﾎｱ繝槭せ繧ｯ繝偵ャ繝医ユ繧ｹ繝域怏蜉ｹ縲・乗・驛ｨ蛻・・隕ｪ縺ｫ騾城℃
+     笏懌楳 Rectangle (green, 100x100, grow=1, Column) - 繝槭え繧ｹ遘ｻ蜍輔〒繝ｭ繧ｰ縲∝ｷｦ繧ｯ繝ｪ繝・け縺ｧTunnel繧ｭ繝｣繝励メ繝｣
+     笏・  笏披楳 Rectangle (yellow, 50x50) - Tunnel繧ｭ繝｣繝励メ繝｣讀懆ｨｼ逕ｨ蟄舌お繝ｳ繝・ぅ繝・ぅ
+     笏披楳 Rectangle (blue, 100x100, grow=2) - 蟾ｦ繧ｯ繝ｪ繝・け縺ｧ繧ｵ繧､繧ｺ繝医げ繝ｫ
+
+[PointerEvent Demo]
+  - 轣ｰ濶ｲ繧ｳ繝ｳ繝・リ繧貞承繧ｯ繝ｪ繝・け 竊・濶ｲ縺後ヴ繝ｳ繧ｯ縺ｫ螟牙喧
+  - 轣ｰ濶ｲ繧ｳ繝ｳ繝・リ繧辰trl+蟾ｦ繧ｯ繝ｪ繝・け 竊・Tunnel縺ｧ蛛懈ｭ｢縲∝ｭ舌↓繧､繝吶Φ繝亥芦驕斐○縺・  - 鮟・牡遏ｩ蠖｢(GreenBoxChild)繧貞ｷｦ繧ｯ繝ｪ繝・け 竊・隕ｪ(GreenBox)縺卦unnel繧ｭ繝｣繝励メ繝｣縲∝ｭ舌・蛻ｰ驕斐＠縺ｪ縺・  - 鮟・牡遏ｩ蠖｢(GreenBoxChild)繧貞承繧ｯ繝ｪ繝・け 竊・隕ｪ縺後く繝｣繝励メ繝｣縺帙★縲ゝunnel/Bubble荳｡繝輔ぉ繝ｼ繧ｺ螳溯｡・  - 襍､縺・洸蠖｢繧貞ｷｦ繧ｯ繝ｪ繝・け 竊・濶ｲ縺瑚ｵ､竍秘ｻ・ヨ繧ｰ繝ｫ
+  - 逕ｻ蜒上・騾乗・驛ｨ蛻・ｒ蟾ｦ繧ｯ繝ｪ繝・け 竊・閭梧勹(RedBox)縺ｮ濶ｲ縺悟､峨ｏ繧具ｼ夷ｱ繝槭せ繧ｯ繝偵ャ繝医ユ繧ｹ繝茨ｼ・  - 逕ｻ蜒上・荳埼乗・驛ｨ蛻・ｒ蟾ｦ繧ｯ繝ｪ繝・け 竊・逕ｻ蜒上′繧ｯ繝ｪ繝・け縺輔ｌ閭梧勹縺ｯ螟峨ｏ繧峨↑縺・  - 邱代・遏ｩ蠖｢縺ｧ繝槭え繧ｹ遘ｻ蜍・竊・繝ｭ繧ｰ蜃ｺ蜉幢ｼ医ョ繝舌ャ繧ｰ・・  - 髱偵＞遏ｩ蠖｢繧貞ｷｦ繧ｯ繝ｪ繝・け 竊・繧ｵ繧､繧ｺ縺・00竍・50繝医げ繝ｫ
+[2m2025-12-08T10:32:04.160290Z[0m [32m INFO[0m [2mwintf::ecs::graphics::systems[0m[2m:[0m [init_graphics_core] GraphicsCore initialization started [3mframe[0m[2m=[0m1
+[2m2025-12-08T10:32:04.160332Z[0m [32m INFO[0m [2mwintf::ecs::graphics::core[0m[2m:[0m [GraphicsCore] Initialization started
+[2m2025-12-08T10:32:04.237042Z[0m [32m INFO[0m [2mwintf::ecs::graphics::core[0m[2m:[0m [GraphicsCore] Initialization completed
+[2m2025-12-08T10:32:04.237090Z[0m [32m INFO[0m [2mwintf::ecs::graphics::systems[0m[2m:[0m [init_graphics_core] GraphicsCore initialization completed [3mframe[0m[2m=[0m1
+[2m2025-12-08T10:32:04.239966Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m6v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m64.0 [3mnew_height[0m[2m=[0m64.0
+[2m2025-12-08T10:32:04.240017Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m9v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m100.0 [3mnew_height[0m[2m=[0m100.0
+[2m2025-12-08T10:32:04.240029Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m0v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m6720.0 [3mnew_height[0m[2m=[0m2165.0
+[2m2025-12-08T10:32:04.240040Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m4v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m400.0 [3mnew_height[0m[2m=[0m580.0
+[2m2025-12-08T10:32:04.240049Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m1v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m2880.0 [3mnew_height[0m[2m=[0m1800.0
+[2m2025-12-08T10:32:04.240059Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m2v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m3840.0 [3mnew_height[0m[2m=[0m2160.0
+[2m2025-12-08T10:32:04.240068Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m8v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m50.0 [3mnew_height[0m[2m=[0m50.0
+[2m2025-12-08T10:32:04.240078Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m3v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m800.0 [3mnew_height[0m[2m=[0m600.0
+[2m2025-12-08T10:32:04.240087Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m5v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m200.0 [3mnew_height[0m[2m=[0m100.0
+[2m2025-12-08T10:32:04.240099Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m7v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m100.0 [3mnew_height[0m[2m=[0m100.0
+[Async] 1s: Running hit test verification
+[Async] Waiting 60 seconds for pointer event demo...
+  Try: Left-click on RedBox, BlueBox, Right-click on Container
+[HitTest @1s] === Running hit test verification ===
+[HitTest @1s] Window scale: (1.25, 1.25), origin: (100, 100)
+[HitTest @1s] --- Window reference coordinates ---
+[HitTest] WindowPos.position: x=100, y=100
+[HitTest] WindowPos.size: cx=1000, cy=750
+[HitTest @1s] --- Entity bounds (GlobalArrangement) ---
+[HitTest] FlexDemo-Window bounds: left=100.0, top=100.0, right=1100.0, bottom=850.0 (size: 1000.0x750.0)
+[HitTest] FlexDemo-Container bounds: left=112.5, top=112.5, right=612.5, bottom=837.5 (size: 500.0x725.0)
+[HitTest] RedBox bounds: left=362.5, top=412.5, right=612.5, bottom=537.5 (size: 250.0x125.0)
+[HitTest] GreenBox bounds: left=112.5, top=412.5, right=237.5, bottom=537.5 (size: 125.0x125.0)
+[HitTest] BlueBox bounds: left=237.5, top=412.5, right=362.5, bottom=537.5 (size: 125.0x125.0)
+[HitTest @1s] --- End of entity bounds ---
+[HitTest @1s] --- Hit test results ---
+[HitTest @1s] GreenBox center (DIP 50,250) at DIP->Screen (162, 412): Hit "GreenBoxChild" (expected: GreenBox)
+[HitTest @1s] RedBox child (SeikatuImage) (DIP 150,250) at DIP->Screen (288, 412): Hit "BlueBox" (expected: SeikatuImage)
+[HitTest @1s] BlueBox center (DIP 320,250) at DIP->Screen (500, 412): Hit "RedBox" (expected: BlueBox)
+[HitTest @1s] Container area (DIP 15,15) at DIP->Screen (119, 119): Hit "FlexDemo-Container" (expected: FlexDemo-Container)
+[HitTest @1s] Outside Container (DIP 700,300) at DIP->Screen (975, 475): Hit "FlexDemo-Window" (expected: FlexDemo-Window)
+[2m2025-12-08T10:32:06.229229Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerState Added] Enter detected [3mentity[0m[2m=[0m3v0 [3mscreen_x[0m[2m=[0m996 [3mscreen_y[0m[2m=[0m274 [3mleft[0m[2m=[0mfalse [3mright[0m[2m=[0mfalse [3mmiddle[0m[2m=[0mfalse [3mshift[0m[2m=[0mfalse [3mctrl[0m[2m=[0mfalse
+[2m2025-12-08T10:32:06.496335Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerLeave Added] Leave detected [3mentity[0m[2m=[0m3v0
+[2m2025-12-08T10:32:06.496329Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerState Added] Enter detected [3mentity[0m[2m=[0m4v0 [3mscreen_x[0m[2m=[0m511 [3mscreen_y[0m[2m=[0m246 [3mleft[0m[2m=[0mfalse [3mright[0m[2m=[0mfalse [3mmiddle[0m[2m=[0mfalse [3mshift[0m[2m=[0mfalse [3mctrl[0m[2m=[0mfalse
+[2m2025-12-08T10:32:06.930487Z[0m [32m INFO[0m [2mwintf::ecs::window_proc::handlers[0m[2m:[0m [handle_button_message] hit_test result [3mtarget_entity[0m[2m=[0m4v0 [3mentity_name[0m[2m=[0mFlexDemo-Container [3mclient_x[0m[2m=[0m229 [3mclient_y[0m[2m=[0m214 [3mscreen_x[0m[2m=[0m329 [3mscreen_y[0m[2m=[0m314 [3mbounds[0m[2m=[0m(112,112)-(612,838) [3mbutton[0m[2m=[0mLeft [3mis_down[0m[2m=[0mtrue
+[2m2025-12-08T10:32:06.930550Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [ButtonBuffer] record_button_down [3mentity[0m[2m=[0m4v0 [3mbutton[0m[2m=[0mLeft
+[2m2025-12-08T10:32:06.937609Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Tunnel] FlexContainer: Passing through, sender=4v0, entity=4v0
+[2m2025-12-08T10:32:07.053925Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] DragStart: sender=FlexDemo-Container, entity=FlexDemo-Container, pos=(329,314)
+[2m2025-12-08T10:32:07.062317Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(335,318)
+[2m2025-12-08T10:32:07.070630Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(2,1), pos=(338,319)
+[2m2025-12-08T10:32:07.079364Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(341,319)
+[2m2025-12-08T10:32:07.087269Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(344,319)
+[2m2025-12-08T10:32:07.095645Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(346,319)
+[2m2025-12-08T10:32:07.104111Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(350,319)
+[2m2025-12-08T10:32:07.112316Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(352,319)
+[2m2025-12-08T10:32:07.120647Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(354,320)
+[2m2025-12-08T10:32:07.129626Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(356,320)
+[2m2025-12-08T10:32:07.137500Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(0,1), pos=(358,321)
+[2m2025-12-08T10:32:07.145865Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(0,1), pos=(360,322)
+[2m2025-12-08T10:32:07.154440Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(362,323)
+[2m2025-12-08T10:32:07.162214Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(364,323)
+[2m2025-12-08T10:32:07.171370Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(366,324)
+[2m2025-12-08T10:32:07.179272Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(370,325)
+[2m2025-12-08T10:32:07.187427Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(373,325)
+[2m2025-12-08T10:32:07.195660Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(378,325)
+[2m2025-12-08T10:32:07.204081Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(2,0), pos=(385,325)
+[2m2025-12-08T10:32:07.212225Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(2,0), pos=(394,325)
+[2m2025-12-08T10:32:07.221126Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(403,325)
+[2m2025-12-08T10:32:07.228973Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(412,325)
+[2m2025-12-08T10:32:07.237306Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(2,0), pos=(421,326)
+[2m2025-12-08T10:32:07.246185Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(2,0), pos=(429,327)
+[2m2025-12-08T10:32:07.254124Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(434,329)
+[2m2025-12-08T10:32:07.262368Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(439,329)
+[2m2025-12-08T10:32:07.270673Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(442,329)
+[2m2025-12-08T10:32:07.279051Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(444,330)
+[2m2025-12-08T10:32:07.287391Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(445,331)
+[2m2025-12-08T10:32:07.295685Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(446,331)
+[2m2025-12-08T10:32:07.303970Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(446,331)
+[2m2025-12-08T10:32:07.312300Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(447,331)
+[2m2025-12-08T10:32:07.320767Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(447,331)
+[2m2025-12-08T10:32:07.329615Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(449,331)
+[2m2025-12-08T10:32:07.337289Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(452,331)
+[2m2025-12-08T10:32:07.345729Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(455,331)
+[2m2025-12-08T10:32:07.354096Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(461,331)
+[2m2025-12-08T10:32:07.362973Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(466,331)
+[2m2025-12-08T10:32:07.370664Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(472,331)
+[2m2025-12-08T10:32:07.379027Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(479,331)
+[2m2025-12-08T10:32:07.387216Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(484,331)
+[2m2025-12-08T10:32:07.395656Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(488,332)
+[2m2025-12-08T10:32:07.404095Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(492,333)
+[2m2025-12-08T10:32:07.412336Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(493,334)
+[2m2025-12-08T10:32:07.421244Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(493,334)
+[2m2025-12-08T10:32:07.429112Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(493,334)
+[2m2025-12-08T10:32:07.437890Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(493,334)
+[2m2025-12-08T10:32:07.445918Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(493,334)
+[2m2025-12-08T10:32:07.454191Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(493,334)
+[2m2025-12-08T10:32:07.463097Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(493,334)
+[2m2025-12-08T10:32:07.470826Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(493,334)
+[2m2025-12-08T10:32:07.479085Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(495,334)
+[2m2025-12-08T10:32:07.487395Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(496,334)
+[2m2025-12-08T10:32:07.495783Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(498,334)
+[2m2025-12-08T10:32:07.504044Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(500,334)
+[2m2025-12-08T10:32:07.512391Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(502,334)
+[2m2025-12-08T10:32:07.520676Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(505,334)
+[2m2025-12-08T10:32:07.529008Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(507,335)
+[2m2025-12-08T10:32:07.537393Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(507,335)
+[2m2025-12-08T10:32:07.545696Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(509,336)
+[2m2025-12-08T10:32:07.554049Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(509,336)
+[2m2025-12-08T10:32:07.562460Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,1), pos=(509,336)
+[2m2025-12-08T10:32:07.570629Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(511,336)
+[2m2025-12-08T10:32:07.579561Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(512,336)
+[2m2025-12-08T10:32:07.587312Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(514,336)
+[2m2025-12-08T10:32:07.595612Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(516,336)
+[2m2025-12-08T10:32:07.603960Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(519,336)
+[2m2025-12-08T10:32:07.612254Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(523,336)
+[2m2025-12-08T10:32:07.620681Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(528,336)
+[2m2025-12-08T10:32:07.629327Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(532,336)
+[2m2025-12-08T10:32:07.637197Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(534,336)
+[2m2025-12-08T10:32:07.645878Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] Drag: sender=FlexDemo-Container, entity=FlexDemo-Container, delta=(1,0), pos=(534,336)
+[2m2025-12-08T10:32:07.653156Z[0m [32m INFO[0m [2mwintf::ecs::window_proc::handlers[0m[2m:[0m [handle_button_message] hit_test result [3mtarget_entity[0m[2m=[0m4v0 [3mentity_name[0m[2m=[0mFlexDemo-Container [3mclient_x[0m[2m=[0m434 [3mclient_y[0m[2m=[0m236 [3mscreen_x[0m[2m=[0m534 [3mscreen_y[0m[2m=[0m336 [3mbounds[0m[2m=[0m(112,112)-(612,838) [3mbutton[0m[2m=[0mLeft [3mis_down[0m[2m=[0mfalse
+[2m2025-12-08T10:32:07.653200Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [ButtonBuffer] record_button_up [3mentity[0m[2m=[0m4v0 [3mbutton[0m[2m=[0mLeft
+[2m2025-12-08T10:32:07.654152Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] DragEnd: sender=FlexDemo-Container, entity=FlexDemo-Container, pos=(534,336), cancelled=false
+[2m2025-12-08T10:32:08.062210Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerLeave Added] Leave detected [3mentity[0m[2m=[0m4v0
+[2m2025-12-08T10:32:08.062208Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerState Added] Enter detected [3mentity[0m[2m=[0m3v0 [3mscreen_x[0m[2m=[0m514 [3mscreen_y[0m[2m=[0m174 [3mleft[0m[2m=[0mfalse [3mright[0m[2m=[0mfalse [3mmiddle[0m[2m=[0mfalse [3mshift[0m[2m=[0mfalse [3mctrl[0m[2m=[0mfalse
+[2m2025-12-08T10:32:08.446075Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerLeave Added] Leave detected [3mentity[0m[2m=[0m3v0
+[2m2025-12-08T10:32:08.446075Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerState Added] Enter detected [3mentity[0m[2m=[0m4v0 [3mscreen_x[0m[2m=[0m511 [3mscreen_y[0m[2m=[0m86 [3mleft[0m[2m=[0mfalse [3mright[0m[2m=[0mfalse [3mmiddle[0m[2m=[0mfalse [3mshift[0m[2m=[0mfalse [3mctrl[0m[2m=[0mfalse
+[2m2025-12-08T10:32:08.979186Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerLeave Added] Leave detected [3mentity[0m[2m=[0m4v0
+[2m2025-12-08T10:32:08.979182Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerState Added] Enter detected [3mentity[0m[2m=[0m3v0 [3mscreen_x[0m[2m=[0m514 [3mscreen_y[0m[2m=[0m100 [3mleft[0m[2m=[0mfalse [3mright[0m[2m=[0mfalse [3mmiddle[0m[2m=[0mfalse [3mshift[0m[2m=[0mfalse [3mctrl[0m[2m=[0mfalse
+[2m2025-12-08T10:32:09.370849Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerLeave Added] Leave detected [3mentity[0m[2m=[0m3v0
+[2m2025-12-08T10:32:09.925822Z[0m [32m INFO[0m [2mwintf::ecs::app[0m[2m:[0m [App] Last window closed. Quitting application...
+[2m2025-12-08T10:32:09.934562Z[0m [32m INFO[0m [2mwintf::win_thread_mgr[0m[2m:[0m WM_LAST_WINDOW_DESTROYED received, calling PostQuitMessage(0)

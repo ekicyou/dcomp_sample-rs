@@ -87,6 +87,9 @@ pub fn dispatch_drag_events(world: &mut World) {
                 "[DragStartEvent] Dispatching"
             );
             
+            // Messagesに送信
+            world.resource_mut::<bevy_ecs::message::Messages<DragStartEvent>>().send(event.clone());
+            
             // Phase<T>配信（pointer::dispatch_event_for_handlerを使用）
             let path = build_bubble_path(world, entity);
             crate::ecs::pointer::dispatch_event_for_handler::<DragStartEvent, OnDragStart>(
@@ -127,6 +130,9 @@ pub fn dispatch_drag_events(world: &mut World) {
                 timestamp: Instant::now(),
             };
             
+            // Messagesに送信
+            world.resource_mut::<bevy_ecs::message::Messages<DragEvent>>().send(event.clone());
+            
             let path = build_bubble_path(world, entity);
             crate::ecs::pointer::dispatch_event_for_handler::<DragEvent, OnDrag>(
                 world,
@@ -153,6 +159,9 @@ pub fn dispatch_drag_events(world: &mut World) {
                 cancelled,
                 "[DragEndEvent] Dispatching"
             );
+            
+            // Messagesに送信
+            world.resource_mut::<bevy_ecs::message::Messages<DragEndEvent>>().send(event.clone());
             
             let path = build_bubble_path(world, entity);
             crate::ecs::pointer::dispatch_event_for_handler::<DragEndEvent, OnDragEnd>(

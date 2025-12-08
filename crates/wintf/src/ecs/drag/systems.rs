@@ -9,13 +9,15 @@ use crate::ecs::window::Window;
 
 /// ウィンドウドラッグ移動システム
 ///
-/// DragEventを監視し、ウィンドウ位置を更新する。
+/// DragEventを監視し、BoxStyle.insetを更新してウィンドウ位置を変更する。
 pub fn apply_window_drag_movement(world: &mut World) {
     // DragEventを取得
     let events: Vec<DragEvent> = {
         let events_reader = world.resource::<Messages<DragEvent>>();
         events_reader.iter_current_update_messages().cloned().collect()
     };
+    
+    tracing::info!("[apply_window_drag_movement] Processing {} drag events", events.len());
     
     for event in events {
         // イベント対象エンティティの親階層からWindowコンポーネントを探索
@@ -41,39 +43,49 @@ pub fn apply_window_drag_movement(world: &mut World) {
         }
         
         if let Some(window_entity) = window_entity {
-            // WindowPosコンポーネントを取得
+            // BoxStyleとDragConstraintを取得
             if let Ok(entity_ref) = world.get_entity(window_entity) {
-                // まず制約を取得
                 let constraint = entity_ref.get::<DragConstraint>().copied();
                 
-                // 次にWindowPosを更新
+                // 次にBoxStyleを更新
                 drop(entity_ref);
                 
                 if let Ok(mut entity_mut) = world.get_entity_mut(window_entity) {
-                    if let Some(mut window_pos) = entity_mut.get_mut::<crate::ecs::window::WindowPos>() {
-                        if let Some(pos) = &mut window_pos.position {
-                            // 新しい位置を計算
-                            let new_x = pos.x + event.delta.x;
-                            let new_y = pos.y + event.delta.y;
-                            
-                            // 制約を適用
-                            let (constrained_x, constrained_y) = if let Some(c) = constraint {
-                                c.apply(new_x, new_y)
-                            } else {
-                                (new_x, new_y)
+                    if let Some(mut box_style) = entity_mut.get_mut::<crate::ecs::layout::BoxStyle>() {
+                        if let Some(inset) = &mut box_style.inset {
+                            // 現在のinset値を取得
+                            let current_left = match inset.0.left {
+                                crate::ecs::layout::LengthPercentageAuto::Px(val) => val,
+                                _ => 0.0,
+                            };
+                            let current_top = match inset.0.top {
+                                crate::ecs::layout::LengthPercentageAuto::Px(val) => val,
+                                _ => 0.0,
                             };
                             
-                            // 位置を更新
-                            pos.x = constrained_x;
-                            pos.y = constrained_y;
+                            // 新しい位置を計算
+                            let new_left = current_left + event.delta.x as f32;
+                            let new_top = current_top + event.delta.y as f32;
                             
-                            tracing::trace!(
+                            // 制約を適用
+                            let (constrained_left, constrained_top) = if let Some(c) = constraint {
+                                let (x, y) = c.apply(new_left as i32, new_top as i32);
+                                (x as f32, y as f32)
+                            } else {
+                                (new_left, new_top)
+                            };
+                            
+                            // insetを更新
+                            inset.0.left = crate::ecs::layout::LengthPercentageAuto::Px(constrained_left);
+                            inset.0.top = crate::ecs::layout::LengthPercentageAuto::Px(constrained_top);
+                            
+                            tracing::info!(
                                 window = ?window_entity,
                                 dx = event.delta.x,
                                 dy = event.delta.y,
-                                new_x = constrained_x,
-                                new_y = constrained_y,
-                                "[apply_window_drag_movement] Window position updated"
+                                new_left = constrained_left,
+                                new_top = constrained_top,
+                                "[apply_window_drag_movement] BoxStyle.inset updated"
                             );
                         }
                     }
