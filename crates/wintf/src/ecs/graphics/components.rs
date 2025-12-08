@@ -16,6 +16,10 @@ use crate::com::dcomp::DCompositionVisualExt;
 /// デバイスロスト時は `set_changed()` を呼び出すことで、
 /// 各GPUリソースコンポーネント（VisualGraphics, WindowGraphics等）の
 /// 再初期化システムをトリガーする。
+///
+/// # メモリ戦略
+/// - **Table戦略**: 多数のエンティティに付与されるGPUリソース宣言マーカー
+/// - デバイスロスト時にset_changed()で一括再初期化をトリガー
 #[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HasGraphicsResources;
 
@@ -220,6 +224,11 @@ impl SurfaceGraphics {
 /// マーカーコンポーネント `SurfaceUpdateRequested` の置き換え。
 /// `Changed<SurfaceGraphicsDirty>` パターンにより、アーキタイプ変更を排除し、
 /// 同一スケジュール内での即時伝搬を実現する。
+///
+/// # メモリ戦略
+/// - **Table戦略**: すべてのVisualに付与され、値更新でChanged検出する設計
+/// - Visual.on_addで自動挿入、削除されない永続コンポーネント
+/// - アーキタイプ変更を排除するための設計意図により、Table戦略が最適
 #[derive(Component, Default, Debug, Clone, PartialEq)]
 pub struct SurfaceGraphicsDirty {
     /// 最後に描画をリクエストしたフレーム番号
@@ -232,6 +241,10 @@ pub struct SurfaceGraphicsDirty {
 /// # ライフタイムイベント
 /// - `on_add`: `Arrangement::default()`を自動挿入
 ///   - これにより`Arrangement`の`on_add`が連鎖的に`GlobalArrangement`と`ArrangementTreeChanged`を挿入
+///
+/// # メモリ戦略
+/// - **Table戦略**: すべてのエンティティに存在する根幹コンポーネント
+/// - on_addフックで他の必須コンポーネントを連鎖的に生成
 #[derive(Component, Debug, Clone, PartialEq)]
 #[component(on_add = on_visual_add)]
 pub struct Visual {
