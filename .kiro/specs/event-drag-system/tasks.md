@@ -11,11 +11,24 @@
 ### 🔴 **緊急課題：DPIスケール問題（2025-12-08 22:07 JST）**
 
 #### 現象
-- **1.25倍DPIスケールのモニタで、ウィンドウがマウスに対して1.25倍速く動く**
-- マウスを10px動かすと、ウィンドウが12.5px動く
+- **あらゆるDPIスケール環境でウィンドウがマウスに対して約1.25倍速く動く**
+- **1.25倍スケールのモニタ**: マウス10px → ウィンドウ12.5px
+- **2.0倍スケールのモニタ**: マウス10px → ウィンドウ約12.5px（1.25倍スケール環境と同じ挙動）
+- **DPIチェンジによるスケール変更は正しく動作している**（別の問題ではない）
 - ログでは正確に動いているように見える：
   - `dx=1` → `client_x` が1ピクセル増加
   - `dx=2` → `client_x` が2ピクセル増加
+
+#### 重要な観察
+1. **DPIスケール値に依存しない挙動**：
+   - 1.25倍でも2.0倍でも同じ約1.25倍速の動き
+   - つまり、DPIスケール値を使った単純な変換の問題ではない
+2. **DPIチェンジは正常動作**：
+   - モニタ間でのDPI変更時のウィンドウリサイズは正しい
+   - つまり、DPI認識機構自体は正常
+3. **ログと実際の動作の乖離**：
+   - `dx=1`でログ上は1px増加
+   - 実際には約1.25px増加している
 
 #### 調査済み事項
 1. ✅ DPI変換の追加・削除を試行
@@ -61,11 +74,18 @@
    - 座標変換時にDPIスケールが適用されているか確認
 
 #### 疑わしいポイント
-- **`BoxStyle.inset`が実は論理ピクセル**の可能性
-  - ドキュメントと実装が乖離している？
-  - レイアウトシステムで自動的にDPIスケールが適用される？
-- **`WindowPos.position`が論理ピクセル**の可能性
-  - `window_to_client_coords`で変換済み？
+1. **固定の1.25倍係数が別の場所で適用されている**
+   - DPIスケールとは無関係に1.25倍される処理が存在する？
+   - 既存のレイアウトシステムやウィンドウ位置計算で固定係数？
+2. **`BoxStyle.inset`への書き込みと実際のSetWindowPos間の変換**
+   - `apply_window_pos_changes`でのinset→WindowPos変換
+   - ここで1.25倍の変換が入っている可能性
+3. **ログに出ている`client_x`が実は別の座標系**
+   - `WindowPos.position`が既に変換済みの座標？
+   - 実際のウィンドウ位置とは異なる値？
+4. **既存のウィンドウ移動処理との重複適用**
+   - `BoxStyle.inset`更新とWindowPos更新の両方が動いている？
+   - 2つの更新が重なって1.25倍になっている？
 
 ### 以前の問題（解決済み）
 - ~~thread_local DragStateがwndprocスレッドとECSスレッドで共有されない問題~~
@@ -222,18 +242,18 @@
 
 ### Phase 4: ウィンドウ移動とドラッグ制約
 
-- [x] 4. ウィンドウ移動システムとドラッグ制約
-- [x] 4.1 apply_window_drag_movement Systemでウィンドウ位置更新
+- [ ] 4. ウィンドウ移動システムとドラッグ制約 **【🔴 BLOCKED: DPIスケール問題により未完了】**
+- [ ] 4.1 apply_window_drag_movement Systemでウィンドウ位置更新 **【🔴 1.25倍速バグあり】**
   - apply_window_drag_movement()関数を実装（DragEvent購読）
   - DragEventのdeltaを累積してウィンドウOffset更新
   - SetWindowPosCommand::enqueue()でWorld借用競合を回避
   - event.targetの親階層からWindowコンポーネント探索
   - Windowが見つからなければスキップ（将来の非ウィンドウドラッグ対応）
   - **重要**: BoxStyle.insetを直接更新（物理ピクセル単位）
-  - **DPI問題**: 1.25倍速く動く問題が未解決（要調査）
+  - **🔴 致命的バグ**: あらゆるDPIスケール環境で1.25倍速く動く
   - _Requirements: 6.1, 6.2, 6.3, 6.6, 13.5_
   - **FILE: crates/wintf/src/ecs/drag/systems.rs (apply_window_drag_movement)**
-  - **STATUS: 実装完了だが、DPIスケール問題あり（緊急課題参照）**
+  - **STATUS: 実装完了だが、致命的バグにより使用不可**
 
 - [x] 4.2 DragConstraintコンポーネント定義と制約適用
   - DragConstraint構造体（min_x, max_x, min_y, max_y: Option<i32>）
@@ -282,7 +302,7 @@
 
 ### Phase 6: taffy_flex_demo統合とサンプル実装
 
-- [x] 6. taffy_flex_demoへのドラッグ機能統合
+- [ ] 6. taffy_flex_demoへのドラッグ機能統合 **【🔴 BLOCKED: DPIスケール問題により未完了】**
 - [x] 6.1 FlexDemoContainerにドラッグハンドラ登録
   - FlexDemoContainerエンティティにOnDragStart/OnDrag/OnDragEndを登録
   - 各ハンドラでイベント種別、sender/entityのName、座標、移動量をログ出力
@@ -290,7 +310,7 @@
   - DragConfigでドラッグ有効化（enabled: true, threshold: 5px）
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.6_
   - **FILE: crates/wintf/examples/taffy_flex_demo.rs (on_container_drag_start/drag/drag_end)**
-  - **STATUS: 完了**
+  - **STATUS: 実装完了（但し、1.25倍速バグあり）**
 
 - [x] 6.2 taffy_flex_demoのコメントとドキュメント更新
   - サンプルコード冒頭にドラッグ可能であることをコメント記載
@@ -298,20 +318,23 @@
   - 既存の階層構造とレイアウトシステムとの統合を説明
   - _Requirements: 12.5_
   - **FILE: crates/wintf/examples/taffy_flex_demo.rs**
-  - **STATUS: 完了**
+  - **STATUS: 実装完了（但し、1.25倍速バグあり）**
 
 ### Phase 7: 統合テストとドキュメント
 
-- [ ] 7. 統合テストと最終検証
-- [x] 7.1 ドラッグ操作の基本動作確認
+- [ ] 7. 統合テストと最終検証 **【🔴 BLOCKED: DPIスケール問題により未完了】**
+- [ ] 7.1 ドラッグ操作の基本動作確認 **【🔴 FAILED: 1.25倍速バグ】**
   - taffy_flex_demoで全ドラッグフローの動作確認（開始→移動→終了）
   - ESCキーキャンセルの動作確認
   - WM_CANCELMODEキャンセルの動作確認（Alt+Tab、モーダルダイアログ等）
   - ドラッグ閾値（5px）の動作確認
   - 単一クリック（閾値未到達）が正常動作することを確認
-  - **検証結果**: 基本動作は確認できたが、DPIスケール問題が発覚
+  - **🔴 検証結果FAILED**: 致命的な1.25倍速バグが発覚
+    - 1.25倍スケール環境: マウス10px → ウィンドウ12.5px
+    - 2.0倍スケール環境: マウス10px → ウィンドウ12.5px（同じ挙動）
+    - DPIスケール値に依存しない謎の1.25倍係数
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 5.1, 5.2, 5.3_
-  - **STATUS: 部分的完了（DPI問題を除く）**
+  - **STATUS: FAILED - バグ修正まで完了不可**
 
 - [ ] 7.2* Phase::Tunnel/Bubbleイベント伝播の統合テスト（オプショナル）
   - 親エンティティでのイベント横取り動作確認
