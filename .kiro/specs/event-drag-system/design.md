@@ -696,6 +696,22 @@ pub enum DragState {
 4. `Dragging → Idle`: WM_LBUTTONUP + ReleaseCapture + DragEndEvent発火
 5. `Preparing/Dragging → Idle`: ESCキー or WM_CANCELMODE + ReleaseCapture + DragEndEvent（cancelled=true）
 
+**DragState設計の根拠**:
+
+**単一状態の理由**: Requirement 1.7「同時複数ボタンドラッグ禁止」に対応するため、DragStateはthread_local!の単一状態として実装する。あるドラッグの発動中（Preparing/Dragging状態）は、他のマウスボタン押下によるドラッグ開始を拒否する。
+
+**ButtonBufferとの差異**:
+- **ButtonBuffer** (`HashMap<(Entity, PointerButton), ButtonBuffer>`): ボタンごとの押下/解放状態を記録、複数ボタン同時管理可能
+- **DragState** (単一状態): アクティブなドラッグ1つのみを管理
+- ButtonBufferはクリック検出用の状態記録、DragStateはドラッグ操作の状態機械
+
+**複数ボタン同時押下時の動作**:
+1. 左ボタンでドラッグ中（`DragState::Dragging`）
+2. 右ボタン押下（`WM_RBUTTONDOWN`）を受信
+3. `update_drag_state()`内で既にPreparing/Dragging状態であることを検知
+4. 早期リターンで右ボタンのドラッグ開始を拒否
+5. 左ボタンのドラッグは継続、右ボタンのButtonBufferは通常通り更新（クリック検出用）
+
 ### 座標系
 
 #### PhysicalPoint
