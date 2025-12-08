@@ -52,10 +52,11 @@
 #### Acceptance Criteria
 
 1. **The** Drag System **shall** エンティティごとのドラッグ状態（非ドラッグ、ドラッグ準備、ドラッグ中）を管理する
-2. **When** マウスボタンが押下された時, **the** Drag System **shall** ドラッグ準備状態に遷移する
+2. **When** 任意のマウスボタン（左/右/中）が押下された時, **the** Drag System **shall** ドラッグ準備状態に遷移する
 3. **When** ドラッグ準備状態でマウスが移動し閾値を超えた時, **the** Drag System **shall** ドラッグ中状態に遷移する
 4. **When** マウスボタンが解放された時, **the** Drag System **shall** 非ドラッグ状態に遷移する
-5. **The** Drag System **shall** 現在ドラッグ中のエンティティを一意に識別できる
+5. **The** Drag System **shall** 現在ドラッグ中のエンティティとボタン種別を一意に識別できる
+6. **The** Drag System **shall** ウィンドウエンティティのコンポーネントで、ボタンごとのドラッグ有効/無効を設定可能にする
 
 ---
 
@@ -66,7 +67,7 @@
 #### Acceptance Criteria
 
 1. **When** マウスボタンが押下されてから閾値（デフォルト5ピクセル）を超えて移動した時, **the** Drag System **shall** DragStart イベントを発火する
-2. **The** Drag System **shall** ドラッグ開始位置（画面座標・ローカル座標）をイベント情報に含める
+2. **The** Drag System **shall** ドラッグ開始位置（画面座標・ローカル座標）とマウスボタン種別をイベント情報に含める
 3. **The** Drag System **shall** ドラッグ対象エンティティの識別子をイベント情報に含める
 4. **The** Drag System **shall** ドラッグ閾値をエンティティごとに設定可能にする
 5. **When** ドラッグ閾値が0に設定された場合, **the** Drag System **shall** マウスボタン押下直後にDragStartを発火する
@@ -121,11 +122,12 @@
 
 #### Acceptance Criteria
 
-1. **When** ドラッグ可能なエンティティがドラッグされた時, **the** Drag System **shall** 所属するウィンドウの位置を更新する
-2. **While** ドラッグ中, **the** Drag System **shall** マウスカーソルに追従してウィンドウ位置をリアルタイム更新する
+1. **When** ウィンドウエンティティがドラッグイベントをキャプチャした時, **the** Drag System **shall** そのウィンドウのOffset（WindowPos）を更新する
+2. **While** ドラッグ中, **the** Drag System **shall** マウスカーソルに追従してウィンドウOffsetをリアルタイム更新する
 3. **The** Drag System **shall** ウィンドウ位置の更新にWin32 API（SetWindowPos等）を使用する
-4. **The** Drag System **shall** ドラッグによるウィンドウ移動の有効/無効をエンティティごとに設定可能にする
-5. **When** 複数のドラッグ可能エンティティが存在する場合, **the** Drag System **shall** Z順序最前面のエンティティのみをドラッグ対象とする
+4. **The** Drag System **shall** ドラッグによるウィンドウ移動の有効/無効をウィンドウエンティティのコンポーネントで設定可能にする
+5. **The** Drag System **shall** ウィンドウエンティティのみをドラッグ移動対象とし、子ウィジェットの個別移動は対象外とする
+6. **When** ドラッグイベントがキャプチャされない場合, **the** Drag System **shall** ウィンドウ移動を実行しない
 
 ---
 
@@ -230,6 +232,8 @@
 | ドラッグ中状態 | 閾値を超えてドラッグが開始された状態 |
 | 仮想スクリーン座標 | マルチモニター環境における全ディスプレイを統合した座標系 |
 | ローカル座標 | エンティティ内部の相対座標 |
+| イベントキャプチャ | ドラッグイベントを処理する要素が決定されること |
+| ウィンドウエンティティ | ウィンドウ全体を表すトップレベルエンティティ（Windowコンポーネント保持） |
 
 ---
 
@@ -247,12 +251,21 @@
 // 参考実装イメージ（要件定義段階の例示）
 struct DragEvent {
     entity: Entity,
+    button: MouseButton,          // 左/右/中ボタン
     start_position: Point2D,      // 画面座標
     current_position: Point2D,    // 画面座標
     delta: Vector2D,              // 開始位置からの差分
     delta_from_last: Vector2D,    // 前フレームからの差分
     elapsed_time: Duration,       // 経過時間
     is_cancelled: bool,           // キャンセルフラグ
+}
+
+// ウィンドウエンティティのドラッグ設定コンポーネント（例示）
+struct DragConfig {
+    left_button_enabled: bool,    // 左ボタンでドラッグ可
+    right_button_enabled: bool,   // 右ボタンでドラッグ可
+    middle_button_enabled: bool,  // 中ボタンでドラッグ可
+    drag_threshold: f32,          // ドラッグ閾値（ピクセル）
 }
 ```
 
