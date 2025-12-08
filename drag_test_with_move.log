@@ -1,0 +1,476 @@
+warning: function `change_layout_parameters` is never used
+   --> crates\wintf\examples\taffy_flex_demo.rs:396:4
+    |
+396 | fn change_layout_parameters(world: &mut World) {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `test_hit_test_6s` is never used
+   --> crates\wintf\examples\taffy_flex_demo.rs:587:4
+    |
+587 | fn test_hit_test_6s(world: &mut World) {
+    |    ^^^^^^^^^^^^^^^^
+
+warning: `wintf` (example "taffy_flex_demo") generated 2 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.24s
+     Running `target\debug\examples\taffy_flex_demo.exe`
+[2m2025-12-08T12:45:47.151177Z[0m [32m INFO[0m [2mwintf::process_singleton[0m[2m:[0m Window classes created
+[2m2025-12-08T12:45:47.156378Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [initialize_layout_root] Creating LayoutRoot singleton
+
+Taffy Flexbox繝ｬ繧､繧｢繧ｦ繝医・繝・Δ:
+  1. Window Entity (繝ｫ繝ｼ繝・ - 800x600
+[Async] 0s: Creating Flexbox demo window
+  2. FlexContainer (讓ｪ荳ｦ縺ｳ縲∝插遲蛾・鄂ｮ縲∽ｸｭ螟ｮ謠・∴) - 轣ｰ濶ｲ閭梧勹
+  3. 襍､縺・洸蠖｢ (蝗ｺ螳・00x100)
+  4. 邱代・遏ｩ蠖｢ (100x100, grow=1.0縲∵ｮ九ｊ繧ｹ繝壹・繧ｹ縺ｮ1/3)
+  5. 髱偵＞遏ｩ蠖｢ (100x100, grow=2.0縲∵ｮ九ｊ繧ｹ繝壹・繧ｹ縺ｮ2/3)
+
+5遘貞ｾ後↓繝ｬ繧､繧｢繧ｦ繝医ヱ繝ｩ繝｡繝ｼ繧ｿ繝ｼ繧貞､画峩縺励∪縺吶・10遘貞ｾ後↓閾ｪ蜍慕噪縺ｫWindow繧帝哩縺倥※繧｢繝励Μ邨ゆｺ・＠縺ｾ縺吶・[Test] Flexbox demo window created:
+  Window (root)
+  笏披楳 FlexContainer (Row, SpaceEvenly, Center) - 轣ｰ濶ｲ閭梧勹縲・0px繝槭・繧ｸ繝ｳ縲∝承繧ｯ繝ｪ繝・け/Ctrl+蟾ｦ繧ｯ繝ｪ繝・け縺ｧTunnel繝・Δ
+     笏懌楳 Rectangle (red, 200x100 fixed) - 蟾ｦ繧ｯ繝ｪ繝・け縺ｧ濶ｲ繝医げ繝ｫ
+     笏・  笏披楳 BitmapSource (seikatu_0_0.webp) - ﾎｱ繝槭せ繧ｯ繝偵ャ繝医ユ繧ｹ繝域怏蜉ｹ縲・乗・驛ｨ蛻・・隕ｪ縺ｫ騾城℃
+     笏懌楳 Rectangle (green, 100x100, grow=1, Column) - 繝槭え繧ｹ遘ｻ蜍輔〒繝ｭ繧ｰ縲∝ｷｦ繧ｯ繝ｪ繝・け縺ｧTunnel繧ｭ繝｣繝励メ繝｣
+     笏・  笏披楳 Rectangle (yellow, 50x50) - Tunnel繧ｭ繝｣繝励メ繝｣讀懆ｨｼ逕ｨ蟄舌お繝ｳ繝・ぅ繝・ぅ
+     笏披楳 Rectangle (blue, 100x100, grow=2) - 蟾ｦ繧ｯ繝ｪ繝・け縺ｧ繧ｵ繧､繧ｺ繝医げ繝ｫ
+
+[PointerEvent Demo]
+  - 轣ｰ濶ｲ繧ｳ繝ｳ繝・リ繧貞承繧ｯ繝ｪ繝・け 竊・濶ｲ縺後ヴ繝ｳ繧ｯ縺ｫ螟牙喧
+  - 轣ｰ濶ｲ繧ｳ繝ｳ繝・リ繧辰trl+蟾ｦ繧ｯ繝ｪ繝・け 竊・Tunnel縺ｧ蛛懈ｭ｢縲∝ｭ舌↓繧､繝吶Φ繝亥芦驕斐○縺・  - 鮟・牡遏ｩ蠖｢(GreenBoxChild)繧貞ｷｦ繧ｯ繝ｪ繝・け 竊・隕ｪ(GreenBox)縺卦unnel繧ｭ繝｣繝励メ繝｣縲∝ｭ舌・蛻ｰ驕斐＠縺ｪ縺・  - 鮟・牡遏ｩ蠖｢(GreenBoxChild)繧貞承繧ｯ繝ｪ繝・け 竊・隕ｪ縺後く繝｣繝励メ繝｣縺帙★縲ゝunnel/Bubble荳｡繝輔ぉ繝ｼ繧ｺ螳溯｡・  - 襍､縺・洸蠖｢繧貞ｷｦ繧ｯ繝ｪ繝・け 竊・濶ｲ縺瑚ｵ､竍秘ｻ・ヨ繧ｰ繝ｫ
+  - 逕ｻ蜒上・騾乗・驛ｨ蛻・ｒ蟾ｦ繧ｯ繝ｪ繝・け 竊・閭梧勹(RedBox)縺ｮ濶ｲ縺悟､峨ｏ繧具ｼ夷ｱ繝槭せ繧ｯ繝偵ャ繝医ユ繧ｹ繝茨ｼ・  - 逕ｻ蜒上・荳埼乗・驛ｨ蛻・ｒ蟾ｦ繧ｯ繝ｪ繝・け 竊・逕ｻ蜒上′繧ｯ繝ｪ繝・け縺輔ｌ閭梧勹縺ｯ螟峨ｏ繧峨↑縺・  - 邱代・遏ｩ蠖｢縺ｧ繝槭え繧ｹ遘ｻ蜍・竊・繝ｭ繧ｰ蜃ｺ蜉幢ｼ医ョ繝舌ャ繧ｰ・・  - 髱偵＞遏ｩ蠖｢繧貞ｷｦ繧ｯ繝ｪ繝・け 竊・繧ｵ繧､繧ｺ縺・00竍・50繝医げ繝ｫ
+[2m2025-12-08T12:45:47.165254Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.166565Z[0m [32m INFO[0m [2mwintf::ecs::graphics::systems[0m[2m:[0m [init_graphics_core] GraphicsCore initialization started [3mframe[0m[2m=[0m1
+[2m2025-12-08T12:45:47.166623Z[0m [32m INFO[0m [2mwintf::ecs::graphics::core[0m[2m:[0m [GraphicsCore] Initialization started
+[2m2025-12-08T12:45:47.245437Z[0m [32m INFO[0m [2mwintf::ecs::graphics::core[0m[2m:[0m [GraphicsCore] Initialization completed
+[2m2025-12-08T12:45:47.245473Z[0m [32m INFO[0m [2mwintf::ecs::graphics::systems[0m[2m:[0m [init_graphics_core] GraphicsCore initialization completed [3mframe[0m[2m=[0m1
+[2m2025-12-08T12:45:47.247818Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m6v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m64.0 [3mnew_height[0m[2m=[0m64.0
+[2m2025-12-08T12:45:47.247864Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m9v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m100.0 [3mnew_height[0m[2m=[0m100.0
+[2m2025-12-08T12:45:47.247878Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m0v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m6720.0 [3mnew_height[0m[2m=[0m2165.0
+[2m2025-12-08T12:45:47.247890Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m4v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m400.0 [3mnew_height[0m[2m=[0m580.0
+[2m2025-12-08T12:45:47.247902Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m1v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m2880.0 [3mnew_height[0m[2m=[0m1800.0
+[2m2025-12-08T12:45:47.247915Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m2v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m3840.0 [3mnew_height[0m[2m=[0m2160.0
+[2m2025-12-08T12:45:47.247927Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m8v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m50.0 [3mnew_height[0m[2m=[0m50.0
+[2m2025-12-08T12:45:47.247939Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m3v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m800.0 [3mnew_height[0m[2m=[0m600.0
+[2m2025-12-08T12:45:47.247951Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m5v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m200.0 [3mnew_height[0m[2m=[0m100.0
+[2m2025-12-08T12:45:47.247963Z[0m [32m INFO[0m [2mwintf::ecs::layout::systems[0m[2m:[0m [compute_taffy_layout] Layout changed [3mentity[0m[2m=[0m7v0 [3mold_width[0m[2m=[0m0.0 [3mold_height[0m[2m=[0m0.0 [3mnew_width[0m[2m=[0m100.0 [3mnew_height[0m[2m=[0m100.0
+[2m2025-12-08T12:45:47.300274Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.307806Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.317719Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerState Added] Enter detected [3mentity[0m[2m=[0m3v0 [3mscreen_x[0m[2m=[0m658 [3mscreen_y[0m[2m=[0m173 [3mleft[0m[2m=[0mfalse [3mright[0m[2m=[0mfalse [3mmiddle[0m[2m=[0mfalse [3mshift[0m[2m=[0mfalse [3mctrl[0m[2m=[0mfalse
+[2m2025-12-08T12:45:47.318029Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.323660Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.334951Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.339654Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.350634Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.356783Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.366514Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.372899Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.382927Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.389886Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.399268Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.406165Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.416170Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.423269Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.433087Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.439446Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.449758Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.456238Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.466110Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.474057Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.482826Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.489509Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.499169Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.506055Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.515852Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.522798Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.532509Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.539449Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.549324Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.556140Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.565556Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.572954Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.582608Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.589056Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.598608Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.605559Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.615229Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.622757Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.633023Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.639184Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.649496Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerState Added] Enter detected [3mentity[0m[2m=[0m4v0 [3mscreen_x[0m[2m=[0m512 [3mscreen_y[0m[2m=[0m168 [3mleft[0m[2m=[0mfalse [3mright[0m[2m=[0mfalse [3mmiddle[0m[2m=[0mfalse [3mshift[0m[2m=[0mfalse [3mctrl[0m[2m=[0mfalse
+[2m2025-12-08T12:45:47.649530Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerLeave Added] Leave detected [3mentity[0m[2m=[0m3v0
+[2m2025-12-08T12:45:47.649736Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.655722Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.665225Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.672314Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.681682Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.688961Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.698364Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.705661Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.714734Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.722253Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.731195Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.740334Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.749101Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.755799Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.764786Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.772722Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.781387Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.789293Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.798132Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.805561Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.814697Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.822810Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.831211Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.838885Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.848375Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.855518Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.864628Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.872221Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.881521Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.889167Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.898283Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.905650Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.915002Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.922277Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.930995Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.938963Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.948034Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.955604Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.964765Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.972234Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.981171Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.988931Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:47.998182Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.006744Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.014907Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.022269Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.031051Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.038912Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.047634Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.055944Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.061108Z[0m [32m INFO[0m [2mwintf::ecs::window_proc::handlers[0m[2m:[0m [handle_button_message] hit_test result [3mtarget_entity[0m[2m=[0m4v0 [3mentity_name[0m[2m=[0mFlexDemo-Container [3mclient_x[0m[2m=[0m312 [3mclient_y[0m[2m=[0m173 [3mscreen_x[0m[2m=[0m412 [3mscreen_y[0m[2m=[0m273 [3mbounds[0m[2m=[0m(112,112)-(612,838) [3mbutton[0m[2m=[0mLeft [3mis_down[0m[2m=[0mtrue
+[2m2025-12-08T12:45:48.061162Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [ButtonBuffer] record_button_down [3mentity[0m[2m=[0m4v0 [3mbutton[0m[2m=[0mLeft
+[2m2025-12-08T12:45:48.061174Z[0m [32m INFO[0m [2mwintf::ecs::window_proc::handlers[0m[2m:[0m [handle_button_message] Calling start_preparing [3mentity[0m[2m=[0m4v0 [3mx[0m[2m=[0m412 [3my[0m[2m=[0m273
+[2m2025-12-08T12:45:48.061187Z[0m [32m INFO[0m [2mwintf::ecs::drag::state[0m[2m:[0m [start_preparing] DragState updated [3mstate[0m[2m=[0mPreparing { entity: 4v0, start_pos: PhysicalPoint { x: 412, y: 273 }, start_time: Instant { t: 483725.0032572s } }
+[2m2025-12-08T12:45:48.064559Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Tunnel] FlexContainer: Passing through, sender=4v0, entity=4v0
+[2m2025-12-08T12:45:48.064888Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.072971Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.081245Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.089152Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.099096Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.106407Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.114415Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.122389Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.131970Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.139151Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.148105Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.155755Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.164635Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.172311Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[Async] 1s: Running hit test verification
+[Async] Waiting 60 seconds for pointer event demo...
+  Try: Left-click on RedBox, BlueBox, Right-click on Container
+[HitTest @1s] === Running hit test verification ===
+[HitTest @1s] Window scale: (1.25, 1.25), origin: (100, 100)
+[HitTest @1s] --- Window reference coordinates ---
+[HitTest] WindowPos.position: x=100, y=100
+[HitTest] WindowPos.size: cx=1000, cy=750
+[HitTest @1s] --- Entity bounds (GlobalArrangement) ---
+[HitTest] FlexDemo-Window bounds: left=100.0, top=100.0, right=1100.0, bottom=850.0 (size: 1000.0x750.0)
+[HitTest] FlexDemo-Container bounds: left=112.5, top=112.5, right=612.5, bottom=837.5 (size: 500.0x725.0)
+[HitTest] RedBox bounds: left=362.5, top=412.5, right=612.5, bottom=537.5 (size: 250.0x125.0)
+[HitTest] GreenBox bounds: left=112.5, top=412.5, right=237.5, bottom=537.5 (size: 125.0x125.0)
+[HitTest] BlueBox bounds: left=237.5, top=412.5, right=362.5, bottom=537.5 (size: 125.0x125.0)
+[HitTest @1s] --- End of entity bounds ---
+[HitTest @1s] --- Hit test results ---
+[HitTest @1s] GreenBox center (DIP 50,250) at DIP->Screen (162, 412): Hit "GreenBoxChild" (expected: GreenBox)
+[HitTest @1s] RedBox child (SeikatuImage) (DIP 150,250) at DIP->Screen (288, 412): Hit "BlueBox" (expected: SeikatuImage)
+[HitTest @1s] BlueBox center (DIP 320,250) at DIP->Screen (500, 412): Hit "RedBox" (expected: BlueBox)
+[HitTest @1s] Container area (DIP 15,15) at DIP->Screen (119, 119): Hit "FlexDemo-Container" (expected: FlexDemo-Container)
+[HitTest @1s] Outside Container (DIP 700,300) at DIP->Screen (975, 475): Hit "FlexDemo-Window" (expected: FlexDemo-Window)
+[2m2025-12-08T12:45:48.181577Z[0m [32m INFO[0m [2mwintf::ecs::drag::dispatch[0m[2m:[0m [dispatch_drag_events] DraggingState inserted [3mentity[0m[2m=[0m4v0 [3mx[0m[2m=[0m412 [3my[0m[2m=[0m273
+[2m2025-12-08T12:45:48.181609Z[0m [32m INFO[0m [2mwintf::ecs::drag::dispatch[0m[2m:[0m [DragStartEvent] Dispatching [3mentity[0m[2m=[0m4v0 [3mx[0m[2m=[0m412 [3my[0m[2m=[0m273
+[2m2025-12-08T12:45:48.181637Z[0m [32m INFO[0m [2mtaffy_flex_demo[0m[2m:[0m [Drag] DragStart: sender=FlexDemo-Container, entity=FlexDemo-Container, pos=(412,273)
+[2m2025-12-08T12:45:48.181711Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.189068Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.197786Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.205742Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.214590Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.222284Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.231141Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.240197Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.248606Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.255724Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.264466Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.272502Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.282017Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.289168Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.298109Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.305642Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.315197Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.322403Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.331233Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.339263Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.347358Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.356065Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.364195Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.373034Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.380828Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.389157Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.397322Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.405711Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.414015Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.422586Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.430689Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.439124Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.447243Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.455835Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.464082Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.472665Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.480563Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.489219Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.497257Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.505848Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.514129Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.522684Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.530687Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.539263Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.547318Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.555925Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.563972Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.572513Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.580658Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.589451Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.597187Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerState Added] Enter detected [3mentity[0m[2m=[0m3v0 [3mscreen_x[0m[2m=[0m513 [3mscreen_y[0m[2m=[0m171 [3mleft[0m[2m=[0mfalse [3mright[0m[2m=[0mfalse [3mmiddle[0m[2m=[0mfalse [3mshift[0m[2m=[0mfalse [3mctrl[0m[2m=[0mfalse
+[2m2025-12-08T12:45:48.597202Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerLeave Added] Leave detected [3mentity[0m[2m=[0m4v0
+[2m2025-12-08T12:45:48.597327Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.605778Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.613973Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.622540Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.630717Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.639395Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.647260Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.655818Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.664055Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.672621Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.680560Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.689180Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.697302Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.705979Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.713917Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.722525Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.730699Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.739185Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.747207Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.755738Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.764048Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.772538Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.780682Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.789216Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.797619Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.806220Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.813987Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.822582Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.830666Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.839259Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.847309Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.855747Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.864119Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.872662Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.880598Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.889195Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.897282Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.905846Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.914044Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.922683Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.930693Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.939251Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.947309Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.955957Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.964268Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.972608Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.980511Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.989061Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:48.997308Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.005940Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.014106Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.022697Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.030669Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.039402Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.047248Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.055849Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.064145Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.072533Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.080719Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.089032Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.097127Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.105475Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.113818Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.122104Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.131009Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.139546Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.147207Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.155434Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.163798Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.172091Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.180440Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.188828Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.197183Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.205448Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.213801Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.222874Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.230501Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.238930Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.247569Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.256340Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.263776Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.272188Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.280959Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.288803Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.297020Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.305434Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.313706Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.316682Z[0m [32m INFO[0m [2mwintf::ecs::window_proc::handlers[0m[2m:[0m [handle_button_message] hit_test result [3mtarget_entity[0m[2m=[0m3v0 [3mentity_name[0m[2m=[0mFlexDemo-Window [3mclient_x[0m[2m=[0m638 [3mclient_y[0m[2m=[0m128 [3mscreen_x[0m[2m=[0m738 [3mscreen_y[0m[2m=[0m228 [3mbounds[0m[2m=[0m(100,100)-(1100,850) [3mbutton[0m[2m=[0mLeft [3mis_down[0m[2m=[0mfalse
+[2m2025-12-08T12:45:49.316730Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [ButtonBuffer] record_button_up [3mentity[0m[2m=[0m3v0 [3mbutton[0m[2m=[0mLeft
+[2m2025-12-08T12:45:49.322197Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.330324Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.338730Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.347092Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.355615Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.363739Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.372096Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.380379Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.388706Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.397212Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.405282Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.413881Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.422087Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.430279Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.438594Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.447185Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.455267Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.464018Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.472016Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.480362Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.488670Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.496994Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.505364Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.513786Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.522170Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.530347Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.538761Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.547159Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.555303Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.563650Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.573538Z[0m [32m INFO[0m [2mwintf::ecs::pointer[0m[2m:[0m [PointerLeave Added] Leave detected [3mentity[0m[2m=[0m3v0
+[2m2025-12-08T12:45:49.573660Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.580371Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.588638Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.597643Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.606135Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.613785Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.622670Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.630653Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.639485Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.647119Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.655844Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.663881Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.672584Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.680573Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.689324Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.697272Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.705864Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.713923Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.722614Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.730379Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.739221Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.747135Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.755816Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.763806Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.772745Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.780385Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.788728Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.797048Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.805364Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.813668Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.822025Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.830368Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.838729Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.847051Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.855606Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.863754Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.872217Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.880616Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.888693Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.897432Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.905423Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.913686Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.922044Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.930385Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.938705Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.947019Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.955509Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.963733Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.972076Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.980428Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.988677Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:49.997111Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.005392Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.014514Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.022074Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.030444Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.038794Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.047089Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.055368Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.063931Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.072168Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.080379Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.088845Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.097635Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.105384Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.113767Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.122433Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.130791Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.138963Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.147489Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.156933Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.163926Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.172102Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.181488Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.189387Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.197211Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.206309Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.213827Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.223221Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.230921Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.239725Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.247345Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.256694Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.264103Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.272932Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.280559Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.289606Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.297219Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.306348Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.313851Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.322784Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.330491Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.339610Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.347322Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.355380Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.364297Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.372842Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.380510Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.388715Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.397003Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.405383Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.413696Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.422011Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.430343Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.438649Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.582483Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.602552Z[0m [32m INFO[0m [2mwintf::ecs::app[0m[2m:[0m [App] Last window closed. Quitting application...
+[2m2025-12-08T12:45:50.604542Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.607696Z[0m [32m INFO[0m [2mwintf::ecs::drag::systems[0m[2m:[0m [apply_window_drag_movement] Processing 0 drag events
+[2m2025-12-08T12:45:50.609568Z[0m [32m INFO[0m [2mwintf::win_thread_mgr[0m[2m:[0m WM_LAST_WINDOW_DESTROYED received, calling PostQuitMessage(0)

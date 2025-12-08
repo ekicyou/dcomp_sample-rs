@@ -3,7 +3,7 @@
 //! ウィンドウ移動とドラッグ状態クリーンアップを提供する。
 
 use bevy_ecs::prelude::*;
-use bevy_ecs::message::{Messages, MessageReader};
+use bevy_ecs::message::MessageReader;
 use super::{DragEvent, DragEndEvent};
 use crate::ecs::drag::{DragConstraint};
 use crate::ecs::window::Window;
@@ -42,7 +42,7 @@ pub fn apply_window_drag_movement(
         if let Some(window_entity) = window_entity {
             if let Ok((mut box_style, constraint)) = query.get_mut(window_entity) {
                 if let Some(inset) = &mut box_style.inset {
-                    // 現在のinset値を取得
+                    // 現在のinset値を取得（物理ピクセル）
                     let current_left = match inset.0.left {
                         crate::ecs::layout::LengthPercentageAuto::Px(val) => val,
                         _ => 0.0,
@@ -52,7 +52,8 @@ pub fn apply_window_drag_movement(
                         _ => 0.0,
                     };
                     
-                    // 新しい位置を計算
+                    // event.deltaは既に物理ピクセル（DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2モード）
+                    // insetも物理ピクセルなので、そのまま加算
                     let new_left = current_left + event.delta.x as f32;
                     let new_top = current_top + event.delta.y as f32;
                     

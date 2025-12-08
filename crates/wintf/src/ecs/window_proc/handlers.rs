@@ -208,6 +208,11 @@ pub(super) unsafe fn WM_WINDOWPOSCHANGED(
                                     client_cy = client_size.cy,
                                     "WindowPos updated"
                                 );
+                                
+                                info!(
+                                    "[WM_WINDOWPOSCHANGED] client_x={}, client_y={}",
+                                    client_pos.x, client_pos.y
+                                );
                             }
 
                             // BoxStyleがあれば更新（なければスキップ）
@@ -524,33 +529,79 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                 HitTestPoint::new(x as f32, y as f32),
             );
 
-            // ヒットしたエンティティが存在する場合
-            if let Some(target_entity) = hit_entity {
-                // WindowPosを取得してスクリーン座標を計算
-                let window_pos = world_borrow.world().get::<crate::ecs::window::WindowPos>(window_entity);
-                let (screen_x, screen_y) = if let Some(wp) = window_pos {
-                    if let Some(pos) = wp.position {
-                        (x + pos.x, y + pos.y)
-                    } else {
-                        (x, y)
-                    }
+            // WindowPosを取得してスクリーン座標を計算
+            let window_pos = world_borrow.world().get::<crate::ecs::window::WindowPos>(window_entity);
+            let (screen_x, screen_y) = if let Some(wp) = window_pos {
+                if let Some(pos) = wp.position {
+                    (x + pos.x, y + pos.y)
                 } else {
                     (x, y)
-                };
-                
-                // DraggingState管理（ECS側で行うため、ここでは挿入しない）
-                if let Some(drag_config) = world_borrow.world().get::<crate::ecs::drag::DragConfig>(target_entity) {
-                    if drag_config.enabled {
-                        let current_pos = crate::ecs::pointer::PhysicalPoint::new(screen_x, screen_y);
-                        
-                        // 閾値チェックのみ実行（thread_local DragStateを更新）
-                        if crate::ecs::drag::check_threshold(current_pos, drag_config.threshold) {
-                            crate::ecs::drag::start_dragging(current_pos);
-                        } else {
-                            crate::ecs::drag::update_dragging(current_pos);
+                }
+            } else {
+                (x, y)
+            };
+
+            // ドラッグ処理（thread_local DragState + DragAccumulatorResource）
+            // ヒットテスト結果に関わらず、Preparing/Dragging状態なら処理を続ける
+            let state_snapshot = crate::ecs::drag::read_drag_state(|state| state.clone());
+            
+            match state_snapshot {
+                crate::ecs::drag::DragState::Preparing { entity, start_pos, start_time } => {
+                    if let Some(drag_config) = world_borrow.world().get::<crate::ecs::drag::DragConfig>(entity) {
+                        if drag_config.enabled {
+                            let current_pos = crate::ecs::pointer::PhysicalPoint::new(screen_x, screen_y);
+                            
+                            // 閾値チェック
+                            let dx = current_pos.x - start_pos.x;
+                            let dy = current_pos.y - start_pos.y;
+                            let distance_sq = dx * dx + dy * dy;
+                            let threshold_sq = drag_config.threshold * drag_config.threshold;
+                            
+                            if distance_sq >= threshold_sq {
+                                // 閾値到達：Dragging状態に遷移
+                                crate::ecs::drag::start_dragging(current_pos);
+                                
+                                // DragAccumulatorResourceにStarted遷移を記録
+                                if let Some(accumulator) = world_borrow.world().get_resource::<crate::ecs::drag::DragAccumulatorResource>() {
+                                    accumulator.set_transition(crate::ecs::drag::DragTransition::Started {
+                                        entity,
+                                        start_pos,
+                                        timestamp: start_time,
+                                    });
+                                    accumulator.update_position(current_pos);
+                                }
+                            }
                         }
                     }
                 }
+                crate::ecs::drag::DragState::Dragging { prev_pos, .. } => {
+                    let current_pos = crate::ecs::pointer::PhysicalPoint::new(screen_x, screen_y);
+                    
+                    // ドラッグ中：デルタを累積
+                    let delta = crate::ecs::pointer::PhysicalPoint::new(
+                        current_pos.x - prev_pos.x,
+                        current_pos.y - prev_pos.y,
+                    );
+                    
+                    tracing::info!(
+                        "[WM_MOUSEMOVE] Dragging: delta=({}, {}), current=({}, {})",
+                        delta.x, delta.y, current_pos.x, current_pos.y
+                    );
+                    
+                    // DragAccumulatorResourceにデルタを累積
+                    if let Some(accumulator) = world_borrow.world().get_resource::<crate::ecs::drag::DragAccumulatorResource>() {
+                        accumulator.accumulate_delta(delta);
+                        accumulator.update_position(current_pos);
+                    }
+                    
+                    // thread_local DragStateのprev_posを更新
+                    crate::ecs::drag::update_dragging(current_pos);
+                }
+                _ => {}
+            }
+
+            // ヒットしたエンティティが存在する場合
+            if let Some(target_entity) = hit_entity {
                 
                 // バッファに蓄積
                 push_pointer_sample(target_entity, x as f32, y as f32, Instant::now());
@@ -691,12 +742,11 @@ unsafe fn handle_button_message(
     let shift = (wparam_val & 0x04) != 0;
     let ctrl = (wparam_val & 0x08) != 0;
 
-    // hit_test でターゲットエンティティを特定し、PointerState を確保
-    if let Some(world) = super::try_get_ecs_world() {
-        if let Ok(mut world_borrow) = world.try_borrow_mut() {
-            // WindowPosを取得してスクリーン座標を計算
+    // スクリーン座標を事前計算（フォールバック処理でも使用）
+    let (screen_x, screen_y) = if let Some(world) = super::try_get_ecs_world() {
+        if let Ok(world_borrow) = world.try_borrow() {
             let window_pos = world_borrow.world().get::<crate::ecs::window::WindowPos>(window_entity);
-            let (screen_x, screen_y) = if let Some(wp) = window_pos {
+            if let Some(wp) = window_pos {
                 if let Some(pos) = wp.position {
                     (x + pos.x, y + pos.y)
                 } else {
@@ -704,7 +754,17 @@ unsafe fn handle_button_message(
                 }
             } else {
                 (x, y)
-            };
+            }
+        } else {
+            (x, y)
+        }
+    } else {
+        (x, y)
+    };
+
+    // hit_test でターゲットエンティティを特定し、PointerState を確保
+    if let Some(world) = super::try_get_ecs_world() {
+        if let Ok(mut world_borrow) = world.try_borrow_mut() {
             
             if let Some(target_entity) = hit_test_in_window(
                 world_borrow.world(),
@@ -787,6 +847,21 @@ unsafe fn handle_button_message(
                     
                     // ドラッグ終了
                     if button == crate::ecs::pointer::PointerButton::Left {
+                        // thread_local DragStateをクローンして取得
+                        let state_snapshot = crate::ecs::drag::read_drag_state(|state| state.clone());
+                        
+                        if let crate::ecs::drag::DragState::Dragging { entity, .. } = state_snapshot {
+                            // DragAccumulatorResourceにEnded遷移を記録
+                            if let Some(accumulator) = world_borrow.world().get_resource::<crate::ecs::drag::DragAccumulatorResource>() {
+                                accumulator.set_transition(crate::ecs::drag::DragTransition::Ended {
+                                    entity,
+                                    end_pos: PhysicalPoint::new(screen_x, screen_y),
+                                    cancelled: false,
+                                });
+                            }
+                        }
+                        
+                        // thread_local DragStateをIdleに戻す
                         crate::ecs::drag::end_dragging(
                             PhysicalPoint::new(screen_x, screen_y),
                             false,
@@ -806,6 +881,38 @@ unsafe fn handle_button_message(
         crate::ecs::pointer::record_button_down(window_entity, button);
     } else {
         crate::ecs::pointer::record_button_up(window_entity, button);
+        
+        // ドラッグ終了（hit_test失敗時でもドラッグ中なら終了処理）
+        if button == crate::ecs::pointer::PointerButton::Left {
+            if let Some(world) = super::try_get_ecs_world() {
+                if let Ok(world_borrow) = world.try_borrow() {
+                    // thread_local DragStateをクローンして取得
+                    let state_snapshot = crate::ecs::drag::read_drag_state(|state| state.clone());
+                    
+                    if let crate::ecs::drag::DragState::Dragging { entity, .. } 
+                        | crate::ecs::drag::DragState::Preparing { entity, .. }
+                        | crate::ecs::drag::DragState::JustStarted { entity, .. } = state_snapshot 
+                    {
+                        // DragAccumulatorResourceにEnded遷移を記録
+                        if let Some(accumulator) = world_borrow.world().get_resource::<crate::ecs::drag::DragAccumulatorResource>() {
+                            accumulator.set_transition(crate::ecs::drag::DragTransition::Ended {
+                                entity,
+                                end_pos: PhysicalPoint::new(screen_x, screen_y),
+                                cancelled: false,
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // thread_local DragStateをIdleに戻す
+            crate::ecs::drag::end_dragging(
+                PhysicalPoint::new(screen_x, screen_y),
+                false,
+            );
+            // TODO: ReleaseCapture (not available in current windows crate version)
+            // let _ = unsafe { ReleaseCapture() };
+        }
     }
 
     Some(LRESULT(0))
@@ -1025,6 +1132,27 @@ pub(super) unsafe fn WM_KEYDOWN(
     
     // ESCキーでドラッグキャンセル
     if wparam.0 == VK_ESCAPE.0 as usize {
+        // thread_local DragStateをクローンして取得
+        let state_snapshot = crate::ecs::drag::read_drag_state(|state| state.clone());
+        
+        if let crate::ecs::drag::DragState::Dragging { entity, start_pos, .. } 
+            | crate::ecs::drag::DragState::Preparing { entity, start_pos, .. }
+            | crate::ecs::drag::DragState::JustStarted { entity, start_pos, .. } = state_snapshot 
+        {
+            // DragAccumulatorResourceにEnded遷移を記録
+            if let Some(world) = super::try_get_ecs_world() {
+                if let Ok(world_borrow) = world.try_borrow() {
+                    if let Some(accumulator) = world_borrow.world().get_resource::<crate::ecs::drag::DragAccumulatorResource>() {
+                        accumulator.set_transition(crate::ecs::drag::DragTransition::Ended {
+                            entity,
+                            end_pos: start_pos,
+                            cancelled: true,
+                        });
+                    }
+                }
+            }
+        }
+        
         crate::ecs::drag::cancel_dragging();
         // ReleaseCapture
         // TODO: ReleaseCapture (not available in current windows crate version)
@@ -1044,6 +1172,27 @@ pub(super) unsafe fn WM_CANCELMODE(
     _wparam: WPARAM,
     _lparam: LPARAM,
 ) -> HandlerResult {
+    // thread_local DragStateをクローンして取得
+    let state_snapshot = crate::ecs::drag::read_drag_state(|state| state.clone());
+    
+    if let crate::ecs::drag::DragState::Dragging { entity, start_pos, .. } 
+        | crate::ecs::drag::DragState::Preparing { entity, start_pos, .. }
+        | crate::ecs::drag::DragState::JustStarted { entity, start_pos, .. } = state_snapshot 
+    {
+        // DragAccumulatorResourceにEnded遷移を記録
+        if let Some(world) = super::try_get_ecs_world() {
+            if let Ok(world_borrow) = world.try_borrow() {
+                if let Some(accumulator) = world_borrow.world().get_resource::<crate::ecs::drag::DragAccumulatorResource>() {
+                    accumulator.set_transition(crate::ecs::drag::DragTransition::Ended {
+                        entity,
+                        end_pos: start_pos,
+                        cancelled: true,
+                    });
+                }
+            }
+        }
+    }
+    
     // ドラッグキャンセル
     crate::ecs::drag::cancel_dragging();
     

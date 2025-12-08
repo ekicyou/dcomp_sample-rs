@@ -8,19 +8,70 @@
 
 ## 実装状況メモ
 
-### 現在の問題（2025-12-08）
-- thread_local DragStateがwndprocスレッドとECSスレッドで共有されない問題が発覚
-- wndprocでPreparing→JustStarted遷移してもECSスレッドからは見えない
-- 結果：ドラッグイベントがとびとびにしか発火しない（イベントロス）
+### 🔴 **緊急課題：DPIスケール問題（2025-12-08 22:07 JST）**
 
-### 新設計方針
-- **wndprocスレッド**: thread_local DragStateで状態管理 + デルタを累積
-- **ECSスレッド**: 累積量をflushしてイベント配信
-- **データ転送**: DragAccumulatorResourceをECSワールドリソースとして共有（Arc<Mutex>）
+#### 現象
+- **1.25倍DPIスケールのモニタで、ウィンドウがマウスに対して1.25倍速く動く**
+- マウスを10px動かすと、ウィンドウが12.5px動く
+- ログでは正確に動いているように見える：
+  - `dx=1` → `client_x` が1ピクセル増加
+  - `dx=2` → `client_x` が2ピクセル増加
 
-### 更新されたタスク
-- Phase 2を「ドラッグ累積器とスレッド間転送」に変更
-- wndprocでの累積処理とECS側でのflush処理を明確化
+#### 調査済み事項
+1. ✅ DPI変換の追加・削除を試行
+   - `event.delta * dpi_scale`で変換 → 問題解決せず
+   - 変換なし（そのまま加算） → 問題解決せず
+2. ✅ `WM_MOUSEMOVE`と`WM_WINDOWPOSCHANGED`のログ確認
+   - `dx=1`で`client_x`が正確に1増加
+   - `dx=2`で`client_x`が正確に2増加
+3. ✅ `DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2`設定済み
+   - `process_singleton.rs:64`で設定
+
+#### 未調査事項
+- **マウス座標の実際の単位**：
+  - `WM_MOUSEMOVE`の`lParam`は物理ピクセルか論理ピクセルか？
+  - `DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2`モードでは物理ピクセルのはずだが、実際は？
+- **累積器の座標変換**：
+  - `DragAccumulator::accumulate_delta`で座標変換が必要か？
+  - `WM_MOUSEMOVE`で取得する`prev_pos`と`current_pos`の単位は？
+- **BoxStyle.insetの実際の単位**：
+  - ドキュメントでは「物理ピクセル」だが、実際にレイアウト計算時に変換されている可能性
+  - `apply_window_pos_changes`での`SetWindowPos`呼び出し時の座標系
+
+#### 次回の調査手順
+1. **マウス座標の生値を確認**
+   ```rust
+   // WM_MOUSEMOVEハンドラで
+   let x_raw = (lparam.0 & 0xFFFF) as i16 as i32;
+   tracing::info!("RAW mouse x={}, screen_x={}", x_raw, screen_x);
+   ```
+2. **WindowPosの生値を確認**
+   ```rust
+   // WM_WINDOWPOSCHANGEDで
+   tracing::info!("WINDOWPOS: x={}, y={} (window coords)", wp.x, wp.y);
+   ```
+3. **DPIスケールの確認**
+   ```rust
+   // GlobalArrangementから
+   let dpi_scale = ga.scale_x();
+   tracing::info!("DPI scale={}", dpi_scale);
+   ```
+4. **ウィンドウ座標変換の確認**
+   - `WindowHandle::window_to_client_coords`の実装を確認
+   - 座標変換時にDPIスケールが適用されているか確認
+
+#### 疑わしいポイント
+- **`BoxStyle.inset`が実は論理ピクセル**の可能性
+  - ドキュメントと実装が乖離している？
+  - レイアウトシステムで自動的にDPIスケールが適用される？
+- **`WindowPos.position`が論理ピクセル**の可能性
+  - `window_to_client_coords`で変換済み？
+
+### 以前の問題（解決済み）
+- ~~thread_local DragStateがwndprocスレッドとECSスレッドで共有されない問題~~
+  - → DragAccumulatorResourceで解決
+- ~~ドラッグイベントがとびとびにしか発火しない~~
+  - → 累積器方式で解決
 
 ---
 
@@ -56,7 +107,7 @@
   - **FILE: crates/wintf/src/ecs/drag/accumulator.rs (新規作成)**
   - **STATUS: 完了**
 
-- [ ] 2.2 DragStateとPhysicalPoint定義（thread_local専用）
+- [x] 2.2 DragStateとPhysicalPoint定義（thread_local専用）
   - DragState enum（Idle/Preparing/Dragging）をthread_local! + RefCellで実装
   - PhysicalPoint構造体を定義（x, y: i32）
   - DragStateがEntity、開始位置、現在位置を保持する構造を設計
@@ -64,24 +115,27 @@
   - update_drag_state(), read_drag_state()ヘルパー関数を実装
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.7, 13.1, 13.2, 13.3_
   - **FILE: crates/wintf/src/ecs/drag/state.rs (既存)**
+  - **STATUS: 完了（既存実装）**
 
-- [ ] 2.3 DragConfigコンポーネント定義
+- [x] 2.3 DragConfigコンポーネント定義
   - DragConfigコンポーネント構造体を定義（enabled, threshold, buttons）
   - デフォルト値（enabled: true, threshold: 5px, buttons: 左ボタンのみ）を実装
   - ボタンごとの有効/無効フラグを実装
   - _Requirements: 1.6, 2.5, 2.6, 2.8_
   - **FILE: crates/wintf/src/ecs/drag/config.rs (既存)**
+  - **STATUS: 完了（既存実装）**
 
-- [ ] 2.4 WM_LBUTTONDOWNハンドラでドラッグ準備開始
+- [x] 2.4 WM_LBUTTONDOWNハンドラでドラッグ準備開始
   - WM_LBUTTONDOWNメッセージハンドラにドラッグ準備ロジックを追加
   - hit_testでEntity取得、DragConfigの有効性チェック
   - thread_local DragState::Preparing遷移とSetCapture呼び出し
   - 開始位置（PhysicalPoint）と開始時刻を記録
   - 既にPreparing/Dragging状態の場合は早期リターン（複数ボタンドラッグ禁止）
   - _Requirements: 1.2, 1.7, 2.2, 14.1_
-  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs**
+  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs (handle_button_message)**
+  - **STATUS: 完了**
 
-- [ ] 2.5 WM_MOUSEMOVEハンドラで閾値判定とデルタ累積
+- [x] 2.5 WM_MOUSEMOVEハンドラで閾値判定とデルタ累積
   - WM_MOUSEMOVEメッセージハンドラにドラッグ閾値判定を追加
   - Preparing状態でユークリッド距離計算（√(dx²+dy²)）
   - 閾値（デフォルト5px）到達でDragging状態に遷移
@@ -89,45 +143,50 @@
   - Dragging状態では current_pos - prev_pos を計算してDragAccumulatorResource.accumulate_delta()
   - thread_local DragState.prev_posを更新
   - _Requirements: 1.3, 2.1, 2.7, 13.2_
-  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs**
+  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs (WM_MOUSEMOVE)**
+  - **STATUS: 完了**
 
-- [ ] 2.6 WM_LBUTTONUPハンドラでドラッグ終了
+- [x] 2.6 WM_LBUTTONUPハンドラでドラッグ終了
   - WM_LBUTTONUPメッセージハンドラにドラッグ終了ロジックを追加
   - Dragging状態からIdle遷移
   - DragAccumulatorResource.set_transition(Ended)を呼び出し
   - ReleaseCapture呼び出し
   - 最終位置の記録
   - _Requirements: 1.4, 4.1, 4.2, 4.6, 14.3_
-  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs**
+  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs (handle_button_message + fallback)**
+  - **STATUS: 完了（hit_test失敗時のフォールバックも実装）**
 
-- [ ] 2.7 WM_KEYDOWNハンドラでESCキーキャンセル
+- [x] 2.7 WM_KEYDOWNハンドラでESCキーキャンセル
   - WM_KEYDOWNメッセージハンドラにESCキー検知を追加
   - ESCキー押下でDragging→Idle遷移
   - DragAccumulatorResource.set_transition(Ended { cancelled: true })
   - ReleaseCapture呼び出し
   - _Requirements: 5.1, 5.2, 5.3_
-  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs**
+  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs (WM_KEYDOWN)**
+  - **STATUS: 完了**
 
-- [ ] 2.8 WM_CANCELMODEハンドラで強制キャンセル
+- [x] 2.8 WM_CANCELMODEハンドラで強制キャンセル
   - WM_CANCELMODEメッセージハンドラを実装
   - ドラッグ状態クリーンアップ（Dragging→Idle）
   - DragAccumulatorResource.set_transition(Ended { cancelled: true })
   - DefWindowProcWへの委譲（None返却）でReleaseCapture自動実行
   - _Requirements: 5.4, 14.4_
-  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs**
+  - **FILE: crates/wintf/src/ecs/window_proc/handlers.rs (WM_CANCELMODE)**
+  - **STATUS: 完了**
 
 ### Phase 3: ドラッグイベント配信とECS統合
 
-- [ ] 3. ドラッグイベント定義とPhase<T>配信
-- [ ] 3.1 DragStartEvent/DragEvent/DragEndEvent定義
+- [x] 3. ドラッグイベント定義とPhase<T>配信
+- [x] 3.1 DragStartEvent/DragEvent/DragEndEvent定義
   - DragStartEvent構造体（target, position, is_primary, timestamp）
   - DragEvent構造体（target, delta, position, is_primary, timestamp）
   - DragEndEvent構造体（target, position, cancelled, is_primary, timestamp）
   - 各イベントにEntity、PhysicalPoint、時刻情報を含める
   - _Requirements: 2.3, 2.4, 3.1, 3.2, 3.3, 3.4, 3.5, 4.3, 4.4, 4.5_
-  - **FILE: crates/wintf/src/ecs/drag/events.rs (既存)**
+  - **FILE: crates/wintf/src/ecs/drag/dispatch.rs**
+  - **STATUS: 完了**
 
-- [ ] 3.2 dispatch_drag_events SystemでDragAccumulator flush
+- [x] 3.2 dispatch_drag_events SystemでDragAccumulator flush
   - dispatch_drag_events()関数を実装（毎ECSフレーム実行）
   - DragAccumulatorResource.flush()で累積量と遷移を取得
   - pending_transitionがStartedなら:
@@ -139,53 +198,67 @@
   - pending_transitionがEndedなら:
     - DragEndEvent配信（Phase<T>ジェネリック関数）
     - DraggingStateコンポーネント削除
+  - **追加修正**: JustStarted→Dragging遷移を追加（dispatch後にupdate_dragging呼び出し）
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 13.4_
-  - **FILE: crates/wintf/src/ecs/drag/dispatch.rs (既存)**
+  - **FILE: crates/wintf/src/ecs/drag/dispatch.rs**
+  - **STATUS: 完了**
 
-- [ ] 3.3 OnDragStart/OnDrag/OnDragEndハンドラコンポーネント定義
+- [x] 3.3 OnDragStart/OnDrag/OnDragEndハンドラコンポーネント定義
   - OnDragStartコンポーネント（Phase<DragStartEvent>ハンドラ）
   - OnDragコンポーネント（Phase<DragEvent>ハンドラ）
   - OnDragEndコンポーネント（Phase<DragEndEvent>ハンドラ）
   - SparseSet storageで効率的な管理
   - _Requirements: 7.1, 7.2, 7.5_
-  - **FILE: crates/wintf/src/ecs/drag/handlers.rs (既存)**
+  - **FILE: crates/wintf/src/ecs/drag/mod.rs**
+  - **STATUS: 完了**
 
-- [ ] 3.4 DraggingStateコンポーネント定義
+- [x] 3.4 DraggingStateコンポーネント定義
   - DraggingState構造体（drag_start_pos, prev_frame_pos）をSparseSetで定義
   - ドラッグ中エンティティの識別を可能にする
   - Query<(Entity, &DraggingState)>でアプリからアクセス可能
   - _Requirements: 1.5, 10.2_
-  - **FILE: crates/wintf/src/ecs/drag/components.rs (既存)**
+  - **FILE: crates/wintf/src/ecs/drag/mod.rs**
+  - **STATUS: 完了**
 
 ### Phase 4: ウィンドウ移動とドラッグ制約
 
-- [ ] 4. ウィンドウ移動システムとドラッグ制約
-- [ ] 4.1 apply_window_drag_movement Systemでウィンドウ位置更新
+- [x] 4. ウィンドウ移動システムとドラッグ制約
+- [x] 4.1 apply_window_drag_movement Systemでウィンドウ位置更新
   - apply_window_drag_movement()関数を実装（DragEvent購読）
   - DragEventのdeltaを累積してウィンドウOffset更新
   - SetWindowPosCommand::enqueue()でWorld借用競合を回避
   - event.targetの親階層からWindowコンポーネント探索
   - Windowが見つからなければスキップ（将来の非ウィンドウドラッグ対応）
+  - **重要**: BoxStyle.insetを直接更新（物理ピクセル単位）
+  - **DPI問題**: 1.25倍速く動く問題が未解決（要調査）
   - _Requirements: 6.1, 6.2, 6.3, 6.6, 13.5_
+  - **FILE: crates/wintf/src/ecs/drag/systems.rs (apply_window_drag_movement)**
+  - **STATUS: 実装完了だが、DPIスケール問題あり（緊急課題参照）**
 
-- [ ] 4.2 (P) DragConstraintコンポーネント定義と制約適用
+- [x] 4.2 DragConstraintコンポーネント定義と制約適用
   - DragConstraint構造体（min_x, max_x, min_y, max_y: Option<i32>）
   - apply()メソッドで制約適用後の座標を返す
   - apply_window_drag_movement内でDragConstraint適用
   - 軸ごとの制約（水平のみ、垂直のみ）をサポート
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7_
+  - **FILE: crates/wintf/src/ecs/drag/mod.rs**
+  - **STATUS: 完了（構造体定義済み、apply_window_drag_movementで使用）**
 
-- [ ] 4.3 cleanup_drag_state Systemでマーカー削除
+- [x] 4.3 cleanup_drag_state Systemでマーカー削除
   - cleanup_drag_state()関数を実装（DragEndEvent購読）
   - DragEndEventのtargetエンティティからDraggingMarkerを削除
   - エンティティ削除時の自動クリーンアップ確認
   - _Requirements: 4.6, 10.5_
+  - **FILE: crates/wintf/src/ecs/drag/systems.rs (cleanup_drag_state)**
+  - **STATUS: 完了**
 
-- [ ] 4.4 SetWindowPosCommand::flush()のスケジュール統合
-  - dispatch_drag_events → apply_window_drag_movement → SetWindowPosCommand::flush順序を確保
-  - 既存window.rsのflush呼び出しタイミングを確認
+- [x] 4.4 システムスケジュール統合
+  - dispatch_drag_events → apply_window_drag_movement → cleanup_drag_state順序を確保
+  - world.rsのScheduleに登録済み
   - ドラッグ処理とウィンドウ更新の一貫性を保証
   - _Requirements: 6.3, 13.5_
+  - **FILE: crates/wintf/src/ecs/world.rs**
+  - **STATUS: 完了**
 
 ### Phase 5: マルチモニター対応と高DPI
 
@@ -195,7 +268,9 @@
   - 負の座標値（プライマリモニタより左/上）が正しく処理されることを確認
   - WM_MOUSEMOVEのlParamがスクリーン座標であることを確認
   - SetWindowPosが仮想スクリーン座標系を受け付けることを確認
+  - **現状**: 基本的な座標系は動作しているが、DPIスケール問題が存在
   - _Requirements: 8.1, 8.2, 8.4_
+  - **STATUS: 要DPI問題解決（緊急課題参照）**
 
 - [ ] 5.2* マルチモニター環境でのE2Eテスト（オプショナル）
   - マルチモニター環境でのウィンドウドラッグ動作確認
@@ -203,33 +278,40 @@
   - 高DPI環境での座標変換の正確性確認
   - 画面外配置時の可視領域補正動作確認（Requirement 8.3）
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
+  - **STATUS: 保留（DPI問題解決後に実施）**
 
 ### Phase 6: taffy_flex_demo統合とサンプル実装
 
-- [ ] 6. taffy_flex_demoへのドラッグ機能統合
-- [ ] 6.1 FlexDemoContainerにドラッグハンドラ登録
+- [x] 6. taffy_flex_demoへのドラッグ機能統合
+- [x] 6.1 FlexDemoContainerにドラッグハンドラ登録
   - FlexDemoContainerエンティティにOnDragStart/OnDrag/OnDragEndを登録
   - 各ハンドラでイベント種別、sender/entityのName、座標、移動量をログ出力
   - "[Drag]" プレフィックスで既存Tunnel/Bubbleログと区別
   - DragConfigでドラッグ有効化（enabled: true, threshold: 5px）
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.6_
+  - **FILE: crates/wintf/examples/taffy_flex_demo.rs (on_container_drag_start/drag/drag_end)**
+  - **STATUS: 完了**
 
-- [ ] 6.2 taffy_flex_demoのコメントとドキュメント更新
+- [x] 6.2 taffy_flex_demoのコメントとドキュメント更新
   - サンプルコード冒頭にドラッグ可能であることをコメント記載
   - ドラッグハンドラの登録例を明確に記述
   - 既存の階層構造とレイアウトシステムとの統合を説明
   - _Requirements: 12.5_
+  - **FILE: crates/wintf/examples/taffy_flex_demo.rs**
+  - **STATUS: 完了**
 
 ### Phase 7: 統合テストとドキュメント
 
 - [ ] 7. 統合テストと最終検証
-- [ ] 7.1 ドラッグ操作の統合テスト
+- [x] 7.1 ドラッグ操作の基本動作確認
   - taffy_flex_demoで全ドラッグフローの動作確認（開始→移動→終了）
   - ESCキーキャンセルの動作確認
   - WM_CANCELMODEキャンセルの動作確認（Alt+Tab、モーダルダイアログ等）
   - ドラッグ閾値（5px）の動作確認
   - 単一クリック（閾値未到達）が正常動作することを確認
+  - **検証結果**: 基本動作は確認できたが、DPIスケール問題が発覚
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 5.1, 5.2, 5.3_
+  - **STATUS: 部分的完了（DPI問題を除く）**
 
 - [ ] 7.2* Phase::Tunnel/Bubbleイベント伝播の統合テスト（オプショナル）
   - 親エンティティでのイベント横取り動作確認
@@ -237,6 +319,7 @@
   - Tunnelフェーズでの早期停止確認
   - Bubbleフェーズでの親への伝播停止確認
   - _Requirements: 7.2, 7.3, 7.4, 7.6_
+  - **STATUS: 未実施**
 
 - [ ] 7.3* ドラッグ制約の統合テスト（オプショナル）
   - DragConstraintを設定してウィンドウ移動範囲を制限
