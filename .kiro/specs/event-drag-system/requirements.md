@@ -73,6 +73,7 @@
 5. **The** Drag System **shall** ドラッグ閾値をエンティティごとに設定可能にする
 6. **When** ドラッグ閾値が0に設定された場合, **the** Drag System **shall** マウスボタン押下直後にDragStartを発火する
 7. **The** Drag System **shall** ドラッグ開始判定にユークリッド距離（√(dx²+dy²)）を使用する
+8. **The** Drag System **shall** ドラッグ閾値を物理ピクセル単位で管理する（DPI非依存、将来的にDPI考慮の可能性を残す）
 
 ---
 
