@@ -39,12 +39,19 @@
 - **参照資料**:
   - Microsoft Docs: SetCapture function
   - Microsoft Docs: ReleaseCapture function
+  - Microsoft Docs: WM_CANCELMODE message
   - 既存実装: `crates/wintf/src/ecs/window_proc/handlers.rs` (SetCapture使用例なし、調査必要)
 - **発見事項**:
-  - SetCapture: 指定ウィンドウにマウス入力をキャプチャ、ウィンドウ外でもマウスイベント受信
-  - ReleaseCapture: キャプチャ解放、ユーザー操作で自動解放される場合あり（WM_CANCELMODE）
+  - **SetCapture**: 指定ウィンドウにマウス入力をキャプチャ、ウィンドウ外でもマウスイベント受信
+  - **ReleaseCapture**: キャプチャ解放、ユーザー操作で自動解放される場合あり（WM_CANCELMODE）
+  - **WM_CANCELMODE**: システムがマウスキャプチャ等のモードをキャンセルする必要がある時に送信
+    - 発生条件: モーダルダイアログ表示、EnableWindow()無効化、Alt+Tab等
+    - DefWindowProcWの動作: スクロールバー/メニュー処理キャンセル、**マウスキャプチャ自動解放**
+    - 推奨実装: アプリはドラッグ状態をクリーンアップし、DefWindowProcWに委譲（`None`を返す）
   - ウィンドウ外移動時もSetCaptureは有効、ReleaseCaptureはドラッグ終了時に明示的に呼び出す
-- **影響**: Requirement 14.2（ウィンドウ外イベント受信）は実装可能、WM_CANCELMODE処理が必須
+- **影響**: 
+  - Requirement 14.2（ウィンドウ外イベント受信）は実装可能
+  - WM_CANCELMODE処理が必須、DefWindowProcW委譲で自動ReleaseCapture
 
 ### マルチモニター座標系（Research Needed 2）
 

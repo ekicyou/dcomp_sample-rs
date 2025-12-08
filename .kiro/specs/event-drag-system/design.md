@@ -677,12 +677,17 @@ pub(super) unsafe fn WM_CANCELMODE(
 **命名規則**: handlers.rsの関数は全てWin32メッセージ定数と同名（デバッグ容易性のため）
 
 **処理フロー**:
-1. WM_CANCELMODEメッセージ受信
+1. WM_CANCELMODEメッセージ受信（wndproc層）
 2. `drag::cancel_active_drag()`呼び出し
-3. DragState::Cancelled遷移
-4. ReleaseCapture()実行
-5. DragEndEvent（cancelled=true）発火
-6. cleanup_drag_state()でDraggingMarker削除
+3. thread_local! DragState → Cancelled遷移（wndproc層内部、Worldから見えない）
+4. DragEndEvent（cancelled=true）発火
+5. DefWindowProcWに委譲（`None`を返す）
+6. DefWindowProcWが自動でReleaseCapture()実行
+7. cleanup_drag_state()でDraggingMarker削除（World層、アプリから見える状態をクリア）
+
+**注意**: 
+- DefWindowProcWがマウスキャプチャを自動解放するため、アプリケーション側での明示的なReleaseCapture()呼び出しは不要
+- DragStateはwndproc層の内部状態、DraggingMarkerはアプリから見える公開状態
 
 **要件対応**: Requirement 5 AC 3、Requirement 6（システムキャンセル）、research.md「Win32 API マウスキャプチャ」
 
@@ -729,6 +734,14 @@ pub enum DragState {
 5. `Preparing/Dragging → Idle`: ESCキー or WM_CANCELMODE + ReleaseCapture + DragEndEvent（cancelled=true）
 
 **DragState設計の根拠**:
+
+**責務分離とスコープ**:
+- **DragState（thread_local!）**: wndproc層の内部状態機械、**Worldから見えない**
+  - 責務: Win32メッセージからドラッグ状態を管理（Idle/Preparing/Dragging遷移）
+  - アクセス: wndprocハンドラのみ
+- **DraggingMarker（ECSコンポーネント）**: World層の公開状態、**アプリから見える**
+  - 責務: 「現在ドラッグ中のエンティティ」をアプリに通知
+  - アクセス: `Query<Entity, With<DraggingMarker>>`でアプリが取得可能
 
 **単一状態の理由**: Requirement 1.7「同時複数ボタンドラッグ禁止」に対応するため、DragStateはthread_local!の単一状態として実装する。あるドラッグの発動中（Preparing/Dragging状態）は、他のマウスボタン押下によるドラッグ開始を拒否する。
 
