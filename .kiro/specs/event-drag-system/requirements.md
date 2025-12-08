@@ -67,11 +67,12 @@
 #### Acceptance Criteria
 
 1. **When** マウスボタンが押下されてから閾値（デフォルト5物理ピクセル）を超えて移動した時, **the** Drag System **shall** DragStart イベントを発火する
-2. **The** Drag System **shall** ドラッグ開始位置（画面座標・ローカル座標）とマウスボタン種別をイベント情報に含める
-3. **The** Drag System **shall** ドラッグ対象エンティティの識別子をイベント情報に含める
-4. **The** Drag System **shall** ドラッグ閾値をエンティティごとに設定可能にする
-5. **When** ドラッグ閾値が0に設定された場合, **the** Drag System **shall** マウスボタン押下直後にDragStartを発火する
-6. **The** Drag System **shall** ドラッグ開始判定にユークリッド距離（√(dx²+dy²)）を使用する
+2. **When** DragStartイベント発火時, **the** Drag System **shall** SetCapture APIを呼び出してマウスキャプチャを開始する
+3. **The** Drag System **shall** ドラッグ開始位置（画面座標・ローカル座標）とマウスボタン種別をイベント情報に含める
+4. **The** Drag System **shall** ドラッグ対象エンティティの識別子をイベント情報に含める
+5. **The** Drag System **shall** ドラッグ閾値をエンティティごとに設定可能にする
+6. **When** ドラッグ閾値が0に設定された場合, **the** Drag System **shall** マウスボタン押下直後にDragStartを発火する
+7. **The** Drag System **shall** ドラッグ開始判定にユークリッド距離（√(dx²+dy²)）を使用する
 
 ---
 
@@ -96,10 +97,11 @@
 #### Acceptance Criteria
 
 1. **When** ドラッグ中にマウスボタンが解放された時, **the** Drag System **shall** DragEnd イベントを発火する
-2. **The** Drag System **shall** 最終マウス位置（画面座標・ローカル座標）をイベント情報に含める
-3. **The** Drag System **shall** ドラッグ開始位置から最終位置までの総移動量をイベント情報に含める
-4. **The** Drag System **shall** ドラッグ操作が正常終了か、キャンセルかを識別できる
-5. **When** DragEnd イベント発火後, **the** Drag System **shall** ドラッグ状態をクリアする
+2. **When** DragEndイベント発火時, **the** Drag System **shall** ReleaseCapture APIを呼び出してマウスキャプチャを解放する
+3. **The** Drag System **shall** 最終マウス位置（画面座標・ローカル座標）をイベント情報に含める
+4. **The** Drag System **shall** ドラッグ開始位置から最終位置までの総移動量をイベント情報に含める
+5. **The** Drag System **shall** ドラッグ操作が正常終了か、キャンセルかを識別できる
+6. **When** DragEnd イベント発火後, **the** Drag System **shall** ドラッグ状態をクリアする
 
 ---
 
@@ -111,9 +113,10 @@
 
 1. **When** ドラッグ中にEscキーが押された時, **the** Drag System **shall** ドラッグをキャンセルする
 2. **When** ドラッグがキャンセルされた時, **the** Drag System **shall** DragEnd イベントをキャンセルフラグ付きで発火する
-3. **The** Drag System **shall** プログラムからのドラッグキャンセル要求を受け付ける
-4. **When** ドラッグ対象エンティティが削除された時, **the** Drag System **shall** 自動的にドラッグをキャンセルする
-5. **When** ウィンドウがフォーカスを失った時, **the** Drag System **shall** ドラッグをキャンセルするオプションを提供する
+3. **When** ドラッグキャンセル時, **the** Drag System **shall** ReleaseCapture APIを呼び出してマウスキャプチャを解放する
+4. **The** Drag System **shall** プログラムからのドラッグキャンセル要求を受け付ける
+5. **When** ドラッグ対象エンティティが削除された時, **the** Drag System **shall** 自動的にドラッグをキャンセルする
+6. **When** ウィンドウがフォーカスを失った時, **the** Drag System **shall** ドラッグをキャンセルするオプションを提供する
 
 ---
 
@@ -231,6 +234,20 @@
 
 ---
 
+### Requirement 14: マウスキャプチャの使用
+
+**Objective:** 開発者として、ドラッグ操作中のマウスイベント取得を確実にしたい。それにより将来の拡張（ウィンドウ非移動型ドラッグ）にも対応できる。
+
+#### Acceptance Criteria
+
+1. **The** Drag System **shall** ドラッグ開始時にSetCaptureでマウスキャプチャを取得する
+2. **While** マウスキャプチャ中, **the** Drag System **shall** ウィンドウ外でもマウスイベントを受信できる
+3. **The** Drag System **shall** ドラッグ終了時に必ずReleaseCaptureを呼び出す
+4. **When** 予期しないキャプチャ解放（WM_CANCELMODE等）が発生した時, **the** Drag System **shall** ドラッグを自動的にキャンセルする
+5. **The** Drag System **shall** マウスキャプチャの使用により、ウィンドウ移動型と非移動型ドラッグの統一的な実装基盤を提供する
+
+---
+
 ## Non-Functional Requirements
 
 ### NFR-1: パフォーマンス
@@ -270,6 +287,7 @@
 | stopPropagation | ハンドラがtrueを返すことでイベント伝播を停止する動作 |
 | 物理ピクセル | Win32メッセージおよびヒットテストで使用される座標単位（DPIスケーリング前） |
 | wndproc | Win32ウィンドウプロシージャ（メッセージハンドラ） |
+| マウスキャプチャ | SetCapture/ReleaseCaptureによるマウスイベントの独占受信（ウィンドウ外でもイベント受信） |
 
 ---
 
@@ -330,6 +348,8 @@ fn on_drag_handler(
 
 ### C. Win32 API連携
 
+- `SetCapture`: マウスキャプチャ開始（ドラッグ開始時）
+- `ReleaseCapture`: マウスキャプチャ解放（ドラッグ終了/キャンセル時）
 - `SetWindowPos`: ウィンドウ位置更新
 - `GetCursorPos`: カーソル位置取得
 - `MonitorFromWindow`: ウィンドウが配置されたモニター取得
