@@ -217,18 +217,23 @@ pub(super) unsafe fn WM_WINDOWPOSCHANGED(
                                     BoxInset, BoxSize, Dimension, LengthPercentageAuto, Rect,
                                 };
 
-                                // Window の offset/size は物理ピクセル単位で管理
-                                // LayoutRoot は scale=1.0 なので、物理ピクセル座標系
-                                // Window 内部に入って初めて DPI スケールが適用される
+                                // Window の offset は物理ピクセル単位（LayoutRoot は scale=1.0）
+                                // Window の size は論理ピクセル単位（Taffy が DIP で計算するため）
                                 let physical_x = client_pos.x as f32;
                                 let physical_y = client_pos.y as f32;
                                 let physical_width = client_size.cx as f32;
                                 let physical_height = client_size.cy as f32;
+                                
+                                // DPI スケールで割って論理サイズに変換
+                                let scale_x = dpi.scale_x();
+                                let scale_y = dpi.scale_y();
+                                let logical_width = physical_width / scale_x;
+                                let logical_height = physical_height / scale_y;
 
-                                // サイズを更新（物理ピクセル単位）
+                                // サイズを更新（論理ピクセル単位）
                                 box_style.size = Some(BoxSize {
-                                    width: Some(Dimension::Px(physical_width)),
-                                    height: Some(Dimension::Px(physical_height)),
+                                    width: Some(Dimension::Px(logical_width)),
+                                    height: Some(Dimension::Px(logical_height)),
                                 });
 
                                 // 位置を更新（絶対配置のinset、物理ピクセル単位）
@@ -245,7 +250,11 @@ pub(super) unsafe fn WM_WINDOWPOSCHANGED(
                                     physical_y = physical_y,
                                     physical_width = physical_width,
                                     physical_height = physical_height,
-                                    "BoxStyle updated (physical pixels)"
+                                    logical_width = logical_width,
+                                    logical_height = logical_height,
+                                    scale_x = scale_x,
+                                    scale_y = scale_y,
+                                    "BoxStyle updated: position (physical pixels), size (logical pixels)"
                                 );
                             }
                         }

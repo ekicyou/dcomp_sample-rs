@@ -9,7 +9,7 @@ use crate::ecs::graphics::{
     SurfaceGraphicsDirty, VisualGraphics, WindowGraphics,
 };
 use crate::ecs::layout::GlobalArrangement;
-use crate::ecs::widget::{BrushInherit, Brush, Brushes, DEFAULT_FOREGROUND, DEFAULT_BACKGROUND};
+use crate::ecs::widget::{Brush, BrushInherit, Brushes, DEFAULT_BACKGROUND, DEFAULT_FOREGROUND};
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
@@ -717,7 +717,7 @@ pub fn sync_window_pos(
 ) {
     use windows::Win32::Foundation::{POINT, SIZE};
 
-    for (entity, global_arr, arrangement, mut window_pos, name) in query.iter_mut() {
+    for (entity, global_arr, _arrangement, mut window_pos, name) in query.iter_mut() {
         let entity_name = format_entity_name(entity, name);
         // GlobalArrangementが有効な値を持つ場合のみ更新
         // (0,0,0,0)のような初期値は無視
@@ -749,11 +749,11 @@ pub fn sync_window_pos(
             x: global_arr.bounds.left as i32,
             y: global_arr.bounds.top as i32,
         };
-        // 小数点以下を切り上げて物理ピクセルサイズを計算
-        // SurfaceGraphicsと同様にceilを使用
+        // GlobalArrangement.boundsから物理ピクセルサイズを計算
+        // boundsは既にDPIスケールが適用されているため、追加のスケーリングは不要
         let new_size = SIZE {
-            cx: arrangement.size.width.ceil() as i32,
-            cy: arrangement.size.height.ceil() as i32,
+            cx: width.ceil() as i32,
+            cy: height.ceil() as i32,
         };
 
         // 実際に変更があった場合のみ更新

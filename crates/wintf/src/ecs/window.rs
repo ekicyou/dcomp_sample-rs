@@ -977,7 +977,7 @@ impl WindowPos {
         &self,
         style: WINDOW_STYLE,
         ex_style: WINDOW_EX_STYLE,
-        dpi: u32,
+        _dpi: u32,
     ) -> (i32, i32, i32, i32) {
         let position = self.position.unwrap_or(POINT {
             x: CW_USEDEFAULT,
@@ -993,8 +993,10 @@ impl WindowPos {
             return (position.x, position.y, size.cx, size.cy);
         }
 
-        // DPIが0の場合はデフォルト値を使用
-        let dpi = if dpi == 0 { 96 } else { dpi };
+        // WindowPos.size は既に物理ピクセル単位（DPIスケール適用済み）のため、
+        // AdjustWindowRectExForDpi には DPI=96 (100%) を渡してウィンドウ枠のみを追加する
+        // これにより二重のDPIスケーリングを回避
+        let dpi = 96;
 
         // クライアント領域からRECT構造体を構築
         let mut rect = RECT {
@@ -1005,6 +1007,7 @@ impl WindowPos {
         };
 
         // AdjustWindowRectExForDpiでウィンドウ全体の矩形を計算
+        // dpi=96により、物理ピクセル単位でウィンドウ枠のサイズが追加される
         let result = unsafe { AdjustWindowRectExForDpi(&mut rect, style, false, ex_style, dpi) };
 
         if result.is_err() {
