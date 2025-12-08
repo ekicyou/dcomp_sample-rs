@@ -171,11 +171,12 @@
 #### Acceptance Criteria
 
 1. **The** Drag System **shall** 特定のエンティティのGlobalArrangementバウンディングボックスを制約領域として指定できる
-2. **When** ドラッグが制約範囲外に到達した時, **the** Drag System **shall** 範囲境界でウィンドウ移動を停止する
-3. **The** Drag System **shall** GlobalArrangementのスクリーン物理座標系バウンディングボックスを制約判定に使用する
-4. **The** Drag System **shall** 軸ごとのドラッグ制約（水平のみ、垂直のみ）をサポートする
-5. **The** Drag System **shall** ドラッグ制約の有効/無効を動的に切り替えられる
-6. **When** ドラッグ制約が設定されている場合, **the** Drag System **shall** Dragイベント情報に制約適用後の位置を含める
+2. **The** Drag System **shall** デフォルトでは制約なし（全画面ドラッグ可能）とする
+3. **When** ドラッグ制約が設定され、ドラッグが制約範囲外に到達した時, **the** Drag System **shall** 範囲境界でウィンドウ移動を停止する
+4. **The** Drag System **shall** GlobalArrangementのスクリーン物理座標系バウンディングボックスを制約判定に使用する
+5. **The** Drag System **shall** 軸ごとのドラッグ制約（水平のみ、垂直のみ）をサポートする
+6. **The** Drag System **shall** ドラッグ制約の有効/無効を動的に切り替えられる
+7. **When** ドラッグ制約が設定されている場合, **the** Drag System **shall** Dragイベント情報に制約適用後の位置を含める
 
 ---
 
