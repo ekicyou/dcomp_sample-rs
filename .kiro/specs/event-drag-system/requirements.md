@@ -170,11 +170,12 @@
 
 #### Acceptance Criteria
 
-1. **The** Drag System **shall** ドラッグ範囲を矩形領域で制約できる
+1. **The** Drag System **shall** 特定のエンティティのGlobalArrangementバウンディングボックスを制約領域として指定できる
 2. **When** ドラッグが制約範囲外に到達した時, **the** Drag System **shall** 範囲境界でウィンドウ移動を停止する
-3. **The** Drag System **shall** 軸ごとのドラッグ制約（水平のみ、垂直のみ）をサポートする
-4. **The** Drag System **shall** ドラッグ制約の有効/無効を動的に切り替えられる
-5. **When** ドラッグ制約が設定されている場合, **the** Drag System **shall** Dragイベント情報に制約適用後の位置を含める
+3. **The** Drag System **shall** GlobalArrangementのスクリーン物理座標系バウンディングボックスを制約判定に使用する
+4. **The** Drag System **shall** 軸ごとのドラッグ制約（水平のみ、垂直のみ）をサポートする
+5. **The** Drag System **shall** ドラッグ制約の有効/無効を動的に切り替えられる
+6. **When** ドラッグ制約が設定されている場合, **the** Drag System **shall** Dragイベント情報に制約適用後の位置を含める
 
 ---
 
@@ -288,6 +289,7 @@
 | 物理ピクセル | Win32メッセージおよびヒットテストで使用される座標単位（DPIスケーリング前） |
 | wndproc | Win32ウィンドウプロシージャ（メッセージハンドラ） |
 | マウスキャプチャ | SetCapture/ReleaseCaptureによるマウスイベントの独占受信（ウィンドウ外でもイベント受信） |
+| GlobalArrangement | エンティティのスクリーン物理座標系でのバウンディングボックス（レイアウト計算結果） |
 
 ---
 
@@ -320,6 +322,37 @@ struct DragConfig {
     right_button_enabled: bool,   // 右ボタンでドラッグ可
     middle_button_enabled: bool,  // 中ボタンでドラッグ可
     drag_threshold: f32,          // ドラッグ閾値（ピクセル）
+}
+
+// ドラッグ制約の設定（例示）
+struct DragConstraint {
+    constraint_entity: Option<Entity>,  // 制約領域を定義するエンティティ
+    allow_horizontal: bool,             // 水平方向ドラッグ許可
+    allow_vertical: bool,               // 垂直方向ドラッグ許可
+}
+
+// 制約適用の例（参考実装イメージ）
+fn apply_drag_constraint(
+    world: &World,
+    window_pos: (i32, i32),
+    constraint: &DragConstraint
+) -> (i32, i32) {
+    if let Some(entity) = constraint.constraint_entity {
+        if let Some(global_arr) = world.get::<GlobalArrangement>(entity) {
+            let bounds = global_arr.bounds(); // スクリーン物理座標系の矩形
+            let (mut x, mut y) = window_pos;
+            
+            if constraint.allow_horizontal {
+                x = x.clamp(bounds.min.x as i32, bounds.max.x as i32);
+            }
+            if constraint.allow_vertical {
+                y = y.clamp(bounds.min.y as i32, bounds.max.y as i32);
+            }
+            
+            return (x, y);
+        }
+    }
+    window_pos
 }
 
 // イベント伝播制御の例（参考実装イメージ）
