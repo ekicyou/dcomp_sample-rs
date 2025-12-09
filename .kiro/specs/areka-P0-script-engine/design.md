@@ -17,20 +17,27 @@
 
 **Impact**: 新規サブクレート追加。pasta 独自の ScriptEvent IR 型を定義し、areka アプリケーション層で TypewriterToken への変換を行う。wintf への直接依存なし。
 
+**Test Strategy**: pasta は完全にユニットテスト可能な純粋関数的コンポーネント。入力（DSL 文字列）→ 出力（ScriptEvent 列）の変換のみを担当し、UI・アニメーション・時間制御を一切含まないため、ユーザーテスト不要。
+
 ### Goals
 
 - 里々インスパイアの対話記述 DSL（Pasta）の解釈・実行
 - Rune Generators ベースの状態マシンによる中断・再開機能
 - ScriptEvent IR の出力（会話制御情報を含む上位レベル IR）
-- 複数キャラクター会話制御（同期セクション含む）
+- 複数キャラクター会話制御マーカーの生成（同期セクション含む）
 - さくらスクリプト互換コマンドのサポート
+- **完全なユニットテスト可能性**（ユーザーテスト不要）
 
 ### Non-Goals
 
+- **時間制御・アニメーション制御**（areka の責務）
+- **バッファリング・同期判定**（areka の責務）
+- **UI レンダリング・バルーン表示**（wintf の責務）
 - LLM 連携（areka-P2-llm-integration の責務）
 - ゴーストパッケージ管理（areka-P0-package-manager の責務）
 - タイプライター表示アニメーション（wintf-P0-typewriter の責務）
 - DirectComposition/Direct2D 等のグラフィックス機能（wintf の責務）
+- **ユーザーテスト・視覚的検証が必要な全ての機能**
 
 ### Key Design Decisions
 
@@ -41,6 +48,8 @@
 | エラー型 | thiserror | 構造化エラー、要件仕様準拠 |
 | IR 出力方式 | ScriptEvent（独自 IR） | wintf 非依存、会話制御に特化、疎結合 |
 | yield 戦略 | IR 単位 | 柔軟な中断ポイント、応答性向上 |
+| 時間制御 | なし（マーカーのみ） | 純粋関数的、完全ユニットテスト可能 |
+| 責務範囲 | スクリプト生成のみ | UI/アニメーション依存なし、決定的動作 |
 
 ---
 
@@ -1275,41 +1284,131 @@ NEWLINE = _{ "\r\n" | "\n" | "\r" }
 
 ## Testing Strategy
 
-### Unit Tests
+**設計原則**: pasta は完全にユニットテスト可能な純粋関数的コンポーネント
 
-| Test Category | Target | Coverage |
-|---------------|--------|----------|
-| Parser Tests | PastaParser | 全文法構造 |
-| AST Tests | PastaAst | 型変換 |
-| Transpiler Tests | Transpiler | Rune コード生成 |
-| Generator Tests | ScriptGenerator | 状態遷移 |
-| Label Tests | LabelTable | ランダム選択、キャッシュ |
-| Variable Tests | VariableManager | get/set |
+### テスト可能性の保証
 
-### Integration Tests
+pasta の全ての機能は以下の特性により完全にユニットテスト可能：
 
-| Test Scenario | Description |
-|---------------|-------------|
-| Full Pipeline | .pasta → AST → Rune → IR |
-| Sync Section | 同時発言の IR 出力 |
-| Chain Talk | チェイントーク実行 |
-| Error Handling | パースエラー、ランタイムエラー |
+1. **入力**: DSL スクリプト（文字列）
+2. **出力**: ScriptEvent 列（決定的）
+3. **副作用なし**: ファイル I/O、ネットワーク、UI 依存なし
+4. **時間非依存**: 時間制御なし（Wait は秒数を出力するだけ）
+5. **決定的**: ランダム選択は seed 固定でテスト可能
 
-### Test Files
+**ユーザーテスト不要**: pasta にはレンダリング・アニメーション・タイミング制御が含まれないため、
+視覚的検証やユーザー体験テストは不要。全てアサーションで検証可能。
+
+### Unit Tests（pasta クレート内）
+
+| Test Category | Target | Test Method | Coverage |
+|---------------|--------|-------------|----------|
+| **Parser Tests** | PastaParser | 入力 DSL → AST 検証 | 全文法構造（ラベル、発言、属性、制御フロー） |
+| **AST Tests** | PastaAst | AST ノードの型・値検証 | 全ノード型、エッジケース |
+| **Transpiler Tests** | Transpiler | AST → Rune コード文字列比較 | コード生成、最適化 |
+| **Generator Tests** | ScriptGenerator | Rune 実行 → ScriptEvent 列比較 | 状態遷移、yield 順序 |
+| **Label Tests** | LabelTable | ラベル解決ロジック検証 | ランダム選択（seed 固定）、前方一致、キャッシュ |
+| **Variable Tests** | VariableManager | get/set 動作検証 | スコープ、名前解決 |
+| **Error Tests** | PastaError | 各種エラー発生条件検証 | ParseError, LabelNotFound, NameConflict |
+
+### Integration Tests（pasta クレート内）
+
+**Full Pipeline Tests**:
+```rust
+#[test]
+fn test_simple_talk_pipeline() {
+    let script = r#"
+＊挨拶
+　さくら：おはよう！
+　うにゅう：おはよう～
+"#;
+    let events = pasta::execute_script(script).unwrap();
+    
+    assert_eq!(events, vec![
+        ScriptEvent::Talk { speaker: "さくら".into(), text: "おはよう！".into() },
+        ScriptEvent::Talk { speaker: "うにゅう".into(), text: "おはよう～".into() },
+    ]);
+}
+```
+
+**Sync Section Tests**:
+```rust
+#[test]
+fn test_sync_section_markers() {
+    let script = r#"
+＊同時発言
+　さくら：＠同時発言開始　せーの
+　さくら：「せーの」
+　　　　　＠同期
+　うにゅう：＠同時発言開始　せーの
+　うにゅう：「せーの」
+　　　　　＠同期
+　　　　　＠同時発言終了
+　さくら：＠同時発言終了
+"#;
+    let events = pasta::execute_script(script).unwrap();
+    
+    assert_eq!(events[0], ScriptEvent::BeginSync { sync_id: "...", speaker: "さくら" });
+    assert_eq!(events[1], ScriptEvent::Talk { speaker: "さくら", text: "せーの" });
+    assert_eq!(events[2], ScriptEvent::SyncPoint { sync_id: "...", speaker: "さくら" });
+    assert_eq!(events[3], ScriptEvent::BeginSync { sync_id: "...", speaker: "うにゅう" });
+    // ... マーカー順序の検証
+}
+```
+
+**Deterministic Random Tests**:
+```rust
+#[test]
+fn test_label_random_selection_with_seed() {
+    let script = r#"
+＊挨拶
+　さくら：パターン1
+＊挨拶
+　さくら：パターン2
+＊挨拶
+　さくら：パターン3
+"#;
+    let mut engine = PastaEngine::new_with_seed(script, 42).unwrap();
+    let events = engine.execute_label("挨拶").unwrap();
+    
+    // seed=42 では必ずパターン2が選択される（決定的）
+    assert_eq!(events[0], ScriptEvent::Talk { speaker: "さくら", text: "パターン2" });
+}
+```
+
+### Test File Structure
 
 ```
 crates/pasta/tests/
-├── parser_tests.rs
-├── transpiler_tests.rs
-├── generator_tests.rs
-├── label_tests.rs
-├── integration_tests.rs
+├── parser_tests.rs           # Parser 単体テスト
+├── transpiler_tests.rs       # Transpiler 単体テスト
+├── generator_tests.rs        # Generator 単体テスト
+├── label_tests.rs            # LabelTable 単体テスト
+├── variable_tests.rs         # VariableManager 単体テスト
+├── error_tests.rs            # エラーハンドリングテスト
+├── pipeline_tests.rs         # Full Pipeline 統合テスト
+├── sync_section_tests.rs     # 同期セクションテスト
 └── fixtures/
-    ├── simple_talk.pasta
-    ├── sync_section.pasta
-    ├── chain_talk.pasta
-    └── error_cases.pasta
+    ├── simple_talk.pasta     # 基本会話テスト用
+    ├── sync_section.pasta    # 同期セクションテスト用
+    ├── chain_talk.pasta      # チェイントークテスト用
+    ├── random_select.pasta   # ランダム選択テスト用
+    └── error_cases.pasta     # エラーケーステスト用
 ```
+
+### Non-Functional Tests (pasta スコープ外)
+
+以下は **areka アプリケーション層**の責務であり、pasta のテストスコープ外：
+
+| Test Type | Responsibility | Why Not pasta |
+|-----------|---------------|---------------|
+| UI Tests | areka | バルーン表示、レイアウト検証 |
+| Animation Tests | areka | タイムライン、同期制御検証 |
+| Performance Tests | areka | フレームレート、メモリ使用量 |
+| E2E Tests | areka | ユーザーインタラクション全体 |
+| Visual Regression | areka | スクリーンショット比較 |
+
+**pasta の責務**: ScriptEvent 列が正しく生成されることの検証のみ
 
 ---
 
