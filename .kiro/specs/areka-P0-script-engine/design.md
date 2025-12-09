@@ -48,6 +48,7 @@
 | エラー型 | thiserror | 構造化エラー、要件仕様準拠 |
 | IR 出力方式 | ScriptEvent（独自 IR） | wintf 非依存、会話制御に特化、疎結合 |
 | yield 戦略 | IR 単位 | 柔軟な中断ポイント、応答性向上 |
+| ランダム生成 | trait ベース DI | テスト時のモック置き換え可能性、決定的動作保証 |
 | 時間制御 | なし（マーカーのみ） | 純粋関数的、完全ユニットテスト可能 |
 | 責務範囲 | スクリプト生成のみ | UI/アニメーション依存なし、決定的動作 |
 
@@ -793,8 +794,17 @@ pub struct PastaEngine {
 }
 
 impl PastaEngine {
-    /// 新しいエンジンを作成
+    /// 新しいエンジンを作成（デフォルトのランダム選択器）
     pub fn new(dic_path: &Path) -> Result<Self, PastaError>;
+    
+    /// seed 固定エンジンを作成（テスト用）
+    pub fn with_seed(dic_path: &Path, seed: u64) -> Result<Self, PastaError>;
+    
+    /// カスタムランダム選択器でエンジンを作成（モックテスト用）
+    pub fn with_random_selector(
+        dic_path: &Path,
+        random_selector: Box<dyn RandomSelector>,
+    ) -> Result<Self, PastaError>;
     
     /// スクリプト実行（一括）
     pub fn execute_script(
@@ -975,6 +985,95 @@ pub enum ScriptEvent {
 
 ---
 
+### RandomSelector (trait)
+
+| Field | Detail |
+|-------|--------|
+| Intent | ランダム選択の抽象化（モック置き換え可能） |
+| Requirements | 1.1-1.5 |
+| Owner | pasta/runtime/random.rs |
+
+**Contracts**: Service [x]
+
+##### Service Interface
+
+```rust
+// crates/pasta/src/runtime/random.rs
+
+/// ランダム選択の抽象化 trait（テスト時にモック可能）
+pub trait RandomSelector: Send + Sync {
+    /// スライスからランダムに1要素を選択
+    fn select<'a, T>(&mut self, items: &'a [T]) -> Option<&'a T>;
+    
+    /// スライスをシャッフル（in-place）
+    fn shuffle<T>(&mut self, items: &mut [T]);
+}
+
+/// デフォルト実装（rand クレート使用）
+pub struct DefaultRandomSelector {
+    rng: rand::rngs::StdRng,
+}
+
+impl DefaultRandomSelector {
+    pub fn new() -> Self {
+        Self {
+            rng: rand::rngs::StdRng::from_entropy(),
+        }
+    }
+    
+    pub fn with_seed(seed: u64) -> Self {
+        use rand::SeedableRng;
+        Self {
+            rng: rand::rngs::StdRng::seed_from_u64(seed),
+        }
+    }
+}
+
+impl RandomSelector for DefaultRandomSelector {
+    fn select<'a, T>(&mut self, items: &'a [T]) -> Option<&'a T> {
+        use rand::seq::SliceRandom;
+        items.choose(&mut self.rng)
+    }
+    
+    fn shuffle<T>(&mut self, items: &mut [T]) {
+        use rand::seq::SliceRandom;
+        items.shuffle(&mut self.rng);
+    }
+}
+
+/// テスト用モック（決定的動作）
+#[cfg(test)]
+pub struct MockRandomSelector {
+    sequence: Vec<usize>, // 選択インデックスのシーケンス
+    index: usize,         // 現在位置
+}
+
+#[cfg(test)]
+impl MockRandomSelector {
+    pub fn new(sequence: Vec<usize>) -> Self {
+        Self { sequence, index: 0 }
+    }
+}
+
+#[cfg(test)]
+impl RandomSelector for MockRandomSelector {
+    fn select<'a, T>(&mut self, items: &'a [T]) -> Option<&'a T> {
+        if items.is_empty() || self.sequence.is_empty() {
+            return None;
+        }
+        let idx = self.sequence[self.index % self.sequence.len()] % items.len();
+        self.index += 1;
+        Some(&items[idx])
+    }
+    
+    fn shuffle<T>(&mut self, _items: &mut [T]) {
+        // テスト用: シャッフルしない（順序保持）
+    }
+}
+```
+
+---
+
 ### LabelTable
 
 | Field | Detail |
@@ -989,6 +1088,7 @@ pub enum ScriptEvent {
 
 ```rust
 // crates/pasta/src/runtime/labels.rs
+use crate::runtime::random::RandomSelector;
 
 /// ラベルエントリ
 #[derive(Debug, Clone)]
@@ -1000,14 +1100,30 @@ pub struct LabelEntry {
     pub parent: Option<String>, // ローカルラベルの親
 }
 
-/// ラベルテーブル
+/// ラベルテーブル（RandomSelector を依存性注入）
 pub struct LabelTable {
     entries: HashMap<String, LabelEntry>,
     by_display_name: HashMap<String, Vec<String>>,
     selection_cache: HashMap<String, VecDeque<String>>,
+    random_selector: Box<dyn RandomSelector>, // trait オブジェクトで注入
 }
 
 impl LabelTable {
+    /// 新規作成（デフォルトのランダム選択器を使用）
+    pub fn new() -> Self {
+        Self::with_random_selector(Box::new(DefaultRandomSelector::new()))
+    }
+    
+    /// カスタムランダム選択器で作成（テスト時にモックを注入）
+    pub fn with_random_selector(random_selector: Box<dyn RandomSelector>) -> Self {
+        Self {
+            entries: HashMap::new(),
+            by_display_name: HashMap::new(),
+            selection_cache: HashMap::new(),
+            random_selector,
+        }
+    }
+    
     /// ラベル登録（連番自動付与）
     pub fn register(&mut self, label: &LabelDef) -> String;
     
@@ -1307,7 +1423,7 @@ pasta の全ての機能は以下の特性により完全にユニットテス�
 | **AST Tests** | PastaAst | AST ノードの型・値検証 | 全ノード型、エッジケース |
 | **Transpiler Tests** | Transpiler | AST → Rune コード文字列比較 | コード生成、最適化 |
 | **Generator Tests** | ScriptGenerator | Rune 実行 → ScriptEvent 列比較 | 状態遷移、yield 順序 |
-| **Label Tests** | LabelTable | ラベル解決ロジック検証 | ランダム選択（seed 固定）、前方一致、キャッシュ |
+| **Label Tests** | LabelTable | ラベル解決ロジック検証 | ランダム選択（seed 固定/モック注入）、前方一致、キャッシュ |
 | **Variable Tests** | VariableManager | get/set 動作検証 | スコープ、名前解決 |
 | **Error Tests** | PastaError | 各種エラー発生条件検証 | ParseError, LabelNotFound, NameConflict |
 
@@ -1368,10 +1484,30 @@ fn test_label_random_selection_with_seed() {
 ＊挨拶
 　さくら：パターン3
 "#;
-    let mut engine = PastaEngine::new_with_seed(script, 42).unwrap();
+    // seed 固定によるテスト
+    let mut engine = PastaEngine::with_seed(script, 42).unwrap();
     let events = engine.execute_label("挨拶").unwrap();
     
     // seed=42 では必ずパターン2が選択される（決定的）
+    assert_eq!(events[0], ScriptEvent::Talk { speaker: "さくら", text: "パターン2" });
+}
+
+#[test]
+fn test_label_random_selection_with_mock() {
+    let script = r#"
+＊挨拶
+　さくら：パターン1
+＊挨拶
+　さくら：パターン2
+＊挨拶
+　さくら：パターン3
+"#;
+    // モック選択器によるテスト（常にインデックス1を選択）
+    let mock = MockRandomSelector::new(vec![1, 1, 1]);
+    let mut engine = PastaEngine::with_random_selector(script, Box::new(mock)).unwrap();
+    let events = engine.execute_label("挨拶").unwrap();
+    
+    // 必ずパターン2が選択される（モックによる完全制御）
     assert_eq!(events[0], ScriptEvent::Talk { speaker: "さくら", text: "パターン2" });
 }
 ```
