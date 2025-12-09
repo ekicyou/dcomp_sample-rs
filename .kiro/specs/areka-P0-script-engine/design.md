@@ -338,9 +338,9 @@ sequenceDiagram
 | `Wait { duration }` | アニメーションエンジンで duration 秒待機<br>全アクティブバルーンのタイムラインに Wait を追加 | `[Wait(duration)]` |
 | `ChangeSpeaker { name }` | 次の Talk で使用する発言者を内部状態に記憶 | なし（内部状態のみ） |
 | `ChangeSurface { character, surface_id }` | 該当キャラクターの Entity にサーフェス変更コマンド発行 | なし（ECS コマンド経由） |
-| `BeginSync { sync_id, speaker }` | sync_id のバッファを作成（存在しない場合）<br>speaker を参加者リストに追加 | なし（内部状態のみ） |
-| `SyncPoint { sync_id, speaker }` | speaker が同期ポイントに到達したことを記録<br>**全参加者が到達**: バッファ内容を各バルーンに同時供給<br>全バルーンの show_at を同一時刻に設定 | 複数バルーンに `[Text(text)]` を分配 |
-| `EndSync { sync_id, speaker }` | speaker を参加者リストから除外<br>全員終了でバッファクリア、通常モード復帰 | なし（内部状態のみ） |
+| `BeginSync { sync_id }` | sync_id のバッファを作成（存在しない場合）<br>BeginSync～EndSync 間の Talk から参加者を自動判定 | なし（内部状態のみ） |
+| `SyncPoint { sync_id }` | 各スピーカーの進行を追跡し、全参加者が SyncPoint に到達<br>**全員到達**: バッファ内容を各バルーンに同時供給<br>全バルーンの show_at を同一時刻に設定 | 複数バルーンに `[Text(text)]` を分配 |
+| `EndSync { sync_id }` | 同期セクション終了、バッファクリア、通常モード復帰 | なし（内部状態のみ） |
 | `Error { message }` | エラーバルーンを表示（赤文字等） | `[Text(error_formatted)]` |
 | `FireEvent { event_name, params }` | イベントシステムに通知 | `[FireEvent { ... }]` |
 
@@ -356,20 +356,21 @@ sequenceDiagram
 **Rune 標準ライブラリ側（pasta）**:
 ```rune
 // pasta は純粋なマーカー生成のみ（制御ロジックなし）
+// 参加者は BeginSync～EndSync 間の Talk から areka が自動判定
 
-pub fn 同時発言開始(character) {
+pub fn 同時発言開始() {
     let sync_id = generate_sync_id();
-    yield BeginSync { sync_id, speaker: character.name };
+    yield BeginSync { sync_id };
 }
 
-pub fn 同期(character) {
+pub fn 同期() {
     let sync_id = current_sync_id();
-    yield SyncPoint { sync_id, speaker: character.name };
+    yield SyncPoint { sync_id };
 }
 
-pub fn 同時発言終了(character) {
+pub fn 同時発言終了() {
     let sync_id = current_sync_id();
-    yield EndSync { sync_id, speaker: character.name };
+    yield EndSync { sync_id };
 }
 ```
 
@@ -380,11 +381,12 @@ pub fn 同時発言終了(character) {
 // 同期セクション管理（areka の責務）
 struct SyncSectionManager {
     buffers: HashMap<String, SyncBuffer>,
+    current_sync_id: Option<String>,
 }
 
 struct SyncBuffer {
     sync_id: String,
-    participants: HashSet<String>,      // 参加者リスト
+    participants: HashSet<String>,      // 参加者リスト（Talk から自動判定）
     reached_sync_point: HashSet<String>, // SyncPoint 到達者
     buffered_talks: Vec<(String, String)>, // (speaker, text)
 }
@@ -392,16 +394,19 @@ struct SyncBuffer {
 impl SyncSectionManager {
     fn handle_event(&mut self, event: ScriptEvent, balloon_mgr: &mut BalloonManager) {
         match event {
-            ScriptEvent::BeginSync { sync_id, speaker } => {
-                let buffer = self.buffers.entry(sync_id.clone())
-                    .or_insert(SyncBuffer::new(sync_id));
-                buffer.participants.insert(speaker);
+            ScriptEvent::BeginSync { sync_id } => {
+                self.current_sync_id = Some(sync_id.clone());
+                self.buffers.entry(sync_id)
+                    .or_insert(SyncBuffer::new());
             },
             
             ScriptEvent::Talk { speaker, text } => {
-                if let Some(buffer) = self.find_active_buffer(&speaker) {
-                    // 同期セクション内: バッファに蓄積
-                    buffer.buffered_talks.push((speaker, text));
+                if let Some(sync_id) = &self.current_sync_id {
+                    // 同期セクション内: バッファに蓄積し、参加者を自動登録
+                    if let Some(buffer) = self.buffers.get_mut(sync_id) {
+                        buffer.participants.insert(speaker.clone());
+                        buffer.buffered_talks.push((speaker, text));
+                    }
                 } else {
                     // 同期セクション外: 即座に表示
                     let balloon = balloon_mgr.get_or_create(&speaker);
@@ -409,12 +414,13 @@ impl SyncSectionManager {
                 }
             },
             
-            ScriptEvent::SyncPoint { sync_id, speaker } => {
+            ScriptEvent::SyncPoint { sync_id } => {
                 if let Some(buffer) = self.buffers.get_mut(&sync_id) {
-                    buffer.reached_sync_point.insert(speaker);
+                    // 全参加者が SyncPoint に到達したか判定
+                    // （実装: 各スピーカーの進行状況を Talk の順序で追跡）
+                    let all_reached = self.check_all_participants_reached(&sync_id);
                     
-                    // 全参加者が到達したか判定
-                    if buffer.reached_sync_point == buffer.participants {
+                    if all_reached {
                         // 一斉にアニメーション開始
                         let current_time = frame_time.current();
                         for (spk, text) in &buffer.buffered_talks {
@@ -427,12 +433,11 @@ impl SyncSectionManager {
                 }
             },
             
-            ScriptEvent::EndSync { sync_id, speaker } => {
-                if let Some(buffer) = self.buffers.get_mut(&sync_id) {
-                    buffer.participants.remove(&speaker);
-                    if buffer.participants.is_empty() {
-                        self.buffers.remove(&sync_id);
-                    }
+            ScriptEvent::EndSync { sync_id } => {
+                // 同期セクション終了: バッファクリア、通常モード復帰
+                self.buffers.remove(&sync_id);
+                if self.current_sync_id.as_ref() == Some(&sync_id) {
+                    self.current_sync_id = None;
                 }
             },
             
@@ -942,26 +947,24 @@ pub enum ScriptEvent {
     /// 同期セクション開始マーカー
     /// pasta: DSL の＠同時発言開始をマーカーとして yield（制御なし）
     /// areka: sync_id でバッファを作成し、後続 Talk を蓄積開始
+    ///        参加者は BeginSync～EndSync 間の Talk イベントから自動判定
     BeginSync {
         sync_id: String,
-        speaker: String,
     },
     
     /// 同期ポイントマーカー
     /// pasta: DSL の＠同期をマーカーとして yield（制御なし）
-    /// areka: 該当 speaker が同期ポイントに到達したことを記録
-    ///        全参加者が到達したらバッファ内容を一斉にアニメーション開始
+    /// areka: 各スピーカーの進行状況を追跡し、全参加者が SyncPoint に到達したら
+    ///        バッファ内容を一斉にアニメーション開始
     SyncPoint {
         sync_id: String,
-        speaker: String,
     },
     
     /// 同期セクション終了マーカー
     /// pasta: DSL の＠同時発言終了をマーカーとして yield（制御なし）
-    /// areka: 該当 speaker を同期セクションから除外、全員終了でバッファクリア
+    /// areka: 同期セクションを終了し、バッファクリア
     EndSync {
         sync_id: String,
-        speaker: String,
     },
     
     /// 実行時エラー（スクリプト実行中のエラーを通知）
@@ -1464,10 +1467,11 @@ fn test_sync_section_markers() {
 "#;
     let events = pasta::execute_script(script).unwrap();
     
-    assert_eq!(events[0], ScriptEvent::BeginSync { sync_id: "...", speaker: "さくら" });
+    assert_eq!(events[0], ScriptEvent::BeginSync { sync_id: "sync_1" });
     assert_eq!(events[1], ScriptEvent::Talk { speaker: "さくら", text: "せーの" });
-    assert_eq!(events[2], ScriptEvent::SyncPoint { sync_id: "...", speaker: "さくら" });
-    assert_eq!(events[3], ScriptEvent::BeginSync { sync_id: "...", speaker: "うにゅう" });
+    assert_eq!(events[2], ScriptEvent::SyncPoint { sync_id: "sync_1" });
+    assert_eq!(events[3], ScriptEvent::Talk { speaker: "うにゅう", text: "いち" });
+    assert_eq!(events[4], ScriptEvent::EndSync { sync_id: "sync_1" });
     // ... マーカー順序の検証
 }
 ```
