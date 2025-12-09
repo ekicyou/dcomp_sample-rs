@@ -388,6 +388,8 @@ fn create_flexbox_window(world: &mut World) {
     println!("  - 赤い矩形を左クリック → 色が赤⇔黄トグル");
     println!("  - 画像の透明部分を左クリック → 背景(RedBox)の色が変わる（αマスクヒットテスト）");
     println!("  - 画像の不透明部分を左クリック → 画像がクリックされ背景は変わらない");
+    println!("  - 緑の矩形を左クリック → 色が緑⇔黄緑トグル");
+    println!("  - 緑の矩形をダブルクリック → サイズが100⇔150トグル");
     println!("  - 緑の矩形でマウス移動 → ログ出力（デバッグ）");
     println!("  - 青い矩形を左クリック → サイズが100⇔150トグル");
 }
@@ -1059,6 +1061,7 @@ fn on_image_pressed(
 ///
 /// **Tunnelフェーズ**: 左クリックでキャプチャし、子（GreenBoxChild）に到達させない
 /// **Bubbleフェーズ**: 右クリックで色を変更
+/// **ダブルクリック**: サイズを変更（100x100 ⇔ 150x150）
 ///
 /// # stopPropagation使用例
 /// Tunnelフェーズでtrueを返すことで、親エンティティが子のイベント処理前に
@@ -1078,6 +1081,32 @@ fn on_green_box_pressed(
         Phase::Tunnel(state) => {
             // 左クリックでキャプチャ
             if state.left_down {
+                // ダブルクリック判定
+                if state.double_click == wintf::ecs::pointer::DoubleClick::Left {
+                    info!(
+                        "[Tunnel] GreenBox: DOUBLE-CLICK detected, toggling size, sender={:?}, entity={:?}",
+                        sender, entity,
+                    );
+                    
+                    // サイズをトグル（100x100 ⇔ 150x150）
+                    if let Some(mut box_style) = world.get_mut::<wintf::ecs::layout::BoxStyle>(entity) {
+                        let current_width = box_style.size
+                            .and_then(|s| s.width)
+                            .and_then(|w| if let Dimension::Px(px) = w { Some(px) } else { None })
+                            .unwrap_or(100.0);
+                        
+                        let new_size = if current_width < 125.0 { 150.0 } else { 100.0 };
+                        box_style.size = Some(wintf::ecs::layout::BoxSize {
+                            width: Some(Dimension::Px(new_size)),
+                            height: Some(Dimension::Px(new_size)),
+                        });
+                        info!("[Tunnel] GreenBox: Size changed {} -> {}", current_width, new_size);
+                    }
+                    
+                    return true;
+                }
+                
+                // 通常の左クリック：色をトグル（緑 ⇔ 黄緑）
                 info!(
                     "[Tunnel] GreenBox: Captured event, stopping propagation (Left), sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
                     sender, entity,
@@ -1085,7 +1114,6 @@ fn on_green_box_pressed(
                     state.local_point.x, state.local_point.y,
                 );
 
-                // 色をトグル（緑 ⇔ 黄緑）
                 if let Some(mut brushes) = world.get_mut::<Brushes>(entity) {
                     let is_green = match brushes.foreground.as_color() {
                         Some(c) => c.r < 0.1 && c.g > 0.9,
