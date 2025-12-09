@@ -1,0 +1,1314 @@
+# Design Document: areka-P0-script-engine
+
+| 項目 | 内容 |
+|------|------|
+| **Version** | 1.0 |
+| **Date** | 2025-12-09 |
+| **Status** | Draft |
+| **Requirements** | v1.0 |
+
+---
+
+## Overview
+
+**Purpose**: 本機能はサブクレート `pasta` として Pasta DSL スクリプトエンジンを提供し、areka アプリケーションにおけるキャラクター対話の実行基盤を構築する。
+
+**Users**: ゴースト制作者が Pasta DSL で対話スクリプトを記述し、areka アプリケーション層が pasta の ScriptEvent IR を TypewriterToken に変換して wintf で表示する。
+
+**Impact**: 新規サブクレート追加。pasta 独自の ScriptEvent IR 型を定義し、areka アプリケーション層で TypewriterToken への変換を行う。wintf への直接依存なし。
+
+### Goals
+
+- 里々インスパイアの対話記述 DSL（Pasta）の解釈・実行
+- Rune Generators ベースの状態マシンによる中断・再開機能
+- ScriptEvent IR の出力（会話制御情報を含む上位レベル IR）
+- 複数キャラクター会話制御（同期セクション含む）
+- さくらスクリプト互換コマンドのサポート
+
+### Non-Goals
+
+- LLM 連携（areka-P2-llm-integration の責務）
+- ゴーストパッケージ管理（areka-P0-package-manager の責務）
+- タイプライター表示アニメーション（wintf-P0-typewriter の責務）
+- DirectComposition/Direct2D 等のグラフィックス機能（wintf の責務）
+
+### Key Design Decisions
+
+| 決定項目 | 選択 | 理由 |
+|----------|------|------|
+| パーサー | pest (PEG) | Unicode 対応、文法可視性、DSL 親和性 |
+| スクリプトランタイム | Rune Generators | 中断・再開、yield による段階的 IR 生成 |
+| エラー型 | thiserror | 構造化エラー、要件仕様準拠 |
+| IR 出力方式 | ScriptEvent（独自 IR） | wintf 非依存、会話制御に特化、疎結合 |
+| yield 戦略 | IR 単位 | 柔軟な中断ポイント、応答性向上 |
+
+---
+
+## Architecture
+
+### Existing Architecture Analysis
+
+本設計は新規サブクレートのため、wintf との統合点のみ分析:
+
+| 層 | wintf パターン | pasta での活用 |
+|----|---------------|---------------|
+| IR 型 | `TypewriterToken` | 変換層経由で間接利用（pasta は非依存） |
+| 描画 | `draw_typewriters` | 変換層経由で間接利用 |
+| 時刻 | `FrameTime` | 直接参照不要（areka アプリ層が管理） |
+
+### Architecture Overview
+
+```mermaid
+graph TB
+    subgraph "pasta クレート"
+        subgraph "Parser Layer"
+            P1[pest Parser]
+            P2[Pasta AST]
+        end
+        
+        subgraph "Transpiler Layer"
+            T1[Transpiler]
+            T2[Rune Source]
+        end
+        
+        subgraph "Runtime Layer"
+            R1[Rune VM]
+            R2[ScriptGenerator]
+            R3[Variable Manager]
+        end
+        
+        subgraph "Standard Library"
+            S1[pasta_stdlib.rune]
+            S2[Built-in Functions]
+        end
+        
+        subgraph "IR Output"
+            I1[ScriptEvent]
+        end
+    end
+    
+    subgraph "areka アプリケーション層"
+        A1[IR 変換層]
+        A2[会話制御ロジック]
+    end
+    
+    subgraph "wintf クレート"
+        W1[Typewriter System]
+        W2[Balloon System]
+    end
+    
+    P1 --> P2
+    P2 --> T1
+    T1 --> T2
+    T2 --> R1
+    R1 --> R2
+    S1 --> R1
+    S2 --> R1
+    R2 --> I1
+    R3 --> R1
+    I1 --> A1
+    A1 --> A2
+    A2 --> W1
+    A2 --> W2
+    
+    style P1 fill:#e8f5e9
+    style P2 fill:#e8f5e9
+    style T1 fill:#fff3e0
+    style T2 fill:#fff3e0
+    style R1 fill:#e3f2fd
+    style R2 fill:#e3f2fd
+    style R3 fill:#e3f2fd
+    style I1 fill:#fce4ec
+```
+
+### Module Structure
+
+```
+crates/pasta/
+├── Cargo.toml
+├── src/
+│   ├── lib.rs              # 公開 API
+│   ├── error.rs            # PastaError 定義
+│   ├── parser/
+│   │   ├── mod.rs          # パーサーエントリポイント
+│   │   ├── pasta.pest      # PEG 文法定義
+│   │   ├── ast.rs          # AST 型定義
+│   │   └── visitor.rs      # AST 走査
+│   ├── transpiler/
+│   │   ├── mod.rs          # トランスパイラ
+│   │   └── codegen.rs      # Rune コード生成
+│   ├── runtime/
+│   │   ├── mod.rs          # ランタイムエントリ
+│   │   ├── generator.rs    # ScriptGenerator
+│   │   ├── variables.rs    # 変数管理
+│   │   └── labels.rs       # ラベル管理
+│   ├── ir/
+│   │   ├── mod.rs          # IR エクスポート
+│   │   └── script_event.rs # ScriptEvent 型定義
+│   └── stdlib/
+│       ├── mod.rs          # 標準ライブラリ登録
+│       └── pasta_stdlib.rune  # 組み込み関数
+└── tests/
+    ├── parser_tests.rs
+    ├── transpiler_tests.rs
+    └── generator_tests.rs
+```
+
+### Technology Stack
+
+| Layer | Choice / Version | Role in Feature | Notes |
+|-------|------------------|-----------------|-------|
+| Parser | pest 2.8 | DSL 文法解析 | PEG ベース |
+| Runtime | rune 0.14 | スクリプト実行 | Generators |
+| Error | thiserror 2 | エラー型 | 構造化 |
+| File | glob 0.3 | ファイル探索 | dic/ 配下 |
+
+---
+
+## System Flows
+
+### Initialization Flow
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant PE as PastaEngine
+    participant Parser as pest Parser
+    participant Trans as Transpiler
+    participant Rune as Rune VM
+    participant Labels as LabelTable
+
+    App->>PE: PastaEngine::new(dic_path)
+    PE->>PE: glob("dic/**/*.pasta")
+    loop Each .pasta file
+        PE->>Parser: parse_file(path)
+        Parser-->>PE: AST
+        PE->>Trans: transpile(ast)
+        Trans-->>PE: Rune Source
+        PE->>Labels: register_labels(ast)
+    end
+    PE->>Rune: init_vm(sources)
+    Rune-->>PE: Vm
+    PE-->>App: PastaEngine
+```
+
+### Script Execution Flow
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant PE as PastaEngine
+    participant Gen as ScriptGenerator
+    participant Rune as Rune VM
+    participant IR as TypewriterToken
+
+    App->>PE: start_generator("挨拶")
+    PE->>PE: resolve_label("挨拶")
+    PE->>Rune: create_generator(label_fn)
+    Rune-->>Gen: Generator
+    Gen-->>App: ScriptGenerator
+
+    loop Until Completed
+        App->>Gen: resume()
+        Gen->>Rune: generator.resume(())
+        alt Yielded
+            Rune-->>Gen: GeneratorState::Yielded(value)
+            Gen->>IR: convert_to_token(value)
+            IR-->>App: Some(TypewriterToken)
+        else Complete
+            Rune-->>Gen: GeneratorState::Complete
+            Gen-->>App: None
+        end
+    end
+```
+
+### Synchronized Section Flow
+
+```mermaid
+sequenceDiagram
+    participant DSL as Pasta DSL
+    participant Trans as Transpiler
+    participant Gen as Generator
+    participant IR as IR Output
+    participant TW as Typewriter
+
+    Note over DSL: さくら：＠同時発言開始　せーの
+    DSL->>Trans: parse & transpile
+    Trans->>Gen: 同時発言開始(さくら)
+    Gen->>IR: yield BeginSync { sync_id }
+    
+    Note over DSL: 　＠同期
+    Trans->>Gen: 同期(さくら)
+    Gen->>IR: yield SyncPoint { sync_id }
+    
+    Note over DSL: うにゅう：＠同時発言開始　せーの
+    Trans->>Gen: 同時発言開始(うにゅう)
+    Gen->>IR: yield BeginSync { sync_id }
+    
+    Note over DSL: 　＠同時発言終了
+    Trans->>Gen: 同時発言終了(うにゅう)
+    Gen->>IR: yield EndSync { sync_id }
+    
+    IR->>TW: process_sync_section()
+    TW->>TW: display_all_balloons()
+```
+
+### State Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> Initialized: PastaEngine::new()
+    Initialized --> Running: start_generator()
+    Running --> Suspended: yield (ScriptEvent)
+    Suspended --> Running: resume()
+    Running --> Completed: generator complete
+    Suspended --> Completed: skip()
+    Completed --> [*]
+    
+    Running --> Error: runtime error
+    Error --> [*]
+```
+
+### IR Conversion Layer (areka Application Responsibility)
+
+**責務**: pasta の `ScriptEvent` を wintf の `TypewriterToken` に変換し、キャラクター毎のバルーンとタイプライターを制御する。
+
+#### Conversion Flow
+
+```mermaid
+sequenceDiagram
+    participant App as areka App
+    participant PG as PastaGenerator
+    participant Conv as IR Converter
+    participant BM as Balloon Manager
+    participant TW as Typewriter (wintf)
+
+    App->>PG: resume()
+    PG-->>App: ScriptEvent::Talk { speaker, text }
+    
+    App->>Conv: convert(ScriptEvent)
+    Conv->>Conv: parse speaker
+    Conv->>BM: get_or_create_balloon(speaker)
+    BM-->>Conv: balloon_entity
+    
+    Conv->>Conv: generate TypewriterToken::Text
+    Conv-->>App: Vec<TypewriterToken>
+    
+    App->>TW: feed_tokens(balloon_entity, tokens)
+    TW->>TW: start typewriter animation
+```
+
+#### Conversion Rules
+
+| ScriptEvent | 変換処理 | TypewriterToken 出力 |
+|-------------|---------|---------------------|
+| `Talk { speaker, text }` | 1. 発言者のバルーンを取得/生成<br>2. テキストを TypewriterToken::Text に変換<br>3. 該当バルーンの Typewriter に供給 | `[Text(text)]` |
+| `Wait { duration }` | 現在アクティブな全バルーンに Wait を追加 | `[Wait(duration)]` |
+| `ChangeSpeaker { name }` | 次の Talk で使用する発言者を設定（状態保持） | なし（内部状態のみ） |
+| `ChangeSurface { character, surface_id }` | 該当キャラクターの Entity に対してサーフェス変更コマンド発行 | なし（ECS コマンド経由） |
+| `BeginSync { sync_id }` | 同期セクション開始、後続の Talk をバッファリング | なし（内部状態のみ） |
+| `SyncPoint { sync_id }` | バッファした全 Talk を同時に各バルーンへ供給 | 複数バルーンに分配 |
+| `EndSync { sync_id }` | 同期セクション終了、通常モードへ復帰 | なし（内部状態のみ） |
+| `Error { message }` | エラーバルーンを表示（赤文字等） | `[Text(error_formatted)]` |
+| `FireEvent { event_name, params }` | イベントシステムに通知 | `[FireEvent { ... }]` |
+
+#### Implementation Notes
+
+- **IR Converter**: areka アプリケーション内のモジュール（`areka/src/script/ir_converter.rs` 等）
+- **Balloon Manager**: バルーンの生成・管理・ライフサイクル制御
+- **状態管理**: 現在の発言者、同期セクションバッファ等を保持
+- **エラー処理**: ScriptEvent::Error は UI エラー表示として処理し、スクリプト実行は継続可能
+
+---
+
+## Requirements Traceability
+
+| Requirement | Summary | Components | Interfaces | Flows |
+|-------------|---------|------------|------------|-------|
+| 1.1-1.5 | 対話記述DSL | Parser, AST | parse_file() | Initialization |
+| 2.1-2.7 | IR出力 | ScriptEvent | ScriptEvent enum | Execution |
+| 3.1-3.6 | さくらスクリプト互換 | Transpiler | sakura_script_compat() | Transpile |
+| 4.1-4.6 | 変数管理 | VariableManager | get/set_global() | Runtime |
+| 5.1-5.6 | 制御構文 | Transpiler, Rune | - | Transpile |
+| 6.1-6.7 | 複数キャラクター | SyncSection | BeginSync/EndSync | Sync Flow |
+| 7.1-7.5 | イベントハンドリング | EventRegistry | register_event() | Event |
+| 8.1-8.8 | Generators状態マシン | ScriptGenerator | resume() | Execution |
+
+---
+
+## Components and Interfaces
+
+### Component Overview
+
+| Component | Domain/Layer | Intent | Req Coverage | Key Dependencies | Contracts |
+|-----------|--------------|--------|--------------|------------------|-----------|
+| PastaError | Error | 構造化エラー型 | NFR-2 | thiserror | State |
+| PastaParser | Parser | DSL 解析 | 1.1-1.5 | pest | Service |
+| PastaAst | Parser | 抽象構文木 | 1.1-1.5 | - | State |
+| Transpiler | Transpiler | Rune コード生成 | 3.1-3.6, 5.1-5.6 | - | Service |
+| PastaEngine | Runtime | エンジン本体 | All | rune | Service |
+| ScriptGenerator | Runtime | Generator 制御 | 8.1-8.8 | rune | Service |
+| VariableManager | Runtime | 変数管理 | 4.1-4.6 | rune | Service |
+| LabelTable | Runtime | ラベル管理 | 1.1-1.5 | - | State |
+| ScriptEvent | IR | IR 型定義（会話制御） | 2.1-2.7, 6.1-6.7 | なし | State |
+| StandardLibrary | Stdlib | 組み込み関数 | 6.1-6.7 | rune | Service |
+
+---
+
+### PastaError
+
+| Field | Detail |
+|-------|--------|
+| Intent | 構造化エラー型（thiserror ベース） |
+| Requirements | NFR-2.1-2.5 |
+| Owner | pasta/error.rs |
+
+**Contracts**: State [x]
+
+##### State Management
+
+```rust
+// crates/pasta/src/error.rs
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum PastaError {
+    /// パース時の構文エラー
+    #[error("Parse error at {file}:{line}:{column}: {message}")]
+    ParseError {
+        file: String,
+        line: usize,
+        column: usize,
+        message: String,
+    },
+    
+    /// ラベル未定義エラー
+    #[error("Label not found: {label}")]
+    LabelNotFound { label: String },
+    
+    /// 名前空間重複エラー
+    #[error("Name conflict: '{name}' is already defined as {existing_kind}")]
+    NameConflict {
+        name: String,
+        existing_kind: String,
+    },
+    
+    /// Rune ランタイムエラー
+    #[error("Rune runtime error: {0}")]
+    RuneError(#[from] rune::compile::Error),
+    
+    /// Rune VM エラー
+    #[error("Rune VM error: {0}")]
+    VmError(#[from] rune::runtime::VmError),
+    
+    /// IO エラー
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+    
+    /// pest パースエラー
+    #[error("Pest parse error: {0}")]
+    PestError(String),
+}
+```
+
+---
+
+### PastaParser
+
+| Field | Detail |
+|-------|--------|
+| Intent | Pasta DSL の解析 |
+| Requirements | 1.1-1.5 |
+| Owner | pasta/parser/mod.rs |
+
+**Contracts**: Service [x]
+
+##### Service Interface
+
+```rust
+// crates/pasta/src/parser/mod.rs
+use crate::error::PastaError;
+use crate::parser::ast::PastaFile;
+
+/// Pasta DSL パーサー
+pub struct PastaParser;
+
+impl PastaParser {
+    /// ファイルパスから解析
+    pub fn parse_file(path: &Path) -> Result<PastaFile, PastaError>;
+    
+    /// 文字列から解析
+    pub fn parse_str(source: &str, filename: &str) -> Result<PastaFile, PastaError>;
+}
+```
+
+---
+
+### PastaAst
+
+| Field | Detail |
+|-------|--------|
+| Intent | 抽象構文木の型定義 |
+| Requirements | 1.1-1.5 |
+| Owner | pasta/parser/ast.rs |
+
+**Contracts**: State [x]
+
+##### State Management
+
+```rust
+// crates/pasta/src/parser/ast.rs
+
+/// Pasta ファイル全体
+#[derive(Debug, Clone)]
+pub struct PastaFile {
+    pub path: PathBuf,
+    pub labels: Vec<LabelDef>,
+    pub global_vars: Vec<VarDef>,
+}
+
+/// ラベル定義
+#[derive(Debug, Clone)]
+pub struct LabelDef {
+    pub name: String,
+    pub scope: LabelScope,
+    pub attributes: Vec<Attribute>,
+    pub local_labels: Vec<LabelDef>,
+    pub local_functions: Vec<RuneBlock>,
+    pub statements: Vec<Statement>,
+    pub span: Span,
+}
+
+/// ラベルスコープ
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LabelScope {
+    Global,
+    Local,
+}
+
+/// 属性定義
+#[derive(Debug, Clone)]
+pub struct Attribute {
+    pub key: String,
+    pub value: AttributeValue,
+    pub span: Span,
+}
+
+/// 属性値
+#[derive(Debug, Clone)]
+pub enum AttributeValue {
+    Literal(String),
+    VarRef(String),
+}
+
+/// 文
+#[derive(Debug, Clone)]
+pub enum Statement {
+    /// 発言
+    Speech {
+        speaker: String,
+        content: Vec<SpeechPart>,
+        span: Span,
+    },
+    /// call
+    Call {
+        target: JumpTarget,
+        filters: Vec<Attribute>,
+        args: Vec<Expr>,
+        span: Span,
+    },
+    /// jump
+    Jump {
+        target: JumpTarget,
+        filters: Vec<Attribute>,
+        span: Span,
+    },
+    /// 変数代入
+    VarAssign {
+        name: String,
+        scope: VarScope,
+        value: Expr,
+        span: Span,
+    },
+}
+
+/// 発言内容の構成要素
+#[derive(Debug, Clone)]
+pub enum SpeechPart {
+    Text(String),
+    VarRef(String),
+    FuncCall { name: String, args: Vec<Expr> },
+    SakuraScript(String),
+}
+
+/// ジャンプ先
+#[derive(Debug, Clone)]
+pub enum JumpTarget {
+    Local(String),
+    Global(String),
+    LongJump { global: String, local: String },
+    Dynamic(String),
+}
+
+/// 変数スコープ
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum VarScope {
+    Local,
+    Global,
+}
+
+/// 式
+#[derive(Debug, Clone)]
+pub enum Expr {
+    Literal(Literal),
+    VarRef { name: String, scope: VarScope },
+    FuncCall { name: String, args: Vec<Expr> },
+    BinaryOp { op: BinOp, lhs: Box<Expr>, rhs: Box<Expr> },
+    Paren(Box<Expr>),
+}
+
+/// リテラル
+#[derive(Debug, Clone)]
+pub enum Literal {
+    Number(f64),
+    String(String),
+}
+
+/// 二項演算子
+#[derive(Debug, Clone, Copy)]
+pub enum BinOp {
+    Add, Sub, Mul, Div, Mod,
+}
+
+/// ソース位置情報
+#[derive(Debug, Clone)]
+pub struct Span {
+    pub start_line: usize,
+    pub start_col: usize,
+    pub end_line: usize,
+    pub end_col: usize,
+}
+```
+
+---
+
+### Transpiler
+
+| Field | Detail |
+|-------|--------|
+| Intent | Pasta AST から Rune コードへの変換 |
+| Requirements | 3.1-3.6, 5.1-5.6 |
+| Owner | pasta/transpiler/mod.rs |
+
+**Contracts**: Service [x]
+
+##### Service Interface
+
+```rust
+// crates/pasta/src/transpiler/mod.rs
+
+/// Pasta → Rune トランスパイラ
+pub struct Transpiler;
+
+impl Transpiler {
+    /// AST から Rune ソースコードを生成
+    pub fn transpile(file: &PastaFile) -> Result<String, PastaError>;
+    
+    /// ラベル関数名を生成
+    fn label_to_fn_name(label: &LabelDef) -> String;
+    
+    /// 発言を Rune コードに変換
+    fn transpile_speech(speech: &Statement) -> String;
+}
+```
+
+**Generated Rune Code Example**:
+
+```rune
+// Pasta DSL:
+// ＊挨拶
+//   さくら：こんにちは
+
+// Generated Rune:
+pub fn 挨拶_1() {
+    yield change_speaker("さくら");
+    yield emit_text("こんにちは");
+}
+```
+
+---
+
+### PastaEngine
+
+| Field | Detail |
+|-------|--------|
+| Intent | スクリプトエンジン本体 |
+| Requirements | All |
+| Owner | pasta/runtime/mod.rs |
+
+**Contracts**: Service [x]
+
+##### Service Interface
+
+```rust
+// crates/pasta/src/runtime/mod.rs
+use crate::error::PastaError;
+use crate::runtime::generator::ScriptGenerator;
+use std::collections::HashMap;
+use std::path::Path;
+
+/// Pasta スクリプトエンジン
+pub struct PastaEngine {
+    vm: rune::Vm,
+    labels: LabelTable,
+    variables: VariableManager,
+    events: EventRegistry,
+}
+
+impl PastaEngine {
+    /// 新しいエンジンを作成
+    pub fn new(dic_path: &Path) -> Result<Self, PastaError>;
+    
+    /// スクリプト実行（一括）
+    pub fn execute_script(
+        &mut self,
+        label: &str,
+        args: Vec<rune::Value>,
+        filters: HashMap<String, String>,
+    ) -> Result<Vec<TypewriterToken>, PastaError>;
+    
+    /// Generator を開始
+    pub fn start_generator(
+        &mut self,
+        label: &str,
+    ) -> Result<ScriptGenerator, PastaError>;
+    
+    /// グローバル変数取得
+    pub fn get_global(&self, name: &str) -> Option<rune::Value>;
+    
+    /// グローバル変数設定
+    pub fn set_global(&mut self, name: &str, value: rune::Value);
+    
+    /// イベントハンドラ登録
+    pub fn register_event(
+        &mut self,
+        event_name: &str,
+        handler_label: &str,
+    ) -> Result<(), PastaError>;
+}
+```
+
+---
+
+### ScriptGenerator
+
+| Field | Detail |
+|-------|--------|
+| Intent | Rune Generator のラッパー |
+| Requirements | 8.1-8.8 |
+| Owner | pasta/runtime/generator.rs |
+
+**Contracts**: Service [x]
+
+##### Service Interface
+
+```rust
+// crates/pasta/src/runtime/generator.rs
+use crate::error::PastaError;
+use crate::ir::ScriptEvent;
+
+/// Generator の状態
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GeneratorState {
+    Running,
+    Suspended,
+    Completed,
+}
+
+/// スクリプト Generator
+pub struct ScriptGenerator {
+    generator: rune::runtime::Generator,
+    state: GeneratorState,
+}
+
+impl ScriptGenerator {
+    /// Generator を再開し、次の ScriptEvent を取得
+    pub fn resume(&mut self) -> Result<Option<ScriptEvent>, PastaError>;
+    
+    /// すべての ScriptEvent を取得（完了まで実行）
+    pub fn resume_all(&mut self) -> Result<Vec<ScriptEvent>, PastaError>;
+    
+    /// 現在の状態を取得
+    pub fn state(&self) -> GeneratorState;
+    
+    /// スキップ（即座に完了）
+    pub fn skip(&mut self);
+}
+```
+
+---
+
+### ScriptEvent (IR)
+
+| Field | Detail |
+|-------|--------|
+| Intent | Pasta スクリプトエンジンの IR 型定義（会話制御専用） |
+| Requirements | 2.1-2.7, 6.1-6.7 |
+| Owner | pasta/ir/script_event.rs |
+
+**Contracts**: State [x]
+
+##### State Management
+
+```rust
+// crates/pasta/src/ir/script_event.rs
+
+/// Pasta スクリプトエンジンの中間表現（IR）
+/// 会話全体の制御情報を表現（1キャラ×1トークではなく、全体フロー）
+#[derive(Debug, Clone)]
+pub enum ScriptEvent {
+    /// 発言（発言者名 + テキスト）
+    Talk {
+        speaker: String,
+        text: String,
+    },
+    
+    /// ウェイト（秒単位）
+    Wait {
+        duration: f64,
+    },
+    
+    /// 発言者切り替え（次の Talk の発言者を指定）
+    ChangeSpeaker {
+        name: String,
+    },
+    
+    /// サーフェス切り替え（キャラクターの表情・ポーズ変更）
+    ChangeSurface {
+        character: String,
+        surface_id: u32,
+    },
+    
+    /// 同期セクション開始（複数キャラの同時発言制御）
+    BeginSync {
+        sync_id: String,
+    },
+    
+    /// 同期ポイント（このイベントまで全キャラが到達するまで待機）
+    SyncPoint {
+        sync_id: String,
+    },
+    
+    /// 同期セクション終了
+    EndSync {
+        sync_id: String,
+    },
+    
+    /// 実行時エラー（スクリプト実行中のエラーを通知）
+    Error {
+        message: String,
+    },
+    
+    /// イベント発火（指定エンティティに対するイベント通知）
+    FireEvent {
+        event_name: String,
+        params: Vec<(String, String)>, // key-value pairs
+    },
+}
+```
+
+**設計方針**:
+- **責務**: 会話制御情報のみを表現（UI レンダリング情報は含まない）
+- **変換**: areka アプリケーション層が `ScriptEvent` → `TypewriterToken` 変換を実行
+- **疎結合**: wintf への依存なし（SHIORI.DLL 化が容易）
+- **拡張性**: 新しいイベント種別を追加しても wintf に影響なし
+
+---
+
+### LabelTable
+
+| Field | Detail |
+|-------|--------|
+| Intent | ラベル管理（ランダム選択対応） |
+| Requirements | 1.1-1.5 |
+| Owner | pasta/runtime/labels.rs |
+
+**Contracts**: State [x]
+
+##### State Management
+
+```rust
+// crates/pasta/src/runtime/labels.rs
+
+/// ラベルエントリ
+#[derive(Debug, Clone)]
+pub struct LabelEntry {
+    pub internal_name: String,  // 連番付き内部名（例: "挨拶_1"）
+    pub display_name: String,   // 表示名（例: "挨拶"）
+    pub scope: LabelScope,
+    pub attributes: HashMap<String, String>,
+    pub parent: Option<String>, // ローカルラベルの親
+}
+
+/// ラベルテーブル
+pub struct LabelTable {
+    entries: HashMap<String, LabelEntry>,
+    by_display_name: HashMap<String, Vec<String>>,
+    selection_cache: HashMap<String, VecDeque<String>>,
+}
+
+impl LabelTable {
+    /// ラベル登録（連番自動付与）
+    pub fn register(&mut self, label: &LabelDef) -> String;
+    
+    /// ラベル解決（ランダム選択 + フィルタ）
+    pub fn resolve(
+        &mut self,
+        pattern: &str,
+        filters: &HashMap<String, String>,
+    ) -> Option<String>;
+    
+    /// 選択キャッシュクリア
+    pub fn clear_cache(&mut self, pattern: &str);
+}
+```
+
+---
+
+### VariableManager
+
+| Field | Detail |
+|-------|--------|
+| Intent | 変数管理 |
+| Requirements | 4.1-4.6 |
+| Owner | pasta/runtime/variables.rs |
+
+**Contracts**: Service [x]
+
+##### Service Interface
+
+```rust
+// crates/pasta/src/runtime/variables.rs
+
+/// 変数マネージャ（Rune VM と連携）
+pub struct VariableManager {
+    globals: HashMap<String, rune::Value>,
+}
+
+impl VariableManager {
+    /// グローバル変数取得
+    pub fn get(&self, name: &str) -> Option<&rune::Value>;
+    
+    /// グローバル変数設定
+    pub fn set(&mut self, name: &str, value: rune::Value);
+    
+    /// Rune VM にグローバル変数を同期
+    pub fn sync_to_vm(&self, vm: &mut rune::Vm);
+    
+    /// Rune VM からグローバル変数を同期
+    pub fn sync_from_vm(&mut self, vm: &rune::Vm);
+}
+```
+
+---
+
+### StandardLibrary
+
+| Field | Detail |
+|-------|--------|
+| Intent | 組み込み関数の提供 |
+| Requirements | 6.1-6.7 |
+| Owner | pasta/stdlib/mod.rs |
+
+**Contracts**: Service [x]
+
+##### Service Interface
+
+```rust
+// crates/pasta/src/stdlib/mod.rs
+
+/// 標準ライブラリを Rune Context に登録
+pub fn register_stdlib(context: &mut rune::Context) -> Result<(), PastaError>;
+```
+
+**Standard Library Functions (Rune)**:
+
+```rune
+// crates/pasta/src/stdlib/pasta_stdlib.rune
+
+// 発言者制御
+pub fn change_speaker(name) {
+    yield ChangeSpeaker(name);
+}
+
+// テキスト出力
+pub fn emit_text(text) {
+    yield Text(text);
+}
+
+// ウェイト
+pub fn W(ms) {
+    yield Wait(ms / 1000.0);
+}
+
+pub fn ウェイト(seconds) {
+    yield Wait(seconds);
+}
+
+// サーフェス制御
+pub fn サーフェス(character, surface_id) {
+    yield ChangeSurface { 
+        character_name: character.name,
+        surface_id 
+    };
+}
+
+pub fn 笑顔(character) {
+    let surface_id = character.surfaces.笑顔 ?? 0;
+    yield ChangeSurface { 
+        character_name: character.name,
+        surface_id 
+    };
+}
+
+pub fn 微笑み(character) {
+    let surface_id = character.surfaces.微笑み ?? 0;
+    yield ChangeSurface { 
+        character_name: character.name,
+        surface_id 
+    };
+}
+
+// 同期セクション
+let _current_sync_id = None;
+let _sync_counter = 0;
+
+pub fn 同時発言開始(character) {
+    if _current_sync_id.is_none() {
+        _sync_counter += 1;
+        _current_sync_id = Some(`sync_${_sync_counter}`);
+    }
+    yield BeginSync { sync_id: _current_sync_id.unwrap() };
+}
+
+pub fn 同期(character) {
+    if let Some(id) = _current_sync_id {
+        yield SyncPoint { sync_id: id };
+    }
+}
+
+pub fn 同時発言終了(character) {
+    if let Some(id) = _current_sync_id {
+        yield EndSync { sync_id: id };
+        _current_sync_id = None;
+    }
+}
+
+// エラー
+pub fn error(message) {
+    yield Error { message };
+}
+```
+
+---
+
+## Data Models
+
+### pest Grammar
+
+```pest
+// crates/pasta/src/parser/pasta.pest
+
+// ファイル全体
+file = { SOI ~ (label_def | global_var | NEWLINE)* ~ EOI }
+
+// ラベル定義
+label_def = { global_label | local_label }
+
+global_label = { 
+    line_start ~ GLOBAL_MARK ~ identifier ~ comment? ~ NEWLINE ~
+    attribute_block? ~
+    label_body
+}
+
+local_label = {
+    indent ~ LOCAL_MARK ~ identifier ~ comment? ~ NEWLINE ~
+    attribute_block? ~
+    label_body
+}
+
+// ラベル本体
+label_body = { (rune_block | statement | NEWLINE)* }
+
+// 属性ブロック
+attribute_block = { (indent ~ attribute ~ NEWLINE)+ }
+attribute = { AT_MARK ~ identifier ~ COLON ~ attribute_value }
+attribute_value = { var_ref | string_literal | identifier }
+
+// 文
+statement = { speech | call_stmt | jump_stmt | var_assign }
+
+// 発言
+speech = { 
+    indent ~ speaker_name ~ COLON ~ speech_content ~ NEWLINE ~
+    continuation_lines?
+}
+speaker_name = @{ (!COLON ~ !WHITESPACE ~ ANY)+ }
+speech_content = { speech_part* }
+speech_part = { func_call | var_ref | sakura_script | text_segment }
+continuation_lines = { (continuation_line ~ NEWLINE)* }
+continuation_line = { deeper_indent ~ speech_content }
+
+// call/jump
+call_stmt = { indent ~ CALL_MARK ~ jump_target ~ filter_list? ~ arg_list? ~ NEWLINE }
+jump_stmt = { indent ~ JUMP_MARK ~ jump_target ~ filter_list? ~ NEWLINE }
+
+jump_target = { 
+    long_jump_target | 
+    global_target | 
+    local_target | 
+    dynamic_target 
+}
+long_jump_target = { GLOBAL_MARK ~ identifier ~ LOCAL_MARK ~ identifier }
+global_target = { GLOBAL_MARK ~ identifier }
+local_target = { identifier }
+dynamic_target = { AT_MARK ~ identifier }
+
+filter_list = { (AT_MARK ~ identifier ~ COLON ~ attribute_value)+ }
+arg_list = { LPAREN ~ (expr ~ (SPACE+ ~ expr)*)? ~ RPAREN }
+
+// 変数代入
+var_assign = { indent ~ VAR_MARK ~ GLOBAL_MARK? ~ identifier ~ ASSIGN ~ expr ~ NEWLINE }
+
+// Rune ブロック
+rune_block = { indent ~ BACKTICK{3} ~ "rune" ~ NEWLINE ~ rune_content ~ indent ~ BACKTICK{3} ~ NEWLINE }
+rune_content = { (!BACKTICK{3} ~ ANY)* }
+
+// 式
+expr = { term ~ (binop ~ term)* }
+term = { func_call | var_ref | literal | paren_expr }
+paren_expr = { LPAREN ~ expr ~ RPAREN }
+func_call = { AT_MARK ~ identifier ~ LPAREN ~ (expr ~ (SPACE+ ~ expr)*)? ~ RPAREN }
+var_ref = { AT_MARK ~ GLOBAL_MARK? ~ identifier }
+literal = { number | string_literal }
+number = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+string_literal = { (LQUOTE ~ inner_string ~ RQUOTE) | (DQUOTE ~ inner_string_dq ~ DQUOTE) }
+inner_string = @{ (!RQUOTE ~ ANY)* }
+inner_string_dq = @{ (!DQUOTE ~ ANY)* }
+
+binop = { "+" | "-" | "*" | "/" | "%" }
+
+// さくらスクリプト
+sakura_script = @{ "\\" ~ (!"\\s" ~ ASCII_ALPHANUMERIC | "[" ~ ASCII_DIGIT+ ~ "]")+ }
+
+// 識別子
+identifier = @{ XID_START ~ XID_CONTINUE* }
+
+// 記号定義（全角・半角両対応）
+GLOBAL_MARK = _{ "＊" | "*" }
+LOCAL_MARK = _{ "ー" | "-" }
+CALL_MARK = _{ "＞" | ">" }
+JUMP_MARK = _{ "？" | "?" }
+AT_MARK = _{ "＠" | "@" }
+VAR_MARK = _{ "＄" | "$" }
+COLON = _{ "：" | ":" }
+ASSIGN = _{ "＝" | "=" }
+LPAREN = _{ "（" | "(" }
+RPAREN = _{ "）" | ")" }
+LQUOTE = _{ "「" }
+RQUOTE = _{ "」" }
+DQUOTE = _{ "\"" }
+BACKTICK = _{ "`" }
+COMMENT_MARK = _{ "＃" | "#" }
+
+// 空白・コメント
+WHITESPACE = _{ " " | "\t" | "　" }
+indent = _{ WHITESPACE+ }
+deeper_indent = _{ WHITESPACE{2,} }
+line_start = _{ "" }
+comment = _{ COMMENT_MARK ~ (!NEWLINE ~ ANY)* }
+NEWLINE = _{ "\r\n" | "\n" | "\r" }
+```
+
+---
+
+## Testing Strategy
+
+### Unit Tests
+
+| Test Category | Target | Coverage |
+|---------------|--------|----------|
+| Parser Tests | PastaParser | 全文法構造 |
+| AST Tests | PastaAst | 型変換 |
+| Transpiler Tests | Transpiler | Rune コード生成 |
+| Generator Tests | ScriptGenerator | 状態遷移 |
+| Label Tests | LabelTable | ランダム選択、キャッシュ |
+| Variable Tests | VariableManager | get/set |
+
+### Integration Tests
+
+| Test Scenario | Description |
+|---------------|-------------|
+| Full Pipeline | .pasta → AST → Rune → IR |
+| Sync Section | 同時発言の IR 出力 |
+| Chain Talk | チェイントーク実行 |
+| Error Handling | パースエラー、ランタイムエラー |
+
+### Test Files
+
+```
+crates/pasta/tests/
+├── parser_tests.rs
+├── transpiler_tests.rs
+├── generator_tests.rs
+├── label_tests.rs
+├── integration_tests.rs
+└── fixtures/
+    ├── simple_talk.pasta
+    ├── sync_section.pasta
+    ├── chain_talk.pasta
+    └── error_cases.pasta
+```
+
+---
+
+## Error Handling
+
+### Error Categories
+
+| Category | Type | Handling |
+|----------|------|----------|
+| Parse Error | PastaError::ParseError | Result 返却 |
+| Label Not Found | PastaError::LabelNotFound | Result 返却 |
+| Name Conflict | PastaError::NameConflict | Result 返却 |
+| Rune Error | PastaError::RuneError | Result 返却 |
+| Runtime Error | ScriptEvent::Error | yield による動的エラー |
+
+### Error Flow
+
+```mermaid
+graph LR
+    A[Parse Phase] -->|ParseError| E[Result::Err]
+    B[Transpile Phase] -->|NameConflict| E
+    C[Init Phase] -->|RuneError| E
+    D[Runtime Phase] -->|VmError| F[yield ScriptEvent::Error]
+    
+    style E fill:#ffcdd2
+    style F fill:#fff3e0
+```
+
+### Error Handling Strategy
+
+**静的エラー（Result::Err）**:
+- **発生フェーズ**: Parse, Transpile, Init
+- **処理**: スクリプト起動失敗、エラーメッセージをユーザーに表示
+- **リカバリ**: 不可（スクリプト修正が必要）
+
+**動的エラー（ScriptEvent::Error）**:
+- **発生フェーズ**: Runtime（Generator 実行中）
+- **処理**: エラーメッセージを会話バルーンに表示、スクリプト実行は継続可能
+- **リカバリ**: 可（次の ScriptEvent から実行再開）
+- **areka 責務**: ScriptEvent::Error を赤文字等で視覚的に区別して表示
+
+---
+
+## Dependencies
+
+### Crate Dependencies
+
+```toml
+# crates/pasta/Cargo.toml
+[package]
+name = "pasta"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rune = "0.14"
+thiserror = "2"
+pest = "2.8"
+pest_derive = "2.8"
+glob = "0.3"
+tracing = "0.1"
+
+[dev-dependencies]
+# テスト専用（wintf 依存なし）
+```
+
+**重要**: pasta は wintf に依存しない（ScriptEvent IR が独立しているため）
+
+### Dependency Graph
+
+```
+pasta (独立)
+  ↓ (ScriptEvent 出力)
+areka アプリケーション (変換層)
+  ↓ (TypewriterToken 供給)
+wintf (独立)
+```
+
+**利点**:
+- pasta と wintf は完全に疎結合
+- SHIORI.DLL 化が容易（pasta のみを FFI 経由で公開）
+- 循環依存なし
+
+---
+
+## Migration Plan
+
+### Phase 1: Foundation
+
+1. `crates/pasta/` ディレクトリ構造作成
+2. `Cargo.toml` 設定
+3. `PastaError` 実装
+4. pest 文法定義
+
+### Phase 2: Parser
+
+1. `PastaParser` 実装
+2. `PastaAst` 型定義
+3. パーサーテスト
+
+### Phase 3: Transpiler
+
+1. `Transpiler` 実装
+2. Rune コード生成
+3. トランスパイラテスト
+
+### Phase 4: Runtime
+
+1. `PastaEngine` 実装
+2. `ScriptGenerator` 実装
+3. `LabelTable` 実装
+4. `VariableManager` 実装
+
+### Phase 5: IR & Standard Library
+
+1. `ScriptEvent` 型定義
+2. `StandardLibrary` 実装（ScriptEvent を yield する関数群）
+3. Generator が ScriptEvent を正しく yield することを検証
+
+### Phase 6: Integration (areka Application Layer)
+
+1. IR 変換層実装（`areka/src/script/ir_converter.rs`）
+   - ScriptEvent → TypewriterToken 変換ロジック
+   - Balloon Manager との統合
+   - 同期セクション制御
+2. 統合テスト（pasta + areka + wintf）
+3. エンドツーエンドテスト（実際の会話スクリプト実行）
+
+---
+
+## Open Questions
+
+1. **さくらスクリプト互換モード**: どこまで互換性を持たせるか？
+2. **MCP 連携**: LLM 統合時の API 設計
+3. **ホットリロード**: 開発時のスクリプト再読み込み対応
+
+---
+
+## Revision History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0 | 2025-12-09 | AI | Initial design document |
