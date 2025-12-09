@@ -309,6 +309,53 @@ PastaEngine としての統合と公開 API を実装する。
 
 ---
 
+## Task 11: Rune Block サポート完成（必須機能）
+
+インラインRuneコードブロック（ローカル関数定義）のサポートを完成させる。
+
+### 11.1 Rune Block文法の修正
+
+**Description**: pest文法で`rune_block`ルールを修正し、```で囲まれたRuneコード埋め込みを正しくパースできるようにする。負先読みパターンの調整が必要。
+
+**Requirements**: 1.6 (ローカル関数定義)
+
+**優先度**: 高（必須機能）
+
+**推定工数**: 2-3時間
+
+**現状**: Task 2.1で文法テストが失敗。技術的な課題は負先読みパターン`!(indent ~ rune_end)`が正しく動作していないこと。
+
+### 11.2 Rune Block ASTノードの実装
+
+**Description**: `rune_block`をパースしてASTに含める。Runeコード自体はパースせず、文字列として保持する。
+
+**Requirements**: 1.6
+
+**Dependencies**: 11.1完了後
+
+### 11.3 Rune Block Transpilerサポート
+
+**Description**: ASTのrune_blockノードをRuneコードに変換する。インラインコードをそのまま出力するか、外部ファイルとして分離するか選択可能にする。
+
+**Requirements**: 1.6, 2.1
+
+**Dependencies**: 11.2完了後、Task 3実装中に統合
+
+### 11.4 Rune Block統合テスト
+
+**Description**: 以下のテストを実装・パス確認：
+- `grammar_tests::test_rune_block` (現在ignored)
+- `grammar_diagnostic::test_rune_block_minimal` (現在ignored)
+- パーサー統合テスト（Rune blockを含むスクリプト全体）
+- トランスパイラテスト（Rune blockが正しく変換される）
+- 実行時テスト（Runeローカル関数が呼び出せる）
+
+**Requirements**: 1.6, NFR-2.3
+
+**推定工数**: 1-2時間
+
+---
+
 ## Dependencies Between Tasks
 
 ```

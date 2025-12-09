@@ -1,0 +1,228 @@
+// Pasta DSL Grammar Definition (PEG)
+// 
+// This grammar defines the Pasta DSL syntax for dialogue scripting.
+// Supports both full-width and half-width characters for all keywords.
+
+// Note: WHITESPACE defined without _ would make it explicit
+// Using _ makes it implicit (auto-inserted between tokens)
+// We keep it implicit for ease of parsing
+WHITESPACE = _{ " " | "\t" | "\u{3000}" }
+COMMENT = _{ comment_line }
+comment_line = { "#" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
+
+// === File Structure ===
+
+file = {
+    SOI ~
+    (global_label | NEWLINE)*~
+    EOI
+}
+
+// === Labels ===
+
+global_label = ${
+    global_label_marker ~ label_name ~ NEWLINE ~
+    (attribute_line)* ~
+    (rune_block | local_label | statement)*
+}
+
+local_label = ${
+    indent ~ local_label_marker ~ label_name ~ NEWLINE ~
+    (attribute_line)* ~
+    (rune_block | statement)*
+}
+
+global_label_marker = { "＊" | "*" }
+local_label_marker = { "ー" | "-" }
+
+label_name = @{ !label_name_forbidden ~ XID_START ~ (!local_label_marker ~ XID_CONTINUE)* }
+label_name_forbidden = { global_label_marker | local_label_marker | call_marker | jump_marker | at_marker | dollar_marker | colon | equals }
+
+// === Attributes ===
+
+attribute_line = {
+    indent ~ at_marker ~ attribute_key ~ colon ~ attribute_value ~ NEWLINE
+}
+
+attribute_key = @{ ident }
+attribute_value = { var_ref | literal_value }
+literal_value = @{ (!NEWLINE ~ !colon ~ ANY)+ }
+
+// === Statements ===
+
+statement = {
+    (speech_line | call_stmt | jump_stmt | var_assign | NEWLINE)
+}
+
+// Speech (dialogue)
+speech_line = {
+    indent ~ speaker ~ colon ~ speech_content ~ NEWLINE ~
+    (continuation_line)*
+}
+
+speaker = @{ (!colon ~ !NEWLINE ~ ANY)+ }
+
+speech_content = { (text_part | func_call | var_ref | sakura_script)* }
+
+continuation_line = {
+    indent ~ indent+ ~ speech_content ~ NEWLINE
+}
+
+text_part = @{ (!(at_marker | sakura_escape | NEWLINE) ~ ANY)+ }
+
+sakura_script = { sakura_escape ~ sakura_command }
+sakura_escape = { "\\" }
+sakura_command = @{ (!(NEWLINE | at_marker) ~ ANY)+ }
+
+// Call statement
+call_stmt = {
+    indent ~ call_marker ~ jump_target ~ filter_list? ~ arg_list? ~ NEWLINE
+}
+
+// Jump statement
+jump_stmt = {
+    indent ~ jump_marker ~ jump_target ~ filter_list? ~ arg_list? ~ NEWLINE
+}
+
+call_marker = { "＞" | ">" }
+jump_marker = { "？" | "?" }
+
+jump_target = {
+    dynamic_target |
+    long_jump |
+    global_target |
+    local_target
+}
+
+dynamic_target = { at_marker ~ var_name }
+long_jump = { global_label_marker ~ label_name ~ local_label_marker ~ label_name }
+global_target = { global_label_marker ~ label_name }
+local_target = { label_name }
+
+// Filter attributes for label selection
+filter_list = { (at_marker ~ attribute_key ~ colon ~ filter_value)+ }
+filter_value = { var_ref | literal_value }
+
+// Argument list
+arg_list = {
+    lparen ~ argument* ~ rparen
+}
+
+argument = { named_arg | positional_arg }
+named_arg = { arg_name ~ colon ~ arg_value }
+positional_arg = { arg_value }
+
+arg_name = @{ ident }
+arg_value = { string_literal | number_literal | var_ref | func_call }
+
+lparen = { "（" | "(" }
+rparen = { "）" | ")" }
+
+// === Variable Assignment ===
+
+var_assign = {
+    indent ~ dollar_marker ~ var_scope? ~ var_name ~ equals ~ expr ~ NEWLINE
+}
+
+dollar_marker = { "＄" | "$" }
+var_scope = { global_label_marker }
+var_name = @{ ident }
+equals = { "＝" | "=" }
+
+// === Expressions ===
+
+expr = { term ~ (bin_op ~ term)* }
+
+term = {
+    paren_expr |
+    func_call |
+    var_ref |
+    number_literal |
+    string_literal
+}
+
+paren_expr = { lparen ~ expr ~ rparen }
+
+bin_op = {
+    add | sub | mul | div | modulo
+}
+
+add = { "+" | "＋" }
+sub = { "-" | "－" }
+mul = { "*" | "＊" | "×" }
+div = { "/" | "／" | "÷" }
+modulo = { "%" | "％" }
+
+// === Variables and Functions ===
+
+var_ref = { at_marker ~ var_name }
+
+func_call = {
+    at_marker ~ func_name ~ arg_list
+}
+
+func_name = @{ ident }
+
+// === Rune Code Block ===
+
+rune_block = {
+    indent ~ rune_start ~ NEWLINE ~
+    (!( indent ~ rune_end ) ~ ANY)* ~
+    indent ~ rune_end ~ NEWLINE?
+}
+
+rune_start = { "```rune" | "```" }
+rune_end = { "```" }
+
+// === Literals ===
+
+string_literal = {
+    ja_string | en_string
+}
+
+ja_string = { "「" ~ ja_string_content ~ "」" }
+ja_string_content = @{ (!"」" ~ ANY)* }
+
+en_string = { "\"" ~ en_string_content ~ "\"" }
+en_string_content = @{ (!("\"" | "\\") ~ ANY | "\\" ~ ANY)* }
+
+number_literal = @{
+    "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?
+}
+
+// === Common Elements ===
+
+at_marker = { "＠" | "@" }
+colon = { "：" | ":" }
+
+ident = @{ !ident_forbidden ~ XID_START ~ XID_CONTINUE* }
+ident_forbidden = { global_label_marker | local_label_marker | call_marker | jump_marker | at_marker | dollar_marker | colon | equals }
+
+indent = @{ WHITESPACE+ }
+ws = { (" " | "\t" | "\u{3000}")+ }  // Non-silent whitespace for explicit spacing
+
+// === Unicode Identifier Rules ===
+// Following Rust identifier rules (Unicode XID_Start + XID_Continue)
+XID_START = {
+    'a'..'z' | 'A'..'Z' | "_" |
+    '\u{0080}'..'\u{00FF}' |          // Latin extended
+    '\u{0100}'..'\u{017F}' |          // Latin extended A
+    '\u{0180}'..'\u{024F}' |          // Latin extended B
+    '\u{1E00}'..'\u{1EFF}' |          // Latin extended additional
+    '\u{2C60}'..'\u{2C7F}' |          // Latin extended C
+    '\u{A720}'..'\u{A7FF}' |          // Latin extended D
+    '\u{3040}'..'\u{309F}' |          // Hiragana
+    '\u{30A0}'..'\u{30FF}' |          // Katakana
+    '\u{4E00}'..'\u{9FFF}' |          // CJK Unified Ideographs
+    '\u{3400}'..'\u{4DBF}' |          // CJK Extension A
+    '\u{20000}'..'\u{2A6DF}' |        // CJK Extension B
+    '\u{AC00}'..'\u{D7AF}'            // Hangul
+}
+
+XID_CONTINUE = {
+    XID_START | '0'..'9' |
+    '\u{0300}'..'\u{036F}' |          // Combining diacritical marks
+    '\u{1DC0}'..'\u{1DFF}' |          // Combining diacritical marks supplement
+    '\u{20D0}'..'\u{20FF}' |          // Combining diacritical marks for symbols
+    '\u{FE20}'..'\u{FE2F}'            // Combining half marks
+}
