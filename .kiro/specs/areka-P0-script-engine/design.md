@@ -1351,6 +1351,62 @@ wintf (独立)
 - SHIORI.DLL 化が容易（pasta のみを FFI 経由で公開）
 - 循環依存なし
 
+### SHIORI.DLL 化の設計例
+
+**FFI 境界**:
+```rust
+// crates/pasta/src/ffi.rs
+use std::ffi::{CStr, CString, c_char, c_void};
+use crate::{PastaEngine, ScriptEvent};
+
+#[repr(C)]
+pub struct PastaHandle {
+    engine: Box<PastaEngine>,
+}
+
+#[repr(C)]
+pub struct ScriptEventC {
+    event_type: u32,  // 0: Talk, 1: Wait, 2: ChangeSpeaker, ...
+    speaker: *const c_char,
+    text: *const c_char,
+    duration: f64,
+    // ... 他のフィールド
+}
+
+#[no_mangle]
+pub extern "C" fn pasta_create_engine(
+    script_path: *const c_char
+) -> *mut PastaHandle {
+    // ...
+}
+
+#[no_mangle]
+pub extern "C" fn pasta_resume(
+    handle: *mut PastaHandle,
+    event_out: *mut ScriptEventC
+) -> i32 {
+    // ScriptEvent を ScriptEventC に変換
+    // 0: Success, 1: Completed, -1: Error
+}
+
+#[no_mangle]
+pub extern "C" fn pasta_destroy(handle: *mut PastaHandle) {
+    // ...
+}
+```
+
+**C ヘッダー生成**:
+```toml
+# Cargo.toml
+[build-dependencies]
+cbindgen = "0.26"
+```
+
+**利点**:
+- ScriptEvent は C FFI 境界でも表現可能（シンプルな enum）
+- wintf 依存なしなので、他の SHIORI クライアントからも利用可能
+- Rust の型安全性を維持したまま FFI 公開
+
 ---
 
 ## Migration Plan
