@@ -25,8 +25,8 @@ pub struct DragStartEvent {
 pub struct DragEvent {
     /// ドラッグ対象エンティティ
     pub target: Entity,
-    /// 前回位置からの移動量（物理ピクセル）
-    pub delta: PhysicalPoint,
+    /// ドラッグ開始位置（物理ピクセル、スクリーン座標）
+    pub start_position: PhysicalPoint,
     /// 現在位置（物理ピクセル、スクリーン座標）
     pub position: PhysicalPoint,
     /// 左ボタンドラッグかどうか
@@ -81,17 +81,45 @@ pub fn dispatch_drag_events(world: &mut World) {
     if let Some(transition) = flush_result.transition {
         match transition {
             crate::ecs::drag::DragTransition::Started { entity, start_pos, timestamp } => {
+                // Windowエンティティを探索してBoxStyle.insetを取得
+                let mut current = entity;
+                let mut initial_inset = (0.0, 0.0);
+                loop {
+                    if world.get::<crate::ecs::window::Window>(current).is_some() {
+                        // Windowが見つかった、BoxStyle.insetを取得
+                        if let Some(box_style) = world.get::<crate::ecs::layout::BoxStyle>(current) {
+                            if let Some(inset) = &box_style.inset {
+                                initial_inset.0 = match inset.0.left {
+                                    crate::ecs::layout::LengthPercentageAuto::Px(val) => val,
+                                    _ => 0.0,
+                                };
+                                initial_inset.1 = match inset.0.top {
+                                    crate::ecs::layout::LengthPercentageAuto::Px(val) => val,
+                                    _ => 0.0,
+                                };
+                            }
+                        }
+                        break;
+                    }
+                    if let Some(child_of) = world.get::<bevy_ecs::hierarchy::ChildOf>(current) {
+                        current = child_of.parent();
+                    } else {
+                        break;
+                    }
+                }
+                
                 // DraggingStateコンポーネント挿入
                 if let Ok(mut entity_mut) = world.get_entity_mut(entity) {
                     entity_mut.insert(crate::ecs::drag::DraggingState {
                         drag_start_pos: start_pos,
+                        initial_inset,
                         prev_frame_pos: start_pos,
                     });
                     
-                    tracing::info!(
+                    tracing::debug!(
                         entity = ?entity,
-                        x = start_pos.x,
-                        y = start_pos.y,
+                        initial_inset_left = initial_inset.0,
+                        initial_inset_top = initial_inset.1,
                         "[dispatch_drag_events] DraggingState inserted"
                     );
                 }
@@ -159,7 +187,7 @@ pub fn dispatch_drag_events(world: &mut World) {
                 if let Ok(mut entity_mut) = world.get_entity_mut(entity) {
                     entity_mut.remove::<crate::ecs::drag::DraggingState>();
                     
-                    tracing::info!(
+                    tracing::debug!(
                         entity = ?entity,
                         "[dispatch_drag_events] DraggingState removed"
                     );
@@ -171,19 +199,28 @@ pub fn dispatch_drag_events(world: &mut World) {
     // 累積デルタが非ゼロなら DragEvent 配信
     if let Some(entity) = flush_result.current_dragging_entity {
         if flush_result.delta.x != 0 || flush_result.delta.y != 0 {
+            // DraggingStateからstart_posを取得
+            let start_pos = world.get::<crate::ecs::drag::DraggingState>(entity)
+                .map(|ds| ds.drag_start_pos)
+                .unwrap_or(flush_result.current_position);
+            
             // DragEvent送信
             let event = DragEvent {
                 target: entity,
-                delta: flush_result.delta,
+                start_position: start_pos,
                 position: flush_result.current_position,
                 is_primary: true,
                 timestamp: Instant::now(),
             };
             
-            tracing::info!(
+            tracing::trace!(
                 entity = ?entity,
-                delta_x = flush_result.delta.x,
-                delta_y = flush_result.delta.y,
+                start_x = start_pos.x,
+                start_y = start_pos.y,
+                current_x = flush_result.current_position.x,
+                current_y = flush_result.current_position.y,
+                delta_x = flush_result.current_position.x - start_pos.x,
+                delta_y = flush_result.current_position.y - start_pos.y,
                 "[DragEvent] Dispatching"
             );
             

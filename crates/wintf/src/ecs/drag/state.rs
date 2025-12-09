@@ -92,7 +92,8 @@ where
 pub fn start_preparing(entity: Entity, pos: PhysicalPoint) {
     update_drag_state(|state| {
         // 既にドラッグ中の場合は無視（複数ボタン同時ドラッグ禁止）
-        if !matches!(state, DragState::Idle) {
+        // JustEndedは許可（前回のドラッグが終了した後の新しいドラッグ）
+        if matches!(state, DragState::Preparing { .. } | DragState::JustStarted { .. } | DragState::Dragging { .. }) {
             tracing::debug!("[drag] Already dragging, ignoring new button press");
             return;
         }
@@ -107,15 +108,7 @@ pub fn start_preparing(entity: Entity, pos: PhysicalPoint) {
             entity = ?entity,
             x = pos.x,
             y = pos.y,
-            "[drag] Preparing started"
-        );
-    });
-    
-    // 確認用ログ
-    read_drag_state(|state| {
-        tracing::info!(
-            state = ?state,
-            "[start_preparing] DragState updated"
+            "[start_preparing] DragState -> Preparing"
         );
     });
 }
@@ -250,16 +243,12 @@ pub fn check_threshold(current_pos: PhysicalPoint, threshold: i32) -> bool {
             let threshold_sq = threshold * threshold;
             let result = distance_sq >= threshold_sq;
             
-            tracing::info!(
-                start_x = start_pos.x,
-                start_y = start_pos.y,
-                current_x = current_pos.x,
-                current_y = current_pos.y,
+            tracing::debug!(
                 dx, dy,
                 distance_sq,
                 threshold_sq,
                 result,
-                "[check_threshold] Calculation"
+                "[check_threshold]"
             );
             
             result

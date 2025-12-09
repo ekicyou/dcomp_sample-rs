@@ -424,6 +424,8 @@ pub fn hit_test_with_local_coords(
 ///
 /// Inputスケジュールで実行され、バッファ内容をPointerStateコンポーネントに反映する。
 pub fn process_pointer_buffers(mut query: Query<(Entity, &mut PointerState)>) {
+    tracing::trace!("[process_pointer_buffers] Called");
+    
     // ButtonBufferの内容をPointerStateに反映（エンティティIDで照合）
     // Note: BUTTON_BUFFERSのリセットはdispatch_pointer_eventsで行われる
     BUTTON_BUFFERS.with(|buffers| {
@@ -477,23 +479,48 @@ pub fn process_pointer_buffers(mut query: Query<(Entity, &mut PointerState)>) {
     });
 
     for (entity, mut pointer) in query.iter_mut() {
+        tracing::trace!(
+            entity = ?entity,
+            "[process_pointer_buffers] Checking POINTER_BUFFERS"
+        );
+        
         // PointerBuffer から位置と速度を取得
         POINTER_BUFFERS.with(|buffers| {
             let mut buffers = buffers.borrow_mut();
             if let Some(buffer) = buffers.get_mut(&entity) {
+                tracing::trace!(
+                    entity = ?entity,
+                    "[process_pointer_buffers] Buffer found"
+                );
+                
                 // 速度計算
                 let (vx, vy) = buffer.calculate_velocity();
                 pointer.velocity = CursorVelocity::new(vx, vy);
 
                 // 最新位置取得
                 if let Some(sample) = buffer.latest() {
+                    let old_x = pointer.screen_point.x;
+                    let old_y = pointer.screen_point.y;
                     pointer.screen_point = PhysicalPoint::new(sample.x as i32, sample.y as i32);
                     // Note: local_point は hit_test 結果から設定（Phase 1ではscreen_pointと同じ）
                     pointer.local_point = pointer.screen_point;
+                    
+                    tracing::trace!(
+                        entity = ?entity,
+                        old_x, old_y,
+                        new_x = pointer.screen_point.x,
+                        new_y = pointer.screen_point.y,
+                        "[process_pointer_buffers] Position updated"
+                    );
                 }
 
                 // バッファクリア
                 buffer.clear();
+            } else {
+                tracing::trace!(
+                    entity = ?entity,
+                    "[process_pointer_buffers] No buffer found"
+                );
             }
         });
 
@@ -578,11 +605,11 @@ pub fn debug_pointer_state_changes(
     added_query: Query<(Entity, &PointerState), Added<PointerState>>,
     changed_query: Query<(Entity, &PointerState), Changed<PointerState>>,
 ) {
-    use tracing::info;
+    use tracing::debug;
 
     // 新規追加（Enter）
     for (entity, pointer) in added_query.iter() {
-        info!(
+        debug!(
             entity = ?entity,
             screen_x = pointer.screen_point.x,
             screen_y = pointer.screen_point.y,
@@ -604,7 +631,7 @@ pub fn debug_pointer_state_changes(
 
         // ダブルクリック検出時のみログ
         if pointer.double_click != DoubleClick::None {
-            info!(
+            debug!(
                 entity = ?entity,
                 double_click = ?pointer.double_click,
                 "[PointerState Changed] DoubleClick detected"
@@ -613,7 +640,7 @@ pub fn debug_pointer_state_changes(
 
         // ホイール回転時のみログ
         if pointer.wheel.vertical != 0 || pointer.wheel.horizontal != 0 {
-            info!(
+            debug!(
                 entity = ?entity,
                 vertical = pointer.wheel.vertical,
                 horizontal = pointer.wheel.horizontal,
@@ -636,10 +663,10 @@ pub fn debug_mouse_state_changes(
 ///
 /// Inputスケジュールで実行し、PointerLeaveの付与をログ出力する。
 pub fn debug_pointer_leave(leave_query: Query<Entity, Added<PointerLeave>>) {
-    use tracing::info;
+    use tracing::debug;
 
     for entity in leave_query.iter() {
-        info!(
+        debug!(
             entity = ?entity,
             "[PointerLeave Added] Leave detected"
         );
@@ -659,6 +686,11 @@ pub fn debug_mouse_leave(leave_query: Query<Entity, Added<PointerLeave>>) {
 /// PointerBufferにサンプルを追加
 #[inline]
 pub(crate) fn push_pointer_sample(entity: Entity, x: f32, y: f32, timestamp: Instant) {
+    tracing::trace!(
+        entity = ?entity,
+        x, y,
+        "[push_pointer_sample] Sample added"
+    );
     POINTER_BUFFERS.with(|buffers| {
         let mut buffers = buffers.borrow_mut();
         let buffer = buffers.entry(entity).or_insert_with(PointerBuffer::new);

@@ -1,87 +1,10 @@
 //! ドラッグシステム
 //!
-//! ウィンドウ移動とドラッグ状態クリーンアップを提供する。
+//! ドラッグ状態クリーンアップを提供する。
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::message::MessageReader;
-use super::{DragEvent, DragEndEvent};
-use crate::ecs::drag::{DragConstraint};
-use crate::ecs::window::Window;
-
-/// ウィンドウドラッグ移動システム
-///
-/// DragEventを監視し、BoxStyle.insetを更新してウィンドウ位置を変更する。
-pub fn apply_window_drag_movement(
-    mut drag_events: bevy_ecs::message::MessageReader<DragEvent>,
-    mut query: Query<(&mut crate::ecs::layout::BoxStyle, Option<&DragConstraint>), With<Window>>,
-    child_query: Query<&bevy_ecs::hierarchy::ChildOf>,
-) {
-    let events: Vec<DragEvent> = drag_events.read().cloned().collect();
-    
-    tracing::info!("[apply_window_drag_movement] Processing {} drag events", events.len());
-    
-    for event in events {
-        // イベント対象エンティティの親階層からWindowコンポーネントを探索
-        let mut current = event.target;
-        let mut window_entity = None;
-        
-        loop {
-            if query.get(current).is_ok() {
-                window_entity = Some(current);
-                break;
-            }
-            
-            // 親へ
-            if let Ok(child_of) = child_query.get(current) {
-                current = child_of.parent();
-            } else {
-                break;
-            }
-        }
-        
-        if let Some(window_entity) = window_entity {
-            if let Ok((mut box_style, constraint)) = query.get_mut(window_entity) {
-                if let Some(inset) = &mut box_style.inset {
-                    // 現在のinset値を取得（物理ピクセル）
-                    let current_left = match inset.0.left {
-                        crate::ecs::layout::LengthPercentageAuto::Px(val) => val,
-                        _ => 0.0,
-                    };
-                    let current_top = match inset.0.top {
-                        crate::ecs::layout::LengthPercentageAuto::Px(val) => val,
-                        _ => 0.0,
-                    };
-                    
-                    // event.deltaは既に物理ピクセル（DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2モード）
-                    // insetも物理ピクセルなので、そのまま加算
-                    let new_left = current_left + event.delta.x as f32;
-                    let new_top = current_top + event.delta.y as f32;
-                    
-                    // 制約を適用
-                    let (constrained_left, constrained_top) = if let Some(c) = constraint {
-                        let (x, y) = c.apply(new_left as i32, new_top as i32);
-                        (x as f32, y as f32)
-                    } else {
-                        (new_left, new_top)
-                    };
-                    
-                    // insetを更新
-                    inset.0.left = crate::ecs::layout::LengthPercentageAuto::Px(constrained_left);
-                    inset.0.top = crate::ecs::layout::LengthPercentageAuto::Px(constrained_top);
-                    
-                    tracing::info!(
-                        window = ?window_entity,
-                        dx = event.delta.x,
-                        dy = event.delta.y,
-                        new_left = constrained_left,
-                        new_top = constrained_top,
-                        "[apply_window_drag_movement] BoxStyle.inset updated"
-                    );
-                }
-            }
-        }
-    }
-}
+use super::DragEndEvent;
 
 /// ドラッグ状態クリーンアップシステム
 ///

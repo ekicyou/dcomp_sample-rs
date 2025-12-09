@@ -210,6 +210,52 @@
 - **リスク4: DPI環境での閾値調整** - 物理ピクセル5pxの体感差
   - 軽減策: DragConfigでエンティティごとに調整可能、将来的にDPI係数対応可能
 
+## 実装時の問題と調査
+
+### 問題: thread_local変数のスレッド間非共有（2025-12-09）
+
+- **発見日時**: 2025-12-09T11:33:00Z
+- **コンテキスト**: PointerBufferの位置更新が250ms（4Hz）でしか反映されない問題を調査中
+- **根本原因**: 
+  - `POINTER_BUFFERS`はthread_local!で定義されている
+  - **WndProcスレッド**で`push_pointer_sample()`が呼ばれている（WM_MOUSEMOVEハンドラから）
+  - **ECSスレッド**で`process_pointer_buffers()`が実行されている（Inputスケジュール）
+  - thread_local変数は**スレッド固有**のため、WndProcスレッドとECSスレッドで**別の実体**を参照している
+  - 結果: WndProcで蓄積したサンプルがECSから見えない → `No buffer found`
+- **影響範囲**:
+  - PointerBuffer（位置サンプル）
+  - ButtonBuffer（ボタン押下状態）
+  - WheelBuffer（ホイール回転）
+  - ModifierBuffer（修飾キー）
+  - すべてのthread_local!バッファがこの問題の影響を受ける可能性
+- **症状**:
+  - `push_pointer_sample(entity=7v0)`が60Hzで呼ばれている（WndProcスレッド）
+  - `process_pointer_buffers(entity=7v0)`も60Hzで呼ばれている（ECSスレッド）
+  - しかし`No buffer found`となる
+  - PointerStateの更新が250msごとにしか起きない（別の更新経路が存在？）
+- **調査メモ**:
+  - WM_MOUSEMOVEは60Hzで来ている（正常）
+  - `process_pointer_buffers`も60Hzで呼ばれている（正常）
+  - entity IDの不一致も修正済み（Windowエンティティ対応追加）
+  - WM_NCHITTESTがHTTRANSPARENTを返していた問題も修正済み
+  - しかし依然として`POINTER_BUFFERS.with()`が異なるインスタンスを参照
+- **仮説**:
+  - wintfのアーキテクチャがWndProcとECSを異なるスレッドで動かしている
+  - または、wndproc処理が別スレッドのメッセージループで動いている
+  - ECSスケジュールはメインスレッドで実行されている
+- **次のステップ**:
+  1. wintf初期化コードでスレッドアーキテクチャを確認
+  2. WndProcとECSのスレッドIDをログ出力して検証
+  3. thread_local!をArc<Mutex<>>またはECS Resourceに置き換える設計変更を検討
+  4. または、WndProcからECSへのクロススレッド通信機構（チャネル等）の導入
+- **設計への影響**:
+  - 当初設計でthread_local!を選択した根拠（ButtonBufferパターン踏襲）が前提条件違反
+  - 「wndprocはメインスレッド固定」の前提が誤りだった可能性
+  - drag/state.rsのDragStateも同じ問題を抱える可能性（要再検証）
+- **ブロック状況**: 
+  - PointerState更新が正常に動作しないため、ドラッグ実装が進められない
+  - 優先度: **Critical** - 全体アーキテクチャに関わる問題
+
 ## 参考資料
 
 - [SetCapture function (Microsoft Docs)](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setcapture) - マウスキャプチャAPI

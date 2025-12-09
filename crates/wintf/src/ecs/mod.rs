@@ -23,7 +23,7 @@ pub use app::*;
 pub use bevy_ecs::hierarchy::{ChildOf, Children};
 pub use common::tree_system::*;
 pub use drag::{
-    apply_window_drag_movement, cleanup_drag_state, dispatch_drag_events, 
+    cleanup_drag_state, dispatch_drag_events, 
     DragConfig, DragConstraint, DragEndEvent, DragEvent, DragStartEvent, 
     DraggingState, OnDrag, OnDragEnd, OnDragStart,
 };

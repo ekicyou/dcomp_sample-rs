@@ -131,11 +131,10 @@ pub fn cached_nchittest(
     const HTCLIENT: i32 = 1;
     const HTTRANSPARENT: i32 = -1;
 
-    let lresult = if hit_result.is_some() {
-        LRESULT(HTCLIENT as isize)
-    } else {
-        LRESULT(HTTRANSPARENT as isize)
-    };
+    // 常にHTCLIENTを返す（クライアント領域としてマウスイベントを受け取る）
+    // hit_testの結果に関わらず、ウィンドウ内のクリックは全て受け取る必要がある
+    // HTTRANSPARENT を返すとマウスイベントがブロックされてしまう
+    let lresult = LRESULT(HTCLIENT as isize);
 
     // キャッシュに挿入
     insert(hwnd, screen_point, lresult);
@@ -145,6 +144,7 @@ pub fn cached_nchittest(
         x = screen_point.0,
         y = screen_point.1,
         lresult = lresult.0,
+        hit_entity = ?hit_result,
         "NCHITTEST cache miss"
     );
 

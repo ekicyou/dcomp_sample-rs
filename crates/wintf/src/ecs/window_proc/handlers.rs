@@ -478,6 +478,11 @@ pub(super) unsafe fn WM_MOUSEMOVE(
     // 位置取得（物理ピクセル、クライアント座標）
     let x = (lparam.0 & 0xFFFF) as i16 as i32;
     let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
+    
+    tracing::trace!(
+        "[WM_MOUSEMOVE] Received: x={}, y={}",
+        x, y
+    );
 
     // 修飾キー状態を抽出
     let wparam_val = wparam.0 as u32;
@@ -583,7 +588,7 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                         current_pos.y - prev_pos.y,
                     );
                     
-                    tracing::info!(
+                    tracing::trace!(
                         "[WM_MOUSEMOVE] Dragging: delta=({}, {}), current=({}, {})",
                         delta.x, delta.y, current_pos.x, current_pos.y
                     );
@@ -603,10 +608,6 @@ pub(super) unsafe fn WM_MOUSEMOVE(
             // ヒットしたエンティティが存在する場合
             if let Some(target_entity) = hit_entity {
                 
-                // バッファに蓄積
-                push_pointer_sample(target_entity, x as f32, y as f32, Instant::now());
-                set_modifier_state(target_entity, shift, ctrl);
-
                 // 現在PointerStateを持っている全エンティティを探す
                 // 異なるエンティティにPointerStateがある場合はLeave処理
                 let mut entities_to_leave = Vec::new();
@@ -634,9 +635,14 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                     }
                 }
 
-                // 新しいエンティティにPointerStateを挿入または更新
+                // 新しいエンティティにPointerStateを挿入または維持
                 if let Ok(entity_ref) = world_borrow.world_mut().get_entity_mut(target_entity) {
                     let needs_insert = entity_ref.get::<PointerState>().is_none();
+                    tracing::trace!(
+                        entity = ?target_entity,
+                        needs_insert,
+                        "[WM_MOUSEMOVE] PointerState check"
+                    );
                     drop(entity_ref);
 
                     if needs_insert {
@@ -653,7 +659,71 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                             "PointerState inserted (Enter)"
                         );
                     }
+                } else {
+                    tracing::warn!(
+                        entity = ?target_entity,
+                        "[WM_MOUSEMOVE] Failed to get entity_mut"
+                    );
                 }
+                
+                // PointerStateが存在することを保証した上で、バッファに蓄積
+                push_pointer_sample(target_entity, x as f32, y as f32, Instant::now());
+                set_modifier_state(target_entity, shift, ctrl);
+            } else {
+                // hit_test失敗（Windowの空白部分）
+                // Windowエンティティに対して処理
+                let target_entity = window_entity;
+                
+                // 現在PointerStateを持っている全エンティティを探す
+                let mut entities_to_leave = Vec::new();
+                {
+                    let world_mut = world_borrow.world_mut();
+                    let mut query = world_mut.query::<(bevy_ecs::prelude::Entity, &PointerState)>();
+                    for (e, _) in query.iter(world_mut) {
+                        if e != target_entity {
+                            entities_to_leave.push(e);
+                        }
+                    }
+                }
+
+                // 古いエンティティからPointerStateを削除し、PointerLeaveを付与
+                for old_entity in entities_to_leave {
+                    if let Ok(mut entity_ref) = world_borrow.world_mut().get_entity_mut(old_entity)
+                    {
+                        entity_ref.remove::<PointerState>();
+                        entity_ref.insert(PointerLeave);
+                        debug!(
+                            old_entity = ?old_entity,
+                            new_entity = ?target_entity,
+                            "PointerState moved to Window, Leave marker inserted"
+                        );
+                    }
+                }
+
+                // PointerStateを挿入または維持
+                if let Ok(entity_ref) = world_borrow.world_mut().get_entity_mut(target_entity) {
+                    let needs_insert = entity_ref.get::<PointerState>().is_none();
+                    drop(entity_ref);
+
+                    if needs_insert {
+                        world_borrow.world_mut().entity_mut(target_entity).insert(PointerState {
+                            screen_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
+                            local_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
+                            shift_down: shift,
+                            ctrl_down: ctrl,
+                            ..Default::default()
+                        });
+                        debug!(
+                            entity = ?target_entity,
+                            x, y,
+                            "PointerState inserted on Window (no hit)"
+                        );
+                    }
+                }
+                
+                // PointerStateが存在することを保証した上で、バッファに蓄積
+                push_pointer_sample(target_entity, x as f32, y as f32, Instant::now());
+                set_modifier_state(target_entity, shift, ctrl);
             }
         }
     }
@@ -736,6 +806,11 @@ unsafe fn handle_button_message(
     // クリック位置を取得
     let x = (lparam.0 & 0xFFFF) as i16 as i32;
     let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
+    
+    tracing::debug!(
+        "[WM_BUTTON] button={:?}, is_down={}, x={}, y={}",
+        button, is_down, x, y
+    );
 
     // 修飾キー状態を抽出
     let wparam_val = wparam.0 as u32;

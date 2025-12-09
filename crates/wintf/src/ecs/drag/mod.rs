@@ -17,7 +17,7 @@ pub use dispatch::{
     DragStartEvent, DragEvent, DragEndEvent,
 };
 pub use systems::{
-    apply_window_drag_movement, cleanup_drag_state,
+    cleanup_drag_state,
 };
 pub use accumulator::{DragAccumulator, DragAccumulatorResource, DragTransition, FlushResult};
 
@@ -55,14 +55,16 @@ impl Default for DragConfig {
 /// ドラッグ状態コンポーネント
 ///
 /// エンティティがドラッグ中であることを示す。
-/// PointerStateと組み合わせて使用し、ECSフレーム間のデルタ計算に使う。
+/// PointerStateと組み合わせて使用し、ドラッグ開始時の情報を保持する。
 /// このコンポーネントの存在自体がドラッグ中であることを意味する。
 #[derive(Component, Debug, Clone, Copy)]
 #[component(storage = "SparseSet")]
 pub struct DraggingState {
-    /// ドラッグ開始位置（スクリーン座標）
+    /// ドラッグ開始位置（スクリーン座標、物理ピクセル）
     pub drag_start_pos: PhysicalPoint,
-    /// 前回ECSフレームの位置（デルタ計算用）
+    /// ドラッグ開始時のBoxStyle.inset (left, top)（物理ピクセル）
+    pub initial_inset: (f32, f32),
+    /// 前回ECSフレームの位置（デルタ計算用、現在は未使用）
     pub prev_frame_pos: PhysicalPoint,
 }
 

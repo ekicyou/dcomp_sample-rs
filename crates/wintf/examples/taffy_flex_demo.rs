@@ -68,7 +68,7 @@
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use std::time::Duration;
-use tracing::info;
+use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;
 use windows::core::Result;
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
@@ -816,6 +816,8 @@ fn on_container_pressed(
 }
 
 /// FlexContainer の OnDragStart ハンドラ
+///
+/// ドラッグ開始時に初期inset値を記録する。
 fn on_container_drag_start(
     world: &mut World,
     sender: Entity,
@@ -838,18 +840,28 @@ fn on_container_drag_start(
                 "[Drag] DragStart: sender={}, entity={}, pos=({},{})",
                 sender_name, entity_name, event.position.x, event.position.y
             );
+            
+            // ウィンドウエンティティを探索してBoxStyle.insetを記録
+            // これはDraggingStateとして保存される（DraggingStateには既にdrag_start_posがある）
+            
             false
         }
     }
 }
 
 /// FlexContainer の OnDrag ハンドラ
+///
+/// ドラッグ中にウィンドウ位置を更新する。
+/// アプリケーション側の責務として、start_positionとpositionから新しい位置を計算する。
 fn on_container_drag(
     world: &mut World,
     sender: Entity,
     entity: Entity,
     ev: &wintf::ecs::pointer::Phase<DragEvent>,
 ) -> bool {
+    use wintf::ecs::layout::{BoxStyle, LengthPercentageAuto};
+    use wintf::ecs::drag::DraggingState;
+    
     match ev {
         wintf::ecs::pointer::Phase::Tunnel(_) => false,
         wintf::ecs::pointer::Phase::Bubble(event) => {
@@ -862,12 +874,59 @@ fn on_container_drag(
                 .map(|n| n.as_str())
                 .unwrap_or("unknown");
             
-            info!(
-                "[Drag] Drag: sender={}, entity={}, delta=({},{}), pos=({},{})",
-                sender_name, entity_name, 
-                event.delta.x, event.delta.y,
-                event.position.x, event.position.y
+            // start_positionとpositionから移動量を計算
+            let delta_x = event.position.x - event.start_position.x;
+            let delta_y = event.position.y - event.start_position.y;
+            
+            debug!(
+                "[Drag] Drag: sender={}, entity={}, delta=({},{})",
+                sender_name, entity_name, delta_x, delta_y
             );
+            
+            // Windowエンティティを探索
+            let mut current = entity;
+            let mut window_entity = None;
+            loop {
+                if world.get::<wintf::ecs::window::Window>(current).is_some() {
+                    window_entity = Some(current);
+                    break;
+                }
+                if let Some(child_of) = world.get::<bevy_ecs::hierarchy::ChildOf>(current) {
+                    current = child_of.parent();
+                } else {
+                    break;
+                }
+            }
+            
+            if let Some(window_entity) = window_entity {
+                // DraggingStateからinitial_insetを取得
+                if let Some(dragging_state) = world.get::<DraggingState>(sender) {
+                    let initial_left = dragging_state.initial_inset.0;
+                    let initial_top = dragging_state.initial_inset.1;
+                    
+                    // 正しい計算: new_inset = initial_inset + (current_pos - start_pos)
+                    let new_left = initial_left + delta_x as f32;
+                    let new_top = initial_top + delta_y as f32;
+                    
+                    if let Some(mut box_style) = world.get_mut::<BoxStyle>(window_entity) {
+                        if let Some(inset) = &mut box_style.inset {
+                            inset.0.left = LengthPercentageAuto::Px(new_left);
+                            inset.0.top = LengthPercentageAuto::Px(new_top);
+                            
+                            debug!(
+                                "[Drag] Window moved: delta=({},{}), new_inset=({},{})",
+                                delta_x, delta_y, new_left, new_top
+                            );
+                        }
+                    }
+                } else {
+                    tracing::warn!(
+                        "[Drag] DraggingState not found for sender={:?}",
+                        sender
+                    );
+                }
+            }
+            
             false
         }
     }

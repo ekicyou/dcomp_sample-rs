@@ -206,7 +206,7 @@ impl WinThreadMgrInner {
                     {
                         let wndproc_tick = DEBUG_WNDPROC_TICK_COUNT.swap(0, Ordering::Relaxed);
                         let run_tick = DEBUG_RUN_TICK_COUNT.swap(0, Ordering::Relaxed);
-                        trace!(
+                        debug!(
                             loop_count,
                             vsync_count,
                             other_msg_count,
