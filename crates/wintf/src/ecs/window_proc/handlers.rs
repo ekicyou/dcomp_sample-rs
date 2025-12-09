@@ -1104,7 +1104,21 @@ unsafe fn handle_double_click_message(
         return None;
     };
 
+    // ダブルクリック情報を設定
     crate::ecs::pointer::set_double_click(entity, double_click);
+    
+    // ダブルクリックも通常のボタン押下として記録
+    // （WM_LBUTTONDBLCLKはWM_LBUTTONDOWNの代わりに来る）
+    let button = match double_click {
+        crate::ecs::pointer::DoubleClick::Left => crate::ecs::pointer::PointerButton::Left,
+        crate::ecs::pointer::DoubleClick::Right => crate::ecs::pointer::PointerButton::Right,
+        crate::ecs::pointer::DoubleClick::Middle => crate::ecs::pointer::PointerButton::Middle,
+        crate::ecs::pointer::DoubleClick::XButton1 => crate::ecs::pointer::PointerButton::XButton1,
+        crate::ecs::pointer::DoubleClick::XButton2 => crate::ecs::pointer::PointerButton::XButton2,
+        crate::ecs::pointer::DoubleClick::None => return Some(LRESULT(0)),
+    };
+    crate::ecs::pointer::record_button_down(entity, button);
+    
     Some(LRESULT(0))
 }
 
