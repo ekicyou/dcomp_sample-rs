@@ -1104,6 +1104,12 @@ unsafe fn handle_double_click_message(
         return None;
     };
 
+    tracing::info!(
+        entity = ?entity,
+        double_click = ?double_click,
+        "[handle_double_click_message] Double-click detected"
+    );
+
     // ダブルクリック情報を設定
     crate::ecs::pointer::set_double_click(entity, double_click);
     

@@ -375,6 +375,10 @@ thread_local! {
 
     /// Entity ごとの修飾キー状態（最新値）
     pub(crate) static MODIFIER_STATE: RefCell<HashMap<Entity, (bool, bool)>> = RefCell::new(HashMap::new());
+    
+    /// グローバルなダブルクリック情報（エンティティに紐付けない）
+    /// このフレームでダブルクリックが発生したかを記録し、全PointerStateに適用する
+    pub(crate) static DOUBLE_CLICK_THIS_FRAME: RefCell<DoubleClick> = RefCell::new(DoubleClick::None);
 }
 
 // 後方互換性エイリアス（コンパイル時参照のため関数ではなくマクロは使えない）
@@ -759,13 +763,21 @@ pub(crate) fn add_wheel_horizontal(entity: Entity, delta: i16) {
     });
 }
 
-/// DoubleClickを設定
+/// DoubleClickを設定（グローバル）
+/// エンティティには紐付けず、このフレームでダブルクリックが発生したことを記録
 #[inline]
-pub(crate) fn set_double_click(entity: Entity, double_click: DoubleClick) {
-    DOUBLE_CLICK_BUFFERS.with(|buffers| {
-        let mut buffers = buffers.borrow_mut();
-        // 最初のダブルクリックのみ記録
-        buffers.entry(entity).or_insert(double_click);
+pub(crate) fn set_double_click(_entity: Entity, double_click: DoubleClick) {
+    tracing::info!(
+        double_click = ?double_click,
+        "[set_double_click] Global double-click recorded"
+    );
+    
+    DOUBLE_CLICK_THIS_FRAME.with(|dc| {
+        let mut dc = dc.borrow_mut();
+        // 既にダブルクリックが記録されていない場合のみ設定（最初のみ）
+        if *dc == DoubleClick::None {
+            *dc = double_click;
+        }
     });
 }
 
@@ -1045,26 +1057,37 @@ pub(crate) fn transfer_buffers_to_world(world: &mut World) {
         }
     });
     
-    // DOUBLE_CLICK_BUFFERSからPointerStateへダブルクリック情報を転送
-    DOUBLE_CLICK_BUFFERS.with(|buffers| {
-        let buffers = buffers.borrow();
-        
-        for (entity, double_click) in buffers.iter() {
-            if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
-                pointer_state.double_click = *double_click;
-                
-                tracing::debug!(
-                    entity = ?entity,
-                    double_click = ?double_click,
-                    "[transfer_buffers_to_world] DoubleClick transferred"
-                );
-            }
-        }
-    });
+    // グローバルなダブルクリック情報を、PointerStateを持つ全エンティティに適用
+    let double_click_this_frame = DOUBLE_CLICK_THIS_FRAME.with(|dc| *dc.borrow());
     
-    // DOUBLE_CLICK_BUFFERSをリセット
-    DOUBLE_CLICK_BUFFERS.with(|buffers| {
-        buffers.borrow_mut().clear();
+    if double_click_this_frame != DoubleClick::None {
+        tracing::info!(
+            double_click = ?double_click_this_frame,
+            "[transfer_buffers_to_world] Applying double-click to all PointerStates"
+        );
+        
+        let mut applied_count = 0;
+        for (entity, mut pointer_state) in world.query::<(Entity, &mut PointerState)>().iter_mut(world) {
+            pointer_state.double_click = double_click_this_frame;
+            applied_count += 1;
+            
+            tracing::info!(
+                entity = ?entity,
+                double_click = ?double_click_this_frame,
+                "[transfer_buffers_to_world] DoubleClick applied to entity"
+            );
+        }
+        
+        tracing::info!(
+            applied_count,
+            "[transfer_buffers_to_world] DoubleClick applied to {} entities",
+            applied_count
+        );
+    }
+    
+    // DOUBLE_CLICK_THIS_FRAMEをリセット
+    DOUBLE_CLICK_THIS_FRAME.with(|dc| {
+        *dc.borrow_mut() = DoubleClick::None;
     });
     
     // MODIFIER_STATEからPointerStateへ修飾キー状態を転送
