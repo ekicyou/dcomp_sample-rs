@@ -334,7 +334,7 @@ sequenceDiagram
 
 | ScriptEvent | areka での処理 | TypewriterToken 出力 |
 |-------------|---------------|---------------------|
-| `Talk { speaker, text }` | **同期セクション外**: 即座にバルーンへ供給<br>**同期セクション内**: バッファに蓄積（SyncPoint まで待機） | `[Text(text)]` |
+| `Talk { speaker, content }` | **同期セクション外**: 即座にバルーンへ供給<br>**同期セクション内**: バッファに蓄積（SyncPoint まで待機）<br>ContentPart::Text → Text, ContentPart::SakuraScript → そのまま保持 | `[Text(text)]` または SakuraScript 付き |
 | `Wait { duration }` | アニメーションエンジンで duration 秒待機<br>全アクティブバルーンのタイムラインに Wait を追加 | `[Wait(duration)]` |
 | `ChangeSpeaker { name }` | 次の Talk で使用する発言者を内部状態に記憶 | なし（内部状態のみ） |
 | `ChangeSurface { character, surface_id }` | 該当キャラクターの Entity にサーフェス変更コマンド発行 | なし（ECS コマンド経由） |
@@ -400,17 +400,17 @@ impl SyncSectionManager {
                     .or_insert(SyncBuffer::new());
             },
             
-            ScriptEvent::Talk { speaker, text } => {
+            ScriptEvent::Talk { speaker, content } => {
                 if let Some(sync_id) = &self.current_sync_id {
                     // 同期セクション内: バッファに蓄積し、参加者を自動登録
                     if let Some(buffer) = self.buffers.get_mut(sync_id) {
                         buffer.participants.insert(speaker.clone());
-                        buffer.buffered_talks.push((speaker, text));
+                        buffer.buffered_talks.push((speaker, content));
                     }
                 } else {
                     // 同期セクション外: 即座に表示
                     let balloon = balloon_mgr.get_or_create(&speaker);
-                    balloon.feed_text(text);
+                    balloon.feed_content(content); // ContentPart のリストを供給
                 }
             },
             
@@ -905,6 +905,18 @@ impl ScriptGenerator {
 ```rust
 // crates/pasta/src/ir/script_event.rs
 
+/// 発言コンテンツの構成要素
+#[derive(Debug, Clone, PartialEq)]
+pub enum ContentPart {
+    /// 通常テキスト
+    Text(String),
+    
+    /// さくらスクリプトエスケープ（pasta 側で解釈せずそのまま保持）
+    /// 例: "\\s[0]", "\\w8", "\\n[half]"
+    /// SHIORI.DLL 層で IR→さくらスクリプト変換時にそのまま出力
+    SakuraScript(String),
+}
+
 /// Pasta スクリプトエンジンの中間表現（IR）
 /// 会話全体の制御情報を表現（1キャラ×1トークではなく、全体フロー）
 /// 
@@ -912,14 +924,16 @@ impl ScriptGenerator {
 /// - 時間制御なし（Wait の解釈は areka 側）
 /// - バッファリングなし（ScriptEvent を順次 yield）
 /// - 同期制御なし（BeginSync/SyncPoint/EndSync はマーカーのみ）
+/// - さくらスクリプト解釈なし（SakuraScript をそのまま IR に保持）
 #[derive(Debug, Clone)]
 pub enum ScriptEvent {
-    /// 発言（発言者名 + テキスト）
-    /// pasta: DSL の発言行をそのまま yield
-    /// areka: 発言者のバルーンを取得/生成し、テキストを供給
+    /// 発言（発言者名 + コンテンツ）
+    /// pasta: DSL の発言行を ContentPart のリストとして yield
+    /// areka: 発言者のバルーンを取得/生成し、コンテンツを供給
+    ///        SakuraScript を含む場合も pasta 側で解釈せずそのまま保持
     Talk {
         speaker: String,
-        text: String,
+        content: Vec<ContentPart>,
     },
     
     /// ウェイト（秒単位）
@@ -1468,9 +1482,15 @@ fn test_sync_section_markers() {
     let events = pasta::execute_script(script).unwrap();
     
     assert_eq!(events[0], ScriptEvent::BeginSync { sync_id: "sync_1" });
-    assert_eq!(events[1], ScriptEvent::Talk { speaker: "さくら", text: "せーの" });
+    assert_eq!(events[1], ScriptEvent::Talk { 
+        speaker: "さくら", 
+        content: vec![ContentPart::Text("せーの".to_string())] 
+    });
     assert_eq!(events[2], ScriptEvent::SyncPoint { sync_id: "sync_1" });
-    assert_eq!(events[3], ScriptEvent::Talk { speaker: "うにゅう", text: "いち" });
+    assert_eq!(events[3], ScriptEvent::Talk { 
+        speaker: "うにゅう", 
+        content: vec![ContentPart::Text("いち".to_string())] 
+    });
     assert_eq!(events[4], ScriptEvent::EndSync { sync_id: "sync_1" });
     // ... マーカー順序の検証
 }
@@ -1512,7 +1532,32 @@ fn test_label_random_selection_with_mock() {
     let events = engine.execute_label("挨拶").unwrap();
     
     // 必ずパターン2が選択される（モックによる完全制御）
-    assert_eq!(events[0], ScriptEvent::Talk { speaker: "さくら", text: "パターン2" });
+    assert_eq!(events[0], ScriptEvent::Talk { 
+        speaker: "さくら", 
+        content: vec![ContentPart::Text("パターン2".to_string())] 
+    });
+}
+
+#[test]
+fn test_sakura_script_escape() {
+    let script = r#"
+＊テスト
+　さくら：こんにちは\\s[1]元気だよ\\w8\\n[half]
+"#;
+    let mut engine = PastaEngine::new(script).unwrap();
+    let events = engine.execute_label("テスト").unwrap();
+    
+    // さくらスクリプトエスケープが ContentPart::SakuraScript として保持される
+    assert_eq!(events[0], ScriptEvent::Talk {
+        speaker: "さくら",
+        content: vec![
+            ContentPart::Text("こんにちは".to_string()),
+            ContentPart::SakuraScript("\\s[1]".to_string()),
+            ContentPart::Text("元気だよ".to_string()),
+            ContentPart::SakuraScript("\\w8".to_string()),
+            ContentPart::SakuraScript("\\n[half]".to_string()),
+        ]
+    });
 }
 ```
 
@@ -1735,11 +1780,50 @@ cbindgen = "0.26"
 
 ---
 
-## Open Questions
+## Design Decisions
 
-1. **さくらスクリプト互換モード**: どこまで互換性を持たせるか？
-2. **MCP 連携**: LLM 統合時の API 設計
-3. **ホットリロード**: 開発時のスクリプト再読み込み対応
+### Sakura Script Compatibility
+
+**決定**: pasta はさくらスクリプトを解釈せず、`ContentPart::SakuraScript` として IR に保持する。
+
+**理由**:
+- pasta の責務は DSL パースと IR 生成のみ
+- さくらスクリプト解釈はクライアント側（areka または SHIORI.DLL 層）の責務
+- SHIORI.DLL 化時に IR→さくらスクリプト変換器を実装すればよい
+
+**実装**:
+- `ContentPart::SakuraScript(String)` としてエスケープシーケンスを保持
+- areka 側で TypewriterToken 変換時に処理または無視
+- SHIORI.DLL 層で IR→さくらスクリプト変換時にそのまま出力
+
+### MCP Integration
+
+**決定**: P0 フェーズでは MCP 連携を Non-Goal とする。
+
+**理由**:
+- MCP 連携は P2 (areka-P2-llm-integration) のスコープ
+- pasta は純粋なスクリプトエンジンとして設計
+- LLM 統合は areka アプリケーション層で実装
+
+### Hot Reload
+
+**決定**: P0 フェーズではホットリロードをサポートせず、`PastaEngine::drop` 時の永続化のみ実装。
+
+**理由**:
+- DSL の動的変更対応は実装ハードルが高い
+- エンジンの drop 時に変数等を永続化すれば十分
+- スクリプト再読み込みはエンジン再生成で対応
+
+**実装**:
+```rust
+impl Drop for PastaEngine {
+    fn drop(&mut self) {
+        // グローバル変数、ラベルキャッシュ等を永続化
+        self.variables.save_to_disk().ok();
+        self.labels.save_cache().ok();
+    }
+}
+```
 
 ---
 
