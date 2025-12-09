@@ -26,25 +26,37 @@
 | 4.5 | 条件分岐・ループ等の制御構文をサポートする |
 | 4.6 | 複数キャラクター間での会話（掛け合い、漫才的やりとり）をスクリプトで記述できる |
 | 4.7 | 発言者の切り替え、割り込み、同時発言などの会話制御ができる |
+| 4.8 | 会話を中断・再開できる（Generator機能） |
+| 4.9 | チェイントーク（連続会話）を実装できる |
 | 29.6 | さくらスクリプトの基本コマンドを出力できる |
 | 29.7 | 独自拡張コマンドを定義できる |
 | 29.8 | スクリプト出力とMCPコマンドを組み合わせられる |
 
 ### スコープ
 
+**アーキテクチャ方針**: サブクレート`pasta`として独立実装し、SHIORI.DLL形式への分離を容易にする
+
 **含まれるもの:**
-- 対話記述DSL（里々インスパイア）のパーサーと実行エンジン
-- **スクリプト言語の設計**（コマンド構文、ウェイト記法等）
+- **サブクレート`pasta`の実装**（スクリプトエンジン本体）
+  - 対話記述DSL（里々インスパイア）のパーサーと実行エンジン
+  - **スクリプト言語の設計**（コマンド構文、ウェイト記法等）
+  - Runeスクリプト実行エンジンの統合
+  - **Generators（ジェネレータ）ベースの状態マシン実装**
+    - 会話の中断・再開機能
+    - チェイントーク（連続会話）サポート
+    - yield式による段階的IR生成
+  - 変数管理（グローバル/ローカル）
+  - 制御構文（条件分岐、ループ、関数）
+  - 複数キャラクター会話制御
 - **中間表現（IR）の出力**（wintf-P0-typewriter への入力形式）
 - さくらスクリプト互換コマンドの出力
-- 変数管理（グローバル/ローカル）
-- 制御構文（条件分岐、ループ、関数）
-- 複数キャラクター会話制御
+- `wintf`クレートとの統合インターフェース
 
 **含まれないもの:**
 - LLM連携（areka-P2-llm-integration の責務）
 - ゴーストパッケージ管理（areka-P0-package-manager の責務）
 - タイプライター表示アニメーション（wintf-P0-typewriter の責務）
+- DirectComposition/Direct2D等のグラフィックス機能（wintfの責務）
 
 ---
 
@@ -64,25 +76,58 @@
 ### アーキテクチャ
 
 ```
-┌─────────────┐
-│ DSL Script  │  会話記述特化（シンプルな構文）
-└──────┬──────┘
-       │ トランスコンパイル
-       ↓
-┌─────────────┐
-│ Rune Script │  汎用スクリプト実行エンジン
-└──────┬──────┘
-       │ 実行
-       ↓
-┌─────────────┐
-│     IR      │  中間表現（Typewriterへ）
-└─────────────┘
+┌──────────────────────────────────────────────────────┐
+│ サブクレート: pasta                                   │
+│ ┌─────────────┐                                      │
+│ │ DSL Script  │  会話記述特化（シンプルな構文）       │
+│ └──────┬──────┘                                      │
+│        │ parse (パーサー実装)                         │
+│        ↓                                              │
+│ ┌─────────────┐                                      │
+│ │ Pasta AST   │  抽象構文木                           │
+│ └──────┬──────┘                                      │
+│        │ transpile                                    │
+│        ↓                                              │
+│ ┌─────────────┐                                      │
+│ │ Rune Script │  汎用スクリプト実行エンジン           │
+│ └──────┬──────┘                                      │
+│        │ execute (rune VM + Generators)               │
+│        ↓                                              │
+│ ┌─────────────┐                                      │
+│ │ State Mgr   │  状態マシン（Generator制御）          │
+│ │ (Generator) │  - 中断/再開                         │
+│ └──────┬──────┘  - チェイントーク                    │
+│        │ yield IR tokens                              │
+│        ↓                                              │
+│ ┌─────────────┐                                      │
+│ │     IR      │  中間表現（Vec<TypewriterToken>）    │
+│ └──────┬──────┘                                      │
+└────────┼─────────────────────────────────────────────┘
+         │ 公開API (pasta::execute_script)
+         ↓
+┌──────────────────────────────────────────────────────┐
+│ クレート: wintf                                       │
+│ ┌──────────────────────────────────────────────┐    │
+│ │ wintf-P0-typewriter                          │    │
+│ │ タイプライター表示アニメーション              │    │
+│ └──────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────┘
 ```
 
 **責務分担**:
-- **DSL**: 会話フロー制御（ラベル、ジャンプ、発言、ウェイト）に特化
-- **Rune**: 複雑なロジック（演算、関数、MCP連携）を担当
-- **トランスコンパイラ**: DSL構文をRuneコードに変換
+- **pasta クレート**: スクリプトエンジン全体（DSLパーサー、Rune統合、IR生成）
+  - **DSL層**: 会話フロー制御（ラベル、ジャンプ、発言、ウェイト）に特化
+  - **Rune層**: 複雑なロジック（演算、関数、MCP連携）を担当
+  - **トランスコンパイラ**: DSL構文をRuneコードに変換
+  - **IR生成**: TypewriterToken列の生成
+- **wintf クレート**: UIレンダリングとアニメーション
+  - **Typewriter**: IR（TypewriterToken）を受け取り、タイピング表示を実行
+
+**クレート分離の利点**:
+1. **SHIORI.DLL化が容易**: `pasta`をC FFI経由で公開可能
+2. **責務の明確化**: スクリプトロジックとUIレンダリングを完全分離
+3. **再利用性**: 他のプロジェクトでも`pasta`を利用可能
+4. **並行開発**: `pasta`と`wintf`を独立して開発可能
 
 ### キーワード文字対応表
 
@@ -107,6 +152,28 @@
 - 日本語圏: ワンキー入力で効率的
 - 英語圏: 標準的なASCII記号で入力可能
 - 混在可能: 同一ファイル内で全角・半角を自由に組み合わせ可能
+
+### 設計イシュー（Design Phase検討事項）
+
+#### イシュー1: DSL層のIR生成責務
+
+**現状の整理**:
+- **DSLが直接IR生成するもの**: ウェイト変換（`\w[n]`, `\_w[n]` → `Wait(duration)` IRトークン）のみ
+- **関数呼び出し経由**: その他の特殊機能（`＠笑顔`, `＠同時発言開始` など）はすべてRune関数として実装
+
+**設計オプション**:
+
+1. **Option A（現状）**: ウェイトのみDSL層で直接IR生成
+   - ✅ さくらスクリプト互換（`\w[n]` 構文）を保持
+   - ⚠️ DSL層とRune層の責務が分散
+
+2. **Option B**: ウェイトも関数化（`＠ウェイト(0.5)`）
+   - ✅ 完全に統一された設計（すべて関数呼び出し）
+   - ✅ DSL層の責務を最小化（純粋なパーサー + トランスパイラ）
+   - ⚠️ さくらスクリプト互換性の喪失
+   - 💡 移行パス: DSL層で`\w[n]` → `＠ウェイト(n/1000.0)` に変換可能
+
+**推奨**: Design Phaseで決定（さくらスクリプト互換性の優先度による）
 
 ### コメント
 
@@ -278,6 +345,15 @@ call/jumpは前方一致するすべてのラベルから1つをランダム選�
 - **評価**: Rune変数または関数呼び出しとして評価
 - **展開**: 戻り値の文字列をその場に埋め込む
 - **出力**: IR形式のトークン列に変換
+
+**キャラクターオブジェクト**:
+- **第一引数**: すべての組み込み関数の第一引数はキャラクターオブジェクト
+- **型**: Rune Object型 `#{ name: String, id: u32, surfaces: #{...}, state: #{...} }`
+- **暗黙的渡し**: 発言者コンテキスト内では、グローバル変数として宣言されたキャラクターオブジェクトが自動的に第一引数として渡される
+- **命名制約**: キャラクター名は有効な変数名でなければならない（英数字、アンダースコア、Unicode識別子）
+  - ✅ OK: `さくら`, `うにゅう`, `sakura`, `char_01`, `キャラ１`
+  - ❌ NG: `さくら（本体）`, `うにゅう-1`, `キャラ＃１` (スペース、括弧、記号を含む)
+- **利点**: 関数内で発言者の状態・属性にアクセス可能、DSL記述が簡潔
 
 **引数構文**:
 
@@ -690,6 +766,13 @@ let engine = ScriptEngine::new(label_table, rune_vm)?;
   ＄＊次の行動＝「会話」          # グローバル変数: 次の行動
   ＄＊現在時刻＝「朝」            # グローバル変数: 現在時刻
   ＄＊好感度＝５０                # グローバル変数: 好感度（数値）
+
+＃ 表情制御の例
+＊感情表現
+  さくら    ：＠笑顔　やった！
+  　　　　　　＠ウェイト（０．５）  # 0.5秒待機
+  うにゅう  ：＠微笑み　おめでとう。
+  さくら    ：＠サーフェス（３）　ありがとう！  # サーフェスID=3に変更
   
 ＊メインメニュー
   ナレーション：どうする？
@@ -782,8 +865,9 @@ let engine = ScriptEngine::new(label_table, rune_vm)?;
 1. **The** Script Engine **shall** スクリプトを中間表現（IR）に変換して出力できる
 2. **The** Script Engine **shall** テキストトークン（表示文字列）をIRに含められる
 3. **The** Script Engine **shall** ウェイトトークン（待機時間）をIRに含められる
-4. **The** Script Engine **shall** サーフェス切り替えトークンをIRに含められる
+4. **The** Script Engine **shall** サーフェス切り替えトークン（キャラクター指定、サーフェスID）をIRに含められる
 5. **The** Script Engine **shall** 発言者切り替えトークンをIRに含められる
+6. **The** Script Engine **shall** すべてのIRトークンにキャラクターコンテキストを含められる
 6. **The** Script Engine **shall** 将来の拡張トークン（速度変更、ポーズ等）を追加可能な設計とする
 7. **The** Script Engine **shall** IRの型定義を `wintf-P0-typewriter` と共有する
 
@@ -812,9 +896,50 @@ let engine = ScriptEngine::new(label_table, rune_vm)?;
 
 1. **The** Script Engine **shall** グローバル変数を保持・参照・更新できる
 2. **The** Script Engine **shall** ローカル変数（トーク内スコープ）をサポートする
-3. **The** Script Engine **shall** 変数の型（文字列、数値、真偽値）をサポートする
-4. **The** Script Engine **shall** 変数を文字列展開（`%(変数名)`等）できる
+3. **The** Script Engine **shall** 変数の型（文字列、数値、真偽値、Object）をサポートする
+4. **The** Script Engine **shall** 変数を文字列展開（`＠変数名`）できる
 5. **The** Script Engine **shall** システム変数（日時、カウンター等）を提供する
+6. **The** Script Engine **shall** 変数永続化をRuneスクリプトの責務とする
+   - Runeの任意の変数をTOMLに書き出し可能
+   - 永続化はRuneスクリプトのmainルーチンが実装
+   - DSL層は永続化機能を持たない（責務外）
+
+**変数永続化設計**:
+
+```rune
+// Runeスクリプト側での永続化実装例
+pub async fn main() {
+    // 起動時: TOMLから変数復元
+    let state = load_state_from_toml("save.toml");
+    
+    // グローバル変数に設定
+    set_global("好感度", state.好感度);
+    set_global("場所", state.場所);
+    set_global("さくら", state.さくら);
+    set_global("うにゅう", state.うにゅう);
+    
+    // メインループ
+    loop {
+        // スクリプト実行...
+        
+        // 定期保存: グローバル変数をTOMLに書き出し
+        if should_save() {
+            let state = #{
+                好感度: get_global("好感度"),
+                場所: get_global("場所"),
+                さくら: get_global("さくら"),
+                うにゅう: get_global("うにゅう"),
+            };
+            save_state_to_toml("save.toml", state);
+        }
+    }
+}
+```
+
+**責務分担**:
+- **DSL層**: 変数の宣言・参照・更新のみ
+- **Rune層**: 永続化ロジック（TOML読み書き）
+- **pasta API**: `get_global()`, `set_global()` のみ提供
 
 ---
 
@@ -844,6 +969,263 @@ let engine = ScriptEngine::new(label_table, rune_vm)?;
 3. **The** Script Engine **shall** キャラクターが他のキャラクターの発言に割り込めむ
 4. **The** Script Engine **shall** キャラクター間でスコープ（変数、状態）を共有できる
 5. **The** Script Engine **shall** 2体以上のキャラクター会話をサポートする
+6. **The** Script Engine **shall** シンクロナイズドセクション（同時発言）を実装できる
+   - 関数呼び出しによる同期制御（`＠同時発言開始`, `＠同期`, `＠同時発言終了`）
+   - 複数キャラクターのIRトークンを同一タイミングで出力
+   - バルーン/シェルの複数表示を同期制御
+7. **The** Script Engine **shall** キャラクター名を有効な変数識別子として扱う
+   - キャラクター名はグローバル変数名として使用される
+   - 英数字、アンダースコア、Unicode識別子をサポート
+   - スペース、括弧、記号を含む名前は非サポート
+
+#### Technical Details: シンクロナイズドセクション
+
+**IR設計**:
+
+```rust
+// TypewriterTokenに同期マーカーを追加
+pub enum TypewriterToken {
+    Text(String),
+    Wait(f64),
+    ChangeSpeaker(String),
+    
+    // 同時発言制御
+    BeginSync { sync_id: String },  // 同期セクション開始
+    EndSync { sync_id: String },    // 同期セクション終了
+    SyncPoint { sync_id: String },  // 同期ポイント（待ち合わせ）
+    
+    FireEvent { target: Entity, event: TypewriterEventKind },
+}
+```
+
+**設計原則**: 
+1. 特殊なことをしたければ関数を呼べ
+2. 関数の第一引数はキャラクターオブジェクト（Rune Object型）
+3. 発言者コンテキスト内では第一引数は暗黙的に渡される
+
+**DSL構文例**:
+
+```
+＊同時発言例
+　　さくら：＠同時発言開始　せーの
+　　　　　　＠同期
+　　うにゅう：＠同時発言開始　せーの
+　　　　　　＠同期
+　　　　　　＠同時発言終了
+　　さくら：＠同時発言終了　（笑）
+　　　　　　＠笑顔
+　　うにゅう：＠微笑み　息がぴったりやね。
+```
+
+**暗黙的引数渡し**:
+- `さくら：＠笑顔` → `笑顔(さくら)` に展開（グローバル変数 `さくら` を第一引数として渡す）
+- `うにゅう：＠微笑み` → `微笑み(うにゅう)` に展開（グローバル変数 `うにゅう` を第一引数として渡す）
+- トランスパイラが発言者コンテキストを追跡し、自動的に第一引数を補完
+
+**組み込み関数** (pasta標準ライブラリで提供):
+
+```rune
+// 第一引数: キャラクターオブジェクト（Rune Object型）
+// 実体: グローバル変数として宣言されたRune Object
+// 例: let さくら = #{ name: "さくら", id: 0, surfaces: #{...}, state: #{...} };
+
+// 同期制御
+pub fn 同時発言開始(character) {
+    yield BeginSync { 
+        sync_id: generate_sync_id(),
+        character_name: character.name 
+    };
+}
+
+pub fn 同期(character) {
+    yield SyncPoint { 
+        sync_id: current_sync_id(),
+        character_name: character.name 
+    };
+}
+
+pub fn 同時発言終了(character) {
+    yield EndSync { 
+        sync_id: current_sync_id(),
+        character_name: character.name 
+    };
+}
+
+// 表情・サーフェス制御
+pub fn 笑顔(character) {
+    // キャラクターの笑顔サーフェスIDを取得
+    let surface_id = character.surfaces.笑顔;
+    yield ChangeSurface { 
+        character_name: character.name,
+        surface_id 
+    };
+}
+
+pub fn 微笑み(character) {
+    let surface_id = character.surfaces.微笑み;
+    yield ChangeSurface { 
+        character_name: character.name,
+        surface_id 
+    };
+}
+
+pub fn サーフェス(character, surface_id) {
+    yield ChangeSurface { 
+        character_name: character.name,
+        surface_id 
+    };
+}
+
+// ウェイト
+pub fn ウェイト(duration) {
+    // 第一引数は不要（現在の発言者コンテキストから取得）
+    yield Wait { duration };
+}
+```
+
+**暗黙的引数渡しの仕組み**:
+```rune
+// DSL: さくら：＠笑顔　こんにちは
+// トランスパイル後:
+yield change_speaker("さくら");
+笑顔(さくら);  // グローバル変数 さくら を第一引数として渡す
+yield emit_text("こんにちは");
+```
+
+**トランスコンパイル例**:
+
+```rune
+pub fn 同時発言例() {
+    // さくら：＠同時発言開始　せーの
+    yield change_speaker("さくら");
+    同時発言開始(さくら);  // グローバル変数 さくら を暗黙的に渡す
+    yield emit_text("せーの");
+    
+    // 　　　　＠同期
+    同期(さくら);
+    
+    // うにゅう：＠同時発言開始　せーの
+    yield change_speaker("うにゅう");
+    同時発言開始(うにゅう);  // グローバル変数 うにゅう を暗黙的に渡す
+    yield emit_text("せーの");
+    
+    // 　　　　＠同期
+    同期(うにゅう);
+    
+    // 　　　　＠同時発言終了
+    同時発言終了(うにゅう);
+    
+    // さくら：＠同時発言終了　（笑）
+    yield change_speaker("さくら");
+    同時発言終了(さくら);
+    yield emit_text("（笑）");
+    
+    // 　　　　＠笑顔
+    笑顔(さくら);
+    
+    // うにゅう：＠微笑み　息がぴったりやね。
+    yield change_speaker("うにゅう");
+    微笑み(うにゅう);
+    yield emit_text("息がぴったりやね。");
+}
+
+**グローバル変数宣言** (初期化時):
+```rune
+// キャラクターオブジェクトをグローバル変数として宣言
+let さくら = #{
+    name: "さくら",
+    id: 0,
+    surfaces: #{
+        笑顔: 1,
+        微笑み: 2,
+        通常: 0,
+    },
+    state: #{},
+};
+
+let うにゅう = #{
+    name: "うにゅう",
+    id: 1,
+    surfaces: #{
+        笑顔: 10,
+        微笑み: 11,
+        通常: 10,
+    },
+    state: #{},
+};
+```
+
+**wintf側の処理**:
+
+```rust
+// crates/wintf/src/systems/typewriter_sync.rs
+
+pub struct SyncSection {
+    sync_id: String,
+    characters: HashMap<String, Vec<TypewriterToken>>,
+    sync_points: Vec<usize>,
+}
+
+impl TypewriterSystem {
+    fn process_sync_section(&mut self, tokens: Vec<TypewriterToken>) {
+        let mut current_speaker = None;
+        let mut sync_buffers = HashMap::new();
+        
+        for token in tokens {
+            match token {
+                TypewriterToken::BeginSync { sync_id } => {
+                    // 同期セクション開始
+                    self.active_sync = Some(sync_id);
+                }
+                TypewriterToken::ChangeSpeaker(name) => {
+                    current_speaker = Some(name);
+                }
+                TypewriterToken::Text(text) => {
+                    if let Some(speaker) = &current_speaker {
+                        sync_buffers.entry(speaker.clone())
+                            .or_insert_with(Vec::new)
+                            .push(text);
+                    }
+                }
+                TypewriterToken::SyncPoint { .. } => {
+                    // 同期ポイント：複数バルーンを同時表示
+                    self.display_all_balloons(&sync_buffers);
+                    sync_buffers.clear();
+                }
+                TypewriterToken::EndSync { .. } => {
+                    // 同期セクション終了
+                    self.active_sync = None;
+                }
+                _ => {}
+            }
+        }
+    }
+    
+    fn display_all_balloons(&mut self, buffers: &HashMap<String, Vec<String>>) {
+        // 複数キャラクターのバルーンを同時に表示
+        for (speaker, texts) in buffers {
+            let entity = self.get_character_entity(speaker);
+            let balloon_text = texts.join("");
+            
+            // バルーンコンポーネントにテキストを設定
+            self.world.entity_mut(entity)
+                .get_mut::<BalloonText>()
+                .unwrap()
+                .set_text(balloon_text);
+        }
+        
+        // すべてのバルーンを同時に表示開始
+        self.world.send_message(ShowAllBalloons);
+    }
+}
+```
+
+**使用例**:
+
+1. **漫才のツッコミ**: 「せーの！」の同時発言
+2. **合唱**: 複数キャラが同じセリフを同時に
+3. **驚きの同期**: 「えっ！？」を複数キャラが一齐に
+4. **リアクション**: イベントに対する複数キャラの同時反応
 
 ---
 
@@ -861,6 +1243,205 @@ let engine = ScriptEngine::new(label_table, rune_vm)?;
 
 ---
 
+### Requirement 8: Generatorsベース状態マシン
+
+**Objective:** スクリプト開発者として、会話を中断・再開したい。それによりチェイントークや動的な会話フローを実現できる。
+
+#### Acceptance Criteria
+
+1. **The** Script Engine **shall** Rune Generatorsを使用して実装される
+2. **The** Script Engine **shall** 会話の実行を任意の時点で中断（suspend）できる
+3. **The** Script Engine **shall** 中断された会話を後で再開（resume）できる
+4. **The** Script Engine **shall** 中断時の実行コンテキスト（変数、スタック）を保持する
+5. **The** Script Engine **shall** yield式でIRトークンを段階的に生成できる
+6. **The** Script Engine **shall** チェイントーク（連続会話）を実装できる
+   - 1つの会話が完了した後、次の会話を自動起動
+   - 会話間で状態を引き継ぎ可能
+7. **The** Script Engine **shall** 会話の実行状態を問い合わせできる
+   - 実行中（Running）
+   - 中断中（Suspended）
+   - 完了（Completed）
+8. **The** Script Engine **shall** シンクロナイズドセクションとGeneratorを統合できる
+   - 同期制御関数（`同時発言開始`, `同期`, `同時発言終了`）がIRトークンをyield
+   - wintf側で複数バルーンの同時表示を制御
+   - 原則: 特殊機能は関数呼び出しで実現
+
+#### Technical Details
+
+**yield戦略の設計判断**:
+
+| アプローチ | yield単位 | メリット | デメリット | 推奨度 |
+|-----------|----------|---------|-----------|--------|
+| **A: トーク単位** | 会話全体を1 yield | ・エンジン側がシンプル<br>・トーク境界が明確 | ・細かい制御不可<br>・長い会話で応答性低下 | ⭐️⭐️⭐️ |
+| **B: IR単位（推奨）** | IRトークン毎にyield | ・柔軟な中断ポイント<br>・呼び出し側で分割判断<br>・応答性向上 | ・エンジン側が複雑 | ⭐️⭐️⭐️⭐️⭐️ |
+| **C: 文字単位** | 1文字毎にyield | ・最細粒度制御 | ・オーバーヘッド大<br>・実用的でない | ⭐️ |
+
+**採用戦略: IR単位でyield（オプションB）**
+
+理由:
+1. **柔軟性**: 呼び出し側が中断タイミングを制御可能
+2. **応答性**: 長い会話でもIRトークン毎に制御を返せる
+3. **責務分離**: トーク分割判断はエンジン呼び出し側（wintf）の責務
+4. **将来性**: ユーザー入力待ち、アニメーション同期等に対応しやすい
+
+**Rune Generatorsの活用**:
+
+```rune
+// Pastaスクリプトからトランスコンパイル
+pub fn 挨拶() {
+    // 各IR操作でyield → 呼び出し側に制御を返す
+    yield emit_text("さくら：こんにちは");  // IRトークン1個生成
+    yield wait(0.5);                        // IRトークン1個生成
+    yield emit_text("元気ですか？");        // IRトークン1個生成
+    
+    // チェイントーク判定
+    if should_chain_talk() {
+        yield call("挨拶_続き");  // Generator連鎖
+    }
+}
+
+pub fn 挨拶_続き() {
+    yield emit_text("さくら：今日は良い天気ですね");
+}
+```
+
+**状態マシン管理**:
+
+```rust
+// crates/pasta/src/generator.rs
+pub struct ScriptGenerator {
+    generator: rune::runtime::Generator,
+    state: GeneratorState,
+}
+
+pub enum GeneratorState {
+    Running,
+    Suspended { context: SavedContext },
+    Completed,
+}
+
+impl ScriptGenerator {
+    /// 次のIRトークンを生成（yieldまで実行）
+    pub fn resume(&mut self) -> Result<Option<TypewriterToken>, PastaError> {
+        match self.generator.resume(())? {
+            rune::runtime::GeneratorState::Yielded(value) => {
+                self.state = GeneratorState::Suspended { /* ... */ };
+                Ok(Some(value.into_any()?))
+            }
+            rune::runtime::GeneratorState::Complete(_) => {
+                self.state = GeneratorState::Completed;
+                Ok(None)
+            }
+        }
+    }
+    
+    /// すべてのIRトークンを生成（完了まで実行）
+    pub fn resume_all(&mut self) -> Result<Vec<TypewriterToken>, PastaError> {
+        let mut tokens = Vec::new();
+        while let Some(token) = self.resume()? {
+            tokens.push(token);
+        }
+        Ok(tokens)
+    }
+}
+```
+
+**チェイントーク実装例**:
+
+```
+＊挨拶
+　　さくら：おはよう！
+　　＠チェイン確率：＠calc_chain_prob（＠＊好感度）
+　　？＊挨拶_続き　＠チェイン：有効
+
+＊挨拶_続き
+　　＠チェイン：有効
+　　さくら：今日も元気だね！
+```
+
+**呼び出し側での制御例**:
+
+```rust
+// crates/wintf/src/systems/script_system.rs
+
+/// シナリオ1: 一括生成（通常の会話）
+fn execute_normal_talk(generator: &mut ScriptGenerator) -> Vec<TypewriterToken> {
+    generator.resume_all().unwrap()  // すべてのIRを一括取得
+}
+
+/// シナリオ2: フレーム分割（長い会話）
+fn execute_with_frame_budget(
+    generator: &mut ScriptGenerator,
+    max_tokens_per_frame: usize,
+) -> Vec<TypewriterToken> {
+    let mut tokens = Vec::new();
+    for _ in 0..max_tokens_per_frame {
+        match generator.resume() {
+            Ok(Some(token)) => tokens.push(token),
+            Ok(None) => break,  // 完了
+            Err(e) => {
+                tracing::error!("Generator error: {:?}", e);
+                break;
+            }
+        }
+    }
+    tokens  // 次フレームで続きをresume()
+}
+
+/// シナリオ3: ユーザー入力待ち
+fn execute_with_user_input(
+    generator: &mut ScriptGenerator,
+) -> Vec<TypewriterToken> {
+    let mut tokens = Vec::new();
+    
+    // 入力プロンプトまで実行
+    while let Ok(Some(token)) = generator.resume() {
+        tokens.push(token.clone());
+        
+        // 選択肢イベント検出
+        if matches!(token, TypewriterToken::FireEvent { 
+            event: TypewriterEventKind::UserInput, .. 
+        }) {
+            break;  // ここで中断、入力後に再度resume()
+        }
+    }
+    
+    tokens
+}
+
+/// シナリオ4: チェイントーク自動実行
+fn execute_chain_talk(
+    engine: &mut PastaEngine,
+    initial_label: &str,
+) -> Vec<TypewriterToken> {
+    let mut all_tokens = Vec::new();
+    let mut current_label = Some(initial_label.to_string());
+    
+    while let Some(label) = current_label {
+        let mut generator = engine.start_generator(&label).unwrap();
+        
+        // この会話を完了まで実行
+        let tokens = generator.resume_all().unwrap();
+        all_tokens.extend(tokens);
+        
+        // チェイントーク判定
+        current_label = engine.check_chain_talk(&label);
+    }
+    
+    all_tokens
+}
+```
+
+**使用シナリオ**:
+
+1. **通常の会話**: `resume_all()`で一括生成
+2. **フレーム分割**: `resume()`を予算分だけ呼び出し、次フレームで続行
+3. **ユーザー入力待ち**: IRトークンを監視し、入力イベント検出で中断
+4. **チェイントーク**: 会話終了後、条件判定してGeneratorを連鎖起動
+5. **アニメーション同期**: TypewriterのIR消化速度に合わせて`resume()`呼び出し
+
+---
+
 ## Non-Functional Requirements
 
 ### NFR-1: パフォーマンス
@@ -871,9 +1452,59 @@ let engine = ScriptEngine::new(label_table, rune_vm)?;
 
 ### NFR-2: エラーハンドリング
 
-1. 構文エラーを検出し、エラー位置（行番号）を報告すること
-2. ランタイムエラー発生時も可能な限り継続動作すること
-3. エラーメッセージは制作者が理解しやすいものであること
+**設計方針**:
+- **静的エラー（パース時）**: Rust `Result<T, E>` + `thiserror` による構造化エラー
+- **動的エラー（実行時）**: Rune関数による動的な `yield` でエラーIRトークンを返す
+
+#### Acceptance Criteria
+
+1. **The** Script Engine **shall** パース時の構文エラーを `Result<T, PastaError>` で返す
+2. **The** Script Engine **shall** エラー位置（ファイル名、行番号、列番号）を含むエラー情報を提供する
+3. **The** Script Engine **shall** 実行時エラーを Rune 関数が `yield Error(message)` IRトークンで返す
+4. **The** Script Engine **shall** エラーメッセージは制作者が理解しやすいものであること
+5. **The** Script Engine **shall** `thiserror` クレートを使用してエラー型を定義する
+
+**エラー型設計例**:
+
+```rust
+// crates/pasta/src/error.rs
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum PastaError {
+    #[error("Parse error at {file}:{line}:{column}: {message}")]
+    ParseError {
+        file: String,
+        line: usize,
+        column: usize,
+        message: String,
+    },
+    
+    #[error("Label not found: {label}")]
+    LabelNotFound { label: String },
+    
+    #[error("Rune runtime error: {0}")]
+    RuneError(#[from] rune::Error),
+    
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+}
+```
+
+**実行時エラー（Rune関数）**:
+
+```rune
+// Rune関数内でエラーハンドリング
+pub fn call_with_error_handling(label) {
+    if !label_exists(label) {
+        // エラーIRトークンをyield
+        yield Error { message: `ラベル「${label}」が見つかりません` };
+        return;
+    }
+    // 正常処理
+    yield call(label);
+}
+```
 
 ### NFR-3: 拡張性
 
@@ -884,21 +1515,99 @@ let engine = ScriptEngine::new(label_table, rune_vm)?;
 
 ## Dependencies
 
+### クレート間依存関係
+
+```
+pasta (新規サブクレート)
+  ├─ rune (外部クレート: Generators, TOML永続化)
+  ├─ thiserror (外部クレート: エラー型定義)
+  ├─ [パーサー実装] (設計時決定: nom/pest/手書き)
+  └─ wintf (共通型定義のみ参照)
+       └─ TypewriterToken, TypewriterEventKind
+
+wintf (既存クレート)
+  └─ pasta (実行時依存)
+       └─ pasta::execute_script()
+```
+
+### 外部クレート依存
+
+| クレート | 用途 | 備考 |
+|---------|------|------|
+| `rune` | スクリプト実行エンジン | Generators, TOML永続化機能 |
+| `thiserror` | エラー型定義 | 構造化エラーハンドリング |
+| `[parser]` | DSLパーサー | nom/pest/手書き（設計時決定） |
+
 ### 依存する仕様
 
-| 仕様 | 依存内容 |
-|------|----------|
-| `wintf-P0-animation-system` | サーフェス切り替えの実行 |
-| `wintf-P0-balloon-system` | テキスト表示の実行 |
+| 仕様 | 依存内容 | クレート |
+|------|----------|----------|
+| `wintf-P0-typewriter` | **IR型定義の共有**：TypewriterToken, TypewriterEventKind | `wintf` |
+| `wintf-P0-animation-system` | サーフェス切り替えの実行（IR経由） | `wintf` |
+| `wintf-P0-balloon-system` | テキスト表示の実行（IR経由） | `wintf` |
 
 ### 依存される仕様
 
-| 仕様 | 依存内容 |
-|------|----------|
-| `wintf-P0-typewriter` | **IR（中間表現）の共有**：TypewriterTokenの型定義を共有 |
-| `areka-P0-reference-ghost` | スクリプト実行 |
-| `areka-P1-devtools` | デバッグ機能 |
-| `areka-P2-llm-integration` | LLM応答との統合 |
+| 仕様 | 依存内容 | クレート |
+|------|----------|----------|
+| `areka-P0-reference-ghost` | スクリプト実行 | `pasta` API |
+| `areka-P1-devtools` | デバッグ機能 | `pasta` API |
+| `areka-P2-llm-integration` | LLM応答との統合 | `pasta` API |
+
+### 公開API
+
+`pasta`クレートは以下のAPIを公開する：
+
+```rust
+// エラー型（thiserrorベース）
+#[derive(Error, Debug)]
+pub enum PastaError {
+    #[error("Parse error at {file}:{line}:{column}: {message}")]
+    ParseError {
+        file: String,
+        line: usize,
+        column: usize,
+        message: String,
+    },
+    #[error("Label not found: {label}")]
+    LabelNotFound { label: String },
+    #[error("Rune runtime error: {0}")]
+    RuneError(#[from] rune::Error),
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+}
+
+// メイン実行関数（Result返却）
+pub fn execute_script(
+    label: &str,
+    args: Vec<RuneValue>,
+    filters: HashMap<String, String>,
+) -> Result<Vec<TypewriterToken>, PastaError>;
+
+// スクリプトロード（Result返却）
+pub fn load_scripts(dic_path: &Path) -> Result<(), PastaError>;
+
+// 変数操作（グローバル変数のみ）
+pub fn get_global(name: &str) -> Option<RuneValue>;
+pub fn set_global(name: &str, value: RuneValue);
+
+// イベント登録（Result返却）
+pub fn register_event(event_name: &str, handler_label: &str) -> Result<(), PastaError>;
+
+// Generator制御（Result返却）
+pub struct ScriptGenerator;
+impl ScriptGenerator {
+    pub fn new(label: &str) -> Result<Self, PastaError>;
+    pub fn resume(&mut self) -> Result<Option<TypewriterToken>, PastaError>;
+    pub fn resume_all(&mut self) -> Result<Vec<TypewriterToken>, PastaError>;
+}
+```
+
+**Rust的な設計原則**:
+- すべての公開関数は `Result<T, PastaError>` を返す
+- エラーは `thiserror` で構造化
+- 静的エラー（パース時）は即座に `Err` 返却
+- 動的エラー（実行時）は Rune 関数が `yield Error(...)` IRトークン生成
 
 ---
 
