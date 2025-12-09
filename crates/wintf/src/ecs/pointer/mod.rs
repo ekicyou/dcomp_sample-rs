@@ -992,27 +992,45 @@ pub(crate) fn transfer_buffers_to_world(world: &mut World) {
     });
     
     // BUTTON_BUFFERSからPointerStateへボタン状態を転送
+    // down_receivedがtrueの場合のみ、ボタンが押されたとしてtrue設定
+    // up_receivedがtrueの場合のみ、ボタンが離されたとしてfalse設定
+    // どちらでもない場合は既存の状態を維持（エッジ検出）
     BUTTON_BUFFERS.with(|buffers| {
         let buffers = buffers.borrow();
         
         for ((entity, button), buf) in buffers.iter() {
-            if buf.down_received || buf.up_received {
+            if buf.down_received {
+                // ボタンが押された瞬間
                 if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
-                    let is_down = buf.down_received; // DOWN優先
-                    
                     match button {
-                        PointerButton::Left => pointer_state.left_down = is_down,
-                        PointerButton::Right => pointer_state.right_down = is_down,
-                        PointerButton::Middle => pointer_state.middle_down = is_down,
-                        PointerButton::XButton1 => pointer_state.xbutton1_down = is_down,
-                        PointerButton::XButton2 => pointer_state.xbutton2_down = is_down,
+                        PointerButton::Left => pointer_state.left_down = true,
+                        PointerButton::Right => pointer_state.right_down = true,
+                        PointerButton::Middle => pointer_state.middle_down = true,
+                        PointerButton::XButton1 => pointer_state.xbutton1_down = true,
+                        PointerButton::XButton2 => pointer_state.xbutton2_down = true,
                     }
                     
                     tracing::trace!(
                         entity = ?entity,
                         button = ?button,
-                        is_down,
-                        "[transfer_buffers_to_world] Button state updated"
+                        "[transfer_buffers_to_world] Button pressed"
+                    );
+                }
+            } else if buf.up_received {
+                // ボタンが離された瞬間
+                if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
+                    match button {
+                        PointerButton::Left => pointer_state.left_down = false,
+                        PointerButton::Right => pointer_state.right_down = false,
+                        PointerButton::Middle => pointer_state.middle_down = false,
+                        PointerButton::XButton1 => pointer_state.xbutton1_down = false,
+                        PointerButton::XButton2 => pointer_state.xbutton2_down = false,
+                    }
+                    
+                    tracing::trace!(
+                        entity = ?entity,
+                        button = ?button,
+                        "[transfer_buffers_to_world] Button released"
                     );
                 }
             }

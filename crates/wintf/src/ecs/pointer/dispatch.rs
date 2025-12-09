@@ -191,29 +191,7 @@ pub fn dispatch_event_for_handler<T: Clone, H: Component + Copy>(
 ///    d. 各呼び出し前にエンティティ存在チェック（削除済みなら静かに終了）
 ///    e. ハンドラが `true` を返したら伝播停止
 pub fn dispatch_pointer_events(world: &mut World) {
-    use super::{PointerButton, BUTTON_BUFFERS};
-    
-    // Pass 1: ButtonBuffer から押下中のエンティティを収集（リセット前に取得）
-    let button_pressed_entities: Vec<(Entity, bool, bool, bool)> = BUTTON_BUFFERS.with(|buffers| {
-        let buffers = buffers.borrow();
-        let mut result = std::collections::HashMap::<Entity, (bool, bool, bool)>::new();
-        
-        for ((entity, button), buf) in buffers.iter() {
-            if buf.down_received {
-                let entry = result.entry(*entity).or_insert((false, false, false));
-                match button {
-                    PointerButton::Left => entry.0 = true,
-                    PointerButton::Right => entry.1 = true,
-                    PointerButton::Middle => entry.2 = true,
-                    _ => {}
-                }
-            }
-        }
-        
-        result.into_iter().map(|(e, (l, r, m))| (e, l, r, m)).collect()
-    });
-
-    // Pass 2: 全ての PointerState を持つエンティティを収集
+    // Pass 1: 全ての PointerState を持つエンティティを収集
     let targets: Vec<(Entity, PointerState)> = {
         let mut query = world.query::<(Entity, &PointerState)>();
         query.iter(world).map(|(e, s)| (e, s.clone())).collect()
@@ -226,59 +204,23 @@ pub fn dispatch_pointer_events(world: &mut World) {
 
         // OnPointerMoved: 常に発火（移動イベント）
         dispatch_event_for_handler::<PointerState, OnPointerMoved>(world, *sender, &path, state, |h| h.0);
+        
+        // OnPointerPressed: ボタンが押されている場合に発火（1フレームのみ）
+        if state.left_down || state.right_down || state.middle_down {
+            dispatch_event_for_handler::<PointerState, OnPointerPressed>(world, *sender, &path, state, |h| h.0);
+        }
     }
     
-    // ButtonBuffer に記録されたエンティティについて OnPointerPressed をディスパッチ
-    for (entity, left, right, middle) in button_pressed_entities {
-        if !left && !right && !middle {
-            continue;
+    // ボタン状態をクリア（次フレームで再発火しないように）
+    for (entity, _) in &targets {
+        if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
+            pointer_state.left_down = false;
+            pointer_state.right_down = false;
+            pointer_state.middle_down = false;
+            pointer_state.xbutton1_down = false;
+            pointer_state.xbutton2_down = false;
         }
-        
-        // PointerState を取得（あれば使用、なければ仮作成）
-        let state = if let Some(existing) = world.get::<PointerState>(entity) {
-            PointerState {
-                left_down: left,
-                right_down: right,
-                middle_down: middle,
-                screen_point: existing.screen_point,
-                local_point: existing.local_point,
-                shift_down: existing.shift_down,
-                ctrl_down: existing.ctrl_down,
-                ..Default::default()
-            }
-        } else {
-            PointerState {
-                left_down: left,
-                right_down: right,
-                middle_down: middle,
-                ..Default::default()
-            }
-        };
-        
-        let path = build_bubble_path(world, entity);
-        
-        tracing::debug!(
-            entity = ?entity,
-            left, right, middle,
-            "[dispatch_pointer_events] Dispatching OnPointerPressed"
-        );
-        
-        dispatch_event_for_handler::<PointerState, OnPointerPressed>(
-            world,
-            entity,
-            &path,
-            &state,
-            |h| h.0,
-        );
     }
-    
-    // BUTTON_BUFFERS をリセット（ディスパッチ完了後）
-    BUTTON_BUFFERS.with(|buffers| {
-        let mut buffers = buffers.borrow_mut();
-        for buf in buffers.values_mut() {
-            buf.reset();
-        }
-    });
 }
 
 // ============================================================================
