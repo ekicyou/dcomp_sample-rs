@@ -481,6 +481,7 @@ pub fn process_pointer_buffers(mut query: Query<(Entity, &mut PointerState)>) {
     for (entity, mut pointer) in query.iter_mut() {
         tracing::trace!(
             entity = ?entity,
+            thread_id = ?std::thread::current().id(),
             "[process_pointer_buffers] Checking POINTER_BUFFERS"
         );
         
@@ -689,6 +690,7 @@ pub(crate) fn push_pointer_sample(entity: Entity, x: f32, y: f32, timestamp: Ins
     tracing::trace!(
         entity = ?entity,
         x, y,
+        thread_id = ?std::thread::current().id(),
         "[push_pointer_sample] Sample added"
     );
     POINTER_BUFFERS.with(|buffers| {
@@ -946,4 +948,94 @@ mod tests {
         set.insert(PointerButton::XButton2);
         assert_eq!(set.len(), 5);
     }
+}
+
+// ============================================================================
+// WndProcスレッドからWorldへのデータ転送
+// ============================================================================
+
+/// WndProcスレッドのthread_localバッファからWorldのPointerStateに直接データを転送
+/// 
+/// この関数は`try_tick_world()`の冒頭（Inputスケジュール実行前）で呼ばれ、
+/// WndProcスレッド（メインスレッド）で収集したポインター情報を、
+/// マルチスレッドで実行されるシステムがアクセスできるように転送する。
+pub(crate) fn transfer_buffers_to_world(world: &mut World) {
+    // POINTER_BUFFERSからPointerStateへ位置情報を転送
+    POINTER_BUFFERS.with(|buffers| {
+        let mut buffers = buffers.borrow_mut();
+        
+        for (entity, buffer) in buffers.iter_mut() {
+            // 最新位置を取得
+            if let Some(sample) = buffer.latest() {
+                // 速度計算
+                let (vx, vy) = buffer.calculate_velocity();
+                
+                // Worldから該当エンティティのPointerStateを取得または作成
+                if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
+                    // 既存のPointerStateを更新
+                    pointer_state.screen_point = PhysicalPoint::new(sample.x as i32, sample.y as i32);
+                    pointer_state.local_point = pointer_state.screen_point;
+                    pointer_state.velocity = CursorVelocity::new(vx, vy);
+                    
+                    tracing::trace!(
+                        entity = ?entity,
+                        x = sample.x,
+                        y = sample.y,
+                        "[transfer_buffers_to_world] PointerState updated"
+                    );
+                }
+            }
+            
+            // バッファをクリア
+            buffer.clear();
+        }
+    });
+    
+    // BUTTON_BUFFERSからPointerStateへボタン状態を転送
+    BUTTON_BUFFERS.with(|buffers| {
+        let buffers = buffers.borrow();
+        
+        for ((entity, button), buf) in buffers.iter() {
+            if buf.down_received || buf.up_received {
+                if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
+                    let is_down = buf.down_received; // DOWN優先
+                    
+                    match button {
+                        PointerButton::Left => pointer_state.left_down = is_down,
+                        PointerButton::Right => pointer_state.right_down = is_down,
+                        PointerButton::Middle => pointer_state.middle_down = is_down,
+                        PointerButton::XButton1 => pointer_state.xbutton1_down = is_down,
+                        PointerButton::XButton2 => pointer_state.xbutton2_down = is_down,
+                    }
+                    
+                    tracing::trace!(
+                        entity = ?entity,
+                        button = ?button,
+                        is_down,
+                        "[transfer_buffers_to_world] Button state updated"
+                    );
+                }
+            }
+        }
+    });
+    
+    // BUTTON_BUFFERSをリセット（転送完了後）
+    BUTTON_BUFFERS.with(|buffers| {
+        let mut buffers = buffers.borrow_mut();
+        for buf in buffers.values_mut() {
+            buf.reset();
+        }
+    });
+    
+    // MODIFIER_STATEからPointerStateへ修飾キー状態を転送
+    MODIFIER_STATE.with(|state| {
+        let state = state.borrow();
+        
+        for (entity, (shift_down, ctrl_down)) in state.iter() {
+            if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
+                pointer_state.shift_down = *shift_down;
+                pointer_state.ctrl_down = *ctrl_down;
+            }
+        }
+    });
 }

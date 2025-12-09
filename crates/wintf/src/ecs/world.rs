@@ -257,26 +257,23 @@ impl EcsWorld {
                 crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands,
             );
 
-            // Inputスケジュール: ポインターイベントディスパッチ（process_pointer_buffersの前）
-            // BUTTON_BUFFERSから直接ボタンイベントを取得し、ディスパッチ後にリセットする
+            // Inputスケジュール: ポインターイベントディスパッチ
+            // transfer_buffers_to_world()でWorldに直接データ投入済み
             schedules.add_systems(
                 Input,
                 crate::ecs::pointer::dispatch_pointer_events
                     .after(crate::ecs::widget::bitmap_source::systems::drain_task_pool_commands),
             );
 
-            // Inputスケジュール: ポインターバッファ処理（dispatch_pointer_eventsの後）
-            schedules.add_systems(
-                Input,
-                crate::ecs::pointer::process_pointer_buffers
-                    .after(crate::ecs::pointer::dispatch_pointer_events),
-            );
+            // 注: process_pointer_buffersは廃止
+            // WndProcスレッドのthread_localバッファは、try_tick_world()内の
+            // transfer_buffers_to_world()で直接Worldに転送される
 
-            // Inputスケジュール: ドラッグイベントディスパッチ（process_pointer_buffersの後）
+            // Inputスケジュール: ドラッグイベントディスパッチ
             schedules.add_systems(
                 Input,
                 crate::ecs::drag::dispatch_drag_events
-                    .after(crate::ecs::pointer::process_pointer_buffers),
+                    .after(crate::ecs::pointer::dispatch_pointer_events),
             );
 
             // Inputスケジュール: ドラッグ状態クリーンアップ（dispatch_drag_eventsの後）
@@ -588,6 +585,10 @@ impl EcsWorld {
         if let Some(mut frame_count) = self.world.get_resource_mut::<FrameCount>() {
             frame_count.0 += 1;
         }
+
+        // WndProcスレッドのthread_localバッファからWorldに直接データを投入
+        // これにより、マルチスレッドで実行されるシステムでもデータにアクセス可能になる
+        crate::ecs::pointer::transfer_buffers_to_world(&mut self.world);
 
         // 各Scheduleを順番に実行
         let _ = self.world.try_run_schedule(Input);
