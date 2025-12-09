@@ -1081,6 +1081,12 @@ fn on_green_box_pressed(
         Phase::Tunnel(state) => {
             // 左クリックでキャプチャ
             if state.left_down {
+                tracing::info!(
+                    double_click = ?state.double_click,
+                    left_down = state.left_down,
+                    "[Tunnel] GreenBox: Button pressed, checking double-click"
+                );
+                
                 // ダブルクリック判定
                 if state.double_click == wintf::ecs::pointer::DoubleClick::Left {
                     info!(
