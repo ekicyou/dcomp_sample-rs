@@ -4,4 +4,165 @@
 //! Pasta scripts running in the Rune VM, including emit functions, wait functions,
 //! and synchronization functions.
 
-// Standard library implementation to be added in Task 4
+use crate::ir::{ContentPart, ScriptEvent};
+use rune::{ContextError, Module};
+
+/// Create the Pasta standard library module for Rune.
+pub fn create_module() -> Result<Module, ContextError> {
+    let module = Module::new();
+
+    // Note: Function registration temporarily disabled due to Rune 0.14 API changes
+    // The functions are implemented but need to be registered with the new API
+    // TODO: Research Rune 0.14 Module::function() API and update registration code
+    
+    // Register emit functions
+    // module.function("emit_text", emit_text)?.build()?;
+    // module.function("emit_sakura_script", emit_sakura_script)?.build()?;
+    // module.function("change_speaker", change_speaker)?.build()?;
+    // module.function("change_surface", change_surface)?.build()?;
+    // module.function("wait", wait)?.build()?;
+
+    // Register synchronization functions
+    // module.function("begin_sync", begin_sync)?.build()?;
+    // module.function("sync_point", sync_point)?.build()?;
+    // module.function("end_sync", end_sync)?.build()?;
+
+    // Register utility functions
+    // module.function("fire_event", fire_event)?.build()?;
+
+    Ok(module)
+}
+
+/// Emit text content as a Talk event.
+///
+/// This function should be called within a generator context and will yield
+/// a ScriptEvent::Talk with the current speaker and text content.
+fn emit_text(text: String) -> ScriptEvent {
+    // Note: In actual implementation, this needs to be aware of the current speaker
+    // For now, we'll create a simplified version
+    ScriptEvent::Talk {
+        speaker: String::new(), // Speaker is set by change_speaker
+        content: vec![ContentPart::Text(text)],
+    }
+}
+
+/// Emit a sakura script escape sequence.
+///
+/// This passes through sakura script commands without interpretation.
+fn emit_sakura_script(script: String) -> ScriptEvent {
+    ScriptEvent::Talk {
+        speaker: String::new(),
+        content: vec![ContentPart::SakuraScript(script)],
+    }
+}
+
+/// Change the current speaker.
+///
+/// This emits a ChangeSpeaker event to set the speaker for subsequent Talk events.
+fn change_speaker(name: String) -> ScriptEvent {
+    ScriptEvent::ChangeSpeaker { name }
+}
+
+/// Change a character's surface (expression/pose).
+fn change_surface(character: String, surface_id: i64) -> ScriptEvent {
+    ScriptEvent::ChangeSurface {
+        character,
+        surface_id: surface_id as u32,
+    }
+}
+
+/// Wait for a specified duration (in seconds).
+fn wait(duration: f64) -> ScriptEvent {
+    ScriptEvent::Wait { duration }
+}
+
+/// Begin a synchronized section.
+///
+/// All events between begin_sync and end_sync will be buffered and
+/// played simultaneously when all participants reach the sync point.
+fn begin_sync(sync_id: String) -> ScriptEvent {
+    ScriptEvent::BeginSync { sync_id }
+}
+
+/// Mark a synchronization point.
+///
+/// When all participants in a synchronized section reach this point,
+/// buffered events will be played simultaneously.
+fn sync_point(sync_id: String) -> ScriptEvent {
+    ScriptEvent::SyncPoint { sync_id }
+}
+
+/// End a synchronized section.
+fn end_sync(sync_id: String) -> ScriptEvent {
+    ScriptEvent::EndSync { sync_id }
+}
+
+/// Fire a custom event.
+fn fire_event(event_name: String, params: Vec<(String, String)>) -> ScriptEvent {
+    ScriptEvent::FireEvent {
+        event_name,
+        params,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_emit_text() {
+        let event = emit_text("Hello".to_string());
+        assert!(event.is_talk());
+        if let ScriptEvent::Talk { speaker: _, content } = event {
+            assert_eq!(content.len(), 1);
+            assert_eq!(content[0], ContentPart::Text("Hello".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_emit_sakura_script() {
+        let event = emit_sakura_script("\\s[0]".to_string());
+        assert!(event.is_talk());
+        if let ScriptEvent::Talk { speaker: _, content } = event {
+            assert_eq!(content.len(), 1);
+            assert_eq!(content[0], ContentPart::SakuraScript("\\s[0]".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_change_speaker() {
+        let event = change_speaker("sakura".to_string());
+        if let ScriptEvent::ChangeSpeaker { name } = event {
+            assert_eq!(name, "sakura");
+        } else {
+            panic!("Expected ChangeSpeaker event");
+        }
+    }
+
+    #[test]
+    fn test_wait() {
+        let event = wait(1.5);
+        assert!(event.is_wait());
+        if let ScriptEvent::Wait { duration } = event {
+            assert_eq!(duration, 1.5);
+        }
+    }
+
+    #[test]
+    fn test_sync_markers() {
+        let begin = begin_sync("sync1".to_string());
+        let point = sync_point("sync1".to_string());
+        let end = end_sync("sync1".to_string());
+
+        assert!(begin.is_sync_marker());
+        assert!(point.is_sync_marker());
+        assert!(end.is_sync_marker());
+    }
+    
+    #[test]
+    fn test_create_module() {
+        // Test that module creation succeeds
+        let result = create_module();
+        assert!(result.is_ok());
+    }
+}

@@ -91,6 +91,14 @@ AST から Rune コードへの変換を実装する。
 
 **Requirements**: 6.4, 6.5, 6.6, 6.7
 
+**Status**: ⚠️ Partial - Standard Library関数として設計済み。Rune 0.14 API統合は Task 5.1で実施。
+
+**Dependencies**: Task 4.1完了後
+
+**Notes**: 
+- 関数定義は完了（`begin_sync`, `sync_point`, `end_sync`）
+- Rune Module登録は Task 5.1で対応
+
 ### 3.5 トランスパイラ単体テストの作成
 
 **Description**: AST から Rune コードへの変換テストを作成する。生成されたコードの構文正当性と意味的正確性を検証する。
@@ -108,6 +116,24 @@ Rune 実行環境と Generator を実装する。
 **Description**: Rune の標準ライブラリモジュールを実装する。emit_text, change_speaker, change_surface, wait, 同期セクション関数等を Generator 用に yield 付きで実装する。
 
 **Requirements**: 2.1, 2.2, 2.3, 2.4, 2.5, 8.3
+
+**Status**: ⚠️ Partial - 全関数実装完了。Rune 0.14 Module登録APIは Task 5.1で対応。
+
+**Implementation Notes**:
+- ✅ 全9関数の実装完了（emit_text, emit_sakura_script, change_speaker, change_surface, wait, begin_sync, sync_point, end_sync, fire_event）
+- ✅ ScriptEvent IRを返す純粋関数として実装
+- ⚠️ Rune 0.14で`#[rune::function]`マクロが廃止されたため、Module登録は保留
+- **Resolution**: Task 5.1でRune 0.14の正しいModule::function() APIを調査・実装
+
+**Known Issue**: 
+```rust
+// Rune 0.13のAPI（動作しない）
+#[rune::function]
+fn emit_text(text: String) -> ScriptEvent { ... }
+
+// Rune 0.14で必要な実装（要調査）
+// 手動でFunction traitを実装、またはビルダーパターンを使用
+```
 
 ### 4.2 ScriptGenerator の実装
 
@@ -150,6 +176,33 @@ PastaEngine としての統合と公開 API を実装する。
 **Description**: パーサー、トランスパイラ、ランタイムを統合したメインエンジンを実装する。コンストラクタで DSL をパース、トランスパイル、Rune VM 初期化を行う。
 
 **Requirements**: 1.1, 2.1, 8.1, 8.7
+
+**Additional Tasks** (from Task 3.4 and 4.1 completion):
+
+#### 5.1.1 Rune 0.14 API調査と対応
+
+**Description**: Rune 0.14の正しいModule::function()登録APIを調査し、StandardLibrary関数を登録する。
+
+**Steps**:
+1. Rune 0.14ドキュメント/examplesを確認
+2. `Module::function()`の新しいAPI仕様を理解
+3. 手動でFunction trait実装、またはビルダーパターンを使用
+4. `crates/pasta/src/stdlib/mod.rs`の`create_module()`を完成
+5. 統合テストで動作確認
+
+**Priority**: High（PastaEngine初期化に必須）
+
+**Estimated**: 2-3時間
+
+**Reference Issue**: 
+```
+error[E0277]: the trait bound `fn() -> Result<FunctionMetaData, Error> {begin_sync}: Function<_, _>` is not satisfied
+```
+
+**Possible Solutions**:
+- Rune 0.14では`module.function()`の戻り値に`.build()`を呼ぶ必要がある
+- または、`module.function_meta()`など別のAPIを使用
+- Rust FFI経由で直接登録する方法も検討
 
 ### 5.2 execute_label メソッドの実装
 

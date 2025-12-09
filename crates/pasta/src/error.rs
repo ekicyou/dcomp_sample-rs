@@ -36,6 +36,10 @@ pub enum PastaError {
     #[error("Rune runtime error: {0}")]
     RuneRuntimeError(String),
 
+    /// Rune VM error.
+    #[error("Rune VM error: {0}")]
+    VmError(#[from] rune::runtime::VmError),
+
     /// IO error.
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),

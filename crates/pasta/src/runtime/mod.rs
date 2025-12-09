@@ -3,4 +3,12 @@
 //! This module provides the runtime environment for executing Rune scripts,
 //! including the Rune VM wrapper, variable management, and label management.
 
-// Runtime implementation to be added in Task 4
+pub mod generator;
+pub mod labels;
+pub mod random;
+pub mod variables;
+
+pub use generator::{ScriptGenerator, ScriptGeneratorState};
+pub use labels::{LabelInfo, LabelTable};
+pub use random::{DefaultRandomSelector, RandomSelector};
+pub use variables::{VariableManager, VariableScope, VariableValue};

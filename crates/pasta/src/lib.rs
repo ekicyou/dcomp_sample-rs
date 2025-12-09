@@ -53,3 +53,8 @@ pub use parser::{
     parse_file, parse_str, Argument, Attribute, AttributeValue, BinOp, Expr, JumpTarget,
     LabelDef, LabelScope, Literal, PastaFile, SpeechPart, Span, Statement, VarScope,
 };
+pub use runtime::{
+    DefaultRandomSelector, LabelInfo, LabelTable, RandomSelector, ScriptGenerator,
+    ScriptGeneratorState, VariableManager, VariableScope, VariableValue,
+};
+pub use transpiler::Transpiler;
