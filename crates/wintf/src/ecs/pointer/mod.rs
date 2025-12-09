@@ -767,11 +767,6 @@ pub(crate) fn add_wheel_horizontal(entity: Entity, delta: i16) {
 /// エンティティには紐付けず、このフレームでダブルクリックが発生したことを記録
 #[inline]
 pub(crate) fn set_double_click(_entity: Entity, double_click: DoubleClick) {
-    tracing::info!(
-        double_click = ?double_click,
-        "[set_double_click] Global double-click recorded"
-    );
-    
     DOUBLE_CLICK_THIS_FRAME.with(|dc| {
         let mut dc = dc.borrow_mut();
         // 既にダブルクリックが記録されていない場合のみ設定（最初のみ）
@@ -1061,28 +1056,15 @@ pub(crate) fn transfer_buffers_to_world(world: &mut World) {
     let double_click_this_frame = DOUBLE_CLICK_THIS_FRAME.with(|dc| *dc.borrow());
     
     if double_click_this_frame != DoubleClick::None {
-        tracing::info!(
-            double_click = ?double_click_this_frame,
-            "[transfer_buffers_to_world] Applying double-click to all PointerStates"
-        );
-        
-        let mut applied_count = 0;
         for (entity, mut pointer_state) in world.query::<(Entity, &mut PointerState)>().iter_mut(world) {
             pointer_state.double_click = double_click_this_frame;
-            applied_count += 1;
             
             tracing::info!(
                 entity = ?entity,
                 double_click = ?double_click_this_frame,
-                "[transfer_buffers_to_world] DoubleClick applied to entity"
+                "[DOUBLE-CLICK] Applied to PointerState"
             );
         }
-        
-        tracing::info!(
-            applied_count,
-            "[transfer_buffers_to_world] DoubleClick applied to {} entities",
-            applied_count
-        );
     }
     
     // DOUBLE_CLICK_THIS_FRAMEをリセット
