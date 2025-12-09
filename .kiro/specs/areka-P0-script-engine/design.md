@@ -224,34 +224,60 @@ sequenceDiagram
 
 ### Synchronized Section Flow
 
+**実行モデル**: 単一 Generator + 内部バッファリング
+
 ```mermaid
 sequenceDiagram
     participant DSL as Pasta DSL
-    participant Trans as Transpiler
-    participant Gen as Generator
-    participant IR as IR Output
-    participant TW as Typewriter
+    participant Gen as Generator (Rune VM)
+    participant Buffer as Sync Buffer
+    participant App as areka App
 
     Note over DSL: さくら：＠同時発言開始　せーの
-    DSL->>Trans: parse & transpile
-    Trans->>Gen: 同時発言開始(さくら)
-    Gen->>IR: yield BeginSync { sync_id }
+    DSL->>Gen: 同時発言開始(さくら)
+    Gen->>Buffer: create sync_id, start buffering
+    Gen->>App: yield BeginSync { sync_id, speaker: "さくら" }
+    
+    Note over DSL: さくら：「せーの」
+    DSL->>Gen: Talk("さくら", "せーの")
+    Gen->>Buffer: buffer Talk("さくら", "せーの")
+    Note over Buffer: バッファに蓄積（まだ yield しない）
     
     Note over DSL: 　＠同期
-    Trans->>Gen: 同期(さくら)
-    Gen->>IR: yield SyncPoint { sync_id }
+    DSL->>Gen: 同期(さくら)
+    Gen->>Buffer: mark sync point for "さくら"
     
     Note over DSL: うにゅう：＠同時発言開始　せーの
-    Trans->>Gen: 同時発言開始(うにゅう)
-    Gen->>IR: yield BeginSync { sync_id }
+    DSL->>Gen: 同時発言開始(うにゅう)
+    Gen->>Buffer: join sync_id
+    Gen->>App: yield BeginSync { sync_id, speaker: "うにゅう" }
+    
+    Note over DSL: うにゅう：「せーの」
+    DSL->>Gen: Talk("うにゅう", "せーの")
+    Gen->>Buffer: buffer Talk("うにゅう", "せーの")
+    
+    Note over DSL: 　＠同期
+    DSL->>Gen: 同期(うにゅう)
+    Gen->>Buffer: mark sync point for "うにゅう"
+    Gen->>Buffer: all participants reached SyncPoint
+    Gen->>App: yield SyncPoint { sync_id, buffered_talks: [...] }
+    Note over App: 全キャラの発言を同時に各バルーンへ供給
     
     Note over DSL: 　＠同時発言終了
-    Trans->>Gen: 同時発言終了(うにゅう)
-    Gen->>IR: yield EndSync { sync_id }
+    DSL->>Gen: 同時発言終了(うにゅう)
+    Gen->>App: yield EndSync { sync_id, speaker: "うにゅう" }
     
-    IR->>TW: process_sync_section()
-    TW->>TW: display_all_balloons()
+    Note over DSL: さくら：＠同時発言終了　（笑）
+    DSL->>Gen: 同時発言終了(さくら)
+    Gen->>Buffer: clear buffer
+    Gen->>App: yield EndSync { sync_id, speaker: "さくら" }
+    Note over Gen: 通常モードへ復帰
 ```
+
+**キーポイント**:
+1. **単一 Generator**: Rune VM は1つの Generator で全キャラを制御（並列スレッド不要）
+2. **内部バッファ**: 同期セクション内の Talk をバッファに蓄積し、SyncPoint で一斉出力
+3. **areka 責務**: SyncPoint で受け取った複数 Talk を各キャラのバルーンに分配
 
 ### State Diagram
 
@@ -306,9 +332,9 @@ sequenceDiagram
 | `Wait { duration }` | 現在アクティブな全バルーンに Wait を追加 | `[Wait(duration)]` |
 | `ChangeSpeaker { name }` | 次の Talk で使用する発言者を設定（状態保持） | なし（内部状態のみ） |
 | `ChangeSurface { character, surface_id }` | 該当キャラクターの Entity に対してサーフェス変更コマンド発行 | なし（ECS コマンド経由） |
-| `BeginSync { sync_id }` | 同期セクション開始、後続の Talk をバッファリング | なし（内部状態のみ） |
-| `SyncPoint { sync_id }` | バッファした全 Talk を同時に各バルーンへ供給 | 複数バルーンに分配 |
-| `EndSync { sync_id }` | 同期セクション終了、通常モードへ復帰 | なし（内部状態のみ） |
+| `BeginSync { sync_id, speaker }` | 同期セクション参加者として speaker を登録（内部状態） | なし（内部状態のみ） |
+| `SyncPoint { sync_id, buffered_talks }` | buffered_talks の各 (speaker, text) を対応するバルーンに**同時供給**<br>全バルーンの show_at を同一時刻に設定 | 複数バルーンに `[Text(text)]` を分配 |
+| `EndSync { sync_id, speaker }` | 同期セクション参加者から speaker を除外、全員終了で通常モード復帰 | なし（内部状態のみ） |
 | `Error { message }` | エラーバルーンを表示（赤文字等） | `[Text(error_formatted)]` |
 | `FireEvent { event_name, params }` | イベントシステムに通知 | `[FireEvent { ... }]` |
 
@@ -318,6 +344,72 @@ sequenceDiagram
 - **Balloon Manager**: バルーンの生成・管理・ライフサイクル制御
 - **状態管理**: 現在の発言者、同期セクションバッファ等を保持
 - **エラー処理**: ScriptEvent::Error は UI エラー表示として処理し、スクリプト実行は継続可能
+
+#### Synchronized Section Implementation
+
+**Rune 標準ライブラリ側（pasta）**:
+```rune
+// グローバル状態（Rune VM 内）
+static SYNC_BUFFER = #{};  // sync_id → { speakers: [], talks: [] }
+
+pub fn 同時発言開始(character) {
+    let sync_id = generate_sync_id();
+    SYNC_BUFFER[sync_id] = #{ speakers: [character.name], talks: [] };
+    yield BeginSync { sync_id, speaker: character.name };
+}
+
+pub fn 同期(character) {
+    let sync_id = current_sync_id();
+    let buffer = SYNC_BUFFER[sync_id];
+    
+    // 全参加者が到達したかチェック
+    if all_participants_ready(buffer) {
+        // 一斉出力
+        yield SyncPoint { 
+            sync_id, 
+            buffered_talks: buffer.talks 
+        };
+        buffer.talks.clear();
+    }
+}
+
+pub fn 同時発言終了(character) {
+    let sync_id = current_sync_id();
+    yield EndSync { sync_id, speaker: character.name };
+    
+    // 全員が終了したらバッファクリア
+    let buffer = SYNC_BUFFER[sync_id];
+    buffer.speakers.remove(character.name);
+    if buffer.speakers.is_empty() {
+        SYNC_BUFFER.remove(sync_id);
+    }
+}
+```
+
+**areka アプリケーション側**:
+```rust
+// SyncPoint 受信時の処理
+match script_event {
+    ScriptEvent::SyncPoint { sync_id, buffered_talks } => {
+        let current_time = frame_time.current();
+        
+        for (speaker, text) in buffered_talks {
+            let balloon = balloon_manager.get_or_create(speaker);
+            let tokens = vec![TypewriterToken::Text(text)];
+            
+            // 全バルーンの show_at を同一時刻に設定
+            typewriter.feed_tokens_at(balloon, tokens, current_time);
+        }
+    },
+    // ...
+}
+```
+
+**キーポイント**:
+- **単一 Generator**: 1つの Rune VM で全キャラを制御（スレッド不要）
+- **内部バッファ**: Rune VM 内のグローバル状態で Talk を蓄積
+- **同期制御**: SyncPoint で全参加者の Talk を一斉 yield
+- **areka 責務**: 受け取った複数 Talk を各バルーンに同一時刻で供給
 
 ---
 
@@ -768,6 +860,8 @@ impl ScriptGenerator {
 #[derive(Debug, Clone)]
 pub enum ScriptEvent {
     /// 発言（発言者名 + テキスト）
+    /// 同期セクション外: 即座に表示
+    /// 同期セクション内: バッファに蓄積（SyncPoint で出力）
     Talk {
         speaker: String,
         text: String,
@@ -790,18 +884,23 @@ pub enum ScriptEvent {
     },
     
     /// 同期セクション開始（複数キャラの同時発言制御）
+    /// Generator 内部で sync_id のバッファを作成
     BeginSync {
         sync_id: String,
+        speaker: String,
     },
     
-    /// 同期ポイント（このイベントまで全キャラが到達するまで待機）
+    /// 同期ポイント（全参加者がここに到達したら一斉出力）
+    /// バッファした全 Talk を含む
     SyncPoint {
         sync_id: String,
+        buffered_talks: Vec<(String, String)>, // (speaker, text) のリスト
     },
     
     /// 同期セクション終了
     EndSync {
         sync_id: String,
+        speaker: String,
     },
     
     /// 実行時エラー（スクリプト実行中のエラーを通知）
