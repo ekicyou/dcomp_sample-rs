@@ -211,7 +211,7 @@ pub fn dispatch_pointer_events(world: &mut World) {
         }
     }
     
-    // ボタン状態をクリア（次フレームで再発火しないように）
+    // ボタン状態とダブルクリック情報をクリア（次フレームで再発火しないように）
     for (entity, _) in &targets {
         if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
             pointer_state.left_down = false;
@@ -219,6 +219,7 @@ pub fn dispatch_pointer_events(world: &mut World) {
             pointer_state.middle_down = false;
             pointer_state.xbutton1_down = false;
             pointer_state.xbutton2_down = false;
+            pointer_state.double_click = super::DoubleClick::None;
         }
     }
 }

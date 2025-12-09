@@ -1045,6 +1045,28 @@ pub(crate) fn transfer_buffers_to_world(world: &mut World) {
         }
     });
     
+    // DOUBLE_CLICK_BUFFERSからPointerStateへダブルクリック情報を転送
+    DOUBLE_CLICK_BUFFERS.with(|buffers| {
+        let buffers = buffers.borrow();
+        
+        for (entity, double_click) in buffers.iter() {
+            if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
+                pointer_state.double_click = *double_click;
+                
+                tracing::debug!(
+                    entity = ?entity,
+                    double_click = ?double_click,
+                    "[transfer_buffers_to_world] DoubleClick transferred"
+                );
+            }
+        }
+    });
+    
+    // DOUBLE_CLICK_BUFFERSをリセット
+    DOUBLE_CLICK_BUFFERS.with(|buffers| {
+        buffers.borrow_mut().clear();
+    });
+    
     // MODIFIER_STATEからPointerStateへ修飾キー状態を転送
     MODIFIER_STATE.with(|state| {
         let state = state.borrow();
