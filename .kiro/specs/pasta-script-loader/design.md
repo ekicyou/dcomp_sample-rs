@@ -119,9 +119,44 @@ graph TB
 - **Public API** (`lib.rs` re-export):
   - `pub struct DirectoryLoader` — ディレクトリローダー本体
   - `pub struct LoadedFiles` — ファイル収集結果（将来のカスタムローダー実装で再利用可能）
-- **Private API** (`loader.rs`内部実装):
-  - `ErrorLogWriter` — エラーログ出力（内部実装詳細）
+- **Internal API** (`loader.rs`, crate-visible):
+  - `pub(crate) struct ErrorLogWriter` — エラーログ出力（統合テスト・engine.rsから参照可能）
 - **Refactoring Path**: 500行超過時は`loader/mod.rs`へ分割検討
+
+**lib.rs Module Declaration and Re-export**:
+```rust
+// crates/pasta/src/lib.rs
+
+// --- 既存モジュール ---
+pub mod error;
+mod parser;
+mod transpiler;
+pub mod runtime;
+mod cache;
+
+// --- 新規モジュール ---
+mod loader; // ディレクトリローダー
+
+// --- Public API Re-exports ---
+pub use error::{PastaError, ParseError, Result}; // ParseError追加
+pub use runtime::{LabelInfo, LabelScope, RandomSelector}; // 既存
+
+// 新規public API
+pub use loader::{DirectoryLoader, LoadedFiles};
+
+// --- Internal Types (非公開) ---
+// ErrorLogWriterはengine.rsから参照するがクレート外には公開しない
+pub(crate) use loader::ErrorLogWriter;
+```
+
+**Visibility Rationale**:
+- `DirectoryLoader`, `LoadedFiles`: public API
+  - 外部クレートから独自のローダー実装やテストで使用可能
+  - 将来の拡張: カスタムローダー(ZipLoader, HttpLoader等)が`LoadedFiles`を返す設計
+- `ErrorLogWriter`: `pub(crate)` (クレート内部可視)
+  - engine.rsから参照するため完全privateは不可
+  - 統合テストでログ出力検証が必要なため、tests/内からアクセス可能にする
+  - 外部クレートへの公開は不要(実装詳細)
 
 ### Technology Stack
 
