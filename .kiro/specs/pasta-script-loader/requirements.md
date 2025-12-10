@@ -53,8 +53,8 @@ pastaエンジンは初期化時にスクリプトディレクトリの絶対・
 2. When 複数の`.pasta`ファイルが存在する場合、the Pastaエンジン shall 全ファイルのラベルを単一のグローバルジャンプテーブルへ統合する
 3. If 複数のファイルで同名のグローバルラベルが定義されている場合、then the Pastaエンジン shall 全ての定義を保持し、実行時にランダム選択の対象とする
 4. When `.pasta`ファイルのパース中にエラーが発生した場合、the Pastaエンジン shall 可能な限り全ファイルをパースし、全てのエラーを収集する
-5. When 全`.pasta`ファイルのパースが完了した場合、the Pastaエンジン shall スクリプトルートディレクトリに`pasta_errors.log`を出力する
-6. The `pasta_errors.log` shall 各エラーについてファイルパス・行番号・列番号・エラー詳細を含む
+5. When パースエラーが発生した場合、the Pastaエンジン shall tracing クレートを通じて info レベルで各エラーの詳細をログ出力する
+6. The エラーログ shall 各エラーについてファイルパス・行番号・列番号・エラー詳細を含む
 7. If 1つ以上のパースエラーが収集された場合、then the Pastaエンジン shall 初期化時に`PastaError::MultipleParseErrors`を返す
 8. If ファイルの読み込み中にI/Oエラーが発生した場合、then the Pastaエンジン shall 即座にエラー発生ファイルパスを含む`PastaError::IoError`を返す
 9. When `main.rune`が存在する場合、the Pastaエンジン shall `main.rune`のみをRune `Sources`へ追加する

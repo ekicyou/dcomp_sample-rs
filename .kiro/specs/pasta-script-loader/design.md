@@ -12,7 +12,7 @@
 - areka-P0-script-engine規約に準拠したディレクトリ構造からのスクリプト読み込み
 - 複数.pastaファイルの一括パース・エラー収集・ラベル統合
 - main.runeを通じたRuneモジュールシステム連携
-- 開発者向けの詳細エラーログ（`pasta_errors.log`）出力
+- 開発者向けの詳細エラーログ（tracingクレート経由、infoレベル）
 
 ### Non-Goals
 - 相対パスサポート（絶対パスのみ）
@@ -337,7 +337,7 @@ pub struct LoadedFiles {
 
 | Field | Detail |
 |-------|--------|
-| Intent | パースエラーのログファイル出力 |
+| Intent | パースエラーのログ出力（tracingクレート経由） |
 | Requirements | 3.5, 3.6, 7.10 |
 
 **Contracts**: Service [x]
@@ -345,35 +345,35 @@ pub struct LoadedFiles {
 ##### Service Interface
 ```rust
 /// エラーログライター
-pub struct ErrorLogWriter;
+pub(crate) struct ErrorLogWriter;
 
 impl ErrorLogWriter {
-    /// エラー情報をpasta_errors.logに出力
+    /// エラー情報をtracing経由でログ出力
     /// 
     /// # Arguments
     /// * `script_root` - スクリプトルートディレクトリ
     /// * `errors` - 出力するエラー一覧
     /// 
-    /// # Returns
-    /// 書き込み成功時はOk(log_path)、失敗時はErr(IoError)
-    pub fn write(script_root: &Path, errors: &[PastaError]) -> Result<PathBuf>;
+    /// # Logging Strategy
+    /// - デフォルト: infoレベルで出力
+    /// - 各エラーは個別にtracing::info!("パースエラー: {}:{} - {}", file, line, message)
+    /// - ファイル出力なし（tracing subscriberがログ先を制御）
+    pub fn log(script_root: &Path, errors: &[ParseError]);
 }
 ```
 
-##### Error Log Format
+##### Log Output Format (tracing)
 ```
-=== Pasta Parse Errors ===
-Generated: 2025-12-10T12:34:56Z
-Script Root: /path/to/project
-
-[ERROR] dic/greetings.pasta:10:5
-    Expected ':' after speaker name, found '@'
-
-[ERROR] dic/events.pasta:25:12
-    Undefined label reference: ＊挨拶_削除済み
-
-Total: 2 error(s)
+[INFO] パースエラー: dic/greetings.pasta:10:5 - Expected ':' after speaker name, found '@'
+[INFO] パースエラー: dic/events.pasta:25:12 - Undefined label reference: ＊挨拶_削除済み
+[INFO] 合計 2 件のパースエラー (script_root: /path/to/project)
 ```
+
+**Design Rationale**:
+- **tracingクレート活用**: 既存のログインフラを再利用
+- **ファイル出力削除**: pasta_errors.log生成を廃止、ログsubscriberが出力先を制御
+- **基礎実装**: 将来の要件追加に対応できるシンプルな設計
+- **pub(crate)**: クレート内部のみ可視（engine.rsから参照）
 
 ### Core Layer
 
@@ -493,7 +493,7 @@ pub fn from_directory(path: impl AsRef<Path>) -> Result<Self> {
     
     // Step 3: パースエラーがあればログ出力して即座に返却
     if !parse_errors.is_empty() {
-        ErrorLogWriter::write(&loaded.script_root, &parse_errors)?;
+        ErrorLogWriter::log(&loaded.script_root, &parse_errors);
         return Err(PastaError::MultipleParseErrors { errors: parse_errors });
     }
     
