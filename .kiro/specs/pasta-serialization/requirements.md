@@ -22,11 +22,12 @@ Pastaエンジンに永続化ディレクトリパスの管理機能を実装し
 **Objective:** Runeスクリプト開発者として、永続化ディレクトリの絶対パスをRuneスクリプトから取得できるようにしたい。Runeの標準ファイルI/O機能やTOMLシリアライズ機能を使用して、自由に永続化を実装できるようにするため。
 
 #### Acceptance Criteria
-1. The PastaEngine shall Runeランタイムコンテキスト経由で永続化ディレクトリの絶対パスを文字列としてRuneスクリプトに提供する仕組みを実装する
-2. When Runeスクリプトが永続化パスを取得しようとし、永続化パスが設定されていない場合（`None`）、the PastaEngine shall 空文字列または`None`相当の値を返す（エラーではない）
-3. The PastaEngine shall 永続化パスの提供方法がRuneの標準的なパターン（グローバル関数、モジュール定数、またはコンテキスト変数）に従う
-4. When 永続化パスが提供される場合、the PastaEngine shall 絶対パス形式で提供し、Runeスクリプトがそのパスを基準にファイル操作を行える
-5. The PastaEngine shall 永続化パスの取得に関するドキュメントをRuneスクリプト開発者向けに提供する（使用例、TOML保存例を含む）
+1. The PastaEngine shall ラベル関数実行時（`vm.execute(hash, args)`）にコンテキスト構造体またはハッシュマップを引数として渡し、永続化ディレクトリパスを含める
+2. When 永続化パスが設定されている場合、the PastaEngine shall コンテキスト引数の`persistence_path`フィールドに絶対パス文字列を設定する
+3. When 永続化パスが設定されていない場合（`None`）、the PastaEngine shall コンテキスト引数の`persistence_path`フィールドに空文字列を設定する
+4. The Runeスクリプト shall ラベル関数の第1引数としてコンテキストを受け取り、`ctx.persistence_path`（または`ctx["persistence_path"]`）でパスにアクセスする
+5. The トランスパイラ shall 生成するRuneラベル関数のシグネチャを`pub fn label_name(ctx) { ... }`形式にする
+6. The PastaEngine shall 永続化パスの取得に関するドキュメントをRuneスクリプト開発者向けに提供する（コンテキスト引数の使用例、TOML保存例を含む）
 
 ### Requirement 3: テスト用永続化ディレクトリの管理
 **Objective:** テストエンジニアとして、テスト実行時に元のテストデータを保護しながら永続化機能を検証したい。テストごとに独立した一時ディレクトリを使用できるようにするため。
