@@ -1,7 +1,7 @@
+use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::*;
 use bevy_ecs::system::*;
-use bevy_ecs::message::Messages;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
@@ -279,8 +279,7 @@ impl EcsWorld {
             // Inputスケジュール: ドラッグ状態クリーンアップ（dispatch_drag_eventsの後）
             schedules.add_systems(
                 Input,
-                crate::ecs::drag::cleanup_drag_state
-                    .after(crate::ecs::drag::dispatch_drag_events),
+                crate::ecs::drag::cleanup_drag_state.after(crate::ecs::drag::dispatch_drag_events),
             );
 
             // Inputスケジュール: ポインターデバッグ監視（デバッグビルドのみ）
@@ -447,14 +446,26 @@ impl EcsWorld {
                 FrameFinalize,
                 crate::ecs::pointer::clear_transient_pointer_state,
             );
-            
+
             // FrameFinalizeスケジュール: Messagesの更新
             schedules.add_systems(
                 FrameFinalize,
                 (
-                    |world: &mut World| world.resource_mut::<Messages<crate::ecs::drag::DragStartEvent>>().update(),
-                    |world: &mut World| world.resource_mut::<Messages<crate::ecs::drag::DragEvent>>().update(),
-                    |world: &mut World| world.resource_mut::<Messages<crate::ecs::drag::DragEndEvent>>().update(),
+                    |world: &mut World| {
+                        world
+                            .resource_mut::<Messages<crate::ecs::drag::DragStartEvent>>()
+                            .update()
+                    },
+                    |world: &mut World| {
+                        world
+                            .resource_mut::<Messages<crate::ecs::drag::DragEvent>>()
+                            .update()
+                    },
+                    |world: &mut World| {
+                        world
+                            .resource_mut::<Messages<crate::ecs::drag::DragEndEvent>>()
+                            .update()
+                    },
                 ),
             );
         }

@@ -239,7 +239,7 @@ fn test_complex_scale_hierarchy() {
 }
 
 /// LayoutRoot → Window のDPIスケール適用テスト (Task 6 検証)
-/// 
+///
 /// LayoutRoot は物理ピクセル座標系（スケール 1.0）
 /// Window は DIP 座標で offset を指定し、自身の scale で DPI スケールを表現
 /// Window の内部に入って初めて DPI スケールが適用される

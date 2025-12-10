@@ -63,10 +63,7 @@ pub enum ScriptEvent {
     ///
     /// **pasta**: Yields surface specification from DSL as-is.
     /// **areka**: Issues a surface change command to the corresponding character entity.
-    ChangeSurface {
-        character: String,
-        surface_id: u32,
-    },
+    ChangeSurface { character: String, surface_id: u32 },
 
     /// Begin synchronized section marker.
     ///

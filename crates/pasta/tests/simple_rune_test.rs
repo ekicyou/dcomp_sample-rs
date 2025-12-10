@@ -8,7 +8,7 @@ fn test_simple_rust_function() -> Result<(), Box<dyn std::error::Error>> {
     // Create a module with a simple Rust function
     let mut module = rune::Module::with_crate("mymod")?;
     module.function("add", |a: i64, b: i64| a + b).build()?;
-    
+
     // Create context
     let mut context = Context::with_default_modules()?;
     context.install(module)?;
@@ -23,14 +23,12 @@ fn test_simple_rust_function() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let runtime = Arc::new(context.runtime()?);
-    let unit = rune::prepare(&mut sources)
-        .with_context(&context)
-        .build()?;
+    let unit = rune::prepare(&mut sources).with_context(&context).build()?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
     let output = vm.call(rune::Hash::type_hash(&["main"]), ())?;
     let result: i64 = rune::from_value(output)?;
-    
+
     assert_eq!(result, 3);
     Ok(())
 }

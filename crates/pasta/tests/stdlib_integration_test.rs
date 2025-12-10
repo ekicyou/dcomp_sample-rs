@@ -7,7 +7,11 @@ use std::sync::Arc;
 #[test]
 fn test_stdlib_module_creation() {
     let result = stdlib::create_module();
-    assert!(result.is_ok(), "Failed to create stdlib module: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to create stdlib module: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -20,7 +24,7 @@ fn test_emit_text_via_rune() -> Result<(), Box<dyn std::error::Error>> {
     let mut sources = rune::sources! {
         entry => {
             use pasta_stdlib::*;
-            
+
             pub fn main() {
                 emit_text("Hello")
             }
@@ -28,13 +32,11 @@ fn test_emit_text_via_rune() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let runtime = Arc::new(context.runtime()?);
-    let unit = rune::prepare(&mut sources)
-        .with_context(&context)
-        .build()?;
+    let unit = rune::prepare(&mut sources).with_context(&context).build()?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
     let output = vm.call(rune::Hash::type_hash(&["main"]), ())?;
-    
+
     // Note: We can't directly convert ScriptEvent from Rune value yet
     // This test just verifies compilation and execution work
     println!("Output value: {:?}", output);
@@ -52,7 +54,7 @@ fn test_sync_functions_via_rune() -> Result<(), Box<dyn std::error::Error>> {
     let mut sources = rune::sources! {
         entry => {
             use pasta_stdlib::*;
-            
+
             pub fn main() {
                 begin_sync("sync1");
                 sync_point("sync1");
@@ -62,13 +64,11 @@ fn test_sync_functions_via_rune() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let runtime = Arc::new(context.runtime()?);
-    let unit = rune::prepare(&mut sources)
-        .with_context(&context)
-        .build()?;
+    let unit = rune::prepare(&mut sources).with_context(&context).build()?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
     let output = vm.call(rune::Hash::type_hash(&["main"]), ())?;
-    
+
     println!("Output value: {:?}", output);
 
     Ok(())

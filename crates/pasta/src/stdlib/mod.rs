@@ -13,7 +13,9 @@ pub fn create_module() -> Result<Module, ContextError> {
 
     // Register emit functions
     module.function("emit_text", emit_text).build()?;
-    module.function("emit_sakura_script", emit_sakura_script).build()?;
+    module
+        .function("emit_sakura_script", emit_sakura_script)
+        .build()?;
     module.function("change_speaker", change_speaker).build()?;
     module.function("change_surface", change_surface).build()?;
     module.function("wait", wait).build()?;
@@ -96,10 +98,7 @@ fn end_sync(sync_id: String) -> ScriptEvent {
 
 /// Fire a custom event.
 fn fire_event(event_name: String, params: Vec<(String, String)>) -> ScriptEvent {
-    ScriptEvent::FireEvent {
-        event_name,
-        params,
-    }
+    ScriptEvent::FireEvent { event_name, params }
 }
 
 /// Emit a runtime error event.
@@ -131,7 +130,11 @@ mod tests {
     fn test_emit_text() {
         let event = emit_text("Hello".to_string());
         assert!(event.is_talk());
-        if let ScriptEvent::Talk { speaker: _, content } = event {
+        if let ScriptEvent::Talk {
+            speaker: _,
+            content,
+        } = event
+        {
             assert_eq!(content.len(), 1);
             assert_eq!(content[0], ContentPart::Text("Hello".to_string()));
         }
@@ -141,7 +144,11 @@ mod tests {
     fn test_emit_sakura_script() {
         let event = emit_sakura_script("\\s[0]".to_string());
         assert!(event.is_talk());
-        if let ScriptEvent::Talk { speaker: _, content } = event {
+        if let ScriptEvent::Talk {
+            speaker: _,
+            content,
+        } = event
+        {
             assert_eq!(content.len(), 1);
             assert_eq!(content[0], ContentPart::SakuraScript("\\s[0]".to_string()));
         }
@@ -176,7 +183,7 @@ mod tests {
         assert!(point.is_sync_marker());
         assert!(end.is_sync_marker());
     }
-    
+
     #[test]
     fn test_create_module() {
         // Test that module creation succeeds

@@ -72,12 +72,14 @@ use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;
 use windows::core::Result;
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
+use wintf::ecs::drag::{
+    DragConfig, DragEndEvent, DragEvent, DragStartEvent, OnDrag, OnDragEnd, OnDragStart,
+};
 use wintf::ecs::layout::{hit_test, GlobalArrangement, PhysicalPoint};
 use wintf::ecs::layout::{
     BoxInset, BoxMargin, BoxPosition, BoxSize, BoxStyle, Dimension, LengthPercentageAuto, Opacity,
 };
 use wintf::ecs::pointer::{OnPointerMoved, OnPointerPressed, Phase, PointerState};
-use wintf::ecs::drag::{OnDragStart, OnDrag, OnDragEnd, DragConfig, DragStartEvent, DragEvent, DragEndEvent};
 use wintf::ecs::widget::bitmap_source::{BitmapSource, CommandSender};
 use wintf::ecs::widget::brushes::Brushes;
 use wintf::ecs::widget::shapes::Rectangle;
@@ -376,15 +378,21 @@ fn create_flexbox_window(world: &mut World) {
     println!("  Window (root)");
     println!("  └─ FlexContainer (Row, SpaceEvenly, Center) - 灰色背景、10pxマージン、右クリック/Ctrl+左クリックでTunnelデモ");
     println!("     ├─ Rectangle (red, 200x100 fixed) - 左クリックで色トグル");
-    println!("     │   └─ BitmapSource (seikatu_0_0.webp) - αマスクヒットテスト有効、透明部分は親に透過");
+    println!(
+        "     │   └─ BitmapSource (seikatu_0_0.webp) - αマスクヒットテスト有効、透明部分は親に透過"
+    );
     println!("     ├─ Rectangle (green, 100x100, grow=1, Column) - マウス移動でログ、左クリックでTunnelキャプチャ");
     println!("     │   └─ Rectangle (yellow, 50x50) - Tunnelキャプチャ検証用子エンティティ");
     println!("     └─ Rectangle (blue, 100x100, grow=2) - 左クリックでサイズトグル");
     println!("\n[PointerEvent Demo]");
     println!("  - 灰色コンテナを右クリック → 色がピンクに変化");
     println!("  - 灰色コンテナをCtrl+左クリック → Tunnelで停止、子にイベント到達せず");
-    println!("  - 黄色矩形(GreenBoxChild)を左クリック → 親(GreenBox)がTunnelキャプチャ、子は到達しない");
-    println!("  - 黄色矩形(GreenBoxChild)を右クリック → 親がキャプチャせず、Tunnel/Bubble両フェーズ実行");
+    println!(
+        "  - 黄色矩形(GreenBoxChild)を左クリック → 親(GreenBox)がTunnelキャプチャ、子は到達しない"
+    );
+    println!(
+        "  - 黄色矩形(GreenBoxChild)を右クリック → 親がキャプチャせず、Tunnel/Bubble両フェーズ実行"
+    );
     println!("  - 赤い矩形を左クリック → 色が赤⇔黄トグル");
     println!("  - 画像の透明部分を左クリック → 背景(RedBox)の色が変わる（αマスクヒットテスト）");
     println!("  - 画像の不透明部分を左クリック → 画像がクリックされ背景は変わらない");
@@ -837,15 +845,15 @@ fn on_container_drag_start(
                 .get::<Name>(entity)
                 .map(|n| n.as_str())
                 .unwrap_or("unknown");
-            
+
             info!(
                 "[Drag] DragStart: sender={}, entity={}, pos=({},{})",
                 sender_name, entity_name, event.position.x, event.position.y
             );
-            
+
             // ウィンドウエンティティを探索してBoxStyle.insetを記録
             // これはDraggingStateとして保存される（DraggingStateには既にdrag_start_posがある）
-            
+
             false
         }
     }
@@ -861,9 +869,9 @@ fn on_container_drag(
     entity: Entity,
     ev: &wintf::ecs::pointer::Phase<DragEvent>,
 ) -> bool {
-    use wintf::ecs::layout::{BoxStyle, LengthPercentageAuto};
     use wintf::ecs::drag::DraggingState;
-    
+    use wintf::ecs::layout::{BoxStyle, LengthPercentageAuto};
+
     match ev {
         wintf::ecs::pointer::Phase::Tunnel(_) => false,
         wintf::ecs::pointer::Phase::Bubble(event) => {
@@ -875,16 +883,16 @@ fn on_container_drag(
                 .get::<Name>(entity)
                 .map(|n| n.as_str())
                 .unwrap_or("unknown");
-            
+
             // start_positionとpositionから移動量を計算
             let delta_x = event.position.x - event.start_position.x;
             let delta_y = event.position.y - event.start_position.y;
-            
+
             debug!(
                 "[Drag] Drag: sender={}, entity={}, delta=({},{})",
                 sender_name, entity_name, delta_x, delta_y
             );
-            
+
             // Windowエンティティを探索
             let mut current = entity;
             let mut window_entity = None;
@@ -899,22 +907,22 @@ fn on_container_drag(
                     break;
                 }
             }
-            
+
             if let Some(window_entity) = window_entity {
                 // DraggingStateからinitial_insetを取得
                 if let Some(dragging_state) = world.get::<DraggingState>(sender) {
                     let initial_left = dragging_state.initial_inset.0;
                     let initial_top = dragging_state.initial_inset.1;
-                    
+
                     // 正しい計算: new_inset = initial_inset + (current_pos - start_pos)
                     let new_left = initial_left + delta_x as f32;
                     let new_top = initial_top + delta_y as f32;
-                    
+
                     if let Some(mut box_style) = world.get_mut::<BoxStyle>(window_entity) {
                         if let Some(inset) = &mut box_style.inset {
                             inset.0.left = LengthPercentageAuto::Px(new_left);
                             inset.0.top = LengthPercentageAuto::Px(new_top);
-                            
+
                             debug!(
                                 "[Drag] Window moved: delta=({},{}), new_inset=({},{})",
                                 delta_x, delta_y, new_left, new_top
@@ -922,13 +930,10 @@ fn on_container_drag(
                         }
                     }
                 } else {
-                    tracing::warn!(
-                        "[Drag] DraggingState not found for sender={:?}",
-                        sender
-                    );
+                    tracing::warn!("[Drag] DraggingState not found for sender={:?}", sender);
                 }
             }
-            
+
             false
         }
     }
@@ -952,11 +957,10 @@ fn on_container_drag_end(
                 .get::<Name>(entity)
                 .map(|n| n.as_str())
                 .unwrap_or("unknown");
-            
+
             info!(
                 "[Drag] DragEnd: sender={}, entity={}, pos=({},{}), cancelled={}",
-                sender_name, entity_name, 
-                event.position.x, event.position.y, event.cancelled
+                sender_name, entity_name, event.position.x, event.position.y, event.cancelled
             );
             false
         }
@@ -1009,7 +1013,9 @@ fn on_red_box_pressed(
                     b: 0.0,
                     a: 1.0,
                 });
-                info!("[AlphaMask Demo] BACKGROUND clicked (transparent area) - color: RED -> YELLOW");
+                info!(
+                    "[AlphaMask Demo] BACKGROUND clicked (transparent area) - color: RED -> YELLOW"
+                );
             } else {
                 // 赤に戻す
                 brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
@@ -1018,7 +1024,9 @@ fn on_red_box_pressed(
                     b: 0.0,
                     a: 1.0,
                 });
-                info!("[AlphaMask Demo] BACKGROUND clicked (transparent area) - color: YELLOW -> RED");
+                info!(
+                    "[AlphaMask Demo] BACKGROUND clicked (transparent area) - color: YELLOW -> RED"
+                );
             }
         }
 
@@ -1086,32 +1094,44 @@ fn on_green_box_pressed(
                     left_down = state.left_down,
                     "[Tunnel] GreenBox: Button pressed, checking double-click"
                 );
-                
+
                 // ダブルクリック判定
                 if state.double_click == wintf::ecs::pointer::DoubleClick::Left {
                     info!(
                         "[Tunnel] GreenBox: DOUBLE-CLICK detected, toggling size, sender={:?}, entity={:?}",
                         sender, entity,
                     );
-                    
+
                     // サイズをトグル（100x100 ⇔ 150x150）
-                    if let Some(mut box_style) = world.get_mut::<wintf::ecs::layout::BoxStyle>(entity) {
-                        let current_width = box_style.size
+                    if let Some(mut box_style) =
+                        world.get_mut::<wintf::ecs::layout::BoxStyle>(entity)
+                    {
+                        let current_width = box_style
+                            .size
                             .and_then(|s| s.width)
-                            .and_then(|w| if let Dimension::Px(px) = w { Some(px) } else { None })
+                            .and_then(|w| {
+                                if let Dimension::Px(px) = w {
+                                    Some(px)
+                                } else {
+                                    None
+                                }
+                            })
                             .unwrap_or(100.0);
-                        
+
                         let new_size = if current_width < 125.0 { 150.0 } else { 100.0 };
                         box_style.size = Some(wintf::ecs::layout::BoxSize {
                             width: Some(Dimension::Px(new_size)),
                             height: Some(Dimension::Px(new_size)),
                         });
-                        info!("[Tunnel] GreenBox: Size changed {} -> {}", current_width, new_size);
+                        info!(
+                            "[Tunnel] GreenBox: Size changed {} -> {}",
+                            current_width, new_size
+                        );
                     }
-                    
+
                     return true;
                 }
-                
+
                 // 通常の左クリック：色をトグル（緑 ⇔ 黄緑）
                 info!(
                     "[Tunnel] GreenBox: Captured event, stopping propagation (Left), sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
@@ -1127,21 +1147,23 @@ fn on_green_box_pressed(
                     };
                     if is_green {
                         // 黄緑に変更
-                        brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
-                            r: 0.5,
-                            g: 1.0,
-                            b: 0.0,
-                            a: 1.0,
-                        });
+                        brushes.foreground =
+                            wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
+                                r: 0.5,
+                                g: 1.0,
+                                b: 0.0,
+                                a: 1.0,
+                            });
                         info!("[Tunnel] GreenBox: Color changed GREEN -> YELLOW-GREEN");
                     } else {
                         // 緑に戻す
-                        brushes.foreground = wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
-                            r: 0.0,
-                            g: 1.0,
-                            b: 0.0,
-                            a: 1.0,
-                        });
+                        brushes.foreground =
+                            wintf::ecs::widget::brushes::Brush::Solid(D2D1_COLOR_F {
+                                r: 0.0,
+                                g: 1.0,
+                                b: 0.0,
+                                a: 1.0,
+                            });
                         info!("[Tunnel] GreenBox: Color changed YELLOW-GREEN -> GREEN");
                     }
                 }

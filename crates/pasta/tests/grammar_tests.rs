@@ -38,14 +38,21 @@ mod grammar_tests {
     fn test_speech_line() {
         let input = "  さくら：こんにちは\n";
         let result = PastaParser::parse(Rule::speech_line, input);
-        assert!(result.is_ok(), "Failed to parse speech line: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse speech line: {:?}",
+            result.err()
+        );
     }
 
     #[test]
     fn test_speech_with_var_ref() {
         let input = "  さくら：こんにちは＠ユーザー名さん\n";
         let result = PastaParser::parse(Rule::speech_line, input);
-        assert!(result.is_ok(), "Failed to parse speech with variable reference");
+        assert!(
+            result.is_ok(),
+            "Failed to parse speech with variable reference"
+        );
     }
 
     #[test]
@@ -87,14 +94,22 @@ mod grammar_tests {
     fn test_var_assign_local() {
         let input = "  ＄カウンター＝1\n";
         let result = PastaParser::parse(Rule::var_assign, input);
-        assert!(result.is_ok(), "Failed to parse local variable assignment: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse local variable assignment: {:?}",
+            result.err()
+        );
     }
 
     #[test]
     fn test_var_assign_global() {
         let input = "  ＄＊カウンター＝1\n";
         let result = PastaParser::parse(Rule::var_assign, input);
-        assert!(result.is_ok(), "Failed to parse global variable assignment: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse global variable assignment: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -133,7 +148,11 @@ mod grammar_tests {
     fn test_func_call() {
         let input = "＠関数名（「引数１」　「引数２」）";
         let result = PastaParser::parse(Rule::func_call, input);
-        assert!(result.is_ok(), "Failed to parse function call: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse function call: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -159,7 +178,11 @@ mod grammar_tests {
   ？＊挨拶
 "#;
         let result = PastaParser::parse(Rule::file, input);
-        assert!(result.is_ok(), "Failed to parse complete file: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse complete file: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -174,7 +197,11 @@ mod grammar_tests {
         if let Err(e) = &result {
             println!("Error: {:?}", e);
         }
-        assert!(result.is_ok(), "Failed to parse rune block: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse rune block: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -195,7 +222,11 @@ mod grammar_tests {
     fn test_named_arguments() {
         let input = "＠関数（name：「太郎」　age：20）";
         let result = PastaParser::parse(Rule::func_call, input);
-        assert!(result.is_ok(), "Failed to parse function call with named arguments: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse function call with named arguments: {:?}",
+            result.err()
+        );
     }
 
     #[test]

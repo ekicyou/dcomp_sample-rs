@@ -24,7 +24,10 @@ fn test_visual_graphics_has_parent_visual_field() -> Result<()> {
     let vg = VisualGraphics::new(visual);
 
     // 初期状態では parent_visual は None
-    assert!(vg.parent_visual().is_none(), "Initial parent_visual should be None");
+    assert!(
+        vg.parent_visual().is_none(),
+        "Initial parent_visual should be None"
+    );
 
     Ok(())
 }
@@ -126,7 +129,8 @@ fn test_visual_graphics_ecs_lifecycle() -> Result<()> {
     // 子エンティティを作成（親を参照）
     let child_visual = dcomp.create_visual()?;
     parent_visual.add_visual(&child_visual, false, None)?;
-    let child_vg = VisualGraphics::new_with_parent(child_visual.clone(), Some(parent_visual.clone()));
+    let child_vg =
+        VisualGraphics::new_with_parent(child_visual.clone(), Some(parent_visual.clone()));
     let child_entity = world.spawn(child_vg).id();
 
     // 子の VisualGraphics が parent_visual を持っていることを確認

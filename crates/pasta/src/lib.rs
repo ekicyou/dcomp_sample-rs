@@ -39,26 +39,26 @@
 //! // }
 //! ```
 
+pub mod cache;
+pub mod engine;
 pub mod error;
 pub mod ir;
 pub mod parser;
-pub mod transpiler;
 pub mod runtime;
 pub mod stdlib;
-pub mod engine;
-pub mod cache;
+pub mod transpiler;
 
 // Re-export commonly used types
+pub use cache::ParseCache;
+pub use engine::PastaEngine;
 pub use error::{PastaError, Result};
 pub use ir::{ContentPart, ScriptEvent};
 pub use parser::{
-    parse_file, parse_str, Argument, Attribute, AttributeValue, BinOp, Expr, FunctionScope, JumpTarget,
-    LabelDef, LabelScope, Literal, PastaFile, SpeechPart, Span, Statement, VarScope,
+    parse_file, parse_str, Argument, Attribute, AttributeValue, BinOp, Expr, FunctionScope,
+    JumpTarget, LabelDef, LabelScope, Literal, PastaFile, Span, SpeechPart, Statement, VarScope,
 };
 pub use runtime::{
     DefaultRandomSelector, LabelInfo, LabelTable, RandomSelector, ScriptGenerator,
     ScriptGeneratorState, VariableManager, VariableScope, VariableValue,
 };
-pub use transpiler::{Transpiler, TranspileContext};
-pub use engine::PastaEngine;
-pub use cache::ParseCache;
+pub use transpiler::{TranspileContext, Transpiler};

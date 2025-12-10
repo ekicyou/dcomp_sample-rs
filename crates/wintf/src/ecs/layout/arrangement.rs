@@ -213,13 +213,13 @@ impl std::ops::Mul<Arrangement> for GlobalArrangement {
             x: rhs.offset.x * parent_scale_x,
             y: rhs.offset.y * parent_scale_y,
         };
-        
+
         // スケール済みオフセットを使って bounds を計算
         // bounds.left = parent.bounds.left + scaled_offset.x
         // bounds.right = bounds.left + size * result_scale
         let result_scale_x = result_transform.M11;
         let result_scale_y = result_transform.M22;
-        
+
         let result_bounds = D2DRect {
             left: self.bounds.left + scaled_offset.x,
             top: self.bounds.top + scaled_offset.y,

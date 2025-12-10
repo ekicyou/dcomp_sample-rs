@@ -69,7 +69,7 @@ fn on_typewriter_add(mut world: DeferredWorld, hook: HookContext) {
     if needs_visual || needs_talk {
         let mut cmds = world.commands();
         let mut entity_cmds = cmds.entity(entity);
-        
+
         if needs_visual {
             entity_cmds.insert(Visual::default());
         }

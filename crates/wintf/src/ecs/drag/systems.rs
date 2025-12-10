@@ -2,9 +2,9 @@
 //!
 //! ドラッグ状態クリーンアップを提供する。
 
-use bevy_ecs::prelude::*;
-use bevy_ecs::message::MessageReader;
 use super::DragEndEvent;
+use bevy_ecs::message::MessageReader;
+use bevy_ecs::prelude::*;
 
 /// ドラッグ状態クリーンアップシステム
 ///
@@ -15,8 +15,10 @@ pub fn cleanup_drag_state(
 ) {
     for event in drag_end_events.read() {
         // DraggingStateを削除
-        commands.entity(event.target).remove::<crate::ecs::drag::DraggingState>();
-        
+        commands
+            .entity(event.target)
+            .remove::<crate::ecs::drag::DraggingState>();
+
         tracing::debug!(
             target = ?event.target,
             "[cleanup_drag_state] DraggingState removed"

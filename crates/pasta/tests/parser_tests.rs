@@ -2,7 +2,9 @@
 //!
 //! These tests validate the parser's ability to convert DSL source code into AST.
 
-use pasta::{parse_str, LabelScope, Statement, SpeechPart, JumpTarget, VarScope, Expr, Literal, BinOp};
+use pasta::{
+    parse_str, BinOp, Expr, JumpTarget, LabelScope, Literal, SpeechPart, Statement, VarScope,
+};
 
 #[test]
 fn test_parse_simple_label() {
@@ -11,7 +13,7 @@ fn test_parse_simple_label() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     assert_eq!(file.labels.len(), 1);
     assert_eq!(file.labels[0].name, "挨拶");
@@ -26,11 +28,11 @@ fn test_parse_speech_with_var_ref() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     println!("Labels: {}", file.labels.len());
     println!("Statements: {}", file.labels[0].statements.len());
-    
+
     if let Statement::Speech { content, .. } = &file.labels[0].statements[0] {
         println!("Content length: {}, parts: {:?}", content.len(), content);
         if content.len() >= 2 {
@@ -39,10 +41,17 @@ fn test_parse_speech_with_var_ref() {
                 other => panic!("Expected VarRef at index 1, got: {:?}", other),
             }
         } else {
-            panic!("Expected at least 2 content parts, got {}: {:?}", content.len(), content);
+            panic!(
+                "Expected at least 2 content parts, got {}: {:?}",
+                content.len(),
+                content
+            );
         }
     } else {
-        panic!("Expected Speech statement, got: {:?}", file.labels[0].statements[0]);
+        panic!(
+            "Expected Speech statement, got: {:?}",
+            file.labels[0].statements[0]
+        );
     }
 }
 
@@ -55,7 +64,7 @@ fn test_parse_attributes() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     assert_eq!(file.labels[0].attributes.len(), 2);
     assert_eq!(file.labels[0].attributes[0].key, "時間帯");
@@ -71,7 +80,7 @@ fn test_parse_local_label() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     assert_eq!(file.labels[0].local_labels.len(), 2);
     assert_eq!(file.labels[0].local_labels[0].name, "朝");
@@ -85,7 +94,7 @@ fn test_parse_call_statement() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     if let Statement::Call { target, .. } = &file.labels[0].statements[0] {
         match target {
@@ -104,7 +113,7 @@ fn test_parse_jump_global() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     if let Statement::Jump { target, .. } = &file.labels[0].statements[0] {
         match target {
@@ -123,9 +132,12 @@ fn test_parse_var_assign() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
-    if let Statement::VarAssign { name, scope, value, .. } = &file.labels[0].statements[0] {
+    if let Statement::VarAssign {
+        name, scope, value, ..
+    } = &file.labels[0].statements[0]
+    {
         assert_eq!(name, "カウンター");
         assert_eq!(*scope, VarScope::Local);
         match value {
@@ -144,7 +156,7 @@ fn test_parse_global_var_assign() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     if let Statement::VarAssign { scope, .. } = &file.labels[0].statements[0] {
         assert_eq!(*scope, VarScope::Global);
@@ -163,7 +175,7 @@ fn test_parse_expression() {
         println!("Parse error: {}", e);
     }
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     if let Statement::VarAssign { value, .. } = &file.labels[0].statements[0] {
         // Should parse as: 1 + (2 * 3) due to left-to-right in our simple parser
@@ -190,13 +202,15 @@ fn test_parse_function_call_in_speech() {
         println!("Error: {}", e);
     }
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     if let Statement::Speech { content, .. } = &file.labels[0].statements[0] {
         // Should have: text, func_call, text
         println!("Content: {:?}", content);
         assert!(content.len() >= 2);
-        let has_func_call = content.iter().any(|part| matches!(part, SpeechPart::FuncCall { .. }));
+        let has_func_call = content
+            .iter()
+            .any(|part| matches!(part, SpeechPart::FuncCall { .. }));
         assert!(has_func_call, "Expected function call in speech");
     } else {
         panic!("Expected Speech statement");
@@ -211,14 +225,14 @@ fn test_parse_string_literals() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     assert_eq!(file.labels[0].statements.len(), 2);
-    
+
     for stmt in &file.labels[0].statements {
         if let Statement::VarAssign { value, .. } = stmt {
             match value {
-                Expr::Literal(Literal::String(_)) => {}, // OK
+                Expr::Literal(Literal::String(_)) => {} // OK
                 _ => panic!("Expected string literal"),
             }
         }
@@ -238,7 +252,7 @@ fn test_parse_multiple_labels() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     assert_eq!(file.labels.len(), 3);
     assert_eq!(file.labels[0].name, "挨拶");
@@ -256,7 +270,7 @@ fn test_parse_continuation_lines() {
         println!("Error: {}", e);
     }
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     if let Statement::Speech { content, .. } = &file.labels[0].statements[0] {
         // Should contain the text
@@ -274,10 +288,12 @@ fn test_parse_sakura_script() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     if let Statement::Speech { content, .. } = &file.labels[0].statements[0] {
-        let has_sakura = content.iter().any(|part| matches!(part, SpeechPart::SakuraScript(_)));
+        let has_sakura = content
+            .iter()
+            .any(|part| matches!(part, SpeechPart::SakuraScript(_)));
         assert!(has_sakura, "Expected sakura script escape");
     } else {
         panic!("Expected Speech statement");
@@ -292,10 +308,13 @@ fn test_parse_error_reporting() {
     let result = parse_str(source, "test.pasta");
     // Should fail to parse and return error with location info
     assert!(result.is_err());
-    
+
     let err = result.unwrap_err();
     let err_str = format!("{}", err);
-    assert!(err_str.contains("test.pasta"), "Error should mention filename");
+    assert!(
+        err_str.contains("test.pasta"),
+        "Error should mention filename"
+    );
 }
 
 #[test]
@@ -305,8 +324,12 @@ fn test_parse_halfwidth_syntax() {
   >farewell
 "#;
     let result = parse_str(source, "test.pasta");
-    assert!(result.is_ok(), "Failed to parse half-width syntax: {:?}", result.err());
-    
+    assert!(
+        result.is_ok(),
+        "Failed to parse half-width syntax: {:?}",
+        result.err()
+    );
+
     let file = result.unwrap();
     assert_eq!(file.labels.len(), 1);
     assert_eq!(file.labels[0].name, "greeting");
@@ -319,7 +342,7 @@ fn test_parse_long_jump() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
-    
+
     let file = result.unwrap();
     if let Statement::Call { target, .. } = &file.labels[0].statements[0] {
         println!("Target: {:?}", target);

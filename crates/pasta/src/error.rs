@@ -27,10 +27,7 @@ pub enum PastaError {
 
     /// Name conflict error (duplicate label or variable).
     #[error("Name conflict: '{name}' is already defined as {existing_kind}")]
-    NameConflict {
-        name: String,
-        existing_kind: String,
-    },
+    NameConflict { name: String, existing_kind: String },
 
     /// Rune compilation error.
     #[error("Rune compilation error: {0}")]
@@ -78,9 +75,7 @@ impl PastaError {
 
     /// Create a new function not found error.
     pub fn function_not_found(name: impl Into<String>) -> Self {
-        PastaError::FunctionNotFound {
-            name: name.into(),
-        }
+        PastaError::FunctionNotFound { name: name.into() }
     }
 
     /// Create a new name conflict error.

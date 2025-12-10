@@ -3,8 +3,8 @@
 //! This module provides label registration, lookup, and random selection
 //! for labels with the same name.
 
-use crate::{LabelScope, PastaError};
 use crate::runtime::random::RandomSelector;
+use crate::{LabelScope, PastaError};
 use std::collections::HashMap;
 
 /// Information about a single label.
@@ -94,7 +94,7 @@ impl LabelTable {
             .ok_or_else(|| PastaError::LabelNotFound {
                 label: name.to_string(),
             })?;
-        
+
         let selected = matching[selected_idx];
 
         // Record selection in history
@@ -195,10 +195,14 @@ mod tests {
         let mut table = LabelTable::new(selector);
 
         let mut label1 = create_test_label("greeting", "greeting_morning");
-        label1.attributes.insert("time".to_string(), "morning".to_string());
+        label1
+            .attributes
+            .insert("time".to_string(), "morning".to_string());
 
         let mut label2 = create_test_label("greeting", "greeting_evening");
-        label2.attributes.insert("time".to_string(), "evening".to_string());
+        label2
+            .attributes
+            .insert("time".to_string(), "evening".to_string());
 
         table.register(label1);
         table.register(label2);

@@ -4,8 +4,8 @@ pub mod drag;
 mod graphics;
 pub mod layout;
 pub mod monitor;
-pub mod pointer;
 mod nchittest_cache;
+pub mod pointer;
 pub mod transform;
 pub mod widget;
 pub mod window;
@@ -23,9 +23,8 @@ pub use app::*;
 pub use bevy_ecs::hierarchy::{ChildOf, Children};
 pub use common::tree_system::*;
 pub use drag::{
-    cleanup_drag_state, dispatch_drag_events, 
-    DragConfig, DragConstraint, DragEndEvent, DragEvent, DragStartEvent, 
-    DraggingState, OnDrag, OnDragEnd, OnDragStart,
+    cleanup_drag_state, dispatch_drag_events, DragConfig, DragConstraint, DragEndEvent, DragEvent,
+    DragStartEvent, DraggingState, OnDrag, OnDragEnd, OnDragStart,
 };
 pub use graphics::calculate_surface_size_from_global_arrangement;
 pub use graphics::FrameTime;
@@ -35,9 +34,9 @@ pub use monitor::*;
 pub use pointer::{
     clear_transient_pointer_state, debug_pointer_leave, debug_pointer_state_changes,
     dispatch_pointer_events, process_pointer_buffers, CursorVelocity, DoubleClick, EventHandler,
-    OnPointerEntered, OnPointerExited, OnPointerMoved, OnPointerPressed, OnPointerReleased,
-    Phase, PhysicalPoint, PointerButton, PointerEventHandler, PointerLeave, PointerState,
-    WheelDelta, WindowPointerTracking,
+    OnPointerEntered, OnPointerExited, OnPointerMoved, OnPointerPressed, OnPointerReleased, Phase,
+    PhysicalPoint, PointerButton, PointerEventHandler, PointerLeave, PointerState, WheelDelta,
+    WindowPointerTracking,
 };
 // 後方互換性エイリアス
 #[allow(deprecated)]

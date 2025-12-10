@@ -11,10 +11,13 @@ fn test_error_missing_colon_in_speech() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_err(), "Should fail to parse speech without colon");
-    
+
     let err = result.unwrap_err();
     let err_str = format!("{}", err);
-    assert!(err_str.contains("test.pasta"), "Error should mention filename");
+    assert!(
+        err_str.contains("test.pasta"),
+        "Error should mention filename"
+    );
     assert!(err_str.contains("2:"), "Error should mention line 2");
 }
 
@@ -25,10 +28,13 @@ fn test_error_invalid_label_marker() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_err(), "Should fail with invalid label marker");
-    
+
     let err = result.unwrap_err();
     let err_str = format!("{}", err);
-    assert!(err_str.contains("test.pasta"), "Error should mention filename");
+    assert!(
+        err_str.contains("test.pasta"),
+        "Error should mention filename"
+    );
 }
 
 #[test]
@@ -47,10 +53,13 @@ fn test_error_missing_equals_in_assignment() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_err(), "Should fail without equals sign");
-    
+
     let err = result.unwrap_err();
     let err_str = format!("{}", err);
-    assert!(err_str.contains("test.pasta"), "Error should mention filename");
+    assert!(
+        err_str.contains("test.pasta"),
+        "Error should mention filename"
+    );
 }
 
 #[test]
@@ -91,11 +100,14 @@ fn test_error_line_column_reporting() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_err(), "Should fail on line 4");
-    
+
     let err = result.unwrap_err();
     let err_str = format!("{}", err);
     // Error should be somewhere in the file
-    assert!(err_str.contains("test.pasta"), "Error should mention filename");
+    assert!(
+        err_str.contains("test.pasta"),
+        "Error should mention filename"
+    );
 }
 
 #[test]
@@ -107,7 +119,7 @@ fn test_error_invalid_expression() {
     // This might actually parse as 1 + (+2), so let's just check it doesn't crash
     // If it errors, that's also OK
     match result {
-        Ok(_) => {}, // Parsed with some interpretation
+        Ok(_) => {} // Parsed with some interpretation
         Err(e) => {
             let err_str = format!("{}", e);
             assert!(err_str.contains("test.pasta"));
@@ -131,7 +143,7 @@ fn test_parse_empty_file() {
     let source = "";
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Empty file should parse successfully");
-    
+
     let file = result.unwrap();
     assert_eq!(file.labels.len(), 0, "Empty file should have no labels");
 }
@@ -143,9 +155,13 @@ fn test_parse_only_comments() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "File with only comments should parse");
-    
+
     let file = result.unwrap();
-    assert_eq!(file.labels.len(), 0, "Comment-only file should have no labels");
+    assert_eq!(
+        file.labels.len(),
+        0,
+        "Comment-only file should have no labels"
+    );
 }
 
 #[test]
@@ -156,10 +172,14 @@ fn test_parse_label_with_only_newlines() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Label with only newlines should parse");
-    
+
     let file = result.unwrap();
     assert_eq!(file.labels.len(), 1);
-    assert_eq!(file.labels[0].statements.len(), 0, "Should have no statements");
+    assert_eq!(
+        file.labels[0].statements.len(),
+        0,
+        "Should have no statements"
+    );
 }
 
 #[test]
@@ -188,7 +208,7 @@ fn test_parse_unicode_identifiers() {
     let source = "*test\n  a:hello\n";
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Basic test should work: {:?}", result.err());
-    
+
     // Now test with Japanese in speech
     let source2 = "*挨拶\n  さくら：こんにちは\n";
     let result2 = parse_str(source2, "test.pasta");
@@ -206,7 +226,11 @@ fn test_parse_mixed_width_syntax() {
   >end
 "#;
     let result = parse_str(source, "test.pasta");
-    assert!(result.is_ok(), "Half-width syntax should work: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Half-width syntax should work: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -216,7 +240,11 @@ fn test_error_nested_function_calls() {
 "#;
     let result = parse_str(source, "test.pasta");
     // Nested function calls should work
-    assert!(result.is_ok(), "Nested function calls should parse: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Nested function calls should parse: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -225,7 +253,11 @@ fn test_parse_complex_expression() {
   ＄結果＝（1+2）*3-4/2
 "#;
     let result = parse_str(source, "test.pasta");
-    assert!(result.is_ok(), "Complex expression should parse: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Complex expression should parse: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -244,7 +276,7 @@ fn test_error_handling_preserves_context() {
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_err());
-    
+
     let err = result.unwrap_err();
     let err_str = format!("{}", err);
     // Should indicate error is in the エラーラベル section

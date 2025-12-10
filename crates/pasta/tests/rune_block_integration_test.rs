@@ -2,7 +2,7 @@
 //!
 //! Tests the complete pipeline: parsing → AST → transpiling → execution
 
-use pasta::{PastaEngine, ir::ScriptEvent};
+use pasta::{ir::ScriptEvent, PastaEngine};
 
 #[test]
 fn test_rune_block_parsing() {
@@ -18,7 +18,11 @@ fn test_rune_block_parsing() {
 "#;
 
     let result = PastaEngine::new(script);
-    assert!(result.is_ok(), "Failed to parse script with rune block: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to parse script with rune block: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -35,14 +39,14 @@ fn test_rune_block_transpilation() {
 "#;
 
     let mut engine = PastaEngine::new(script).expect("Failed to create engine");
-    
+
     // The transpiled code should contain the rune function
     // We can't directly access the transpiled code, but we can verify execution works
     let events = engine.execute_label("テスト").unwrap();
-    
+
     // Should have: ChangeSpeaker + Talk events
     assert!(events.len() >= 2, "Expected at least 2 events");
-    
+
     // First event should be ChangeSpeaker
     match &events[0] {
         ScriptEvent::ChangeSpeaker { name } => {
@@ -66,10 +70,14 @@ fn test_rune_block_with_function_call() {
 "#;
 
     let engine = PastaEngine::new(script);
-    
+
     // This might fail at runtime if function scoping isn't implemented yet
     // For now, just verify it parses and transpiles
-    assert!(engine.is_ok(), "Failed to create engine with rune function call: {:?}", engine.err());
+    assert!(
+        engine.is_ok(),
+        "Failed to create engine with rune function call: {:?}",
+        engine.err()
+    );
 }
 
 #[test]
@@ -83,8 +91,12 @@ fn test_rune_block_empty() {
 "#;
 
     let engine = PastaEngine::new(script);
-    assert!(engine.is_ok(), "Failed to parse script with empty rune block: {:?}", engine.err());
-    
+    assert!(
+        engine.is_ok(),
+        "Failed to parse script with empty rune block: {:?}",
+        engine.err()
+    );
+
     if let Ok(mut engine) = engine {
         let events = engine.execute_label("テスト").unwrap();
         assert!(events.len() >= 2, "Expected events after empty rune block");
@@ -98,7 +110,11 @@ fn test_rune_block_in_local_label() {
     let script = "＊Global\n  ーLocal\n    ```rune\n    fn local_func() {\n      return \"local\";\n    }\n    ```\n    さくら：ローカル関数定義\n";
 
     let engine = PastaEngine::new(script);
-    assert!(engine.is_ok(), "Failed to parse script with rune block in local label: {:?}", engine.err());
+    assert!(
+        engine.is_ok(),
+        "Failed to parse script with rune block in local label: {:?}",
+        engine.err()
+    );
 }
 
 #[test]
@@ -125,7 +141,11 @@ fn test_rune_block_with_complex_code() {
 "#;
 
     let engine = PastaEngine::new(script);
-    assert!(engine.is_ok(), "Failed to parse script with complex rune code: {:?}", engine.err());
+    assert!(
+        engine.is_ok(),
+        "Failed to parse script with complex rune code: {:?}",
+        engine.err()
+    );
 }
 
 #[test]
@@ -148,7 +168,11 @@ fn test_multiple_rune_blocks() {
 "#;
 
     let engine = PastaEngine::new(script);
-    assert!(engine.is_ok(), "Failed to parse script with multiple rune blocks: {:?}", engine.err());
+    assert!(
+        engine.is_ok(),
+        "Failed to parse script with multiple rune blocks: {:?}",
+        engine.err()
+    );
 }
 
 #[test]
@@ -171,5 +195,9 @@ fn test_rune_block_indentation_preserved() {
 "#;
 
     let engine = PastaEngine::new(script);
-    assert!(engine.is_ok(), "Failed to parse script with nested indentation: {:?}", engine.err());
+    assert!(
+        engine.is_ok(),
+        "Failed to parse script with nested indentation: {:?}",
+        engine.err()
+    );
 }

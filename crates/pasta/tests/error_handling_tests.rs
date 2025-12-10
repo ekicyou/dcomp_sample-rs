@@ -26,13 +26,13 @@ fn test_parse_error_with_location() {
     さくら：こんにちは
     無効な構文
 "#;
-    
+
     let result = PastaEngine::new(script);
     assert!(result.is_err(), "Should fail to parse invalid syntax");
-    
+
     if let Err(err) = result {
         let err_str = format!("{}", err);
-        
+
         // Error should contain location information
         // The exact format depends on implementation, but should have some location info
         assert!(!err_str.is_empty(), "Error message should not be empty");
@@ -45,7 +45,7 @@ fn test_parse_error_missing_label_content() {
     let script = r#"
 ＊空ラベル
 "#;
-    
+
     let result = PastaEngine::new(script);
     assert!(result.is_ok(), "Empty label should be valid");
 }
@@ -61,7 +61,7 @@ fn test_parse_error_multiple_errors() {
     エラー行1
     エラー行2
 "#;
-    
+
     let result = PastaEngine::new(script);
     // Should fail on first error
     assert!(result.is_err());
@@ -78,12 +78,12 @@ fn test_runtime_error_label_not_found() {
 ＊存在するラベル
     さくら：こんにちは
 "#;
-    
+
     let mut engine = PastaEngine::new(script).expect("Parse should succeed");
     let result = engine.execute_label("存在しないラベル");
-    
+
     assert!(result.is_err(), "Should error when label not found");
-    
+
     let err = result.unwrap_err();
     match err {
         PastaError::LabelNotFound { label } => {
@@ -100,17 +100,17 @@ fn test_runtime_error_preserves_engine_state() {
 ＊正常
     さくら：こんにちは
 "#;
-    
+
     let mut engine = PastaEngine::new(script).expect("Parse should succeed");
-    
+
     // Try to execute non-existent label
     let result1 = engine.execute_label("存在しない");
     assert!(result1.is_err());
-    
+
     // Engine should still work with valid label
     let result2 = engine.execute_label("正常");
     assert!(result2.is_ok(), "Engine should still work after error");
-    
+
     let events = result2.unwrap();
     assert!(events.len() > 0, "Should produce events");
 }
@@ -123,25 +123,28 @@ fn test_runtime_error_preserves_engine_state() {
 fn test_dynamic_error_from_rune_script() {
     // Test that Rune scripts can yield Error events via emit_error
     // This tests Task 8.1: Dynamic error implementation
-    
+
     // Since we can't easily embed Rune code in tests without the Rune block feature,
     // we'll test that the emit_error stdlib function exists and works
     // by checking the module can be created
     let result = pasta::stdlib::create_module();
-    assert!(result.is_ok(), "Stdlib module with emit_error should be created");
+    assert!(
+        result.is_ok(),
+        "Stdlib module with emit_error should be created"
+    );
 }
 
 #[test]
 fn test_error_event_structure() {
     // Test that ScriptEvent::Error has the correct structure
     use pasta::ir::ScriptEvent;
-    
+
     let error_event = ScriptEvent::Error {
         message: "Test error".to_string(),
     };
-    
+
     assert!(error_event.is_error(), "Should be identified as error");
-    
+
     if let ScriptEvent::Error { message } = error_event {
         assert_eq!(message, "Test error");
     } else {
@@ -157,19 +160,21 @@ fn test_error_event_structure() {
 fn test_error_recovery_generator_continues() {
     // Test that after an error, the generator can continue execution
     // This is implicit in the generator design - errors are just yielded values
-    
+
     // A script that would yield an error and then continue doesn't need
     // special handling because Rune generators naturally continue after yield
-    
+
     let script = r#"
 ＊テスト
     さくら：最初の発言
     さくら：次の発言
 "#;
-    
+
     let mut engine = PastaEngine::new(script).expect("Parse should succeed");
-    let events = engine.execute_label("テスト").expect("Execute should succeed");
-    
+    let events = engine
+        .execute_label("テスト")
+        .expect("Execute should succeed");
+
     // Multiple events should be yielded (generator continues)
     assert!(events.len() >= 2, "Generator should yield multiple events");
 }
@@ -178,7 +183,7 @@ fn test_error_recovery_generator_continues() {
 fn test_multiple_labels_after_error() {
     // Test that after an error executing one label,
     // other labels can still be executed (Task 8.2)
-    
+
     let script = r#"
 ＊ラベル1
     さくら：ラベル1の内容
@@ -186,17 +191,17 @@ fn test_multiple_labels_after_error() {
 ＊ラベル2
     うにゅう：ラベル2の内容
 "#;
-    
+
     let mut engine = PastaEngine::new(script).expect("Parse should succeed");
-    
+
     // Try to execute non-existent label (error)
     let result1 = engine.execute_label("存在しない");
     assert!(result1.is_err(), "Should error on non-existent label");
-    
+
     // Execute valid label 1 (should work)
     let result2 = engine.execute_label("ラベル1");
     assert!(result2.is_ok(), "Should recover and execute valid label");
-    
+
     // Execute valid label 2 (should also work)
     let result3 = engine.execute_label("ラベル2");
     assert!(result3.is_ok(), "Should continue to work after recovery");
@@ -213,14 +218,14 @@ fn test_error_message_is_descriptive() {
 ＊テスト
     さくら：こんにちは
 "#;
-    
+
     let mut engine = PastaEngine::new(script).expect("Parse should succeed");
     let result = engine.execute_label("存在しないラベル");
-    
+
     assert!(result.is_err());
     let err = result.unwrap_err();
     let err_msg = format!("{}", err);
-    
+
     // Error message should be human-readable
     assert!(!err_msg.is_empty());
     // Should mention the label name
@@ -234,9 +239,9 @@ fn test_parse_error_message_quality() {
 ＊テスト
     これは無効な構文です
 "#;
-    
+
     let result = PastaEngine::new(script);
-    
+
     if let Err(err) = result {
         let err_msg = format!("{}", err);
         // Should have some useful information
@@ -257,14 +262,14 @@ fn test_parse_error_message_quality() {
 fn test_error_type_label_not_found() {
     // Test PastaError::LabelNotFound construction
     let err = PastaError::label_not_found("test_label");
-    
+
     match &err {
         PastaError::LabelNotFound { label } => {
             assert_eq!(label, "test_label");
         }
         _ => panic!("Expected LabelNotFound variant"),
     }
-    
+
     // Test Display implementation
     let err_msg = format!("{}", err);
     assert!(err_msg.contains("test_label"));
@@ -275,9 +280,14 @@ fn test_error_type_label_not_found() {
 fn test_error_type_parse_error() {
     // Test PastaError::ParseError construction
     let err = PastaError::parse_error("test.pasta", 10, 5, "Unexpected token");
-    
+
     match &err {
-        PastaError::ParseError { file, line, column, message } => {
+        PastaError::ParseError {
+            file,
+            line,
+            column,
+            message,
+        } => {
             assert_eq!(file, "test.pasta");
             assert_eq!(*line, 10);
             assert_eq!(*column, 5);
@@ -285,7 +295,7 @@ fn test_error_type_parse_error() {
         }
         _ => panic!("Expected ParseError variant"),
     }
-    
+
     // Test Display implementation includes location
     let err_msg = format!("{}", err);
     assert!(err_msg.contains("test.pasta"));
@@ -297,9 +307,12 @@ fn test_error_type_parse_error() {
 fn test_error_type_name_conflict() {
     // Test PastaError::NameConflict construction
     let err = PastaError::name_conflict("duplicate_name", "label");
-    
+
     match err {
-        PastaError::NameConflict { name, existing_kind } => {
+        PastaError::NameConflict {
+            name,
+            existing_kind,
+        } => {
             assert_eq!(name, "duplicate_name");
             assert_eq!(existing_kind, "label");
         }
@@ -314,7 +327,7 @@ fn test_error_type_name_conflict() {
 #[test]
 fn test_end_to_end_error_scenarios() {
     // Test a realistic scenario with multiple error conditions
-    
+
     let script = r#"
 ＊起動
     さくら：システム起動中
@@ -323,25 +336,25 @@ fn test_end_to_end_error_scenarios() {
     さくら：正常に動作しています
     うにゅう：問題なし！
 "#;
-    
+
     let mut engine = PastaEngine::new(script).expect("Parse should succeed");
-    
+
     // 1. Execute valid label
     let result1 = engine.execute_label("起動");
     assert!(result1.is_ok(), "Valid label should execute");
     let events1 = result1.unwrap();
     assert!(events1.len() > 0);
-    
+
     // 2. Try invalid label
     let result2 = engine.execute_label("存在しない");
     assert!(result2.is_err(), "Invalid label should error");
-    
+
     // 3. Execute another valid label (error recovery)
     let result3 = engine.execute_label("正常処理");
     assert!(result3.is_ok(), "Should recover from error");
     let events3 = result3.unwrap();
     assert!(events3.len() > 0);
-    
+
     // 4. Try invalid again
     let result4 = engine.execute_label("まだ存在しない");
     assert!(result4.is_err(), "Should still detect errors");
@@ -354,16 +367,19 @@ fn test_error_with_event_handlers() {
 ＊OnClick
     さくら：クリックされました
 "#;
-    
+
     let mut engine = PastaEngine::new(script).expect("Parse should succeed");
-    
+
     // Valid event
     let result1 = engine.on_event("Click", HashMap::new());
     assert!(result1.is_ok(), "Valid event should work");
-    
+
     // Non-existent event (should not error, just return empty)
     let result2 = engine.on_event("NonExistent", HashMap::new());
-    assert!(result2.is_ok(), "Non-existent event handler returns empty, not error");
+    assert!(
+        result2.is_ok(),
+        "Non-existent event handler returns empty, not error"
+    );
     assert_eq!(result2.unwrap().len(), 0);
 }
 
@@ -387,7 +403,10 @@ fn test_comments_only_no_error() {
 # 別のコメント
 "#;
     let result = PastaEngine::new(script);
-    assert!(result.is_ok(), "Comments-only script should parse successfully");
+    assert!(
+        result.is_ok(),
+        "Comments-only script should parse successfully"
+    );
 }
 
 #[test]
@@ -395,7 +414,10 @@ fn test_whitespace_only_no_error() {
     // Script with only whitespace should parse successfully
     let script = "   \n  \n  \t  \n";
     let result = PastaEngine::new(script);
-    assert!(result.is_ok(), "Whitespace-only script should parse successfully");
+    assert!(
+        result.is_ok(),
+        "Whitespace-only script should parse successfully"
+    );
 }
 
 #[test]
@@ -406,13 +428,13 @@ fn test_error_in_nested_label() {
 ＊親ラベル
     さくら：親のコンテンツ
 "#;
-    
+
     let mut engine = PastaEngine::new(script).expect("Parse should succeed");
-    
+
     // Execute parent label
     let result1 = engine.execute_label("親ラベル");
     assert!(result1.is_ok(), "Parent label should work");
-    
+
     // Try to execute non-existent label
     let result2 = engine.execute_label("存在しないラベル");
     assert!(result2.is_err(), "Non-existent label should error");

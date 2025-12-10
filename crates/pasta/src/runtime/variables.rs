@@ -206,8 +206,16 @@ mod tests {
     fn test_variable_manager_basic() {
         let mut mgr = VariableManager::new();
 
-        mgr.set("x".to_string(), VariableValue::Integer(42), VariableScope::Local);
-        mgr.set("y".to_string(), VariableValue::String("hello".to_string()), VariableScope::Global);
+        mgr.set(
+            "x".to_string(),
+            VariableValue::Integer(42),
+            VariableScope::Local,
+        );
+        mgr.set(
+            "y".to_string(),
+            VariableValue::String("hello".to_string()),
+            VariableScope::Global,
+        );
 
         assert_eq!(
             mgr.get("x", VariableScope::Local),
@@ -224,8 +232,16 @@ mod tests {
     fn test_variable_manager_clear_local() {
         let mut mgr = VariableManager::new();
 
-        mgr.set("x".to_string(), VariableValue::Integer(1), VariableScope::Local);
-        mgr.set("y".to_string(), VariableValue::Integer(2), VariableScope::Global);
+        mgr.set(
+            "x".to_string(),
+            VariableValue::Integer(1),
+            VariableScope::Local,
+        );
+        mgr.set(
+            "y".to_string(),
+            VariableValue::Integer(2),
+            VariableScope::Global,
+        );
 
         mgr.clear_local();
 
@@ -240,9 +256,21 @@ mod tests {
     fn test_variable_manager_scopes() {
         let mut mgr = VariableManager::new();
 
-        mgr.set("var".to_string(), VariableValue::Integer(1), VariableScope::Local);
-        mgr.set("var".to_string(), VariableValue::Integer(2), VariableScope::Global);
-        mgr.set("var".to_string(), VariableValue::Integer(3), VariableScope::System);
+        mgr.set(
+            "var".to_string(),
+            VariableValue::Integer(1),
+            VariableScope::Local,
+        );
+        mgr.set(
+            "var".to_string(),
+            VariableValue::Integer(2),
+            VariableScope::Global,
+        );
+        mgr.set(
+            "var".to_string(),
+            VariableValue::Integer(3),
+            VariableScope::System,
+        );
 
         assert_eq!(
             mgr.get("var", VariableScope::Local),

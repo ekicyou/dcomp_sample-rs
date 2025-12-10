@@ -111,12 +111,7 @@ pub trait WICBitmapSourceExt {
     /// - `rect`: コピー対象の矩形（Noneで全体）
     /// - `stride`: 行あたりのバイト数
     /// - `buffer`: 出力バッファ
-    fn copy_pixels(
-        &self,
-        rect: Option<&WICRect>,
-        stride: u32,
-        buffer: &mut [u8],
-    ) -> Result<()>;
+    fn copy_pixels(&self, rect: Option<&WICRect>, stride: u32, buffer: &mut [u8]) -> Result<()>;
 }
 
 impl WICBitmapSourceExt for IWICBitmapSource {
@@ -131,19 +126,10 @@ impl WICBitmapSourceExt for IWICBitmapSource {
     }
 
     #[inline(always)]
-    fn copy_pixels(
-        &self,
-        rect: Option<&WICRect>,
-        stride: u32,
-        buffer: &mut [u8],
-    ) -> Result<()> {
-        let rect_ptr = rect.map(|r| r as *const WICRect).unwrap_or(std::ptr::null());
-        unsafe {
-            self.CopyPixels(
-                rect_ptr,
-                stride,
-                buffer,
-            )
-        }
+    fn copy_pixels(&self, rect: Option<&WICRect>, stride: u32, buffer: &mut [u8]) -> Result<()> {
+        let rect_ptr = rect
+            .map(|r| r as *const WICRect)
+            .unwrap_or(std::ptr::null());
+        unsafe { self.CopyPixels(rect_ptr, stride, buffer) }
     }
 }

@@ -55,11 +55,15 @@ impl TranspileContext {
     }
 
     /// Resolve function name with scope rules (local→global search).
-    /// 
+    ///
     /// Note: If the function is not found in tracked scopes, it is still returned as-is
     /// because it might be defined in a Rune block that we haven't parsed. The Rune
     /// runtime will handle the error if the function truly doesn't exist.
-    pub fn resolve_function(&self, func_name: &str, scope: FunctionScope) -> Result<String, PastaError> {
+    pub fn resolve_function(
+        &self,
+        func_name: &str,
+        scope: FunctionScope,
+    ) -> Result<String, PastaError> {
         match scope {
             FunctionScope::Auto => {
                 // 1. Search local functions first
@@ -140,7 +144,7 @@ impl Transpiler {
 
         // Create a context for this label with local functions
         let mut label_context = global_context.clone();
-        
+
         // Collect local function names from Rune blocks (TODO: parse Rune blocks to extract function names)
         // For now, local functions would be extracted from RuneBlock statements
         // This is a placeholder - actual implementation would need to parse Rune code
@@ -159,7 +163,13 @@ impl Transpiler {
         let mut local_counters: HashMap<String, usize> = HashMap::new();
         for local_label in &label.local_labels {
             let counter = local_counters.entry(local_label.name.clone()).or_insert(0);
-            Self::transpile_label_with_counter(output, local_label, Some(&label.name), *counter, global_context)?;
+            Self::transpile_label_with_counter(
+                output,
+                local_label,
+                Some(&label.name),
+                *counter,
+                global_context,
+            )?;
             *counter += 1;
         }
 
@@ -168,7 +178,11 @@ impl Transpiler {
     }
 
     /// Generate a function name from a label definition with counter for duplicates.
-    fn label_to_fn_name_with_counter(label: &LabelDef, parent_name: Option<&str>, counter: usize) -> String {
+    fn label_to_fn_name_with_counter(
+        label: &LabelDef,
+        parent_name: Option<&str>,
+        counter: usize,
+    ) -> String {
         let base_name = match label.scope {
             LabelScope::Global => {
                 // Global labels use their name directly
@@ -177,13 +191,17 @@ impl Transpiler {
             LabelScope::Local => {
                 // Local labels are prefixed with parent name
                 if let Some(parent) = parent_name {
-                    format!("{}__{}", Self::sanitize_identifier(parent), Self::sanitize_identifier(&label.name))
+                    format!(
+                        "{}__{}",
+                        Self::sanitize_identifier(parent),
+                        Self::sanitize_identifier(&label.name)
+                    )
                 } else {
                     Self::sanitize_identifier(&label.name)
                 }
             }
         };
-        
+
         // Append counter if this is a duplicate (counter > 0)
         if counter > 0 {
             format!("{}_{}", base_name, counter)
@@ -200,7 +218,11 @@ impl Transpiler {
     }
 
     /// Transpile a statement to Rune code.
-    fn transpile_statement(output: &mut String, stmt: &Statement, context: &TranspileContext) -> Result<(), PastaError> {
+    fn transpile_statement(
+        output: &mut String,
+        stmt: &Statement,
+        context: &TranspileContext,
+    ) -> Result<(), PastaError> {
         match stmt {
             Statement::Speech {
                 speaker,
@@ -246,10 +268,8 @@ impl Transpiler {
                         output.push_str(&format!("    let {} = {};\n", name, value_expr));
                     }
                     VarScope::Global => {
-                        output.push_str(&format!(
-                            "    set_global(\"{}\", {});\n",
-                            name, value_expr
-                        ));
+                        output
+                            .push_str(&format!("    set_global(\"{}\", {});\n", name, value_expr));
                     }
                 }
             }
@@ -270,10 +290,17 @@ impl Transpiler {
     }
 
     /// Transpile a speech part to Rune code.
-    fn transpile_speech_part(output: &mut String, part: &SpeechPart, context: &TranspileContext) -> Result<(), PastaError> {
+    fn transpile_speech_part(
+        output: &mut String,
+        part: &SpeechPart,
+        context: &TranspileContext,
+    ) -> Result<(), PastaError> {
         match part {
             SpeechPart::Text(text) => {
-                output.push_str(&format!("    yield emit_text(\"{}\");\n", Self::escape_string(text)));
+                output.push_str(&format!(
+                    "    yield emit_text(\"{}\");\n",
+                    Self::escape_string(text)
+                ));
             }
             SpeechPart::VarRef(var_name) => {
                 output.push_str(&format!(
@@ -284,14 +311,16 @@ impl Transpiler {
             SpeechPart::FuncCall { name, args, scope } => {
                 // Resolve function name using scope rules
                 let resolved_name = context.resolve_function(name, *scope)?;
-                
+
                 let args_str = args
                     .iter()
                     .map(|arg| match arg {
                         Argument::Positional(expr) => Self::transpile_expr(expr, context),
-                        Argument::Named { name, value } => {
-                            Ok(format!("{}={}", name, Self::transpile_expr(value, context)?))
-                        }
+                        Argument::Named { name, value } => Ok(format!(
+                            "{}={}",
+                            name,
+                            Self::transpile_expr(value, context)?
+                        )),
                     })
                     .collect::<Result<Vec<_>, _>>()?
                     .join(", ");
@@ -337,14 +366,16 @@ impl Transpiler {
             Expr::FuncCall { name, args, scope } => {
                 // Resolve function name using scope rules
                 let resolved_name = context.resolve_function(name, *scope)?;
-                
+
                 let args_str = args
                     .iter()
                     .map(|arg| match arg {
                         Argument::Positional(expr) => Self::transpile_expr(expr, context),
-                        Argument::Named { name, value } => {
-                            Ok(format!("{}={}", name, Self::transpile_expr(value, context)?))
-                        }
+                        Argument::Named { name, value } => Ok(format!(
+                            "{}={}",
+                            name,
+                            Self::transpile_expr(value, context)?
+                        )),
                     })
                     .collect::<Result<Vec<_>, _>>()?
                     .join(", ");
@@ -400,7 +431,10 @@ mod tests {
     #[test]
     fn test_sanitize_identifier() {
         assert_eq!(Transpiler::sanitize_identifier("hello"), "hello");
-        assert_eq!(Transpiler::sanitize_identifier("hello-world"), "hello_world");
+        assert_eq!(
+            Transpiler::sanitize_identifier("hello-world"),
+            "hello_world"
+        );
         assert_eq!(Transpiler::sanitize_identifier("＊挨拶"), "_挨拶"); // Full-width asterisk replaced, Japanese kept
         assert_eq!(Transpiler::sanitize_identifier("挨拶"), "挨拶"); // Pure Japanese unchanged
     }

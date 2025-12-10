@@ -30,7 +30,11 @@ pub fn draw_labels(
     mut commands: Commands,
     query: Query<
         (Entity, &Label, &Brushes),
-        Or<(Changed<Label>, Changed<Brushes>, Without<GraphicsCommandList>)>,
+        Or<(
+            Changed<Label>,
+            Changed<Brushes>,
+            Without<GraphicsCommandList>,
+        )>,
     >,
     graphics_core: Option<Res<GraphicsCore>>,
 ) {

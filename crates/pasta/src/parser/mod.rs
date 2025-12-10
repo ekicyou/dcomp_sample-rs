@@ -25,9 +25,8 @@ pub fn parse_file(path: &Path) -> Result<PastaFile, PastaError> {
 
 /// Parse a Pasta script from a string
 pub fn parse_str(source: &str, filename: &str) -> Result<PastaFile, PastaError> {
-    let mut pairs = PastaParser::parse(Rule::file, source).map_err(|e| {
-        PastaError::PestError(format!("Parse error in {}: {}", filename, e))
-    })?;
+    let mut pairs = PastaParser::parse(Rule::file, source)
+        .map_err(|e| PastaError::PestError(format!("Parse error in {}: {}", filename, e)))?;
 
     let file_pair = pairs.next().unwrap(); // file rule always produces one pair
     let mut labels = Vec::new();
@@ -163,12 +162,7 @@ fn parse_attribute_value(pair: Pair<Rule>) -> Result<AttributeValue, PastaError>
     let inner_pair = pair.into_inner().next().unwrap();
     match inner_pair.as_rule() {
         Rule::var_ref => Ok(AttributeValue::VarRef(
-            inner_pair
-                .into_inner()
-                .nth(1)
-                .unwrap()
-                .as_str()
-                .to_string(),
+            inner_pair.into_inner().nth(1).unwrap().as_str().to_string(),
         )),
         Rule::literal_value => Ok(AttributeValue::Literal(inner_pair.as_str().to_string())),
         _ => Ok(AttributeValue::Literal(inner_pair.as_str().to_string())),
@@ -320,12 +314,7 @@ fn parse_jump_target(pair: Pair<Rule>) -> Result<JumpTarget, PastaError> {
     let inner_pair = pair.into_inner().next().unwrap();
     match inner_pair.as_rule() {
         Rule::dynamic_target => {
-            let var_name = inner_pair
-                .into_inner()
-                .nth(1)
-                .unwrap()
-                .as_str()
-                .to_string();
+            let var_name = inner_pair.into_inner().nth(1).unwrap().as_str().to_string();
             Ok(JumpTarget::Dynamic(var_name))
         }
         Rule::long_jump => {
@@ -617,7 +606,11 @@ fn parse_string_literal(pair: Pair<Rule>) -> Result<String, PastaError> {
             let content_pair = inner_pair.into_inner().next().unwrap();
             // Handle escape sequences
             let content = content_pair.as_str();
-            Ok(content.replace("\\n", "\n").replace("\\t", "\t").replace("\\\"", "\"").replace("\\\\", "\\"))
+            Ok(content
+                .replace("\\n", "\n")
+                .replace("\\t", "\t")
+                .replace("\\\"", "\"")
+                .replace("\\\\", "\\"))
         }
         _ => Ok(String::new()),
     }

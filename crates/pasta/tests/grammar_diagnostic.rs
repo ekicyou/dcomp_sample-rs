@@ -60,10 +60,13 @@ fn test_ideographic_space() {
     // Full-width ideographic space
     let input = "　";
     assert_eq!(input.len(), 3); // U+3000 is 3 bytes in UTF-8
-    
+
     let result = PastaParser::parse(Rule::indent, input);
     println!("Ideographic space parse: {:?}", result);
-    assert!(result.is_ok(), "Failed to parse ideographic space as indent");
+    assert!(
+        result.is_ok(),
+        "Failed to parse ideographic space as indent"
+    );
 }
 
 #[test]
@@ -71,15 +74,23 @@ fn test_two_args_with_ideographic_space() {
     let input = "（「引数１」　「引数２」）";
     let result = PastaParser::parse(Rule::arg_list, input);
     println!("Arg list parse: {:?}", result);
-    assert!(result.is_ok(), "Failed to parse arg list with ideographic space: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to parse arg list with ideographic space: {:?}",
+        result.err()
+    );
 }
 
 #[test]
 fn test_ws_rule() {
-    let input = "　";  // Ideographic space
+    let input = "　"; // Ideographic space
     let result = PastaParser::parse(Rule::ws, input);
     println!("WS parse: {:?}", result);
-    assert!(result.is_ok(), "Failed to parse ideographic space as ws: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to parse ideographic space as ws: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -87,7 +98,11 @@ fn test_ja_string() {
     let input = "「引数１」";
     let result = PastaParser::parse(Rule::string_literal, input);
     println!("JA string parse: {:?}", result);
-    assert!(result.is_ok(), "Failed to parse Japanese string: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to parse Japanese string: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -95,7 +110,11 @@ fn test_arg_value_ja_string() {
     let input = "「引数１」";
     let result = PastaParser::parse(Rule::arg_value, input);
     println!("Arg value (JA string) parse: {:?}", result);
-    assert!(result.is_ok(), "Failed to parse arg_value with Japanese string: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to parse arg_value with Japanese string: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -103,7 +122,11 @@ fn test_argument_ja_string() {
     let input = "「引数１」";
     let result = PastaParser::parse(Rule::argument, input);
     println!("Argument parse: {:?}", result);
-    assert!(result.is_ok(), "Failed to parse argument with Japanese string: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to parse argument with Japanese string: {:?}",
+        result.err()
+    );
 }
 
 #[test]

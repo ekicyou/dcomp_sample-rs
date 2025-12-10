@@ -2,10 +2,10 @@
 //!
 //! DragStateからイベントを生成し、Phase<T>でTunnel/Bubble配信する。
 
-use bevy_ecs::prelude::*;
+use crate::ecs::pointer::{build_bubble_path, EventHandler, PhysicalPoint};
 use bevy_ecs::message::Message;
+use bevy_ecs::prelude::*;
 use std::time::Instant;
-use crate::ecs::pointer::{PhysicalPoint, build_bubble_path, EventHandler};
 
 /// ドラッグ開始イベント
 #[derive(Message, Clone, Debug)]
@@ -70,24 +70,30 @@ pub struct OnDragEnd(pub EventHandler<DragEndEvent>);
 /// DragAccumulatorResourceから累積量をflushしてドラッグイベントを配信する。
 pub fn dispatch_drag_events(world: &mut World) {
     // DragAccumulatorResourceをflush
-    let flush_result = world.resource::<crate::ecs::drag::DragAccumulatorResource>()
+    let flush_result = world
+        .resource::<crate::ecs::drag::DragAccumulatorResource>()
         .flush();
-    
+
     let Some(flush_result) = flush_result else {
         return;
     };
-    
+
     // 状態遷移イベントを処理
     if let Some(transition) = flush_result.transition {
         match transition {
-            crate::ecs::drag::DragTransition::Started { entity, start_pos, timestamp } => {
+            crate::ecs::drag::DragTransition::Started {
+                entity,
+                start_pos,
+                timestamp,
+            } => {
                 // Windowエンティティを探索してBoxStyle.insetを取得
                 let mut current = entity;
                 let mut initial_inset = (0.0, 0.0);
                 loop {
                     if world.get::<crate::ecs::window::Window>(current).is_some() {
                         // Windowが見つかった、BoxStyle.insetを取得
-                        if let Some(box_style) = world.get::<crate::ecs::layout::BoxStyle>(current) {
+                        if let Some(box_style) = world.get::<crate::ecs::layout::BoxStyle>(current)
+                        {
                             if let Some(inset) = &box_style.inset {
                                 initial_inset.0 = match inset.0.left {
                                     crate::ecs::layout::LengthPercentageAuto::Px(val) => val,
@@ -107,7 +113,7 @@ pub fn dispatch_drag_events(world: &mut World) {
                         break;
                     }
                 }
-                
+
                 // DraggingStateコンポーネント挿入
                 if let Ok(mut entity_mut) = world.get_entity_mut(entity) {
                     entity_mut.insert(crate::ecs::drag::DraggingState {
@@ -115,7 +121,7 @@ pub fn dispatch_drag_events(world: &mut World) {
                         initial_inset,
                         prev_frame_pos: start_pos,
                     });
-                    
+
                     tracing::debug!(
                         entity = ?entity,
                         initial_inset_left = initial_inset.0,
@@ -123,7 +129,7 @@ pub fn dispatch_drag_events(world: &mut World) {
                         "[dispatch_drag_events] DraggingState inserted"
                     );
                 }
-                
+
                 // DragStartEvent送信
                 let event = DragStartEvent {
                     target: entity,
@@ -131,16 +137,18 @@ pub fn dispatch_drag_events(world: &mut World) {
                     is_primary: true,
                     timestamp,
                 };
-                
+
                 tracing::info!(
                     entity = ?entity,
                     x = start_pos.x,
                     y = start_pos.y,
                     "[DragStartEvent] Dispatching"
                 );
-                
-                world.resource_mut::<bevy_ecs::message::Messages<DragStartEvent>>().write(event.clone());
-                
+
+                world
+                    .resource_mut::<bevy_ecs::message::Messages<DragStartEvent>>()
+                    .write(event.clone());
+
                 let path = build_bubble_path(world, entity);
                 crate::ecs::pointer::dispatch_event_for_handler::<DragStartEvent, OnDragStart>(
                     world,
@@ -149,12 +157,16 @@ pub fn dispatch_drag_events(world: &mut World) {
                     &event,
                     |h| h.0,
                 );
-                
+
                 // JustStarted→Dragging遷移（次のWM_MOUSEMOVEでDragEventが発火できるように）
                 super::state::update_dragging(start_pos);
             }
-            
-            crate::ecs::drag::DragTransition::Ended { entity, end_pos, cancelled } => {
+
+            crate::ecs::drag::DragTransition::Ended {
+                entity,
+                end_pos,
+                cancelled,
+            } => {
                 // DragEndEvent送信
                 let event = DragEndEvent {
                     target: entity,
@@ -163,7 +175,7 @@ pub fn dispatch_drag_events(world: &mut World) {
                     is_primary: true,
                     timestamp: Instant::now(),
                 };
-                
+
                 tracing::info!(
                     entity = ?entity,
                     x = end_pos.x,
@@ -171,9 +183,11 @@ pub fn dispatch_drag_events(world: &mut World) {
                     cancelled,
                     "[DragEndEvent] Dispatching"
                 );
-                
-                world.resource_mut::<bevy_ecs::message::Messages<DragEndEvent>>().write(event.clone());
-                
+
+                world
+                    .resource_mut::<bevy_ecs::message::Messages<DragEndEvent>>()
+                    .write(event.clone());
+
                 let path = build_bubble_path(world, entity);
                 crate::ecs::pointer::dispatch_event_for_handler::<DragEndEvent, OnDragEnd>(
                     world,
@@ -182,11 +196,11 @@ pub fn dispatch_drag_events(world: &mut World) {
                     &event,
                     |h| h.0,
                 );
-                
+
                 // DraggingStateコンポーネント削除
                 if let Ok(mut entity_mut) = world.get_entity_mut(entity) {
                     entity_mut.remove::<crate::ecs::drag::DraggingState>();
-                    
+
                     tracing::debug!(
                         entity = ?entity,
                         "[dispatch_drag_events] DraggingState removed"
@@ -195,15 +209,16 @@ pub fn dispatch_drag_events(world: &mut World) {
             }
         }
     }
-    
+
     // 累積デルタが非ゼロなら DragEvent 配信
     if let Some(entity) = flush_result.current_dragging_entity {
         if flush_result.delta.x != 0 || flush_result.delta.y != 0 {
             // DraggingStateからstart_posを取得
-            let start_pos = world.get::<crate::ecs::drag::DraggingState>(entity)
+            let start_pos = world
+                .get::<crate::ecs::drag::DraggingState>(entity)
                 .map(|ds| ds.drag_start_pos)
                 .unwrap_or(flush_result.current_position);
-            
+
             // DragEvent送信
             let event = DragEvent {
                 target: entity,
@@ -212,7 +227,7 @@ pub fn dispatch_drag_events(world: &mut World) {
                 is_primary: true,
                 timestamp: Instant::now(),
             };
-            
+
             tracing::trace!(
                 entity = ?entity,
                 start_x = start_pos.x,
@@ -223,9 +238,11 @@ pub fn dispatch_drag_events(world: &mut World) {
                 delta_y = flush_result.current_position.y - start_pos.y,
                 "[DragEvent] Dispatching"
             );
-            
-            world.resource_mut::<bevy_ecs::message::Messages<DragEvent>>().write(event.clone());
-            
+
+            world
+                .resource_mut::<bevy_ecs::message::Messages<DragEvent>>()
+                .write(event.clone());
+
             let path = build_bubble_path(world, entity);
             crate::ecs::pointer::dispatch_event_for_handler::<DragEvent, OnDrag>(
                 world,
@@ -234,10 +251,12 @@ pub fn dispatch_drag_events(world: &mut World) {
                 &event,
                 |h| h.0,
             );
-            
+
             // DraggingState.prev_frame_posを更新
             if let Ok(mut entity_mut) = world.get_entity_mut(entity) {
-                if let Some(mut dragging_state) = entity_mut.get_mut::<crate::ecs::drag::DraggingState>() {
+                if let Some(mut dragging_state) =
+                    entity_mut.get_mut::<crate::ecs::drag::DraggingState>()
+                {
                     dragging_state.prev_frame_pos = flush_result.current_position;
                 }
             }

@@ -203,8 +203,8 @@ pub fn compute_taffy_layout_system(
     mut all_taffy_entities: Query<(Entity, &mut TaffyComputedLayout), With<TaffyStyle>>,
 ) {
     // BoxStyleまたはTaffyStyleの変更、階層変更のいずれかで再計算
-    let has_changes = !changed_styles.is_empty() 
-        || !changed_box_styles.is_empty() 
+    let has_changes = !changed_styles.is_empty()
+        || !changed_box_styles.is_empty()
         || !changed_hierarchy.is_empty();
 
     // Changed検知時にレイアウト計算を実行
@@ -393,23 +393,20 @@ pub fn update_window_pos_system(
 }
 
 /// WindowPos.position の変更を Window の Arrangement.offset に反映
-/// 
+///
 /// WM_WINDOWPOSCHANGED で更新された WindowPos.position（クライアント領域のスクリーン座標）を
 /// Window の Arrangement.offset に反映する。
-/// 
+///
 /// これにより GlobalArrangement.bounds が正しいスクリーン座標を持つようになり、
 /// hit_test が正しく動作する。
-/// 
+///
 /// 毎フレーム Window の WindowPos と Arrangement.offset を同期する。
 /// 変更がない場合は何もしない。
 pub fn sync_window_arrangement_from_window_pos(
-    mut query: Query<
-        (Entity, &WindowPos, &DPI, &mut Arrangement, Option<&Name>),
-        With<Window>,
-    >,
+    mut query: Query<(Entity, &WindowPos, &DPI, &mut Arrangement, Option<&Name>), With<Window>>,
 ) {
     use crate::ecs::graphics::format_entity_name;
-    
+
     for (entity, window_pos, dpi, mut arrangement, name) in query.iter_mut() {
         let Some(position) = window_pos.position else {
             continue;

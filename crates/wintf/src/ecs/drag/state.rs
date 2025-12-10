@@ -2,17 +2,17 @@
 //!
 //! thread_local! + RefCellパターンでwndproc層のドラッグ状態を管理する。
 
+use crate::ecs::pointer::PhysicalPoint;
 use bevy_ecs::entity::Entity;
 use std::cell::RefCell;
 use std::time::Instant;
-use crate::ecs::pointer::PhysicalPoint;
 
 /// ドラッグ状態（thread_local!で管理）
 #[derive(Debug, Clone)]
 pub enum DragState {
     /// アイドル状態、ドラッグなし
     Idle,
-    
+
     /// マウス押下済み、閾値未到達
     Preparing {
         /// ドラッグ対象エンティティ
@@ -22,7 +22,7 @@ pub enum DragState {
         /// 押下時刻
         start_time: Instant,
     },
-    
+
     /// ドラッグ開始直後（1フレームのみ）
     JustStarted {
         /// ドラッグ対象エンティティ
@@ -34,7 +34,7 @@ pub enum DragState {
         /// 開始時刻
         start_time: Instant,
     },
-    
+
     /// ドラッグ中、閾値到達済み
     Dragging {
         /// ドラッグ対象エンティティ
@@ -48,7 +48,7 @@ pub enum DragState {
         /// 開始時刻
         start_time: Instant,
     },
-    
+
     /// ドラッグ終了直後（1フレームのみ）
     JustEnded {
         /// ドラッグ対象エンティティ
@@ -93,17 +93,22 @@ pub fn start_preparing(entity: Entity, pos: PhysicalPoint) {
     update_drag_state(|state| {
         // 既にドラッグ中の場合は無視（複数ボタン同時ドラッグ禁止）
         // JustEndedは許可（前回のドラッグが終了した後の新しいドラッグ）
-        if matches!(state, DragState::Preparing { .. } | DragState::JustStarted { .. } | DragState::Dragging { .. }) {
+        if matches!(
+            state,
+            DragState::Preparing { .. }
+                | DragState::JustStarted { .. }
+                | DragState::Dragging { .. }
+        ) {
             tracing::debug!("[drag] Already dragging, ignoring new button press");
             return;
         }
-        
+
         *state = DragState::Preparing {
             entity,
             start_pos: pos,
             start_time: Instant::now(),
         };
-        
+
         tracing::debug!(
             entity = ?entity,
             x = pos.x,
@@ -117,14 +122,19 @@ pub fn start_preparing(entity: Entity, pos: PhysicalPoint) {
 #[inline]
 pub fn start_dragging(current_pos: PhysicalPoint) {
     update_drag_state(|state| {
-        if let DragState::Preparing { entity, start_pos, start_time } = *state {
+        if let DragState::Preparing {
+            entity,
+            start_pos,
+            start_time,
+        } = *state
+        {
             *state = DragState::JustStarted {
                 entity,
                 start_pos,
                 current_pos,
                 start_time,
             };
-            
+
             tracing::debug!(
                 entity = ?entity,
                 start_x = start_pos.x,
@@ -140,85 +150,99 @@ pub fn start_dragging(current_pos: PhysicalPoint) {
 /// ドラッグ移動（WM_MOUSEMOVE時）
 #[inline]
 pub fn update_dragging(current_pos: PhysicalPoint) {
-    update_drag_state(|state| {
-        match state {
-            DragState::JustStarted { entity, start_pos, start_time, .. } => {
+    update_drag_state(|state| match state {
+        DragState::JustStarted {
+            entity,
+            start_pos,
+            start_time,
+            ..
+        } => {
+            *state = DragState::Dragging {
+                entity: *entity,
+                start_pos: *start_pos,
+                current_pos,
+                prev_pos: current_pos,
+                start_time: *start_time,
+            };
+        }
+        DragState::Dragging {
+            current_pos: old_pos,
+            ..
+        } => {
+            let prev_pos = *old_pos;
+            if let DragState::Dragging {
+                entity,
+                start_pos,
+                start_time,
+                ..
+            } = *state
+            {
                 *state = DragState::Dragging {
-                    entity: *entity,
-                    start_pos: *start_pos,
+                    entity,
+                    start_pos,
                     current_pos,
-                    prev_pos: current_pos,
-                    start_time: *start_time,
+                    prev_pos,
+                    start_time,
                 };
             }
-            DragState::Dragging { current_pos: old_pos, .. } => {
-                let prev_pos = *old_pos;
-                if let DragState::Dragging { entity, start_pos, start_time, .. } = *state {
-                    *state = DragState::Dragging {
-                        entity,
-                        start_pos,
-                        current_pos,
-                        prev_pos,
-                        start_time,
-                    };
-                }
-            }
-            _ => {}
         }
+        _ => {}
     });
 }
 
 /// ドラッグ終了（WM_LBUTTONUP時）
 #[inline]
 pub fn end_dragging(position: PhysicalPoint, cancelled: bool) {
-    update_drag_state(|state| {
-        match state {
-            DragState::Preparing { entity, .. }
-            | DragState::JustStarted { entity, .. }
-            | DragState::Dragging { entity, .. } => {
-                let entity = *entity;
-                *state = DragState::JustEnded {
-                    entity,
-                    position,
-                    cancelled,
-                };
-                
-                tracing::debug!(
-                    entity = ?entity,
-                    x = position.x,
-                    y = position.y,
-                    cancelled,
-                    "[drag] Dragging ended"
-                );
-            }
-            _ => {}
+    update_drag_state(|state| match state {
+        DragState::Preparing { entity, .. }
+        | DragState::JustStarted { entity, .. }
+        | DragState::Dragging { entity, .. } => {
+            let entity = *entity;
+            *state = DragState::JustEnded {
+                entity,
+                position,
+                cancelled,
+            };
+
+            tracing::debug!(
+                entity = ?entity,
+                x = position.x,
+                y = position.y,
+                cancelled,
+                "[drag] Dragging ended"
+            );
         }
+        _ => {}
     });
 }
 
 /// ドラッグキャンセル（ESCキー、WM_CANCELMODE時）
 #[inline]
 pub fn cancel_dragging() {
-    update_drag_state(|state| {
-        match state {
-            DragState::Preparing { entity, start_pos, .. }
-            | DragState::JustStarted { entity, start_pos, .. }
-            | DragState::Dragging { entity, start_pos, .. } => {
-                let entity = *entity;
-                let position = *start_pos;
-                *state = DragState::JustEnded {
-                    entity,
-                    position,
-                    cancelled: true,
-                };
-                
-                tracing::debug!(
-                    entity = ?entity,
-                    "[drag] Dragging cancelled"
-                );
-            }
-            _ => {}
+    update_drag_state(|state| match state {
+        DragState::Preparing {
+            entity, start_pos, ..
         }
+        | DragState::JustStarted {
+            entity, start_pos, ..
+        }
+        | DragState::Dragging {
+            entity, start_pos, ..
+        } => {
+            let entity = *entity;
+            let position = *start_pos;
+            *state = DragState::JustEnded {
+                entity,
+                position,
+                cancelled: true,
+            };
+
+            tracing::debug!(
+                entity = ?entity,
+                "[drag] Dragging cancelled"
+            );
+        }
+        _ => {}
     });
 }
 
@@ -242,15 +266,16 @@ pub fn check_threshold(current_pos: PhysicalPoint, threshold: i32) -> bool {
             let distance_sq = dx * dx + dy * dy;
             let threshold_sq = threshold * threshold;
             let result = distance_sq >= threshold_sq;
-            
+
             tracing::debug!(
-                dx, dy,
+                dx,
+                dy,
                 distance_sq,
                 threshold_sq,
                 result,
                 "[check_threshold]"
             );
-            
+
             result
         } else {
             tracing::warn!(state = ?state, "[check_threshold] Not in Preparing state");

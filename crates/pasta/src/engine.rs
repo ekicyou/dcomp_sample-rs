@@ -139,10 +139,13 @@ impl PastaEngine {
         })?;
 
         // Install standard library
-        context.install(crate::stdlib::create_module().map_err(|e| {
-            PastaError::RuneRuntimeError(format!("Failed to install stdlib: {}", e))
-        })?)
-            .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to install context: {}", e)))?;
+        context
+            .install(crate::stdlib::create_module().map_err(|e| {
+                PastaError::RuneRuntimeError(format!("Failed to install stdlib: {}", e))
+            })?)
+            .map_err(|e| {
+                PastaError::RuneRuntimeError(format!("Failed to install context: {}", e))
+            })?;
 
         let runtime = Arc::new(context.runtime().map_err(|e| {
             PastaError::RuneRuntimeError(format!("Failed to create runtime: {}", e))
@@ -150,8 +153,10 @@ impl PastaEngine {
 
         // Compile the Rune source
         let mut sources = rune::Sources::new();
-        sources.insert(rune::Source::new("entry", rune_source)
-            .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to create source: {}", e)))?)
+        sources
+            .insert(rune::Source::new("entry", rune_source).map_err(|e| {
+                PastaError::RuneRuntimeError(format!("Failed to create source: {}", e))
+            })?)
             .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to insert source: {}", e)))?;
 
         let unit = rune::prepare(&mut sources)
@@ -174,13 +179,13 @@ impl PastaEngine {
     ) -> Result<()> {
         // Track label counters for generating unique function names for duplicates
         let mut label_counters: HashMap<String, usize> = HashMap::new();
-        
+
         for label in labels {
             // Get the counter for this label name
             let counter = label_counters.entry(label.name.clone()).or_insert(0);
             let fn_name = Self::generate_fn_name_with_counter(label, parent_name, *counter);
             *counter += 1;
-            
+
             let mut attributes = HashMap::new();
             for attr in &label.attributes {
                 attributes.insert(attr.key.clone(), attr.value.to_string());
@@ -204,9 +209,13 @@ impl PastaEngine {
     }
 
     /// Generate a Rune function name for a label with a counter for duplicates.
-    fn generate_fn_name_with_counter(label: &LabelDef, parent_name: Option<&str>, counter: usize) -> String {
+    fn generate_fn_name_with_counter(
+        label: &LabelDef,
+        parent_name: Option<&str>,
+        counter: usize,
+    ) -> String {
         let sanitize = |name: &str| name.replace(|c: char| !c.is_alphanumeric() && c != '_', "_");
-        
+
         let base_name = match label.scope {
             LabelScope::Global => sanitize(&label.name),
             LabelScope::Local => {
@@ -217,7 +226,7 @@ impl PastaEngine {
                 }
             }
         };
-        
+
         // Append counter if this is a duplicate (counter > 0)
         if counter > 0 {
             format!("{}_{}", base_name, counter)
@@ -265,24 +274,27 @@ impl PastaEngine {
 
         // Call the function
         let hash = rune::Hash::type_hash(&[fn_name.as_str()]);
-        
+
         // Execute and get a generator
-        let execution = vm.execute(hash, ())
-            .map_err(|e| PastaError::VmError(e))?;
-        
+        let execution = vm.execute(hash, ()).map_err(|e| PastaError::VmError(e))?;
+
         let mut generator = execution.into_generator();
-        
+
         // Collect all yielded events
         let mut events = Vec::new();
         let unit_value = rune::to_value(()).map_err(|e| {
             PastaError::RuneRuntimeError(format!("Failed to create unit value: {}", e))
         })?;
-        
+
         loop {
             match generator.resume(unit_value.clone()) {
                 rune::runtime::VmResult::Ok(rune::runtime::GeneratorState::Yielded(value)) => {
-                    let event: ScriptEvent = rune::from_value(value)
-                        .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to convert yielded value: {}", e)))?;
+                    let event: ScriptEvent = rune::from_value(value).map_err(|e| {
+                        PastaError::RuneRuntimeError(format!(
+                            "Failed to convert yielded value: {}",
+                            e
+                        ))
+                    })?;
                     events.push(event);
                 }
                 rune::runtime::VmResult::Ok(rune::runtime::GeneratorState::Complete(_)) => {
@@ -293,7 +305,7 @@ impl PastaEngine {
                 }
             }
         }
-        
+
         Ok(events)
     }
 
@@ -328,12 +340,12 @@ impl PastaEngine {
     /// let script = r#"
     /// ＊OnClick
     ///     さくら：クリックされました！
-    /// 
+    ///
     /// ＊OnDoubleClick
     ///     さくら：ダブルクリック！
     /// "#;
     /// let engine = PastaEngine::new(script)?;
-    /// 
+    ///
     /// let handlers = engine.find_event_handlers("Click");
     /// assert!(handlers.contains(&"OnClick".to_string()));
     /// # Ok::<(), pasta::PastaError>(())
@@ -341,7 +353,7 @@ impl PastaEngine {
     pub fn find_event_handlers(&self, event_name: &str) -> Vec<String> {
         let target_pattern = format!("On{}", event_name);
         let target_lower = target_pattern.to_lowercase();
-        
+
         self.label_table
             .label_names()
             .into_iter()
@@ -374,7 +386,7 @@ impl PastaEngine {
     ///     さくら：クリックされました！
     /// "#;
     /// let mut engine = PastaEngine::new(script)?;
-    /// 
+    ///
     /// let events = engine.on_event("Click", HashMap::new())?;
     /// # Ok::<(), pasta::PastaError>(())
     /// ```
@@ -385,7 +397,7 @@ impl PastaEngine {
     ) -> Result<Vec<ScriptEvent>> {
         // Find matching event handlers
         let handlers = self.find_event_handlers(event_name);
-        
+
         if handlers.is_empty() {
             // No handler found - not an error, just return empty events
             return Ok(Vec::new());
@@ -394,7 +406,7 @@ impl PastaEngine {
         // If multiple handlers exist, randomly select one
         // The label_table will handle the selection logic
         let handler_name = format!("On{}", event_name);
-        
+
         // Execute the handler with filters (if provided as params)
         self.execute_label_with_filters(&handler_name, &params)
     }
@@ -417,14 +429,8 @@ impl PastaEngine {
     ///
     /// This would typically be called from within Rune scripts via the
     /// standard library `fire_event` function.
-    pub fn create_fire_event(
-        event_name: String,
-        params: Vec<(String, String)>,
-    ) -> ScriptEvent {
-        ScriptEvent::FireEvent {
-            event_name,
-            params,
-        }
+    pub fn create_fire_event(event_name: String, params: Vec<(String, String)>) -> ScriptEvent {
+        ScriptEvent::FireEvent { event_name, params }
     }
 
     /// Clear the global parse cache.
@@ -473,12 +479,12 @@ impl PastaEngine {
     /// let script = r#"
     /// ＊挨拶
     ///     さくら：おはよう！
-    /// 
+    ///
     /// ＊挨拶_続き
     ///     さくら：今日も元気だね！
     /// "#;
     /// let mut engine = PastaEngine::new(script)?;
-    /// 
+    ///
     /// // Execute chain manually
     /// let mut all_events = engine.execute_label("挨拶")?;
     /// all_events.extend(engine.execute_label("挨拶_続き")?);
@@ -496,7 +502,7 @@ impl PastaEngine {
         while depth < max_chain_depth {
             // Execute current label
             let events = self.execute_label(&current_label)?;
-            
+
             // Check if any event indicates a chain
             let mut next_label = None;
             for event in &events {
@@ -508,9 +514,9 @@ impl PastaEngine {
                     }
                 }
             }
-            
+
             all_events.extend(events);
-            
+
             // If no chain detected, stop
             if let Some(label) = next_label {
                 current_label = label;
@@ -537,10 +543,10 @@ impl Drop for PastaEngine {
     fn drop(&mut self) {
         // TODO: Persist global variables when VariableManager is integrated
         // self.variables.save_to_disk().ok();
-        
+
         // TODO: Persist label execution history/cache
         // self.label_table.save_cache().ok();
-        
+
         // For now, we just log that the engine is being dropped
         #[cfg(debug_assertions)]
         {
@@ -552,7 +558,6 @@ impl Drop for PastaEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn test_engine_new() {
@@ -644,17 +649,17 @@ mod tests {
     さくら：これはイベントハンドラではありません
 "#;
         let engine = PastaEngine::new(script).unwrap();
-        
+
         // Test finding Click event handler
         let click_handlers = engine.find_event_handlers("Click");
         assert_eq!(click_handlers.len(), 1);
         assert!(click_handlers.contains(&"OnClick".to_string()));
-        
+
         // Test finding DoubleClick event handler
         let dblclick_handlers = engine.find_event_handlers("DoubleClick");
         assert_eq!(dblclick_handlers.len(), 1);
         assert!(dblclick_handlers.contains(&"OnDoubleClick".to_string()));
-        
+
         // Test finding non-existent event handler
         let nonexistent = engine.find_event_handlers("NonExistent");
         assert_eq!(nonexistent.len(), 0);
@@ -667,12 +672,12 @@ mod tests {
     さくら：起動しました！
 "#;
         let engine = PastaEngine::new(script).unwrap();
-        
+
         // Test case-insensitive matching
         let handlers1 = engine.find_event_handlers("Startup");
         let handlers2 = engine.find_event_handlers("startup");
         let handlers3 = engine.find_event_handlers("STARTUP");
-        
+
         assert_eq!(handlers1.len(), 1);
         assert_eq!(handlers2.len(), 1);
         assert_eq!(handlers3.len(), 1);
@@ -686,25 +691,32 @@ mod tests {
     さくら：クリックありがとう！
 "#;
         let mut engine = PastaEngine::new(script).unwrap();
-        
+
         // Execute Click event
         let events = engine.on_event("Click", HashMap::new()).unwrap();
-        
+
         // Should have events (ChangeSpeaker + Talk)
         assert!(events.len() >= 2);
-        
+
         // Check that we have a ChangeSpeaker event
-        let has_change_speaker = events.iter().any(|e| {
-            matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "さくら")
-        });
-        assert!(has_change_speaker, "Expected ChangeSpeaker event for さくら");
-        
+        let has_change_speaker = events
+            .iter()
+            .any(|e| matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "さくら"));
+        assert!(
+            has_change_speaker,
+            "Expected ChangeSpeaker event for さくら"
+        );
+
         // Check that we have a Talk event with the content
         let has_talk = events.iter().any(|e| {
-            if let ScriptEvent::Talk { speaker: _, content } = e {
-                content.iter().any(|c| {
-                    matches!(c, crate::ir::ContentPart::Text(s) if s.contains("クリック"))
-                })
+            if let ScriptEvent::Talk {
+                speaker: _,
+                content,
+            } = e
+            {
+                content
+                    .iter()
+                    .any(|c| matches!(c, crate::ir::ContentPart::Text(s) if s.contains("クリック")))
             } else {
                 false
             }
@@ -719,10 +731,10 @@ mod tests {
     さくら：こんにちは
 "#;
         let mut engine = PastaEngine::new(script).unwrap();
-        
+
         // Try to execute non-existent event
         let events = engine.on_event("NonExistent", HashMap::new()).unwrap();
-        
+
         // Should return empty vector, not error
         assert_eq!(events.len(), 0);
     }
@@ -737,10 +749,10 @@ mod tests {
     さくら：クリック2
 "#;
         let mut engine = PastaEngine::new(script).unwrap();
-        
+
         // Execute event - should select one of the handlers randomly
         let events = engine.on_event("Click", HashMap::new()).unwrap();
-        
+
         // Should have events from one of the handlers
         assert!(events.len() >= 2);
     }
@@ -757,19 +769,19 @@ mod tests {
     さくら：こんばんは！
 "#;
         let mut engine = PastaEngine::new(script).unwrap();
-        
+
         // Execute with morning filter
         let mut filters = HashMap::new();
         filters.insert("time".to_string(), "morning".to_string());
         let events = engine.on_event("Click", filters).unwrap();
-        
+
         // Should execute the morning handler
         assert!(events.len() >= 2);
         let has_morning = events.iter().any(|e| {
             if let ScriptEvent::Talk { content, .. } = e {
-                content.iter().any(|c| {
-                    matches!(c, crate::ir::ContentPart::Text(s) if s.contains("おはよう"))
-                })
+                content
+                    .iter()
+                    .any(|c| matches!(c, crate::ir::ContentPart::Text(s) if s.contains("おはよう")))
             } else {
                 false
             }
@@ -784,11 +796,14 @@ mod tests {
             ("key1".to_string(), "value1".to_string()),
             ("key2".to_string(), "value2".to_string()),
         ];
-        
+
         let event = PastaEngine::create_fire_event(event_name.clone(), params.clone());
-        
+
         match event {
-            ScriptEvent::FireEvent { event_name: name, params: p } => {
+            ScriptEvent::FireEvent {
+                event_name: name,
+                params: p,
+            } => {
                 assert_eq!(name, event_name);
                 assert_eq!(p, params);
             }
@@ -813,12 +828,12 @@ mod tests {
     さくら：通常ラベル
 "#;
         let engine = PastaEngine::new(script).unwrap();
-        
+
         // Should find all "On*" labels
         assert!(!engine.find_event_handlers("Startup").is_empty());
         assert!(!engine.find_event_handlers("Shutdown").is_empty());
         assert!(!engine.find_event_handlers("UserInput").is_empty());
-        
+
         // Should not find "NotAnEvent"
         assert!(engine.find_event_handlers("NotAnEvent").is_empty());
     }
@@ -831,10 +846,10 @@ mod tests {
     さくら：イベントを発火します
 "#;
         let mut engine = PastaEngine::new(script).unwrap();
-        
+
         // Execute label
         let events = engine.execute_label("test").unwrap();
-        
+
         // Verify basic execution works
         assert!(events.len() >= 2);
     }
@@ -856,17 +871,17 @@ mod tests {
     さくら：終了イベント
 "#;
         let mut engine = PastaEngine::new(script).unwrap();
-        
+
         // Test each event type
         let click_events = engine.on_event("Click", HashMap::new()).unwrap();
         assert!(!click_events.is_empty());
-        
+
         let dblclick_events = engine.on_event("DoubleClick", HashMap::new()).unwrap();
         assert!(!dblclick_events.is_empty());
-        
+
         let startup_events = engine.on_event("Startup", HashMap::new()).unwrap();
         assert!(!startup_events.is_empty());
-        
+
         let shutdown_events = engine.on_event("Shutdown", HashMap::new()).unwrap();
         assert!(!shutdown_events.is_empty());
     }
@@ -883,7 +898,7 @@ mod tests {
     fn test_parse_cache_hit() {
         // Note: This test uses a global cache shared across tests.
         // To test cache behavior in isolation, run with --test-threads=1
-        
+
         let script = r#"
 ＊test_cache_unique_9877
     さくら：キャッシュテスト
@@ -895,13 +910,20 @@ mod tests {
         // First parse - should add to cache
         let engine1 = PastaEngine::new(script).unwrap();
         let size_after_first = PastaEngine::cache_size();
-        assert_eq!(size_after_first, initial_size + 1, "Cache should grow by 1 after first parse");
+        assert_eq!(
+            size_after_first,
+            initial_size + 1,
+            "Cache should grow by 1 after first parse"
+        );
         assert!(engine1.has_label("test_cache_unique_9877"));
 
         // Second parse - should hit cache (size shouldn't increase)
         let engine2 = PastaEngine::new(script).unwrap();
         let size_after_second = PastaEngine::cache_size();
-        assert_eq!(size_after_second, size_after_first, "Cache size should not increase on cache hit");
+        assert_eq!(
+            size_after_second, size_after_first,
+            "Cache size should not increase on cache hit"
+        );
         assert!(engine2.has_label("test_cache_unique_9877"));
     }
 
@@ -909,7 +931,7 @@ mod tests {
     #[ignore] // Requires --test-threads=1 due to global cache
     fn test_parse_cache_different_scripts() {
         // Note: This test uses a global cache shared across tests.
-        
+
         let script1 = r#"
 ＊test_unique_cache_1
     さくら：スクリプト１
@@ -927,7 +949,11 @@ mod tests {
 
         let _ = PastaEngine::new(script2).unwrap();
         let size_after_second = PastaEngine::cache_size();
-        assert_eq!(size_after_second, initial_size + 2, "Cache should grow by 2 total");
+        assert_eq!(
+            size_after_second,
+            initial_size + 2,
+            "Cache should grow by 2 total"
+        );
     }
 
     #[test]
@@ -938,7 +964,7 @@ mod tests {
 ＊test_clear_unique_8866
     さくら：テスト
 "#;
-        
+
         // Add something to cache
         let _ = PastaEngine::new(script).unwrap();
         let size_before_clear = PastaEngine::cache_size();
@@ -948,11 +974,14 @@ mod tests {
         PastaEngine::clear_cache();
         let size_after_clear = PastaEngine::cache_size();
         assert_eq!(size_after_clear, 0, "Cache should be empty after clear");
-        
+
         // Re-add and verify it grows
         let _ = PastaEngine::new(script).unwrap();
         let size_after_readd = PastaEngine::cache_size();
-        assert_eq!(size_after_readd, 1, "Cache should have 1 entry after re-add");
+        assert_eq!(
+            size_after_readd, 1,
+            "Cache should have 1 entry after re-add"
+        );
     }
 
     #[test]
@@ -965,7 +994,7 @@ mod tests {
         }
 
         let engine = PastaEngine::new(&script).unwrap();
-        
+
         // All labels should be found instantly
         for i in 0..100 {
             let label_name = format!("label{}", i);
@@ -988,7 +1017,7 @@ mod tests {
 "#;
 
         let mut engine = PastaEngine::new(script).unwrap();
-        
+
         // Execute the label multiple times - should work with random selection
         for _ in 0..10 {
             let events = engine.execute_label("greeting").unwrap();
@@ -1003,7 +1032,7 @@ mod tests {
     さくら：テスト
 "#;
         let engine = PastaEngine::new(script).unwrap();
-        
+
         // Nonexistent label should be found quickly (O(1))
         assert!(!engine.has_label("nonexistent"));
     }

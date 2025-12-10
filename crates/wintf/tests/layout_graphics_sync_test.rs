@@ -24,11 +24,7 @@ fn test_sync_window_pos() {
     // Note: Visual::on_addがArrangement::default()を自動挿入し、
     //       Arrangement::on_addがGlobalArrangement::default()を自動挿入する
     let entity = world
-        .spawn((
-            Window::default(),
-            Visual::default(),
-            WindowPos::default(),
-        ))
+        .spawn((Window::default(), Visual::default(), WindowPos::default()))
         .id();
 
     // Commands適用のためにflush
@@ -133,11 +129,7 @@ fn test_echo_back_flow() {
     // Note: Visual::on_addがArrangement::default()を自動挿入し、
     //       Arrangement::on_addがGlobalArrangement::default()を自動挿入する
     let entity = world
-        .spawn((
-            Window::default(),
-            Visual::default(),
-            WindowPos::default(),
-        ))
+        .spawn((Window::default(), Visual::default(), WindowPos::default()))
         .id();
 
     // Commands適用のためにflush

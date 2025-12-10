@@ -1,12 +1,15 @@
 //! Integration tests for PastaEngine (Tasks 5.1, 5.2, 5.3)
 
-use pasta::{PastaEngine, ir::{ScriptEvent, ContentPart}};
+use pasta::{
+    ir::{ContentPart, ScriptEvent},
+    PastaEngine,
+};
 
 #[test]
 fn test_engine_execute_simple_label() -> Result<(), Box<dyn std::error::Error>> {
     // Test Task 5.1: PastaEngine implementation
     // Test Task 5.2: execute_label method
-    
+
     let script = r#"
 ＊挨拶
     さくら：こんにちは
@@ -18,30 +21,36 @@ fn test_engine_execute_simple_label() -> Result<(), Box<dyn std::error::Error>> 
 
     // Should have 4 events: ChangeSpeaker, Talk, ChangeSpeaker, Talk
     assert_eq!(events.len(), 4);
-    
+
     // First event: ChangeSpeaker(さくら)
     match &events[0] {
         ScriptEvent::ChangeSpeaker { name } => assert_eq!(name, "さくら"),
         _ => panic!("Expected ChangeSpeaker event, got {:?}", events[0]),
     }
-    
+
     // Second event: Talk with "こんにちは"
     match &events[1] {
-        ScriptEvent::Talk { speaker: _, content } => {
+        ScriptEvent::Talk {
+            speaker: _,
+            content,
+        } => {
             assert_eq!(content.len(), 1);
         }
         _ => panic!("Expected Talk event, got {:?}", events[1]),
     }
-    
+
     // Third event: ChangeSpeaker(うにゅう)
     match &events[2] {
         ScriptEvent::ChangeSpeaker { name } => assert_eq!(name, "うにゅう"),
         _ => panic!("Expected ChangeSpeaker event, got {:?}", events[2]),
     }
-    
+
     // Fourth event: Talk with "やあ"
     match &events[3] {
-        ScriptEvent::Talk { speaker: _, content } => {
+        ScriptEvent::Talk {
+            speaker: _,
+            content,
+        } => {
             assert_eq!(content.len(), 1);
         }
         _ => panic!("Expected Talk event, got {:?}", events[3]),
@@ -61,11 +70,11 @@ fn test_engine_multiple_labels() -> Result<(), Box<dyn std::error::Error>> {
 "#;
 
     let mut engine = PastaEngine::new(script)?;
-    
+
     // Execute first label
     let events1 = engine.execute_label("挨拶")?;
     assert_eq!(events1.len(), 2); // ChangeSpeaker + Talk
-    
+
     // Execute second label
     let events2 = engine.execute_label("別れ")?;
     assert_eq!(events2.len(), 2); // ChangeSpeaker + Talk
@@ -117,7 +126,7 @@ fn test_engine_multiple_executions() -> Result<(), Box<dyn std::error::Error>> {
 "#;
 
     let mut engine = PastaEngine::new(script)?;
-    
+
     let events1 = engine.execute_label("label1")?;
     assert!(events1.len() >= 2);
 
@@ -149,7 +158,7 @@ fn test_engine_label_with_call() -> Result<(), Box<dyn std::error::Error>> {
 
     // Should have events from main
     assert!(events.len() >= 2);
-    
+
     // Also test sub label
     let events_sub = engine.execute_label("sub")?;
     assert!(events_sub.len() >= 2);
@@ -188,15 +197,15 @@ fn test_chain_talk_manual() -> Result<(), Box<dyn std::error::Error>> {
 "#;
 
     let mut engine = PastaEngine::new(script)?;
-    
+
     // Execute first label
     let mut all_events = engine.execute_label("挨拶")?;
     assert!(all_events.len() >= 2);
-    
+
     // Execute second label (chain continuation)
     let events2 = engine.execute_label("挨拶_続き")?;
     all_events.extend(events2);
-    
+
     // Should have events from both labels
     assert!(all_events.len() >= 4);
 
@@ -218,12 +227,12 @@ fn test_chain_talk_with_api() -> Result<(), Box<dyn std::error::Error>> {
 "#;
 
     let mut engine = PastaEngine::new(script)?;
-    
+
     // Execute each label individually to simulate chain
     let events1 = engine.execute_label("start")?;
     let events2 = engine.execute_label("middle")?;
     let events3 = engine.execute_label("end")?;
-    
+
     assert!(events1.len() >= 2);
     assert!(events2.len() >= 2);
     assert!(events3.len() >= 2);
@@ -245,10 +254,10 @@ fn test_multiple_speakers_complex() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut engine = PastaEngine::new(script)?;
     let events = engine.execute_label("会話")?;
-    
+
     // Should have 10 events (5 ChangeSpeaker + 5 Talk)
     assert_eq!(events.len(), 10);
-    
+
     // Verify speaker changes
     let mut speaker_changes = 0;
     let mut talks = 0;
@@ -259,7 +268,7 @@ fn test_multiple_speakers_complex() -> Result<(), Box<dyn std::error::Error>> {
             _ => {}
         }
     }
-    
+
     assert_eq!(speaker_changes, 5);
     assert_eq!(talks, 5);
 
@@ -276,15 +285,20 @@ fn test_sakura_script_content_parts() -> Result<(), Box<dyn std::error::Error>> 
 
     let mut engine = PastaEngine::new(script)?;
     let events = engine.execute_label("test")?;
-    
+
     // Current implementation: ChangeSpeaker + Talk(Text) + Talk(SakuraScript) + Talk(Text)
     // TODO: Future optimization - combine into single Talk with multiple ContentParts
-    assert!(events.len() >= 2, "Expected at least ChangeSpeaker + Talk events");
-    
+    assert!(
+        events.len() >= 2,
+        "Expected at least ChangeSpeaker + Talk events"
+    );
+
     // Check that we have SakuraScript content parts
     let has_sakura = events.iter().any(|e| {
         if let ScriptEvent::Talk { content, .. } = e {
-            content.iter().any(|p| matches!(p, ContentPart::SakuraScript(_)))
+            content
+                .iter()
+                .any(|p| matches!(p, ContentPart::SakuraScript(_)))
         } else {
             false
         }
@@ -302,7 +316,7 @@ fn test_error_handling_invalid_label() -> Result<(), Box<dyn std::error::Error>>
 "#;
 
     let mut engine = PastaEngine::new(script)?;
-    
+
     // Try to execute non-existent label
     let result = engine.execute_label("invalid");
     assert!(result.is_err());
@@ -332,16 +346,16 @@ fn test_label_isolation() -> Result<(), Box<dyn std::error::Error>> {
 "#;
 
     let mut engine = PastaEngine::new(script)?;
-    
+
     let events1 = engine.execute_label("label1")?;
     let events2 = engine.execute_label("label2")?;
-    
+
     // Verify label1 only has さくら
     match &events1[0] {
         ScriptEvent::ChangeSpeaker { name } => assert_eq!(name, "さくら"),
         _ => panic!("Expected ChangeSpeaker"),
     }
-    
+
     // Verify label2 only has うにゅう
     match &events2[0] {
         ScriptEvent::ChangeSpeaker { name } => assert_eq!(name, "うにゅう"),
@@ -360,7 +374,7 @@ fn test_repeated_label_execution() -> Result<(), Box<dyn std::error::Error>> {
 "#;
 
     let mut engine = PastaEngine::new(script)?;
-    
+
     // Execute same label 10 times
     for _ in 0..10 {
         let events = engine.execute_label("greeting")?;
@@ -385,7 +399,7 @@ fn test_label_names_api() -> Result<(), Box<dyn std::error::Error>> {
 
     let engine = PastaEngine::new(script)?;
     let names = engine.label_names();
-    
+
     assert_eq!(names.len(), 3);
     assert!(names.contains(&"挨拶".to_string()));
     assert!(names.contains(&"別れ".to_string()));
@@ -402,7 +416,7 @@ fn test_has_label_api() -> Result<(), Box<dyn std::error::Error>> {
 "#;
 
     let engine = PastaEngine::new(script)?;
-    
+
     assert!(engine.has_label("exists"));
     assert!(!engine.has_label("does_not_exist"));
     assert!(!engine.has_label(""));
@@ -423,7 +437,7 @@ fn test_engine_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
         let _events = engine.execute_label("test")?;
         // Engine will be dropped here
     }
-    
+
     // Create another engine to ensure clean state
     let mut engine2 = PastaEngine::new(script)?;
     let events2 = engine2.execute_label("test")?;

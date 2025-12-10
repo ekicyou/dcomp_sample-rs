@@ -56,8 +56,11 @@ pub fn init_typewriter_layout(
     >,
     graphics_core: Option<Res<GraphicsCore>>,
 ) {
-    debug!("[init_typewriter_layout] Running, query count: {}", query.iter().count());
-    
+    debug!(
+        "[init_typewriter_layout] Running, query count: {}",
+        query.iter().count()
+    );
+
     let Some(graphics_core) = graphics_core else {
         debug!("[init_typewriter_layout] No GraphicsCore");
         return;
@@ -424,17 +427,11 @@ pub fn draw_typewriters(
                 TextDirection::VerticalRightToLeft => {
                     // 縦書きRTL: テキストはlayoutWidthの右端から始まり左へ流れる
                     // originは(0,0)で、DirectWriteが自動的に右端から配置
-                    Vector2 {
-                        X: 0.0,
-                        Y: 0.0,
-                    }
+                    Vector2 { X: 0.0, Y: 0.0 }
                 }
                 TextDirection::VerticalLeftToRight => {
                     // 縦書きLTR: 1行目は左端から始まる
-                    Vector2 {
-                        X: 0.0,
-                        Y: 0.0,
-                    }
+                    Vector2 { X: 0.0, Y: 0.0 }
                 }
                 _ => {
                     // 横書き: 従来通り
@@ -450,23 +447,23 @@ pub fn draw_typewriters(
 
             if visible_text_length < total_text_length {
                 // 透明ブラシ作成
-                let transparent_brush =
-                    match dc.create_solid_color_brush(&TRANSPARENT_COLOR, None) {
-                        Ok(b) => b,
-                        Err(_) => {
-                            // フォールバック: 全文描画
-                            dc.draw_text_layout(
-                                origin,
-                                text_layout,
-                                &brush,
-                                D2D1_DRAW_TEXT_OPTIONS_NONE,
-                            );
-                            unsafe {
-                                let _ = dc.EndDraw(None, None);
-                            }
-                            continue;
+                let transparent_brush = match dc.create_solid_color_brush(&TRANSPARENT_COLOR, None)
+                {
+                    Ok(b) => b,
+                    Err(_) => {
+                        // フォールバック: 全文描画
+                        dc.draw_text_layout(
+                            origin,
+                            text_layout,
+                            &brush,
+                            D2D1_DRAW_TEXT_OPTIONS_NONE,
+                        );
+                        unsafe {
+                            let _ = dc.EndDraw(None, None);
                         }
-                    };
+                        continue;
+                    }
+                };
 
                 // 非表示範囲に透明ブラシを設定
                 let hidden_range = DWRITE_TEXT_RANGE {
@@ -507,7 +504,9 @@ pub fn draw_typewriters(
 
         // GraphicsCommandListをエンティティに挿入
         // Surfaceサイズは GlobalArrangement.bounds から計算される（Rectangleと同じ）
-        commands.entity(entity).insert(GraphicsCommandList::new(command_list));
+        commands
+            .entity(entity)
+            .insert(GraphicsCommandList::new(command_list));
     }
 }
 
@@ -533,7 +532,10 @@ pub fn draw_typewriter_backgrounds(
 
     for (entity, _typewriter, talk, arrangement, brushes) in query.iter() {
         // テキストがある場合はdraw_typewritersが処理するのでスキップ
-        let has_text = talk.tokens().iter().any(|t| matches!(t, TypewriterToken::Text(s) if !s.is_empty()));
+        let has_text = talk
+            .tokens()
+            .iter()
+            .any(|t| matches!(t, TypewriterToken::Text(s) if !s.is_empty()));
         if has_text {
             continue;
         }
@@ -588,6 +590,8 @@ pub fn draw_typewriter_backgrounds(
 
         // GraphicsCommandListをエンティティに挿入
         // Surfaceサイズは GlobalArrangement.bounds から計算される（Rectangleと同じ）
-        commands.entity(entity).insert(GraphicsCommandList::new(command_list));
+        commands
+            .entity(entity)
+            .insert(GraphicsCommandList::new(command_list));
     }
 }

@@ -65,7 +65,8 @@ impl<T> Phase<T> {
 /// # Returns
 /// - `true`: イベント処理済み（伝播停止）
 /// - `false`: 未処理（次のエンティティへ伝播続行）
-pub type EventHandler<T> = fn(world: &mut World, sender: Entity, entity: Entity, ev: &Phase<T>) -> bool;
+pub type EventHandler<T> =
+    fn(world: &mut World, sender: Entity, entity: Entity, ev: &Phase<T>) -> bool;
 
 /// ポインターイベントハンドラ型エイリアス
 pub type PointerEventHandler = EventHandler<PointerState>;
@@ -203,14 +204,26 @@ pub fn dispatch_pointer_events(world: &mut World) {
         let path = build_bubble_path(world, *sender);
 
         // OnPointerMoved: 常に発火（移動イベント）
-        dispatch_event_for_handler::<PointerState, OnPointerMoved>(world, *sender, &path, state, |h| h.0);
-        
+        dispatch_event_for_handler::<PointerState, OnPointerMoved>(
+            world,
+            *sender,
+            &path,
+            state,
+            |h| h.0,
+        );
+
         // OnPointerPressed: ボタンが押されている場合に発火（1フレームのみ）
         if state.left_down || state.right_down || state.middle_down {
-            dispatch_event_for_handler::<PointerState, OnPointerPressed>(world, *sender, &path, state, |h| h.0);
+            dispatch_event_for_handler::<PointerState, OnPointerPressed>(
+                world,
+                *sender,
+                &path,
+                state,
+                |h| h.0,
+            );
         }
     }
-    
+
     // ボタン状態とダブルクリック情報をクリア（次フレームで再発火しないように）
     for (entity, _) in &targets {
         if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
@@ -259,8 +272,14 @@ mod tests {
     fn test_handler_component_size() {
         // ハンドラコンポーネントは fn ポインタのサイズのみ
         use std::mem::size_of;
-        assert_eq!(size_of::<OnPointerPressed>(), size_of::<PointerEventHandler>());
-        assert_eq!(size_of::<OnPointerMoved>(), size_of::<PointerEventHandler>());
+        assert_eq!(
+            size_of::<OnPointerPressed>(),
+            size_of::<PointerEventHandler>()
+        );
+        assert_eq!(
+            size_of::<OnPointerMoved>(),
+            size_of::<PointerEventHandler>()
+        );
     }
 
     #[test]
@@ -320,10 +339,7 @@ mod tests {
 
         let mut world = World::new();
         let entity = world
-            .spawn((
-                PointerState::default(),
-                OnPointerMoved(test_handler),
-            ))
+            .spawn((PointerState::default(), OnPointerMoved(test_handler)))
             .id();
 
         dispatch_pointer_events(&mut world);
@@ -370,7 +386,9 @@ mod tests {
         BUBBLE_COUNT.store(0, Ordering::SeqCst);
 
         let mut world = World::new();
-        let root = world.spawn(OnPointerMoved(never_called_in_bubble_handler)).id();
+        let root = world
+            .spawn(OnPointerMoved(never_called_in_bubble_handler))
+            .id();
         let child = world
             .spawn((
                 ChildOf(root),

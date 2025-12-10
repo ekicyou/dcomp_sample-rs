@@ -6,7 +6,7 @@
 use rand::prelude::*;
 
 /// Trait for random selection (allows mocking in tests).
-/// 
+///
 /// Note: Due to Rust's object safety rules, we use Any type for items.
 /// This is a workaround to make the trait dyn-safe while still allowing
 /// generic selection.
@@ -34,12 +34,12 @@ impl DefaultRandomSelector {
             rng: StdRng::seed_from_u64(seed),
         }
     }
-    
+
     /// Select a random element from a slice (convenience method).
     pub fn select<'a, T>(&mut self, items: &'a [T]) -> Option<&'a T> {
         items.choose(&mut self.rng)
     }
-    
+
     /// Shuffle a slice in-place (convenience method).
     pub fn shuffle<T>(&mut self, items: &mut [T]) {
         items.shuffle(&mut self.rng);
