@@ -113,11 +113,15 @@ pub struct ParseCache {
 
 ### 2.2 主要ギャップ
 
-#### Gap 1: グローバルキャッシュの削除
-**現状**: `static PARSE_CACHE: OnceLock<ParseCache>`  
-**必要**: インスタンスフィールド`cache: Option<ParseCache>`またはキャッシュレス  
-**制約**: パフォーマンス影響（同一スクリプト再パース）  
-**複雑度**: 低（構造変更のみ）
+#### Gap 1: グローバルキャッシュのインスタンス化
+**現状**: `static PARSE_CACHE: OnceLock<ParseCache>` - 全エンジンで共有  
+**必要**: `PastaEngine`のフィールドとして`cache: ParseCache`を保持  
+**変更**: 
+- グローバル変数削除
+- `PastaEngine`構造体に`cache`フィールド追加
+- `new()`でキャッシュ初期化
+**制約**: なし（キャッシュ機構は維持、共有を止めるだけ）  
+**複雑度**: 低（構造変更のみ、ロジック変更なし）
 
 #### Gap 2: Arc排除とデータ所有
 **現状**: `unit: Arc<rune::Unit>`, `runtime: Arc<rune::runtime::RuntimeContext>`  
@@ -146,7 +150,11 @@ pub struct ParseCache {
 1. ~~`rune::Unit`は`Clone`可能か？所有コストは?~~ → **調査完了**
 2. ~~`rune::runtime::RuntimeContext`は`Clone`可能か?~~ → **調査完了**
 3. ~~RuneのVMはスレッドセーフか（Send実装）？~~ → **調査完了**
-4. キャッシュなしのパフォーマンス影響（ベンチマーク必要）
+
+**重要な設計方針**:
+- ❌ キャッシュを削除するわけではない
+- ✅ **キャッシュをエンジンインスタンスのフィールドとして保持**
+- グローバル`static PARSE_CACHE` → `PastaEngine`の`cache: ParseCache`フィールドに移動
 
 ### 2.4 Rune依存性調査結果
 
@@ -245,7 +253,17 @@ pub const fn new(
 - `clone()`コストは軽量（参照カウント+1のみ）
 - **問題はArc使用ではなく、グローバルキャッシュの共有**
 
-→ **要件1.1の解釈修正が必要**: "Arc禁止" → "Arcエンジン間共有禁止、各エンジンが独立所有・Rune API制約によるArc使用は許容"
+**実装方針**:
+```rust
+pub struct PastaEngine {
+    unit: Arc<rune::Unit>,
+    runtime: Arc<rune::runtime::RuntimeContext>,
+    label_table: LabelTable,
+    cache: ParseCache,  // ← グローバルから移動、エンジンごとに独立
+}
+```
+
+→ **要件1.1の正しい解釈**: "Arc禁止" → "Arcエンジン間共有禁止、各エンジンが独立所有・Rune API制約によるArc使用は許容"
 
 ---
 
