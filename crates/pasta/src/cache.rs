@@ -5,30 +5,28 @@
 
 use crate::PastaFile;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 
 /// A cache entry containing parsed AST and transpiled Rune code.
-#[derive(Clone)]
 struct CacheEntry {
     /// The parsed AST.
-    ast: Arc<PastaFile>,
+    ast: PastaFile,
     /// The transpiled Rune source code.
-    rune_source: Arc<String>,
+    rune_source: String,
 }
 
-/// Global cache for parse results.
+/// Instance-local cache for parse results.
 ///
 /// This cache stores parsed AST and transpiled Rune code keyed by script content hash.
-/// The cache is thread-safe and uses Arc for efficient sharing of cached data.
+/// Each PastaEngine instance owns its own cache.
 pub struct ParseCache {
-    entries: Arc<RwLock<HashMap<u64, CacheEntry>>>,
+    entries: HashMap<u64, CacheEntry>,
 }
 
 impl ParseCache {
     /// Create a new empty cache.
     pub fn new() -> Self {
         Self {
-            entries: Arc::new(RwLock::new(HashMap::new())),
+            entries: HashMap::new(),
         }
     }
 
@@ -40,11 +38,10 @@ impl ParseCache {
     ///
     /// # Returns
     ///
-    /// An option containing the cached AST and Rune source if found.
-    pub fn get(&self, script: &str) -> Option<(Arc<PastaFile>, Arc<String>)> {
+    /// An option containing cloned copies of the cached AST and Rune source if found.
+    pub fn get(&self, script: &str) -> Option<(PastaFile, String)> {
         let hash = Self::hash_script(script);
-        let entries = self.entries.read().ok()?;
-        let entry = entries.get(&hash)?;
+        let entry = self.entries.get(&hash)?;
         Some((entry.ast.clone(), entry.rune_source.clone()))
     }
 
@@ -55,33 +52,25 @@ impl ParseCache {
     /// * `script` - The script source code
     /// * `ast` - The parsed AST
     /// * `rune_source` - The transpiled Rune source code
-    pub fn insert(&self, script: &str, ast: PastaFile, rune_source: String) {
+    pub fn insert(&mut self, script: &str, ast: PastaFile, rune_source: String) {
         let hash = Self::hash_script(script);
-        let entry = CacheEntry {
-            ast: Arc::new(ast),
-            rune_source: Arc::new(rune_source),
-        };
-
-        if let Ok(mut entries) = self.entries.write() {
-            entries.insert(hash, entry);
-        }
+        let entry = CacheEntry { ast, rune_source };
+        self.entries.insert(hash, entry);
     }
 
     /// Clear all cached entries.
-    pub fn clear(&self) {
-        if let Ok(mut entries) = self.entries.write() {
-            entries.clear();
-        }
+    pub fn clear(&mut self) {
+        self.entries.clear();
     }
 
     /// Get the number of cached entries.
     pub fn len(&self) -> usize {
-        self.entries.read().map(|e| e.len()).unwrap_or(0)
+        self.entries.len()
     }
 
     /// Check if the cache is empty.
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.entries.is_empty()
     }
 
     /// Compute a hash of the script content.
@@ -118,7 +107,7 @@ mod tests {
 
     #[test]
     fn test_cache_insert_and_get() {
-        let cache = ParseCache::new();
+        let mut cache = ParseCache::new();
         let script = r#"
 ＊test
     さくら：こんにちは
@@ -137,13 +126,13 @@ mod tests {
 
         let (cached_ast, cached_rune) = cached.unwrap();
         assert_eq!(cached_ast.labels.len(), ast.labels.len());
-        assert_eq!(*cached_rune, rune_source);
+        assert_eq!(cached_rune, rune_source);
         assert_eq!(cache.len(), 1);
     }
 
     #[test]
     fn test_cache_miss() {
-        let cache = ParseCache::new();
+        let mut cache = ParseCache::new();
         let script1 = r#"
 ＊test1
     さくら：こんにちは
@@ -165,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_cache_clear() {
-        let cache = ParseCache::new();
+        let mut cache = ParseCache::new();
         let script = r#"
 ＊test
     さくら：こんにちは
@@ -184,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_cache_multiple_entries() {
-        let cache = ParseCache::new();
+        let mut cache = ParseCache::new();
         let scripts = vec![
             r#"
 ＊test1
