@@ -148,6 +148,18 @@ impl Transpiler {
                     }
                 }
             }
+            Statement::RuneBlock { content, span: _ } => {
+                // Output the Rune code inline with proper indentation
+                for line in content.lines() {
+                    if line.trim().is_empty() {
+                        output.push('\n');
+                    } else {
+                        output.push_str("    ");
+                        output.push_str(line.trim_start());
+                        output.push('\n');
+                    }
+                }
+            }
         }
         Ok(())
     }

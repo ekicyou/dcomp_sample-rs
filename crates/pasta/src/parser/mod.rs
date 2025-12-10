@@ -73,6 +73,9 @@ fn parse_global_label(pair: Pair<Rule>) -> Result<LabelDef, PastaError> {
             Rule::local_label => {
                 local_labels.push(parse_local_label(inner_pair)?);
             }
+            Rule::rune_block => {
+                statements.push(parse_rune_block(inner_pair)?);
+            }
             Rule::statement => {
                 if let Some(stmt) = parse_statement(inner_pair)? {
                     statements.push(stmt);
@@ -109,6 +112,9 @@ fn parse_local_label(pair: Pair<Rule>) -> Result<LabelDef, PastaError> {
             }
             Rule::attribute_line => {
                 attributes.push(parse_attribute(inner_pair)?);
+            }
+            Rule::rune_block => {
+                statements.push(parse_rune_block(inner_pair)?);
             }
             Rule::statement => {
                 if let Some(stmt) = parse_statement(inner_pair)? {
@@ -408,6 +414,24 @@ fn parse_var_assign(pair: Pair<Rule>) -> Result<Statement, PastaError> {
         value,
         span,
     })
+}
+
+fn parse_rune_block(pair: Pair<Rule>) -> Result<Statement, PastaError> {
+    let span_pest = pair.as_span();
+    let start = span_pest.start_pos().line_col();
+    let end = span_pest.end_pos().line_col();
+    let span = Span::from_pest(start, end);
+
+    let mut content = String::new();
+
+    for inner_pair in pair.into_inner() {
+        if inner_pair.as_rule() == Rule::rune_content {
+            content = inner_pair.as_str().to_string();
+            break;
+        }
+    }
+
+    Ok(Statement::RuneBlock { content, span })
 }
 
 fn parse_expr(pair: Pair<Rule>) -> Result<Expr, PastaError> {

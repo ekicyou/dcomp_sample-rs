@@ -191,10 +191,14 @@ func_name = @{ ident }
 
 // === Rune Code Block ===
 
-rune_block = {
+rune_block = ${
     indent ~ rune_start ~ NEWLINE ~
-    (!( indent ~ rune_end ) ~ ANY)* ~
+    rune_content ~
     indent ~ rune_end ~ NEWLINE?
+}
+
+rune_content = @{
+    (!(indent ~ "```") ~ ANY)*
 }
 
 rune_start = { "```rune" | "```" }

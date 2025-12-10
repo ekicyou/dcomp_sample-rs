@@ -132,7 +132,6 @@ fn test_rune_start() {
 }
 
 #[test]
-#[ignore = "Rune block inline embedding not supported - use external .rune files instead"]
 fn test_rune_block_minimal() {
     let input = "  ```\n\n  ```\n";
     let result = PastaParser::parse(Rule::rune_block, input);

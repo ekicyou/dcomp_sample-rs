@@ -115,6 +115,13 @@ pub enum Statement {
         /// Source location span
         span: Span,
     },
+    /// Inline Rune code block
+    RuneBlock {
+        /// Raw Rune code content (as string, not parsed)
+        content: String,
+        /// Source location span
+        span: Span,
+    },
 }
 
 /// Part of speech content

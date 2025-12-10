@@ -163,7 +163,6 @@ mod grammar_tests {
     }
 
     #[test]
-    #[ignore = "Rune block inline embedding not supported - use external .rune files instead"]
     fn test_rune_block() {
         let input = r#"  ```rune
   fn test() {
