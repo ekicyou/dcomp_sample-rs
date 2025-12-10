@@ -524,11 +524,16 @@ impl PastaEngine {
   - ❌ **スタックトレース不要**: Req 3 AC 6 - ファイルパス・行番号・列番号・エラー詳細のみ
   - ✅ **全ファイルパース方針**: 開発者体験優先（全エラー一括確認）、IoErrorのみ早期停止
 
-**3. Rune Sources統合**
+**3. Rune Sources統合** ✅ **議題クローズ**
 - **課題**: 複数Runeファイル（main.rune + mod）の統合順序
-- **調査事項**:
-  - `Sources::insert()` の呼び出し順序がコンパイルに影響するか
-  - `mod`解決の内部動作（Runeコンパイラの仕様確認）
+- **決定事項**:
+  - ✅ **Sources::insert()順序影響なし**: Runeコンパイラは全ソース収集後に依存解析
+    - 推奨順序: トランスパイル済みDSL ("entry") → main.rune（可読性）
+    - `rune::prepare(&mut sources).build()` 時点で`mod`解決
+  - ✅ **mod解決はRuneコンパイラ責務**: エンジンは`main.rune`のみ追加
+    - Runeが`mod`文解析、相対パス探索、循環依存検出を実行
+    - エラーは`PastaError::RuneCompileError`でラップ
+  - ✅ **main.rune追加方法**: `sources.insert(rune::Source::from_path(&main_rune_path)?)?`
 
 ---
 
