@@ -403,6 +403,7 @@ fn create_flexbox_window(world: &mut World) {
 }
 
 /// レイアウトパラメーターを変更
+#[allow(dead_code)]
 fn change_layout_parameters(world: &mut World) {
     // WindowエンティティのBoxStyleを変更してウィンドウを移動・リサイズ
     let mut window_query = world.query_filtered::<&mut BoxStyle, With<FlexDemoWindow>>();
@@ -594,6 +595,7 @@ fn test_hit_test_1s(world: &mut World) {
 }
 
 /// 6秒後のヒットテスト検証（レイアウト変更後）
+#[allow(dead_code)]
 fn test_hit_test_6s(world: &mut World) {
     println!("[HitTest @6s] === Running hit test after layout change ===");
 

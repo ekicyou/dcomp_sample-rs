@@ -1,6 +1,6 @@
 //! Test file to understand Rune 0.14 Module API
 
-use rune::{Context, Module, Vm};
+use rune::{Context, Vm};
 use std::sync::Arc;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let mut context = Context::with_default_modules()?;
+    let context = Context::with_default_modules()?;
 
     let unit = rune::prepare(&mut sources).with_context(&context).build()?;
 

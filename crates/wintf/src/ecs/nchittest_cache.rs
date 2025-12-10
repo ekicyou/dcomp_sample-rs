@@ -129,6 +129,7 @@ pub fn cached_nchittest(
 
     // HTCLIENT = 1, HTTRANSPARENT = -1
     const HTCLIENT: i32 = 1;
+    #[allow(dead_code)]
     const HTTRANSPARENT: i32 = -1;
 
     // 常にHTCLIENTを返す（クライアント領域としてマウスイベントを受け取る）
