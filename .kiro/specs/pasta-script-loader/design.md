@@ -19,7 +19,9 @@
   - **理由**: カレントディレクトリ依存を避け、セキュリティリスク（パストラバーサル）を低減
   - 将来拡張も予定なし（絶対パス運用を強制）
 - ファイル探索順序の保証（ファイルシステム依存）
-- ホットリロード監視（`reload_directory()`は明示的呼び出しのみ）
+- ホットリロード・スクリプト再読み込み機能
+  - **理由**: 状態管理の複雑さを避け、`drop(engine)` → `from_directory()`での再初期化が
+            よりシンプルで安全なため。ユースケースも不明確。
 - アーカイブ（.zip等）やHTTPソースからの読み込み（将来拡張）
 
 ## Architecture
@@ -408,7 +410,6 @@ Total: 2 error(s)
 | `from_directory_with_selector` | `(path: impl AsRef<Path>, selector: Box<dyn RandomSelector>) -> Result<Self>` | カスタムセレクタで初期化 | 同上 |
 | `list_labels` | `(&self) -> Vec<String>` | 全ラベル名列挙 | - |
 | `list_global_labels` | `(&self) -> Vec<String>` | グローバルラベルのみ列挙 | - |
-| `reload_directory` | `(&mut self) -> Result<()>` | ディレクトリ再読み込み | 同上 |
 
 ##### Struct Definition
 ```rust
@@ -420,19 +421,13 @@ pub struct PastaEngine {
     runtime: Arc<rune::runtime::RuntimeContext>,
     /// ラベルテーブル（ラベル検索・ランダム選択）
     label_table: LabelTable,
-    /// スクリプトルートディレクトリ（from_directory()で初期化時のみ設定）
-    /// `None`の場合、reload_directory()は利用不可
-    script_root: Option<PathBuf>,
 }
 ```
 
 **Field Rationale**:
-- `unit`, `runtime`: 既存フィールド（不変）
-- `label_table`: 既存フィールド（型は`LabelTable`のまま、Arcラップ不要）
-- `script_root`: 新規フィールド
-  - `from_directory()`で`Some(path.to_path_buf())`を設定
-  - `new()`では`None`のまま（文字列初期化では再読み込み不可）
-  - `reload_directory()`の前提条件チェックに使用
+- `unit`, `runtime`, `label_table`: 既存フィールド（不変）
+- 注: 以前の設計では`script_root: Option<PathBuf>`を含めていたが、
+  `reload_directory()`削除により不要となったため削除
 
 ##### Service Interface
 ```rust
@@ -460,9 +455,6 @@ impl PastaEngine {
     
     /// グローバルラベルのみ列挙
     pub fn list_global_labels(&self) -> Vec<String>;
-    
-    /// ディレクトリを再読み込み（ファイル変更反映）
-    pub fn reload_directory(&mut self) -> Result<()>;
 }
 ```
 - Preconditions: `path`は絶対パスで、有効なスクリプトディレクトリ構造を持つ
@@ -534,7 +526,6 @@ pub fn from_directory(path: impl AsRef<Path>) -> Result<Self> {
         unit: Arc::new(unit),
         runtime,
         label_table,
-        script_root: Some(path.to_path_buf()),
     })
 }
 ```
@@ -562,22 +553,6 @@ fn merge_asts(asts: Vec<Ast>) -> Ast {
   同名ラベルの関数名が重複する（例: 複数ファイルで`挨拶_0`が生成される）
 - **採用理由**: 全ラベル統合後に1回だけ`register_labels()`を呼ぶことで、
   カウンターが連続し、関数名の一意性を保証（`挨拶_0`, `挨拶_1`, `挨拶_2`...）
-
-**State Management for reload_directory()**:
-- **PastaEngine構造体拡張**: `script_root: Option<PathBuf>` フィールドを追加
-  - `from_directory()`呼び出し時に設定（`Some(path)`）
-  - `new()`呼び出し時は`None`（文字列ベース初期化では再読み込み不可）
-- **Arc<LabelTable>共有戦略**: 
-  - 既存の`label_table: Arc<LabelTable>`を再利用
-  - reload成功時、新しいLabelTableを構築してArcを更新
-  - 実行中のジェネレータは古いArcを参照し続ける（影響なし）
-- **エラー時の状態維持**: 
-  - reload失敗時はロールバック不要
-  - 既存の`label_table`、`context`、`runtime`をそのまま維持
-  - エラーを呼び出し元に返すのみ（部分的な状態更新なし）
-- **Rune Sources再構築**: 
-  - reload成功時、新しい`main.rune`で`Sources::new()`を再作成
-  - 既存のRuneコンテキスト・ランタイムは破棄し、新規構築
 
 ### Cross-cutting
 

@@ -146,4 +146,3 @@ pastaエンジンは初期化時にスクリプトディレクトリの絶対・
 3. The Pastaエンジン shall 既存の`PastaEngine::new(script: &str)`コンストラクタとの互換性を維持する
 4. The Pastaエンジン shall `list_labels(&self) -> Vec<String>`メソッドで全ラベル名を列挙可能とする
 5. The Pastaエンジン shall `list_global_labels(&self) -> Vec<String>`メソッドでグローバルラベルのみを列挙可能とする
-6. The Pastaエンジン shall `reload_directory(&mut self)`メソッドでディレクトリの再読み込みを可能とする
