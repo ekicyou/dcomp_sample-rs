@@ -541,6 +541,12 @@ pub enum PastaError {
     /// pest パースエラー
     #[error("Pest parse error: {0}")]
     PestError(String),
+    
+    /// 関数未発見エラー
+    #[error("Function not found: {name}")]
+    FunctionNotFound {
+        name: String,
+    },
 }
 ```
 
@@ -730,7 +736,7 @@ pub struct Span {
 | Field | Detail |
 |-------|--------|
 | Intent | Pasta AST から Rune コードへの変換 |
-| Requirements | 3.1-3.6, 5.1-5.6 |
+| Requirements | 3.1-3.6, 5.1-5.6, 9.1-9.5 |
 | Owner | pasta/transpiler/mod.rs |
 
 **Contracts**: Service [x]
@@ -752,6 +758,63 @@ impl Transpiler {
     
     /// 発言を Rune コードに変換
     fn transpile_speech(speech: &Statement) -> String;
+    
+    /// 関数呼び出しをスコープ解決して変換
+    fn transpile_function_call(
+        func_name: &str,
+        args: &[Expr],
+        scope: FunctionScope,
+        context: &TranspileContext,
+    ) -> Result<String, PastaError>;
+}
+
+/// 関数スコープ指定
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FunctionScope {
+    /// ローカル→グローバルの自動検索（`＠関数名`）
+    Auto,
+    /// グローバルのみ検索（`＠＊関数名`）
+    GlobalOnly,
+}
+
+/// トランスパイルコンテキスト（スコープ情報保持）
+pub struct TranspileContext {
+    /// 現在のラベル内で定義されたローカル関数名リスト
+    local_functions: Vec<String>,
+    /// グローバル関数名リスト（標準ライブラリ + ユーザー定義）
+    global_functions: Vec<String>,
+}
+
+impl TranspileContext {
+    /// 関数名を解決（ローカル→グローバルの順で検索）
+    pub fn resolve_function(&self, func_name: &str, scope: FunctionScope) -> Result<String, PastaError> {
+        match scope {
+            FunctionScope::Auto => {
+                // 1. ローカル関数を検索
+                if self.local_functions.contains(&func_name.to_string()) {
+                    Ok(func_name.to_string())
+                }
+                // 2. グローバル関数を検索
+                else if self.global_functions.contains(&func_name.to_string()) {
+                    Ok(func_name.to_string())
+                } else {
+                    Err(PastaError::FunctionNotFound {
+                        name: func_name.to_string(),
+                    })
+                }
+            }
+            FunctionScope::GlobalOnly => {
+                // グローバルのみ検索
+                if self.global_functions.contains(&func_name.to_string()) {
+                    Ok(func_name.to_string())
+                } else {
+                    Err(PastaError::FunctionNotFound {
+                        name: func_name.to_string(),
+                    })
+                }
+            }
+        }
+    }
 }
 ```
 

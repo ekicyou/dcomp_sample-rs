@@ -1,6 +1,6 @@
 //! Integration tests for PastaEngine (Tasks 5.1, 5.2, 5.3)
 
-use pasta::{PastaEngine, ScriptEvent};
+use pasta::{PastaEngine, ir::{ScriptEvent, ContentPart}};
 
 #[test]
 fn test_engine_execute_simple_label() -> Result<(), Box<dyn std::error::Error>> {
@@ -268,7 +268,7 @@ fn test_multiple_speakers_complex() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_sakura_script_content_parts() -> Result<(), Box<dyn std::error::Error>> {
-    // Test that sakura script escapes are included in content
+    // Test that sakura script escapes are included in content as ContentPart::SakuraScript
     let script = r#"
 ＊test
     さくら：テキスト＼ｓ［０］続き
@@ -277,18 +277,19 @@ fn test_sakura_script_content_parts() -> Result<(), Box<dyn std::error::Error>> 
     let mut engine = PastaEngine::new(script)?;
     let events = engine.execute_label("test")?;
     
-    // Should have ChangeSpeaker + Talk
-    assert_eq!(events.len(), 2);
+    // Current implementation: ChangeSpeaker + Talk(Text) + Talk(SakuraScript) + Talk(Text)
+    // TODO: Future optimization - combine into single Talk with multiple ContentParts
+    assert!(events.len() >= 2, "Expected at least ChangeSpeaker + Talk events");
     
-    // Check Talk event has content (sakura script is currently passed through as text)
-    match &events[1] {
-        ScriptEvent::Talk { content, .. } => {
-            assert!(!content.is_empty(), "Expected content");
-            // Current implementation passes sakura script as part of text
-            // This is acceptable for now
+    // Check that we have SakuraScript content parts
+    let has_sakura = events.iter().any(|e| {
+        if let ScriptEvent::Talk { content, .. } = e {
+            content.iter().any(|p| matches!(p, ContentPart::SakuraScript(_)))
+        } else {
+            false
         }
-        _ => panic!("Expected Talk event"),
-    }
+    });
+    assert!(has_sakura, "Expected at least one SakuraScript ContentPart");
 
     Ok(())
 }

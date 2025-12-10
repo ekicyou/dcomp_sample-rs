@@ -237,7 +237,9 @@ fn parse_speech_content(pair: Pair<Rule>) -> Result<Vec<SpeechPart>, PastaError>
                 parts.push(SpeechPart::FuncCall { name, args });
             }
             Rule::sakura_script => {
-                let cmd = inner_pair.into_inner().next().unwrap().as_str().to_string();
+                // sakura_script = sakura_escape ~ sakura_command
+                // We want the sakura_command part (second element)
+                let cmd = inner_pair.into_inner().nth(1).unwrap().as_str().to_string();
                 parts.push(SpeechPart::SakuraScript(cmd));
             }
             _ => {}

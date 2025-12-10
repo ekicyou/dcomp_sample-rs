@@ -71,8 +71,34 @@ continuation_line = {
 text_part = @{ (!(at_marker | sakura_escape | NEWLINE) ~ ANY)+ }
 
 sakura_script = { sakura_escape ~ sakura_command }
-sakura_escape = { "\\" }
-sakura_command = @{ (!(NEWLINE | at_marker) ~ ANY)+ }
+sakura_escape = { "\\" | "＼" }
+// Sakura commands can be:
+// - Single char: \n, \0, \1, ＼ｎ, ＼０, ＼１
+// - Char + number: \w8, ＼ｗ８
+// - Char + brackets: \s[0], ＼ｓ［０］, \![raise,event]
+// - Underscore + char + brackets: \_w[50], ＿ｗ［５０］
+sakura_bracket_open = { "[" | "［" }
+sakura_bracket_close = { "]" | "］" }
+sakura_letter = { ASCII_ALPHA | '\u{FF41}'..'\u{FF5A}' | '\u{FF21}'..'\u{FF3A}' }  // Latin letters (both half and full width)
+sakura_digit = { ASCII_DIGIT | '\u{FF10}'..'\u{FF19}' }  // Digits (both half and full width)
+sakura_underscore = { "_" | "＿" }
+
+sakura_command = @{
+    // Pattern 1: Underscore + letters + optional brackets: \_w[50]
+    sakura_underscore ~ sakura_letter+ ~ (sakura_bracket_open ~ (!sakura_bracket_close ~ ANY)* ~ sakura_bracket_close)?  |
+    
+    // Pattern 2: ! or letter(s) + brackets: \s[0], \custom[arg], \![event]
+    ("!" | "！" | sakura_letter+) ~ sakura_bracket_open ~ (!sakura_bracket_close ~ ANY)* ~ sakura_bracket_close  |
+    
+    // Pattern 3: Single letter + digits: \w8  (but not \n2 - that should be \n followed by text "2")
+    sakura_letter ~ sakura_digit+ ~ !sakura_letter  |
+    
+    // Pattern 4: Single letter: \n
+    sakura_letter  |
+    
+    // Pattern 5: Digits only: \0, \1
+    sakura_digit+
+}
 
 // Call statement
 call_stmt = {

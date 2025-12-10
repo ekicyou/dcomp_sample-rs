@@ -379,6 +379,52 @@ let mut vm = Vm::new(runtime, Arc::new(unit));
 
 **推定工数**: 2-3時間
 
+---
+
+## Task 12: 関数スコープ解決
+
+関数呼び出し時のローカル→グローバルスコープ自動解決を実装する。
+
+### 12.1 FunctionScope 型と TranspileContext の実装
+
+**Description**: 関数スコープ指定用の enum と、スコープ情報を保持するコンテキスト構造体を実装する。ローカル関数リストとグローバル関数リストを管理する機能を提供する。
+
+**Requirements**: 9.1, 9.2
+
+**推定工数**: 1-2時間
+
+### 12.2 スコープ解決ロジックの実装
+
+**Description**: TranspileContext に関数名解決メソッドを実装する。ローカル→グローバルの順で検索し、見つからない場合は FunctionNotFound エラーを返す。
+
+**Requirements**: 9.1, 9.3, 9.4, 9.5
+
+**推定工数**: 1-2時間
+
+### 12.3 Transpiler への統合
+
+**Description**: Transpiler の関数呼び出し変換処理に、スコープ解決ロジックを統合する。`＠関数名`と`＠＊関数名`の構文を識別し、適切なスコープで解決する。
+
+**Requirements**: 9.2, 9.3
+
+**推定工数**: 1-2時間
+
+### 12.4 PastaError への FunctionNotFound 追加
+
+**Description**: PastaError に FunctionNotFound バリアントを追加し、関数が見つからない場合の適切なエラーメッセージを提供する。
+
+**Requirements**: 9.4
+
+**推定工数**: 30分
+
+### 12.5 スコープ解決のテスト作成
+
+**Description**: ローカル関数優先、グローバル関数フォールバック、明示的グローバル指定、関数未発見エラーの各ケースをテストする。
+
+**Requirements**: 9.1, 9.2, 9.3, 9.4, 9.5
+
+**推定工数**: 1-2時間
+
 **現状**: Task 2.1で文法テストが失敗。技術的な課題は負先読みパターン`!(indent ~ rune_end)`が正しく動作していないこと。
 
 ### 11.2 Rune Block ASTノードの実装
@@ -535,7 +581,10 @@ Task 1 (Foundation)
                                           Task 11 (Rune Block Support)
                                                      │
                                                      v
-                                          Task 12 (Test Completion) ⚠️ CRITICAL
+                                          Task 12 (Function Scope Resolution)
+                                                     │
+                                                     v
+                                          Task 13 (Test Completion) ⚠️ CRITICAL
 ```
 
 ---
@@ -555,5 +604,6 @@ Task 1 (Foundation)
 | 9 | パフォーマンス最適化 | 3 | 3-4 |
 | 10 | ドキュメントとサンプル | 3 | 2-3 |
 | 11 | Rune Block サポート | 4 | 6-8 |
-| 12 | **テスト完遂（必達）** | 5 | 8-13 |
-| **Total** | | **49** | **59-80** |
+| 12 | 関数スコープ解決 | 5 | 5-7 |
+| 13 | **テスト完遂（必達）** | 5 | 8-13 |
+| **Total** | | **54** | **64-88** |
