@@ -46,6 +46,7 @@ pub mod transpiler;
 pub mod runtime;
 pub mod stdlib;
 pub mod engine;
+pub mod cache;
 
 // Re-export commonly used types
 pub use error::{PastaError, Result};
@@ -60,3 +61,4 @@ pub use runtime::{
 };
 pub use transpiler::Transpiler;
 pub use engine::PastaEngine;
+pub use cache::ParseCache;

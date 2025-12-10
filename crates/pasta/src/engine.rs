@@ -4,6 +4,7 @@
 //! and runtime execution to provide a high-level API for running Pasta scripts.
 
 use crate::{
+    cache::ParseCache,
     error::{PastaError, Result},
     ir::ScriptEvent,
     parser::parse_str,
@@ -13,7 +14,18 @@ use crate::{
 };
 use rune::{Context, Vm};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+
+/// Global parse cache for reusing parsed AST and transpiled Rune code.
+///
+/// This cache is shared across all PastaEngine instances and persists
+/// for the lifetime of the application.
+static PARSE_CACHE: OnceLock<ParseCache> = OnceLock::new();
+
+/// Get or initialize the global parse cache.
+fn global_cache() -> &'static ParseCache {
+    PARSE_CACHE.get_or_init(|| ParseCache::new())
+}
 
 /// Main Pasta script engine.
 ///
@@ -21,6 +33,11 @@ use std::sync::Arc;
 /// - Parser: Parses Pasta DSL to AST
 /// - Transpiler: Converts AST to Rune source code
 /// - Runtime: Executes Rune code with generators
+///
+/// # Performance
+///
+/// The engine uses a global cache to reuse parsed AST and transpiled Rune code
+/// for identical scripts, avoiding redundant parsing and transpilation overhead.
 ///
 /// # Example
 ///
@@ -76,11 +93,33 @@ impl PastaEngine {
         script: &str,
         random_selector: Box<dyn RandomSelector>,
     ) -> Result<Self> {
-        // Step 1: Parse DSL to AST
-        let ast = parse_str(script, "<script>")?;
+        // Try to get from cache first
+        let cache = global_cache();
+        let (ast, rune_source) = if let Some((cached_ast, cached_rune)) = cache.get(script) {
+            // Cache hit - reuse parsed AST and Rune source
+            #[cfg(debug_assertions)]
+            {
+                eprintln!("[PastaEngine] Cache hit for script");
+            }
+            ((*cached_ast).clone(), (*cached_rune).clone())
+        } else {
+            // Cache miss - parse and transpile
+            #[cfg(debug_assertions)]
+            {
+                eprintln!("[PastaEngine] Cache miss - parsing script");
+            }
 
-        // Step 2: Transpile AST to Rune source
-        let rune_source = Transpiler::transpile(&ast)?;
+            // Step 1: Parse DSL to AST
+            let ast = parse_str(script, "<script>")?;
+
+            // Step 2: Transpile AST to Rune source
+            let rune_source = Transpiler::transpile(&ast)?;
+
+            // Store in cache for future use
+            cache.insert(script, ast.clone(), rune_source.clone());
+
+            (ast, rune_source)
+        };
 
         // Debug output for development
         #[cfg(debug_assertions)]
@@ -386,6 +425,30 @@ impl PastaEngine {
             event_name,
             params,
         }
+    }
+
+    /// Clear the global parse cache.
+    ///
+    /// This removes all cached parsed AST and transpiled Rune code.
+    /// Useful for memory management or when scripts are dynamically modified.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use pasta::PastaEngine;
+    ///
+    /// // Clear cache before running tests
+    /// PastaEngine::clear_cache();
+    /// ```
+    pub fn clear_cache() {
+        global_cache().clear();
+    }
+
+    /// Get the number of entries in the global parse cache.
+    ///
+    /// Useful for monitoring cache usage and testing.
+    pub fn cache_size() -> usize {
+        global_cache().len()
     }
 
     /// Execute a chain of labels automatically.
@@ -806,5 +869,142 @@ mod tests {
         
         let shutdown_events = engine.on_event("Shutdown", HashMap::new()).unwrap();
         assert!(!shutdown_events.is_empty());
+    }
+
+    // ============================================================================
+    // Task 9: Performance Tests
+    // ============================================================================
+    //
+    // Note: Cache tests below use a global cache and must run serially.
+    // Run with: cargo test --lib -- --test-threads=1
+
+    #[test]
+    #[ignore] // Requires --test-threads=1 due to global cache
+    fn test_parse_cache_hit() {
+        // Note: This test uses a global cache shared across tests.
+        // To test cache behavior in isolation, run with --test-threads=1
+        
+        let script = r#"
+＊test_cache_unique_9877
+    さくら：キャッシュテスト
+"#;
+
+        // Get initial cache size
+        let initial_size = PastaEngine::cache_size();
+
+        // First parse - should add to cache
+        let engine1 = PastaEngine::new(script).unwrap();
+        let size_after_first = PastaEngine::cache_size();
+        assert_eq!(size_after_first, initial_size + 1, "Cache should grow by 1 after first parse");
+        assert!(engine1.has_label("test_cache_unique_9877"));
+
+        // Second parse - should hit cache (size shouldn't increase)
+        let engine2 = PastaEngine::new(script).unwrap();
+        let size_after_second = PastaEngine::cache_size();
+        assert_eq!(size_after_second, size_after_first, "Cache size should not increase on cache hit");
+        assert!(engine2.has_label("test_cache_unique_9877"));
+    }
+
+    #[test]
+    #[ignore] // Requires --test-threads=1 due to global cache
+    fn test_parse_cache_different_scripts() {
+        // Note: This test uses a global cache shared across tests.
+        
+        let script1 = r#"
+＊test_unique_cache_1
+    さくら：スクリプト１
+"#;
+        let script2 = r#"
+＊test_unique_cache_2
+    さくら：スクリプト２
+"#;
+
+        let initial_size = PastaEngine::cache_size();
+
+        let _ = PastaEngine::new(script1).unwrap();
+        let size_after_first = PastaEngine::cache_size();
+        assert_eq!(size_after_first, initial_size + 1, "Cache should grow by 1");
+
+        let _ = PastaEngine::new(script2).unwrap();
+        let size_after_second = PastaEngine::cache_size();
+        assert_eq!(size_after_second, initial_size + 2, "Cache should grow by 2 total");
+    }
+
+    #[test]
+    #[ignore] // Requires --test-threads=1 due to global cache
+    fn test_parse_cache_clear() {
+        // Test that clear_cache() works
+        let script = r#"
+＊test_clear_unique_8866
+    さくら：テスト
+"#;
+        
+        // Add something to cache
+        let _ = PastaEngine::new(script).unwrap();
+        let size_before_clear = PastaEngine::cache_size();
+        assert!(size_before_clear > 0, "Cache should have entries");
+
+        // Clear and verify it reduces (may not be 0 if other tests added entries)
+        PastaEngine::clear_cache();
+        let size_after_clear = PastaEngine::cache_size();
+        assert_eq!(size_after_clear, 0, "Cache should be empty after clear");
+        
+        // Re-add and verify it grows
+        let _ = PastaEngine::new(script).unwrap();
+        let size_after_readd = PastaEngine::cache_size();
+        assert_eq!(size_after_readd, 1, "Cache should have 1 entry after re-add");
+    }
+
+    #[test]
+    fn test_label_lookup_performance_many_labels() {
+        // Test O(1) lookup performance with many labels
+        let mut script = String::new();
+        for i in 0..100 {
+            script.push_str(&format!("＊label{}\n", i));
+            script.push_str("    さくら：テスト\n\n");
+        }
+
+        let engine = PastaEngine::new(&script).unwrap();
+        
+        // All labels should be found instantly
+        for i in 0..100 {
+            let label_name = format!("label{}", i);
+            assert!(engine.has_label(&label_name));
+        }
+    }
+
+    #[test]
+    fn test_duplicate_labels_grouping() {
+        // Test that duplicate labels are properly grouped
+        let script = r#"
+＊greeting
+    さくら：こんにちは
+
+＊greeting
+    さくら：やあ
+
+＊greeting
+    さくら：おはよう
+"#;
+
+        let mut engine = PastaEngine::new(script).unwrap();
+        
+        // Execute the label multiple times - should work with random selection
+        for _ in 0..10 {
+            let events = engine.execute_label("greeting").unwrap();
+            assert!(!events.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_label_lookup_nonexistent() {
+        let script = r#"
+＊test
+    さくら：テスト
+"#;
+        let engine = PastaEngine::new(script).unwrap();
+        
+        // Nonexistent label should be found quickly (O(1))
+        assert!(!engine.has_label("nonexistent"));
     }
 }

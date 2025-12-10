@@ -17,3 +17,7 @@ rand = "0.9"
 futures = "0.3"
 
 [dev-dependencies]
+
+[[bench]]
+name = "performance"
+harness = false
