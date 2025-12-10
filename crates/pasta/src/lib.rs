@@ -52,13 +52,13 @@ pub mod cache;
 pub use error::{PastaError, Result};
 pub use ir::{ContentPart, ScriptEvent};
 pub use parser::{
-    parse_file, parse_str, Argument, Attribute, AttributeValue, BinOp, Expr, JumpTarget,
+    parse_file, parse_str, Argument, Attribute, AttributeValue, BinOp, Expr, FunctionScope, JumpTarget,
     LabelDef, LabelScope, Literal, PastaFile, SpeechPart, Span, Statement, VarScope,
 };
 pub use runtime::{
     DefaultRandomSelector, LabelInfo, LabelTable, RandomSelector, ScriptGenerator,
     ScriptGeneratorState, VariableManager, VariableScope, VariableValue,
 };
-pub use transpiler::Transpiler;
+pub use transpiler::{Transpiler, TranspileContext};
 pub use engine::PastaEngine;
 pub use cache::ParseCache;

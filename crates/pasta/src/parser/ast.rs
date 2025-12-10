@@ -6,6 +6,15 @@
 
 use std::path::PathBuf;
 
+/// Function scope specification for function resolution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FunctionScope {
+    /// Automatic local→global search (`＠関数名`)
+    Auto,
+    /// Global-only search (`＠＊関数名`)
+    GlobalOnly,
+}
+
 /// Represents a complete Pasta script file
 #[derive(Debug, Clone)]
 pub struct PastaFile {
@@ -131,12 +140,14 @@ pub enum SpeechPart {
     Text(String),
     /// Variable reference (@var_name)
     VarRef(String),
-    /// Function call (@func_name(args))
+    /// Function call (@func_name(args) or @*func_name(args))
     FuncCall {
         /// Function name
         name: String,
         /// Arguments
         args: Vec<Argument>,
+        /// Function scope (Auto or GlobalOnly)
+        scope: FunctionScope,
     },
     /// Sakura script escape sequence (\command)
     SakuraScript(String),
@@ -187,6 +198,8 @@ pub enum Expr {
         name: String,
         /// Arguments
         args: Vec<Argument>,
+        /// Function scope (Auto or GlobalOnly)
+        scope: FunctionScope,
     },
     /// Binary operation
     BinaryOp {

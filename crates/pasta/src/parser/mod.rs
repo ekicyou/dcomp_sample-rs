@@ -239,8 +239,8 @@ fn parse_speech_content(pair: Pair<Rule>) -> Result<Vec<SpeechPart>, PastaError>
                 parts.push(SpeechPart::VarRef(var_name));
             }
             Rule::func_call => {
-                let (name, args) = parse_func_call(inner_pair)?;
-                parts.push(SpeechPart::FuncCall { name, args });
+                let (name, args, scope) = parse_func_call(inner_pair)?;
+                parts.push(SpeechPart::FuncCall { name, args, scope });
             }
             Rule::sakura_script => {
                 // sakura_script = sakura_escape ~ sakura_command
@@ -475,8 +475,8 @@ fn parse_term(pair: Pair<Rule>) -> Result<Expr, PastaError> {
             Ok(Expr::Paren(Box::new(parse_expr(expr_pair)?)))
         }
         Rule::func_call => {
-            let (name, args) = parse_func_call(inner_pair)?;
-            Ok(Expr::FuncCall { name, args })
+            let (name, args, scope) = parse_func_call(inner_pair)?;
+            Ok(Expr::FuncCall { name, args, scope })
         }
         Rule::var_ref => {
             let var_name = inner_pair.into_inner().nth(1).unwrap().as_str().to_string();
@@ -508,14 +508,22 @@ fn parse_bin_op(pair: Pair<Rule>) -> Result<BinOp, PastaError> {
     }
 }
 
-fn parse_func_call(pair: Pair<Rule>) -> Result<(String, Vec<Argument>), PastaError> {
+fn parse_func_call(pair: Pair<Rule>) -> Result<(String, Vec<Argument>, FunctionScope), PastaError> {
     let mut name = String::new();
     let mut args = Vec::new();
+    let mut scope = FunctionScope::Auto; // Default to auto-resolution
 
     for inner_pair in pair.into_inner() {
         match inner_pair.as_rule() {
             Rule::func_name => {
-                name = inner_pair.as_str().to_string();
+                let func_name_str = inner_pair.as_str();
+                // Check if function name starts with * for global-only scope
+                if func_name_str.starts_with('*') || func_name_str.starts_with('＊') {
+                    scope = FunctionScope::GlobalOnly;
+                    name = func_name_str[1..].trim_start().to_string(); // Remove * prefix
+                } else {
+                    name = func_name_str.to_string();
+                }
             }
             Rule::arg_list => {
                 args = parse_arg_list(inner_pair)?;
@@ -524,7 +532,7 @@ fn parse_func_call(pair: Pair<Rule>) -> Result<(String, Vec<Argument>), PastaErr
         }
     }
 
-    Ok((name, args))
+    Ok((name, args, scope))
 }
 
 fn parse_arg_list(pair: Pair<Rule>) -> Result<Vec<Argument>, PastaError> {
@@ -591,8 +599,8 @@ fn parse_arg_value(pair: Pair<Rule>) -> Result<Expr, PastaError> {
             })
         }
         Rule::func_call => {
-            let (name, args) = parse_func_call(inner_pair)?;
-            Ok(Expr::FuncCall { name, args })
+            let (name, args, scope) = parse_func_call(inner_pair)?;
+            Ok(Expr::FuncCall { name, args, scope })
         }
         _ => Ok(Expr::Literal(Literal::Number(0.0))),
     }

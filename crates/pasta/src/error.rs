@@ -21,6 +21,10 @@ pub enum PastaError {
     #[error("Label not found: {label}")]
     LabelNotFound { label: String },
 
+    /// Function not found error.
+    #[error("Function not found: {name}")]
+    FunctionNotFound { name: String },
+
     /// Name conflict error (duplicate label or variable).
     #[error("Name conflict: '{name}' is already defined as {existing_kind}")]
     NameConflict {
@@ -69,6 +73,13 @@ impl PastaError {
     pub fn label_not_found(label: impl Into<String>) -> Self {
         PastaError::LabelNotFound {
             label: label.into(),
+        }
+    }
+
+    /// Create a new function not found error.
+    pub fn function_not_found(name: impl Into<String>) -> Self {
+        PastaError::FunctionNotFound {
+            name: name.into(),
         }
     }
 

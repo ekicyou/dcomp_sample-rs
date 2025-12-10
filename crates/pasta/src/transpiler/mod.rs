@@ -4,10 +4,96 @@
 //! by the Rune VM to generate ScriptEvent IR.
 
 use crate::{
-    Argument, BinOp, Expr, JumpTarget, LabelDef, LabelScope, Literal, PastaError,
+    Argument, BinOp, Expr, FunctionScope, JumpTarget, LabelDef, LabelScope, Literal, PastaError,
     PastaFile, SpeechPart, Statement, VarScope,
 };
 use std::collections::HashMap;
+
+/// Transpile context that holds scope information during transpilation.
+#[derive(Clone)]
+pub struct TranspileContext {
+    /// List of local function names defined in the current label
+    local_functions: Vec<String>,
+    /// List of global function names (standard library + user-defined)
+    global_functions: Vec<String>,
+}
+
+impl TranspileContext {
+    /// Create a new transpile context.
+    pub fn new() -> Self {
+        Self {
+            local_functions: Vec::new(),
+            global_functions: Self::default_global_functions(),
+        }
+    }
+
+    /// Get default global functions (standard library).
+    fn default_global_functions() -> Vec<String> {
+        vec![
+            "emit_text".to_string(),
+            "emit_sakura_script".to_string(),
+            "change_speaker".to_string(),
+            "change_surface".to_string(),
+            "wait".to_string(),
+            "begin_sync".to_string(),
+            "sync_point".to_string(),
+            "end_sync".to_string(),
+            "fire_event".to_string(),
+        ]
+    }
+
+    /// Set local functions for the current label scope.
+    pub fn set_local_functions(&mut self, functions: Vec<String>) {
+        self.local_functions = functions;
+    }
+
+    /// Add a global function to the list.
+    pub fn add_global_function(&mut self, name: String) {
+        if !self.global_functions.contains(&name) {
+            self.global_functions.push(name);
+        }
+    }
+
+    /// Resolve function name with scope rules (local→global search).
+    /// 
+    /// Note: If the function is not found in tracked scopes, it is still returned as-is
+    /// because it might be defined in a Rune block that we haven't parsed. The Rune
+    /// runtime will handle the error if the function truly doesn't exist.
+    pub fn resolve_function(&self, func_name: &str, scope: FunctionScope) -> Result<String, PastaError> {
+        match scope {
+            FunctionScope::Auto => {
+                // 1. Search local functions first
+                if self.local_functions.contains(&func_name.to_string()) {
+                    Ok(func_name.to_string())
+                }
+                // 2. Search global functions
+                else if self.global_functions.contains(&func_name.to_string()) {
+                    Ok(func_name.to_string())
+                } else {
+                    // 3. Function not in tracked scopes, but might be defined in Rune block
+                    // Allow it and let Rune runtime handle errors
+                    Ok(func_name.to_string())
+                }
+            }
+            FunctionScope::GlobalOnly => {
+                // Search global functions only
+                if self.global_functions.contains(&func_name.to_string()) {
+                    Ok(func_name.to_string())
+                } else {
+                    // Not in global scope, but might be in Rune block
+                    // For GlobalOnly, we're stricter - return error
+                    Err(PastaError::function_not_found(func_name))
+                }
+            }
+        }
+    }
+}
+
+impl Default for TranspileContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Transpiler that converts Pasta AST to Rune source code.
 pub struct Transpiler;
@@ -20,13 +106,22 @@ impl Transpiler {
         // Add imports for standard library functions
         output.push_str("use pasta_stdlib::*;\n\n");
 
+        // Create transpile context
+        let mut context = TranspileContext::new();
+
+        // Collect all global label names as global functions
+        for label in &file.labels {
+            let fn_name = Self::sanitize_identifier(&label.name);
+            context.add_global_function(fn_name);
+        }
+
         // Track label counters to generate unique function names for duplicates
         let mut label_counters: HashMap<String, usize> = HashMap::new();
 
         // Transpile each global label
         for label in &file.labels {
             let counter = label_counters.entry(label.name.clone()).or_insert(0);
-            Self::transpile_label_with_counter(&mut output, label, None, *counter)?;
+            Self::transpile_label_with_counter(&mut output, label, None, *counter, &context)?;
             *counter += 1;
         }
 
@@ -39,22 +134,32 @@ impl Transpiler {
         label: &LabelDef,
         parent_name: Option<&str>,
         counter: usize,
+        global_context: &TranspileContext,
     ) -> Result<(), PastaError> {
         let fn_name = Self::label_to_fn_name_with_counter(label, parent_name, counter);
+
+        // Create a context for this label with local functions
+        let mut label_context = global_context.clone();
+        
+        // Collect local function names from Rune blocks (TODO: parse Rune blocks to extract function names)
+        // For now, local functions would be extracted from RuneBlock statements
+        // This is a placeholder - actual implementation would need to parse Rune code
+        let local_functions = Vec::new(); // TODO: Extract from label.statements
+        label_context.set_local_functions(local_functions);
 
         // Function signature - generators don't need async keyword in Rune
         output.push_str(&format!("pub fn {}() {{\n", fn_name));
 
         // Transpile statements
         for stmt in &label.statements {
-            Self::transpile_statement(output, stmt)?;
+            Self::transpile_statement(output, stmt, &label_context)?;
         }
 
         // Transpile local labels (with their own counter tracking)
         let mut local_counters: HashMap<String, usize> = HashMap::new();
         for local_label in &label.local_labels {
             let counter = local_counters.entry(local_label.name.clone()).or_insert(0);
-            Self::transpile_label_with_counter(output, local_label, Some(&label.name), *counter)?;
+            Self::transpile_label_with_counter(output, local_label, Some(&label.name), *counter, global_context)?;
             *counter += 1;
         }
 
@@ -95,7 +200,7 @@ impl Transpiler {
     }
 
     /// Transpile a statement to Rune code.
-    fn transpile_statement(output: &mut String, stmt: &Statement) -> Result<(), PastaError> {
+    fn transpile_statement(output: &mut String, stmt: &Statement, context: &TranspileContext) -> Result<(), PastaError> {
         match stmt {
             Statement::Speech {
                 speaker,
@@ -107,7 +212,7 @@ impl Transpiler {
 
                 // Emit each content part
                 for part in content {
-                    Self::transpile_speech_part(output, part)?;
+                    Self::transpile_speech_part(output, part, context)?;
                 }
             }
             Statement::Call {
@@ -135,7 +240,7 @@ impl Transpiler {
                 value,
                 span: _,
             } => {
-                let value_expr = Self::transpile_expr(value)?;
+                let value_expr = Self::transpile_expr(value, context)?;
                 match scope {
                     VarScope::Local => {
                         output.push_str(&format!("    let {} = {};\n", name, value_expr));
@@ -165,7 +270,7 @@ impl Transpiler {
     }
 
     /// Transpile a speech part to Rune code.
-    fn transpile_speech_part(output: &mut String, part: &SpeechPart) -> Result<(), PastaError> {
+    fn transpile_speech_part(output: &mut String, part: &SpeechPart, context: &TranspileContext) -> Result<(), PastaError> {
         match part {
             SpeechPart::Text(text) => {
                 output.push_str(&format!("    yield emit_text(\"{}\");\n", Self::escape_string(text)));
@@ -176,18 +281,21 @@ impl Transpiler {
                     var_name
                 ));
             }
-            SpeechPart::FuncCall { name, args } => {
+            SpeechPart::FuncCall { name, args, scope } => {
+                // Resolve function name using scope rules
+                let resolved_name = context.resolve_function(name, *scope)?;
+                
                 let args_str = args
                     .iter()
                     .map(|arg| match arg {
-                        Argument::Positional(expr) => Self::transpile_expr(expr),
+                        Argument::Positional(expr) => Self::transpile_expr(expr, context),
                         Argument::Named { name, value } => {
-                            Ok(format!("{}={}", name, Self::transpile_expr(value)?))
+                            Ok(format!("{}={}", name, Self::transpile_expr(value, context)?))
                         }
                     })
                     .collect::<Result<Vec<_>, _>>()?
                     .join(", ");
-                output.push_str(&format!("    yield {}({});\n", name, args_str));
+                output.push_str(&format!("    yield {}({});\n", resolved_name, args_str));
             }
             SpeechPart::SakuraScript(script) => {
                 output.push_str(&format!(
@@ -219,34 +327,37 @@ impl Transpiler {
     }
 
     /// Transpile an expression to Rune code.
-    fn transpile_expr(expr: &Expr) -> Result<String, PastaError> {
+    fn transpile_expr(expr: &Expr, context: &TranspileContext) -> Result<String, PastaError> {
         match expr {
             Expr::Literal(lit) => Ok(Self::transpile_literal(lit)),
             Expr::VarRef { name, scope } => match scope {
                 VarScope::Local => Ok(name.clone()),
                 VarScope::Global => Ok(format!("get_global(\"{}\")", name)),
             },
-            Expr::FuncCall { name, args } => {
+            Expr::FuncCall { name, args, scope } => {
+                // Resolve function name using scope rules
+                let resolved_name = context.resolve_function(name, *scope)?;
+                
                 let args_str = args
                     .iter()
                     .map(|arg| match arg {
-                        Argument::Positional(expr) => Self::transpile_expr(expr),
+                        Argument::Positional(expr) => Self::transpile_expr(expr, context),
                         Argument::Named { name, value } => {
-                            Ok(format!("{}={}", name, Self::transpile_expr(value)?))
+                            Ok(format!("{}={}", name, Self::transpile_expr(value, context)?))
                         }
                     })
                     .collect::<Result<Vec<_>, _>>()?
                     .join(", ");
-                Ok(format!("{}({})", name, args_str))
+                Ok(format!("{}({})", resolved_name, args_str))
             }
             Expr::BinaryOp { op, lhs, rhs } => {
-                let lhs_str = Self::transpile_expr(lhs)?;
-                let rhs_str = Self::transpile_expr(rhs)?;
+                let lhs_str = Self::transpile_expr(lhs, context)?;
+                let rhs_str = Self::transpile_expr(rhs, context)?;
                 let op_str = Self::transpile_binop(*op);
                 Ok(format!("({} {} {})", lhs_str, op_str, rhs_str))
             }
             Expr::Paren(inner) => {
-                let inner_str = Self::transpile_expr(inner)?;
+                let inner_str = Self::transpile_expr(inner, context)?;
                 Ok(format!("({})", inner_str))
             }
         }
@@ -326,7 +437,8 @@ mod tests {
             lhs: Box::new(Expr::Literal(Literal::Number(1.0))),
             rhs: Box::new(Expr::Literal(Literal::Number(2.0))),
         };
-        let result = Transpiler::transpile_expr(&expr).unwrap();
+        let context = TranspileContext::new();
+        let result = Transpiler::transpile_expr(&expr, &context).unwrap();
         assert_eq!(result, "(1 + 2)");
     }
 
