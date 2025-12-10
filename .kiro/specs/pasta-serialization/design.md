@@ -2,6 +2,8 @@
 
 ## Overview
 
+**前提条件**: 本設計は`pasta-engine-independence`スペック完了後の実装を想定しています。PastaEngineが`cache: ParseCache`フィールドを持つ構造を前提とします。
+
 **Purpose**: 本設計は、PastaEngineに永続化ディレクトリパス管理機能を実装し、Runeスクリプトからファイル永続化を可能にします。永続化の実装（何をいつどう保存するか）はRuneスクリプト側に委ね、エンジンはパス情報の提供とファイルI/O用標準ライブラリ関数を提供します。
 
 **Users**: Runeスクリプト開発者が永続化ディレクトリパスを使用して、ゲーム進行状況やユーザー設定などのデータをTOMLファイルとして保存・読み込みできるようになります。
@@ -441,10 +443,13 @@ output.push_str(&format!("pub fn {}(ctx) {{\n", fn_name));
 **影響範囲**:
 - すべてのグローバルラベル・ローカルラベルが`ctx`引数を持つ
 - Runeは未使用引数を許容するため、既存のラベル（`ctx`を使用しない）も正常動作
+- 既存サンプル確認済み：`examples/scripts/`の6つの.pastaファイルはすべてPasta DSL形式のみ（Runeコードブロックなし）
+- 既存テスト確認済み：`tests/`配下のテストスクリプトも影響なし
 
 **Implementation Notes**:
 - **単一変更箇所**: ラベル関数生成ロジックのフォーマット文字列のみ
-- **後方互換性**: 既存テストへの影響なし（Rune側で引数無視）
+- **後方互換性**: 既存サンプル・テストへの影響なし（Rune側で引数無視）
+- **Phase 3対応**: 新規作成するRune開発者向けガイドで`ctx`引数の使用方法を説明
 
 ---
 
@@ -573,16 +578,22 @@ context.install(crate::stdlib::persistence::create_persistence_module()?)?;
 - `InvalidPersistencePath` - パス解決失敗（canonicalize失敗）
 
 **Implementation**:
+
+**既存の`PastaError` enumに以下のバリアントを追加**:
+
 ```rust
 // crates/pasta/src/error.rs
+// 既存のPastaError enumに追加
 
 #[derive(Debug, thiserror::Error)]
 pub enum PastaError {
-    // ... (既存のエラー型)
+    // ... (既存のエラー型: ParseError, LabelNotFound, RuneRuntimeError, VmError等)
     
+    /// 永続化ディレクトリが存在しない（新規追加）
     #[error("Persistence directory not found: {path}")]
     PersistenceDirectoryNotFound { path: String },
     
+    /// 永続化パスの解決に失敗（新規追加）
     #[error("Invalid persistence path: {path}")]
     InvalidPersistencePath { path: String },
 }
