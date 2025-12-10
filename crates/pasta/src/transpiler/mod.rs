@@ -35,7 +35,7 @@ impl Transpiler {
     ) -> Result<(), PastaError> {
         let fn_name = Self::label_to_fn_name(label, parent_name);
 
-        // Function signature
+        // Function signature - generators don't need async keyword in Rune
         output.push_str(&format!("pub fn {}() {{\n", fn_name));
 
         // Transpile statements

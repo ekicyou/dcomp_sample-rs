@@ -63,6 +63,15 @@ pub enum AttributeValue {
     VarRef(String),
 }
 
+impl std::fmt::Display for AttributeValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AttributeValue::Literal(s) => write!(f, "{}", s),
+            AttributeValue::VarRef(name) => write!(f, "@{}", name),
+        }
+    }
+}
+
 /// Statement in a label body
 #[derive(Debug, Clone)]
 pub enum Statement {

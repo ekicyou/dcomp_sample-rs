@@ -1,11 +1,9 @@
 //! Script generator for Pasta scripts.
 //!
-//! This module provides a wrapper around Rune generators for executing
-//! Pasta scripts and yielding ScriptEvent IR.
-
-use crate::error::PastaError;
-use crate::ir::ScriptEvent;
-use rune::runtime::{Generator, GeneratorState, Vm, VmResult};
+//! This module provides types for script execution state management.
+//! Note: Due to Rune 0.14 Generator<&mut Vm> lifetime constraints,
+//! the current implementation executes labels to completion rather than
+//! providing incremental resumption. Future versions may support streaming.
 
 /// State of the script generator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,81 +18,22 @@ pub enum ScriptGeneratorState {
 
 /// Script generator for executing Pasta scripts.
 ///
-/// This wraps a Rune generator and provides a convenient interface for
-/// stepping through script execution and yielding ScriptEvent IR.
+/// Note: This is a placeholder type. The current implementation
+/// in PastaEngine executes labels to completion due to Rune
+/// Generator lifetime constraints.
 pub struct ScriptGenerator {
-    /// The underlying Rune generator.
-    generator: Generator<Vm>,
-    /// Current state of the generator.
     state: ScriptGeneratorState,
 }
 
 impl ScriptGenerator {
-    /// Create a new script generator from a Rune generator.
-    pub fn new(generator: Generator<Vm>) -> Self {
-        Self {
-            generator,
-            state: ScriptGeneratorState::Running,
-        }
-    }
-
-    /// Resume the generator and get the next ScriptEvent.
-    ///
-    /// Returns:
-    /// - `Ok(Some(event))` if an event was yielded
-    /// - `Ok(None)` if the generator completed
-    /// - `Err(error)` if a runtime error occurred
-    pub fn resume(&mut self) -> Result<Option<ScriptEvent>, PastaError> {
-        if self.state == ScriptGeneratorState::Completed {
-            return Ok(None);
-        }
-
-        // Create a unit value for resume
-        let unit_value = rune::to_value(()).map_err(|e| {
-            PastaError::RuneRuntimeError(format!("Failed to create unit value: {}", e))
-        })?;
-
-        match self.generator.resume(unit_value) {
-            VmResult::Ok(GeneratorState::Yielded(value)) => {
-                self.state = ScriptGeneratorState::Suspended;
-                // Try to convert the Rune value to ScriptEvent
-                let event: ScriptEvent = rune::from_value(value)
-                    .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to convert yielded value: {}", e)))?;
-                Ok(Some(event))
-            }
-            VmResult::Ok(GeneratorState::Complete(_)) => {
-                self.state = ScriptGeneratorState::Completed;
-                Ok(None)
-            }
-            VmResult::Err(e) => {
-                self.state = ScriptGeneratorState::Completed;
-                Err(PastaError::VmError(e))
-            }
-        }
-    }
-
-    /// Resume the generator until completion and collect all events.
-    ///
-    /// This is a convenience method that calls `resume()` repeatedly
-    /// until the generator completes or an error occurs.
-    pub fn resume_all(&mut self) -> Result<Vec<ScriptEvent>, PastaError> {
-        let mut events = Vec::new();
-
-        while let Some(event) = self.resume()? {
-            events.push(event);
-        }
-
-        Ok(events)
+    /// Check if the generator has completed.
+    pub fn is_completed(&self) -> bool {
+        self.state == ScriptGeneratorState::Completed
     }
 
     /// Get the current state of the generator.
     pub fn state(&self) -> ScriptGeneratorState {
         self.state
-    }
-
-    /// Check if the generator has completed.
-    pub fn is_completed(&self) -> bool {
-        self.state == ScriptGeneratorState::Completed
     }
 
     /// Skip the rest of the script (immediately complete).

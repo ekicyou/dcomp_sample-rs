@@ -12,3 +12,6 @@ pub use generator::{ScriptGenerator, ScriptGeneratorState};
 pub use labels::{LabelInfo, LabelTable};
 pub use random::{DefaultRandomSelector, RandomSelector};
 pub use variables::{VariableManager, VariableScope, VariableValue};
+
+#[cfg(test)]
+pub use random::MockRandomSelector;

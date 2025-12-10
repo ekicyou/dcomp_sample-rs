@@ -45,6 +45,7 @@ pub mod parser;
 pub mod transpiler;
 pub mod runtime;
 pub mod stdlib;
+pub mod engine;
 
 // Re-export commonly used types
 pub use error::{PastaError, Result};
@@ -58,3 +59,4 @@ pub use runtime::{
     ScriptGeneratorState, VariableManager, VariableScope, VariableValue,
 };
 pub use transpiler::Transpiler;
+pub use engine::PastaEngine;
