@@ -521,10 +521,10 @@ pub enum PastaError {
 - **`errors`型を限定**: `Vec<ParseError>`構造体に変更（`Vec<PastaError>`から）
   - 循環参照防止: `MultipleParseErrors`が自身を含むネストを回避
   - 意味的整合性: 複数パースエラー集約は構文エラーのみを対象とすべき
-- **`ParseError`構造体定義**:
+- **`ParseError`構造体定義** (error.rs内、public API):
   ```rust
   /// 個別パースエラー（MultipleParseErrors内で使用）
-  #[derive(Debug, Clone)]
+  #[derive(Debug, Clone, PartialEq)]
   pub struct ParseError {
       pub file: String,
       pub line: usize,
@@ -532,6 +532,29 @@ pub enum PastaError {
       pub message: String,
   }
   ```
+  - **配置**: `crates/pasta/src/error.rs` (PastaError enumと同じファイル)
+  - **可視性**: `pub` (テスト・デバッグ時に個別エラー検証が必要なため)
+  - **命名の整合性**: `PastaError::ParseError` variantとは異なる型
+    - variant: 単一パースエラー（既存、`{file, line, column, message}`フィールド）
+    - struct: 複数エラー集約用（新規、MultipleParseErrors内で使用）
+  - **変換実装**: `From<PastaError> for ParseError`を実装し、variant→structへの変換を提供
+    ```rust
+    impl From<&PastaError> for Option<ParseError> {
+        fn from(e: &PastaError) -> Self {
+            match e {
+                PastaError::ParseError { file, line, column, message } => {
+                    Some(ParseError {
+                        file: file.clone(),
+                        line: *line,
+                        column: *column,
+                        message: message.clone(),
+                    })
+                }
+                _ => None,
+            }
+        }
+    }
+    ```
 - **`std::error::Error::source()`実装**: 
   - `MultipleParseErrors`では`source()`は`None`を返す
   - 詳細エラー情報は`pasta_errors.log`で確認（個別エラーの列挙は冗長）
