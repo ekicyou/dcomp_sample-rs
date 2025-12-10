@@ -30,35 +30,37 @@ pastaエンジンは初期化時にスクリプトディレクトリの絶対・
 **参照仕様**: areka-P0-script-engine「ファイル構成とロード規則」
 
 #### Acceptance Criteria
-1. The Pastaエンジン shall スクリプトディレクトリ配下の`dic/`サブディレクトリ内の`.pasta`ファイルのみを検索する
+1. The Pastaエンジン shall スクリプトディレクトリ配下の`dic/`サブディレクトリ内の`.pasta`ファイルを検索する
 2. The Pastaエンジン shall `dic/`ディレクトリを再帰的に探索し、全サブディレクトリ内の`.pasta`ファイルを読み込む（`./dic/**/*.pasta`パターン）
-3. The Pastaエンジン shall スクリプトディレクトリ直下（ルート階層）の`.rn`ファイルをRune補助スクリプトとして認識する
-4. If `dic/`内に`.rn`ファイルが存在する場合、then the Pastaエンジン shall 警告ログを出力する（技術的に可能だが作法違反）
-5. The Pastaエンジン shall 拡張子を大文字小文字区別なく認識する（`.PASTA`, `.Rn`も認識）
+3. The Pastaエンジン shall スクリプトディレクトリ直下の`main.rune`をRuneエントリーポイントとして認識する
+4. The Pastaエンジン shall `main.rune`以外の`.rn`ファイルの探索・読み込みをRuneモジュールシステム（`mod`文解析）に委譲する
+5. The Pastaエンジン shall `.pasta`拡張子を大文字小文字区別なく認識する（`.PASTA`も認識）
 6. The Pastaエンジン shall ファイル名が`_`（アンダースコア）で始まるファイルをスキップする
 7. The Pastaエンジン shall 隠しファイル（`.`で始まる）を自動的に除外する
 8. The Pastaエンジン shall ファイル探索順序を保証せず、ファイルシステム依存の順序で処理する
 9. The Pastaエンジン shall Rust標準ライブラリ（`std::fs::read_to_string`）のUTF-8取り扱いルールに準じてファイルを読み込む
 10. If `dic/`ディレクトリが存在しない場合、then the Pastaエンジン shall 初期化時に`PastaError::DicDirectoryNotFound`を返す
-11. When `dic/`内に`.pasta`ファイルが存在しない場合、the Pastaエンジン shall 警告ログを出力する
-12. When 空の`.pasta`ファイルが存在する場合、the Pastaエンジン shall 警告ログを出力しエラーとしては扱わない
+11. If `main.rune`が存在しない場合、then the Pastaエンジン shall 初期化時に`PastaError::MainRuneNotFound`を返す
+12. When `dic/`内に`.pasta`ファイルが存在しない場合、the Pastaエンジン shall 警告ログを出力する
+13. When 空の`.pasta`ファイルが存在する場合、the Pastaエンジン shall 警告ログを出力しエラーとしては扱わない
 
 ### Requirement 3: スクリプトファイル読み込み
 
 **目的:** PastaEngineの開発者として、配置ルールに基づいてスクリプトファイルを自動的に読み込みたい。これにより、手動でファイルパスを指定する手間を省ける。
 
 #### Acceptance Criteria
-1. When Pastaエンジンが初期化される場合、the Pastaエンジン shall スクリプトディレクトリ内の全`.pasta`ファイルをパースする
-2. When 複数の`.pasta`ファイルが存在する場合、the Pastaエンジン shall 全ファイルのラベルを単一のラベルテーブルへ統合する
+1. When Pastaエンジンが初期化される場合、the Pastaエンジン shall `dic/`内の全`.pasta`ファイルをパースする
+2. When 複数の`.pasta`ファイルが存在する場合、the Pastaエンジン shall 全ファイルのラベルを単一のグローバルジャンプテーブルへ統合する
 3. If 複数のファイルで同名のグローバルラベルが定義されている場合、then the Pastaエンジン shall 全ての定義を保持し、実行時にランダム選択の対象とする
 4. When `.pasta`ファイルのパース中にエラーが発生した場合、the Pastaエンジン shall 可能な限り全ファイルをパースし、全てのエラーを収集する
 5. When 全`.pasta`ファイルのパースが完了した場合、the Pastaエンジン shall スクリプトルートディレクトリに`pasta_errors.log`を出力する
 6. The `pasta_errors.log` shall 各エラーについてファイルパス・行番号・列番号・エラー詳細を含む
 7. If 1つ以上のパースエラーが収集された場合、then the Pastaエンジン shall 初期化時に`PastaError::MultipleParseErrors`を返す
 8. If ファイルの読み込み中にI/Oエラーが発生した場合、then the Pastaエンジン shall 即座にエラー発生ファイルパスを含む`PastaError::IoError`を返す
-9. When `.rn`ファイルが存在する場合、the Pastaエンジン shall Rune `Sources`へファイル名をキーとして追加する
-10. The Pastaエンジン shall `.rn`ファイルをRune標準のモジュールシステム（`use`文でのインポート）で利用可能にする
-11. If `.rn`ファイル間で循環依存が存在する場合、then the Pastaエンジン shall Runeコンパイラが検出したエラーをそのまま返す
+9. When `main.rune`が存在する場合、the Pastaエンジン shall `main.rune`のみをRune `Sources`へ追加する
+10. The Pastaエンジン shall Runeコンパイラに`mod`文の解析と依存ファイルの探索を委譲する
+11. If Runeモジュール間で循環依存が存在する場合、then the Pastaエンジン shall Runeコンパイラが検出したエラーをそのまま返す
+12. If Runeコンパイル中にエラーが発生した場合、then the Pastaエンジン shall `PastaError::RuneCompileError`として詳細を返す
 
 ### Requirement 4: ラベル名前空間管理
 
