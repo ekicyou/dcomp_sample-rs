@@ -48,6 +48,14 @@ pub enum PastaError {
     /// pest parse error.
     #[error("Pest parse error: {0}")]
     PestError(String),
+
+    /// Persistence directory not found.
+    #[error("Persistence directory not found: {path}")]
+    PersistenceDirectoryNotFound { path: String },
+
+    /// Invalid persistence path.
+    #[error("Invalid persistence path: {path}")]
+    InvalidPersistencePath { path: String },
 }
 
 impl PastaError {

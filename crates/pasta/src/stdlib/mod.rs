@@ -4,6 +4,8 @@
 //! Pasta scripts running in the Rune VM, including emit functions, wait functions,
 //! and synchronization functions.
 
+pub mod persistence;
+
 use crate::ir::{ContentPart, ScriptEvent};
 use rune::{ContextError, Module};
 
@@ -28,6 +30,9 @@ pub fn create_module() -> Result<Module, ContextError> {
     // Register utility functions
     module.function("fire_event", fire_event).build()?;
     module.function("emit_error", emit_error).build()?;
+
+    // Register persistence functions
+    persistence::register_persistence_functions(&mut module)?;
 
     Ok(module)
 }

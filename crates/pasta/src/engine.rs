@@ -14,6 +14,7 @@ use crate::{
 };
 use rune::{Context, Vm};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Main Pasta script engine.
@@ -57,6 +58,8 @@ pub struct PastaEngine {
     label_table: LabelTable,
     /// Parse cache (instance-local).
     cache: ParseCache,
+    /// Persistence directory path (optional).
+    persistence_path: Option<PathBuf>,
 }
 
 impl PastaEngine {
@@ -75,7 +78,30 @@ impl PastaEngine {
     /// - The transpilation fails
     /// - The Rune compilation fails
     pub fn new(script: &str) -> Result<Self> {
+        tracing::debug!("[PastaEngine::new] Initialized without persistence path");
         Self::with_random_selector(script, Box::new(DefaultRandomSelector::new()))
+    }
+
+    /// Create a new PastaEngine with a persistence directory path.
+    ///
+    /// # Arguments
+    ///
+    /// * `script` - Pasta DSL script
+    /// * `persistence_path` - Path to persistence directory (absolute or relative)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The persistence directory does not exist
+    /// - The path cannot be resolved
+    /// - The DSL has syntax errors
+    /// - The transpilation or compilation fails
+    pub fn new_with_persistence(script: &str, persistence_path: impl AsRef<Path>) -> Result<Self> {
+        Self::with_persistence_and_random_selector(
+            script,
+            persistence_path,
+            Box::new(DefaultRandomSelector::new()),
+        )
     }
 
     /// Create a new PastaEngine with a custom random selector.
@@ -83,6 +109,82 @@ impl PastaEngine {
     /// This is primarily useful for testing with deterministic random selection.
     pub fn with_random_selector(
         script: &str,
+        random_selector: Box<dyn RandomSelector>,
+    ) -> Result<Self> {
+        Self::build_engine(script, None, random_selector)
+    }
+
+    /// Create a new PastaEngine with persistence path and custom random selector.
+    ///
+    /// # Arguments
+    ///
+    /// * `script` - Pasta DSL script
+    /// * `persistence_path` - Path to persistence directory
+    /// * `random_selector` - Custom random selector implementation
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The persistence directory does not exist
+    /// - The path cannot be resolved
+    /// - The DSL has syntax errors
+    /// - The transpilation or compilation fails
+    pub fn with_persistence_and_random_selector(
+        script: &str,
+        persistence_path: impl AsRef<Path>,
+        random_selector: Box<dyn RandomSelector>,
+    ) -> Result<Self> {
+        let validated_path = Self::validate_persistence_path(persistence_path.as_ref())?;
+        Self::build_engine(script, Some(validated_path), random_selector)
+    }
+
+    /// Validate and canonicalize the persistence path.
+    fn validate_persistence_path(path: &Path) -> Result<PathBuf> {
+        if !path.exists() {
+            tracing::error!(
+                path = %path.display(),
+                error = "Directory not found",
+                "[PastaEngine::validate_persistence_path] Persistence directory does not exist"
+            );
+            return Err(PastaError::PersistenceDirectoryNotFound {
+                path: path.display().to_string(),
+            });
+        }
+
+        if !path.is_dir() {
+            tracing::error!(
+                path = %path.display(),
+                error = "Not a directory",
+                "[PastaEngine::validate_persistence_path] Path is not a directory"
+            );
+            return Err(PastaError::InvalidPersistencePath {
+                path: path.display().to_string(),
+            });
+        }
+
+        let canonical = path.canonicalize().map_err(|e| {
+            tracing::error!(
+                path = %path.display(),
+                error = %e,
+                "[PastaEngine::validate_persistence_path] Failed to canonicalize path"
+            );
+            PastaError::InvalidPersistencePath {
+                path: path.display().to_string(),
+            }
+        })?;
+
+        tracing::info!(
+            path = %canonical.display(),
+            "[PastaEngine::validate_persistence_path] Persistence path configured"
+        );
+
+        Ok(canonical)
+    }
+
+    /// Build the PastaEngine with optional persistence path.
+    fn build_engine(
+        script: &str,
+        persistence_path: Option<PathBuf>,
         random_selector: Box<dyn RandomSelector>,
     ) -> Result<Self> {
         // Step 1: Create empty instance-local cache
@@ -132,7 +234,7 @@ impl PastaEngine {
             PastaError::RuneRuntimeError(format!("Failed to create Rune context: {}", e))
         })?;
 
-        // Install standard library
+        // Install standard library (includes persistence functions)
         context
             .install(crate::stdlib::create_module().map_err(|e| {
                 PastaError::RuneRuntimeError(format!("Failed to install stdlib: {}", e))
@@ -164,7 +266,29 @@ impl PastaEngine {
             runtime,
             label_table,
             cache,
+            persistence_path,
         })
+    }
+
+    /// Build execution context with persistence path.
+    fn build_execution_context(&self) -> Result<rune::Value> {
+        let mut ctx = HashMap::new();
+
+        let path_str = if let Some(ref path) = self.persistence_path {
+            path.to_string_lossy().to_string()
+        } else {
+            String::new()
+        };
+
+        ctx.insert("persistence_path".to_string(), path_str.clone());
+
+        tracing::debug!(
+            persistence_path = %path_str,
+            "[PastaEngine::build_execution_context] Building execution context"
+        );
+
+        rune::to_value(ctx)
+            .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to build context: {}", e)))
     }
 
     /// Register labels from AST into label table.
@@ -271,8 +395,13 @@ impl PastaEngine {
         // Call the function
         let hash = rune::Hash::type_hash(&[fn_name.as_str()]);
 
+        // Build execution context
+        let context = self.build_execution_context()?;
+
         // Execute and get a generator
-        let execution = vm.execute(hash, ()).map_err(|e| PastaError::VmError(e))?;
+        let execution = vm
+            .execute(hash, (context,))
+            .map_err(|e| PastaError::VmError(e))?;
 
         let mut generator = execution.into_generator();
 
@@ -428,8 +557,6 @@ impl PastaEngine {
     pub fn create_fire_event(event_name: String, params: Vec<(String, String)>) -> ScriptEvent {
         ScriptEvent::FireEvent { event_name, params }
     }
-
-
 
     /// Execute a chain of labels automatically.
     ///
@@ -860,8 +987,6 @@ mod tests {
         assert!(!shutdown_events.is_empty());
     }
 
-
-
     #[test]
     fn test_label_lookup_performance_many_labels() {
         // Test O(1) lookup performance with many labels
@@ -913,5 +1038,66 @@ mod tests {
 
         // Nonexistent label should be found quickly (O(1))
         assert!(!engine.has_label("nonexistent"));
+    }
+
+    #[test]
+    fn test_build_execution_context_with_path() {
+        use std::path::PathBuf;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let script = r#"
+＊test
+    さくら：Hello
+"#;
+
+        let engine = PastaEngine::new_with_persistence(script, temp_dir.path()).unwrap();
+        let context = engine.build_execution_context().unwrap();
+
+        // Context should be a HashMap-like structure
+        let map: std::collections::HashMap<String, String> = rune::from_value(context).unwrap();
+        assert!(map.contains_key("persistence_path"));
+        assert!(!map["persistence_path"].is_empty());
+    }
+
+    #[test]
+    fn test_build_execution_context_without_path() {
+        let script = r#"
+＊test
+    さくら：Hello
+"#;
+
+        let engine = PastaEngine::new(script).unwrap();
+        let context = engine.build_execution_context().unwrap();
+
+        let map: std::collections::HashMap<String, String> = rune::from_value(context).unwrap();
+        assert!(map.contains_key("persistence_path"));
+        assert_eq!(map["persistence_path"], "");
+    }
+
+    #[test]
+    fn test_validate_persistence_path_nonexistent() {
+        let result =
+            PastaEngine::validate_persistence_path(std::path::Path::new("/nonexistent/directory"));
+        assert!(result.is_err());
+        if let Err(PastaError::PersistenceDirectoryNotFound { .. }) = result {
+            // Expected error
+        } else {
+            panic!("Expected PersistenceDirectoryNotFound error");
+        }
+    }
+
+    #[test]
+    fn test_validate_persistence_path_file() {
+        use tempfile::NamedTempFile;
+
+        let temp_file = NamedTempFile::new().unwrap();
+        let result = PastaEngine::validate_persistence_path(temp_file.path());
+        assert!(result.is_err());
+        if let Err(PastaError::InvalidPersistencePath { .. }) = result {
+            // Expected error
+        } else {
+            panic!("Expected InvalidPersistencePath error");
+        }
     }
 }

@@ -208,7 +208,7 @@ pub(super) unsafe fn WM_WINDOWPOSCHANGED(
                                     client_cy = client_size.cy,
                                     "WindowPos updated"
                                 );
-                                
+
                                 info!(
                                     "[WM_WINDOWPOSCHANGED] client_x={}, client_y={}",
                                     client_pos.x, client_pos.y
@@ -230,7 +230,7 @@ pub(super) unsafe fn WM_WINDOWPOSCHANGED(
                                 let physical_y = client_pos.y as f32;
                                 let physical_width = client_size.cx as f32;
                                 let physical_height = client_size.cy as f32;
-                                
+
                                 // DPI スケールで割って論理サイズに変換
                                 let scale_x = dpi.scale_x();
                                 let scale_y = dpi.scale_y();
@@ -478,11 +478,8 @@ pub(super) unsafe fn WM_MOUSEMOVE(
     // 位置取得（物理ピクセル、クライアント座標）
     let x = (lparam.0 & 0xFFFF) as i16 as i32;
     let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
-    
-    tracing::trace!(
-        "[WM_MOUSEMOVE] Received: x={}, y={}",
-        x, y
-    );
+
+    tracing::trace!("[WM_MOUSEMOVE] Received: x={}, y={}", x, y);
 
     // 修飾キー状態を抽出
     let wparam_val = wparam.0 as u32;
@@ -535,7 +532,9 @@ pub(super) unsafe fn WM_MOUSEMOVE(
             );
 
             // WindowPosを取得してスクリーン座標を計算
-            let window_pos = world_borrow.world().get::<crate::ecs::window::WindowPos>(window_entity);
+            let window_pos = world_borrow
+                .world()
+                .get::<crate::ecs::window::WindowPos>(window_entity);
             let (screen_x, screen_y) = if let Some(wp) = window_pos {
                 if let Some(pos) = wp.position {
                     (x + pos.x, y + pos.y)
@@ -549,30 +548,43 @@ pub(super) unsafe fn WM_MOUSEMOVE(
             // ドラッグ処理（thread_local DragState + DragAccumulatorResource）
             // ヒットテスト結果に関わらず、Preparing/Dragging状態なら処理を続ける
             let state_snapshot = crate::ecs::drag::read_drag_state(|state| state.clone());
-            
+
             match state_snapshot {
-                crate::ecs::drag::DragState::Preparing { entity, start_pos, start_time } => {
-                    if let Some(drag_config) = world_borrow.world().get::<crate::ecs::drag::DragConfig>(entity) {
+                crate::ecs::drag::DragState::Preparing {
+                    entity,
+                    start_pos,
+                    start_time,
+                } => {
+                    if let Some(drag_config) = world_borrow
+                        .world()
+                        .get::<crate::ecs::drag::DragConfig>(entity)
+                    {
                         if drag_config.enabled {
-                            let current_pos = crate::ecs::pointer::PhysicalPoint::new(screen_x, screen_y);
-                            
+                            let current_pos =
+                                crate::ecs::pointer::PhysicalPoint::new(screen_x, screen_y);
+
                             // 閾値チェック
                             let dx = current_pos.x - start_pos.x;
                             let dy = current_pos.y - start_pos.y;
                             let distance_sq = dx * dx + dy * dy;
                             let threshold_sq = drag_config.threshold * drag_config.threshold;
-                            
+
                             if distance_sq >= threshold_sq {
                                 // 閾値到達：Dragging状態に遷移
                                 crate::ecs::drag::start_dragging(current_pos);
-                                
+
                                 // DragAccumulatorResourceにStarted遷移を記録
-                                if let Some(accumulator) = world_borrow.world().get_resource::<crate::ecs::drag::DragAccumulatorResource>() {
-                                    accumulator.set_transition(crate::ecs::drag::DragTransition::Started {
-                                        entity,
-                                        start_pos,
-                                        timestamp: start_time,
-                                    });
+                                if let Some(accumulator) = world_borrow
+                                    .world()
+                                    .get_resource::<crate::ecs::drag::DragAccumulatorResource>(
+                                ) {
+                                    accumulator.set_transition(
+                                        crate::ecs::drag::DragTransition::Started {
+                                            entity,
+                                            start_pos,
+                                            timestamp: start_time,
+                                        },
+                                    );
                                     accumulator.update_position(current_pos);
                                 }
                             }
@@ -581,24 +593,30 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                 }
                 crate::ecs::drag::DragState::Dragging { prev_pos, .. } => {
                     let current_pos = crate::ecs::pointer::PhysicalPoint::new(screen_x, screen_y);
-                    
+
                     // ドラッグ中：デルタを累積
                     let delta = crate::ecs::pointer::PhysicalPoint::new(
                         current_pos.x - prev_pos.x,
                         current_pos.y - prev_pos.y,
                     );
-                    
+
                     tracing::trace!(
                         "[WM_MOUSEMOVE] Dragging: delta=({}, {}), current=({}, {})",
-                        delta.x, delta.y, current_pos.x, current_pos.y
+                        delta.x,
+                        delta.y,
+                        current_pos.x,
+                        current_pos.y
                     );
-                    
+
                     // DragAccumulatorResourceにデルタを累積
-                    if let Some(accumulator) = world_borrow.world().get_resource::<crate::ecs::drag::DragAccumulatorResource>() {
+                    if let Some(accumulator) = world_borrow
+                        .world()
+                        .get_resource::<crate::ecs::drag::DragAccumulatorResource>(
+                    ) {
                         accumulator.accumulate_delta(delta);
                         accumulator.update_position(current_pos);
                     }
-                    
+
                     // thread_local DragStateのprev_posを更新
                     crate::ecs::drag::update_dragging(current_pos);
                 }
@@ -607,7 +625,6 @@ pub(super) unsafe fn WM_MOUSEMOVE(
 
             // ヒットしたエンティティが存在する場合
             if let Some(target_entity) = hit_entity {
-                
                 // 現在PointerStateを持っている全エンティティを探す
                 // 異なるエンティティにPointerStateがある場合はLeave処理
                 let mut entities_to_leave = Vec::new();
@@ -646,13 +663,16 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                     drop(entity_ref);
 
                     if needs_insert {
-                        world_borrow.world_mut().entity_mut(target_entity).insert(PointerState {
-                            screen_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
-                            local_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
-                            shift_down: shift,
-                            ctrl_down: ctrl,
-                            ..Default::default()
-                        });
+                        world_borrow
+                            .world_mut()
+                            .entity_mut(target_entity)
+                            .insert(PointerState {
+                                screen_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
+                                local_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
+                                shift_down: shift,
+                                ctrl_down: ctrl,
+                                ..Default::default()
+                            });
                         debug!(
                             entity = ?target_entity,
                             x, y,
@@ -665,7 +685,7 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                         "[WM_MOUSEMOVE] Failed to get entity_mut"
                     );
                 }
-                
+
                 // PointerStateが存在することを保証した上で、バッファに蓄積
                 push_pointer_sample(target_entity, x as f32, y as f32, Instant::now());
                 set_modifier_state(target_entity, shift, ctrl);
@@ -673,7 +693,7 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                 // hit_test失敗（Windowの空白部分）
                 // Windowエンティティに対して処理
                 let target_entity = window_entity;
-                
+
                 // 現在PointerStateを持っている全エンティティを探す
                 let mut entities_to_leave = Vec::new();
                 {
@@ -706,13 +726,16 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                     drop(entity_ref);
 
                     if needs_insert {
-                        world_borrow.world_mut().entity_mut(target_entity).insert(PointerState {
-                            screen_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
-                            local_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
-                            shift_down: shift,
-                            ctrl_down: ctrl,
-                            ..Default::default()
-                        });
+                        world_borrow
+                            .world_mut()
+                            .entity_mut(target_entity)
+                            .insert(PointerState {
+                                screen_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
+                                local_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
+                                shift_down: shift,
+                                ctrl_down: ctrl,
+                                ..Default::default()
+                            });
                         debug!(
                             entity = ?target_entity,
                             x, y,
@@ -720,7 +743,7 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                         );
                     }
                 }
-                
+
                 // PointerStateが存在することを保証した上で、バッファに蓄積
                 push_pointer_sample(target_entity, x as f32, y as f32, Instant::now());
                 set_modifier_state(target_entity, shift, ctrl);
@@ -797,7 +820,7 @@ unsafe fn handle_button_message(
     is_down: bool,
 ) -> HandlerResult {
     use crate::ecs::layout::hit_test::{hit_test_in_window, PhysicalPoint as HitTestPoint};
-    use crate::ecs::pointer::{PointerState, PhysicalPoint};
+    use crate::ecs::pointer::{PhysicalPoint, PointerState};
 
     let Some(window_entity) = super::get_entity_from_hwnd(hwnd) else {
         return None;
@@ -806,10 +829,13 @@ unsafe fn handle_button_message(
     // クリック位置を取得
     let x = (lparam.0 & 0xFFFF) as i16 as i32;
     let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
-    
+
     tracing::debug!(
         "[WM_BUTTON] button={:?}, is_down={}, x={}, y={}",
-        button, is_down, x, y
+        button,
+        is_down,
+        x,
+        y
     );
 
     // 修飾キー状態を抽出
@@ -820,7 +846,9 @@ unsafe fn handle_button_message(
     // スクリーン座標を事前計算（フォールバック処理でも使用）
     let (screen_x, screen_y) = if let Some(world) = super::try_get_ecs_world() {
         if let Ok(world_borrow) = world.try_borrow() {
-            let window_pos = world_borrow.world().get::<crate::ecs::window::WindowPos>(window_entity);
+            let window_pos = world_borrow
+                .world()
+                .get::<crate::ecs::window::WindowPos>(window_entity);
             if let Some(wp) = window_pos {
                 if let Some(pos) = wp.position {
                     (x + pos.x, y + pos.y)
@@ -840,7 +868,6 @@ unsafe fn handle_button_message(
     // hit_test でターゲットエンティティを特定し、PointerState を確保
     if let Some(world) = super::try_get_ecs_world() {
         if let Ok(mut world_borrow) = world.try_borrow_mut() {
-            
             if let Some(target_entity) = hit_test_in_window(
                 world_borrow.world(),
                 window_entity,
@@ -855,13 +882,17 @@ unsafe fn handle_button_message(
                 let bounds_info = world_borrow
                     .world()
                     .get::<crate::ecs::layout::GlobalArrangement>(target_entity)
-                    .map(|g| format!("({:.0},{:.0})-({:.0},{:.0})", 
-                        g.bounds.left, g.bounds.top, g.bounds.right, g.bounds.bottom))
+                    .map(|g| {
+                        format!(
+                            "({:.0},{:.0})-({:.0},{:.0})",
+                            g.bounds.left, g.bounds.top, g.bounds.right, g.bounds.bottom
+                        )
+                    })
                     .unwrap_or_else(|| "no bounds".to_string());
                 info!(
                     target_entity = ?target_entity,
                     entity_name = %entity_name,
-                    client_x = x, 
+                    client_x = x,
                     client_y = y,
                     screen_x,
                     screen_y,
@@ -872,17 +903,27 @@ unsafe fn handle_button_message(
                 );
 
                 // PointerState がない場合は付与
-                if world_borrow.world().get::<PointerState>(target_entity).is_none() {
-                    world_borrow.world_mut().entity_mut(target_entity).insert(PointerState {
-                        screen_point: PhysicalPoint::new(x, y),
-                        local_point: PhysicalPoint::new(x, y),
-                        left_down: button == crate::ecs::pointer::PointerButton::Left && is_down,
-                        right_down: button == crate::ecs::pointer::PointerButton::Right && is_down,
-                        middle_down: button == crate::ecs::pointer::PointerButton::Middle && is_down,
-                        shift_down: shift,
-                        ctrl_down: ctrl,
-                        ..Default::default()
-                    });
+                if world_borrow
+                    .world()
+                    .get::<PointerState>(target_entity)
+                    .is_none()
+                {
+                    world_borrow
+                        .world_mut()
+                        .entity_mut(target_entity)
+                        .insert(PointerState {
+                            screen_point: PhysicalPoint::new(x, y),
+                            local_point: PhysicalPoint::new(x, y),
+                            left_down: button == crate::ecs::pointer::PointerButton::Left
+                                && is_down,
+                            right_down: button == crate::ecs::pointer::PointerButton::Right
+                                && is_down,
+                            middle_down: button == crate::ecs::pointer::PointerButton::Middle
+                                && is_down,
+                            shift_down: shift,
+                            ctrl_down: ctrl,
+                            ..Default::default()
+                        });
                     debug!(
                         entity = ?target_entity,
                         button = ?button,
@@ -897,10 +938,13 @@ unsafe fn handle_button_message(
                 // ボタン状態をバッファに記録
                 if is_down {
                     crate::ecs::pointer::record_button_down(target_entity, button);
-                    
+
                     // ドラッグ準備開始（DragConfigがあり、有効な場合）
                     if button == crate::ecs::pointer::PointerButton::Left {
-                        if let Some(drag_config) = world_borrow.world().get::<crate::ecs::drag::DragConfig>(target_entity) {
+                        if let Some(drag_config) = world_borrow
+                            .world()
+                            .get::<crate::ecs::drag::DragConfig>(target_entity)
+                        {
                             if drag_config.enabled && drag_config.left_button {
                                 tracing::info!(
                                     entity = ?target_entity,
@@ -919,23 +963,30 @@ unsafe fn handle_button_message(
                     }
                 } else {
                     crate::ecs::pointer::record_button_up(target_entity, button);
-                    
+
                     // ドラッグ終了
                     if button == crate::ecs::pointer::PointerButton::Left {
                         // thread_local DragStateをクローンして取得
-                        let state_snapshot = crate::ecs::drag::read_drag_state(|state| state.clone());
-                        
-                        if let crate::ecs::drag::DragState::Dragging { entity, .. } = state_snapshot {
+                        let state_snapshot =
+                            crate::ecs::drag::read_drag_state(|state| state.clone());
+
+                        if let crate::ecs::drag::DragState::Dragging { entity, .. } = state_snapshot
+                        {
                             // DragAccumulatorResourceにEnded遷移を記録
-                            if let Some(accumulator) = world_borrow.world().get_resource::<crate::ecs::drag::DragAccumulatorResource>() {
-                                accumulator.set_transition(crate::ecs::drag::DragTransition::Ended {
-                                    entity,
-                                    end_pos: PhysicalPoint::new(screen_x, screen_y),
-                                    cancelled: false,
-                                });
+                            if let Some(accumulator) = world_borrow
+                                .world()
+                                .get_resource::<crate::ecs::drag::DragAccumulatorResource>(
+                            ) {
+                                accumulator.set_transition(
+                                    crate::ecs::drag::DragTransition::Ended {
+                                        entity,
+                                        end_pos: PhysicalPoint::new(screen_x, screen_y),
+                                        cancelled: false,
+                                    },
+                                );
                             }
                         }
-                        
+
                         // thread_local DragStateをIdleに戻す
                         crate::ecs::drag::end_dragging(
                             PhysicalPoint::new(screen_x, screen_y),
@@ -956,20 +1007,23 @@ unsafe fn handle_button_message(
         crate::ecs::pointer::record_button_down(window_entity, button);
     } else {
         crate::ecs::pointer::record_button_up(window_entity, button);
-        
+
         // ドラッグ終了（hit_test失敗時でもドラッグ中なら終了処理）
         if button == crate::ecs::pointer::PointerButton::Left {
             if let Some(world) = super::try_get_ecs_world() {
                 if let Ok(world_borrow) = world.try_borrow() {
                     // thread_local DragStateをクローンして取得
                     let state_snapshot = crate::ecs::drag::read_drag_state(|state| state.clone());
-                    
-                    if let crate::ecs::drag::DragState::Dragging { entity, .. } 
-                        | crate::ecs::drag::DragState::Preparing { entity, .. }
-                        | crate::ecs::drag::DragState::JustStarted { entity, .. } = state_snapshot 
+
+                    if let crate::ecs::drag::DragState::Dragging { entity, .. }
+                    | crate::ecs::drag::DragState::Preparing { entity, .. }
+                    | crate::ecs::drag::DragState::JustStarted { entity, .. } = state_snapshot
                     {
                         // DragAccumulatorResourceにEnded遷移を記録
-                        if let Some(accumulator) = world_borrow.world().get_resource::<crate::ecs::drag::DragAccumulatorResource>() {
+                        if let Some(accumulator) = world_borrow
+                            .world()
+                            .get_resource::<crate::ecs::drag::DragAccumulatorResource>(
+                        ) {
                             accumulator.set_transition(crate::ecs::drag::DragTransition::Ended {
                                 entity,
                                 end_pos: PhysicalPoint::new(screen_x, screen_y),
@@ -979,12 +1033,9 @@ unsafe fn handle_button_message(
                     }
                 }
             }
-            
+
             // thread_local DragStateをIdleに戻す
-            crate::ecs::drag::end_dragging(
-                PhysicalPoint::new(screen_x, screen_y),
-                false,
-            );
+            crate::ecs::drag::end_dragging(PhysicalPoint::new(screen_x, screen_y), false);
             // TODO: ReleaseCapture (not available in current windows crate version)
             // let _ = unsafe { ReleaseCapture() };
         }
@@ -1001,7 +1052,13 @@ pub(super) unsafe fn WM_LBUTTONDOWN(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> HandlerResult {
-    handle_button_message(hwnd, wparam, lparam, crate::ecs::pointer::PointerButton::Left, true)
+    handle_button_message(
+        hwnd,
+        wparam,
+        lparam,
+        crate::ecs::pointer::PointerButton::Left,
+        true,
+    )
 }
 
 /// WM_LBUTTONUP: 左ボタン解放
@@ -1012,7 +1069,13 @@ pub(super) unsafe fn WM_LBUTTONUP(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> HandlerResult {
-    handle_button_message(hwnd, wparam, lparam, crate::ecs::pointer::PointerButton::Left, false)
+    handle_button_message(
+        hwnd,
+        wparam,
+        lparam,
+        crate::ecs::pointer::PointerButton::Left,
+        false,
+    )
 }
 
 /// WM_RBUTTONDOWN: 右ボタン押下
@@ -1023,7 +1086,13 @@ pub(super) unsafe fn WM_RBUTTONDOWN(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> HandlerResult {
-    handle_button_message(hwnd, wparam, lparam, crate::ecs::pointer::PointerButton::Right, true)
+    handle_button_message(
+        hwnd,
+        wparam,
+        lparam,
+        crate::ecs::pointer::PointerButton::Right,
+        true,
+    )
 }
 
 /// WM_RBUTTONUP: 右ボタン解放
@@ -1034,7 +1103,13 @@ pub(super) unsafe fn WM_RBUTTONUP(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> HandlerResult {
-    handle_button_message(hwnd, wparam, lparam, crate::ecs::pointer::PointerButton::Right, false)
+    handle_button_message(
+        hwnd,
+        wparam,
+        lparam,
+        crate::ecs::pointer::PointerButton::Right,
+        false,
+    )
 }
 
 /// WM_MBUTTONDOWN: 中ボタン押下
@@ -1045,7 +1120,13 @@ pub(super) unsafe fn WM_MBUTTONDOWN(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> HandlerResult {
-    handle_button_message(hwnd, wparam, lparam, crate::ecs::pointer::PointerButton::Middle, true)
+    handle_button_message(
+        hwnd,
+        wparam,
+        lparam,
+        crate::ecs::pointer::PointerButton::Middle,
+        true,
+    )
 }
 
 /// WM_MBUTTONUP: 中ボタン解放
@@ -1056,7 +1137,13 @@ pub(super) unsafe fn WM_MBUTTONUP(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> HandlerResult {
-    handle_button_message(hwnd, wparam, lparam, crate::ecs::pointer::PointerButton::Middle, false)
+    handle_button_message(
+        hwnd,
+        wparam,
+        lparam,
+        crate::ecs::pointer::PointerButton::Middle,
+        false,
+    )
 }
 
 /// WM_XBUTTONDOWN: 拡張ボタン押下
@@ -1114,7 +1201,7 @@ unsafe fn handle_double_click_message(
     double_click: crate::ecs::pointer::DoubleClick,
 ) -> HandlerResult {
     use crate::ecs::layout::hit_test::{hit_test_in_window, PhysicalPoint as HitTestPoint};
-    use crate::ecs::pointer::{PointerState, PhysicalPoint};
+    use crate::ecs::pointer::{PhysicalPoint, PointerState};
 
     let Some(window_entity) = super::get_entity_from_hwnd(hwnd) else {
         return None;
@@ -1123,7 +1210,7 @@ unsafe fn handle_double_click_message(
     // クリック位置を取得
     let x = (lparam.0 & 0xFFFF) as i16 as i32;
     let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
-    
+
     // 修飾キー状態を抽出
     let wparam_val = wparam.0 as u32;
     let shift = (wparam_val & 0x04) != 0;
@@ -1142,7 +1229,6 @@ unsafe fn handle_double_click_message(
     // hit_test でターゲットエンティティを特定し、PointerState を確保
     if let Some(world) = super::try_get_ecs_world() {
         if let Ok(mut world_borrow) = world.try_borrow_mut() {
-            
             if let Some(target_entity) = hit_test_in_window(
                 world_borrow.world(),
                 window_entity,
@@ -1157,20 +1243,27 @@ unsafe fn handle_double_click_message(
                 );
 
                 // PointerState がない場合は付与
-                if world_borrow.world().get::<PointerState>(target_entity).is_none() {
-                    world_borrow.world_mut().entity_mut(target_entity).insert(PointerState {
-                        screen_point: PhysicalPoint::new(x, y),
-                        local_point: PhysicalPoint::new(x, y),
-                        left_down: button == crate::ecs::pointer::PointerButton::Left,
-                        right_down: button == crate::ecs::pointer::PointerButton::Right,
-                        middle_down: button == crate::ecs::pointer::PointerButton::Middle,
-                        xbutton1_down: button == crate::ecs::pointer::PointerButton::XButton1,
-                        xbutton2_down: button == crate::ecs::pointer::PointerButton::XButton2,
-                        shift_down: shift,
-                        ctrl_down: ctrl,
-                        double_click,
-                        ..Default::default()
-                    });
+                if world_borrow
+                    .world()
+                    .get::<PointerState>(target_entity)
+                    .is_none()
+                {
+                    world_borrow
+                        .world_mut()
+                        .entity_mut(target_entity)
+                        .insert(PointerState {
+                            screen_point: PhysicalPoint::new(x, y),
+                            local_point: PhysicalPoint::new(x, y),
+                            left_down: button == crate::ecs::pointer::PointerButton::Left,
+                            right_down: button == crate::ecs::pointer::PointerButton::Right,
+                            middle_down: button == crate::ecs::pointer::PointerButton::Middle,
+                            xbutton1_down: button == crate::ecs::pointer::PointerButton::XButton1,
+                            xbutton2_down: button == crate::ecs::pointer::PointerButton::XButton2,
+                            shift_down: shift,
+                            ctrl_down: ctrl,
+                            double_click,
+                            ..Default::default()
+                        });
                     debug!(
                         entity = ?target_entity,
                         button = ?button,
@@ -1179,7 +1272,10 @@ unsafe fn handle_double_click_message(
                     );
                 } else {
                     // 既存の PointerState に double_click を設定
-                    if let Some(mut ps) = world_borrow.world_mut().get_mut::<PointerState>(target_entity) {
+                    if let Some(mut ps) = world_borrow
+                        .world_mut()
+                        .get_mut::<PointerState>(target_entity)
+                    {
                         ps.double_click = double_click;
                         ps.shift_down = shift;
                         ps.ctrl_down = ctrl;
@@ -1194,7 +1290,7 @@ unsafe fn handle_double_click_message(
             }
         }
     }
-    
+
     Some(LRESULT(0))
 }
 
@@ -1217,7 +1313,12 @@ pub(super) unsafe fn WM_RBUTTONDBLCLK(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> HandlerResult {
-    handle_double_click_message(hwnd, wparam, lparam, crate::ecs::pointer::DoubleClick::Right)
+    handle_double_click_message(
+        hwnd,
+        wparam,
+        lparam,
+        crate::ecs::pointer::DoubleClick::Right,
+    )
 }
 
 /// WM_MBUTTONDBLCLK: 中ボタンダブルクリック
@@ -1228,7 +1329,12 @@ pub(super) unsafe fn WM_MBUTTONDBLCLK(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> HandlerResult {
-    handle_double_click_message(hwnd, wparam, lparam, crate::ecs::pointer::DoubleClick::Middle)
+    handle_double_click_message(
+        hwnd,
+        wparam,
+        lparam,
+        crate::ecs::pointer::DoubleClick::Middle,
+    )
 }
 
 /// WM_XBUTTONDBLCLK: 拡張ボタンダブルクリック
@@ -1294,20 +1400,29 @@ pub(super) unsafe fn WM_KEYDOWN(
     _lparam: LPARAM,
 ) -> HandlerResult {
     use windows::Win32::UI::Input::KeyboardAndMouse::VK_ESCAPE;
-    
+
     // ESCキーでドラッグキャンセル
     if wparam.0 == VK_ESCAPE.0 as usize {
         // thread_local DragStateをクローンして取得
         let state_snapshot = crate::ecs::drag::read_drag_state(|state| state.clone());
-        
-        if let crate::ecs::drag::DragState::Dragging { entity, start_pos, .. } 
-            | crate::ecs::drag::DragState::Preparing { entity, start_pos, .. }
-            | crate::ecs::drag::DragState::JustStarted { entity, start_pos, .. } = state_snapshot 
+
+        if let crate::ecs::drag::DragState::Dragging {
+            entity, start_pos, ..
+        }
+        | crate::ecs::drag::DragState::Preparing {
+            entity, start_pos, ..
+        }
+        | crate::ecs::drag::DragState::JustStarted {
+            entity, start_pos, ..
+        } = state_snapshot
         {
             // DragAccumulatorResourceにEnded遷移を記録
             if let Some(world) = super::try_get_ecs_world() {
                 if let Ok(world_borrow) = world.try_borrow() {
-                    if let Some(accumulator) = world_borrow.world().get_resource::<crate::ecs::drag::DragAccumulatorResource>() {
+                    if let Some(accumulator) = world_borrow
+                        .world()
+                        .get_resource::<crate::ecs::drag::DragAccumulatorResource>(
+                    ) {
                         accumulator.set_transition(crate::ecs::drag::DragTransition::Ended {
                             entity,
                             end_pos: start_pos,
@@ -1317,15 +1432,15 @@ pub(super) unsafe fn WM_KEYDOWN(
                 }
             }
         }
-        
+
         crate::ecs::drag::cancel_dragging();
         // ReleaseCapture
         // TODO: ReleaseCapture (not available in current windows crate version)
         // let _ = unsafe { ReleaseCapture() };
-        
+
         tracing::debug!("[WM_KEYDOWN] ESC key pressed, drag cancelled");
     }
-    
+
     None // DefWindowProcWに委譲
 }
 
@@ -1339,15 +1454,24 @@ pub(super) unsafe fn WM_CANCELMODE(
 ) -> HandlerResult {
     // thread_local DragStateをクローンして取得
     let state_snapshot = crate::ecs::drag::read_drag_state(|state| state.clone());
-    
-    if let crate::ecs::drag::DragState::Dragging { entity, start_pos, .. } 
-        | crate::ecs::drag::DragState::Preparing { entity, start_pos, .. }
-        | crate::ecs::drag::DragState::JustStarted { entity, start_pos, .. } = state_snapshot 
+
+    if let crate::ecs::drag::DragState::Dragging {
+        entity, start_pos, ..
+    }
+    | crate::ecs::drag::DragState::Preparing {
+        entity, start_pos, ..
+    }
+    | crate::ecs::drag::DragState::JustStarted {
+        entity, start_pos, ..
+    } = state_snapshot
     {
         // DragAccumulatorResourceにEnded遷移を記録
         if let Some(world) = super::try_get_ecs_world() {
             if let Ok(world_borrow) = world.try_borrow() {
-                if let Some(accumulator) = world_borrow.world().get_resource::<crate::ecs::drag::DragAccumulatorResource>() {
+                if let Some(accumulator) = world_borrow
+                    .world()
+                    .get_resource::<crate::ecs::drag::DragAccumulatorResource>(
+                ) {
                     accumulator.set_transition(crate::ecs::drag::DragTransition::Ended {
                         entity,
                         end_pos: start_pos,
@@ -1357,11 +1481,11 @@ pub(super) unsafe fn WM_CANCELMODE(
             }
         }
     }
-    
+
     // ドラッグキャンセル
     crate::ecs::drag::cancel_dragging();
-    
+
     tracing::debug!("[WM_CANCELMODE] System cancel, drag cancelled");
-    
+
     None // DefWindowProcWに委譲（ReleaseCapture自動実行）
 }

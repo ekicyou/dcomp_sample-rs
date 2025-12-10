@@ -30,15 +30,15 @@ fn test_independent_execution() {
         .expect("Failed to execute test2");
 
     // Verify engine1 has さくら speaker
-    let has_sakura = events1.iter().any(|e| {
-        matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "さくら")
-    });
+    let has_sakura = events1
+        .iter()
+        .any(|e| matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "さくら"));
     assert!(has_sakura, "Engine1 should have さくら speaker");
 
     // Verify engine2 has うにゅう speaker
-    let has_unyuu = events2.iter().any(|e| {
-        matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "うにゅう")
-    });
+    let has_unyuu = events2
+        .iter()
+        .any(|e| matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "うにゅう"));
     assert!(has_unyuu, "Engine2 should have うにゅう speaker");
 
     // Verify engines don't interfere with each other
@@ -193,12 +193,12 @@ fn test_independent_label_execution() {
     let events2_b = engine2.execute_label("label_b").unwrap();
 
     // Verify correct speakers
-    let has_sakura = events1_a.iter().any(|e| {
-        matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "さくら")
-    });
-    let has_unyuu = events2_b.iter().any(|e| {
-        matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "うにゅう")
-    });
+    let has_sakura = events1_a
+        .iter()
+        .any(|e| matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "さくら"));
+    let has_unyuu = events2_b
+        .iter()
+        .any(|e| matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "うにゅう"));
 
     assert!(has_sakura, "Engine1 should execute label_a with さくら");
     assert!(has_unyuu, "Engine2 should execute label_b with うにゅう");
@@ -249,7 +249,8 @@ fn test_engine_with_different_scripts() {
         さくら：ローカルラベル
 "#;
 
-    let mut simple_engine = PastaEngine::new(simple_script).expect("Failed to create simple engine");
+    let mut simple_engine =
+        PastaEngine::new(simple_script).expect("Failed to create simple engine");
     let mut complex_engine =
         PastaEngine::new(complex_script).expect("Failed to create complex engine");
 

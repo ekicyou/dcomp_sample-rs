@@ -26,9 +26,9 @@ fn test_thread_safety() {
             .expect("Failed to execute in thread 1");
 
         // Verify the result
-        let has_sakura = events.iter().any(|e| {
-            matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "さくら")
-        });
+        let has_sakura = events
+            .iter()
+            .any(|e| matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "さくら"));
         assert!(has_sakura, "Thread 1 should have さくら speaker");
         events
     });
@@ -40,9 +40,9 @@ fn test_thread_safety() {
             .expect("Failed to execute in thread 2");
 
         // Verify the result
-        let has_unyuu = events.iter().any(|e| {
-            matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "うにゅう")
-        });
+        let has_unyuu = events
+            .iter()
+            .any(|e| matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "うにゅう"));
         assert!(has_unyuu, "Thread 2 should have うにゅう speaker");
         events
     });
@@ -122,24 +122,28 @@ fn test_independent_execution_across_threads() {
 
     let handle1 = thread::spawn(move || {
         let mut engine = PastaEngine::new(&script1).expect("Failed to create engine in thread 1");
-        engine.execute_label("label_a").expect("Failed to execute label_a")
+        engine
+            .execute_label("label_a")
+            .expect("Failed to execute label_a")
     });
 
     let handle2 = thread::spawn(move || {
         let mut engine = PastaEngine::new(&script2).expect("Failed to create engine in thread 2");
-        engine.execute_label("label_b").expect("Failed to execute label_b")
+        engine
+            .execute_label("label_b")
+            .expect("Failed to execute label_b")
     });
 
     let events1 = handle1.join().expect("Thread 1 panicked");
     let events2 = handle2.join().expect("Thread 2 panicked");
 
     // Verify independent execution - different speakers
-    let has_sakura = events1.iter().any(|e| {
-        matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "さくら")
-    });
-    let has_unyuu = events2.iter().any(|e| {
-        matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "うにゅう")
-    });
+    let has_sakura = events1
+        .iter()
+        .any(|e| matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "さくら"));
+    let has_unyuu = events2
+        .iter()
+        .any(|e| matches!(e, ScriptEvent::ChangeSpeaker { name } if name == "うにゅう"));
 
     assert!(has_sakura, "Thread 1 should execute label_a");
     assert!(has_unyuu, "Thread 2 should execute label_b");

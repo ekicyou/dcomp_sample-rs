@@ -152,7 +152,7 @@ impl Transpiler {
         label_context.set_local_functions(local_functions);
 
         // Function signature - generators don't need async keyword in Rune
-        output.push_str(&format!("pub fn {}() {{\n", fn_name));
+        output.push_str(&format!("pub fn {}(ctx) {{\n", fn_name));
 
         // Transpile statements
         for stmt in &label.statements {
@@ -459,7 +459,7 @@ mod tests {
         };
 
         let result = Transpiler::transpile(&file).unwrap();
-        assert!(result.contains("pub fn greeting()"));
+        assert!(result.contains("pub fn greeting(ctx)"));
         assert!(result.contains("yield change_speaker(\"sakura\")"));
         assert!(result.contains("yield emit_text(\"Hello!\")"));
     }
