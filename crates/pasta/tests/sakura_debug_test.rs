@@ -1,6 +1,6 @@
 //! Debug test for sakura script parsing
 
-use pasta::{PastaEngine, ir::{ScriptEvent, ContentPart}};
+use pasta::PastaEngine;
 
 #[test]
 fn debug_sakura_parsing() -> Result<(), Box<dyn std::error::Error>> {

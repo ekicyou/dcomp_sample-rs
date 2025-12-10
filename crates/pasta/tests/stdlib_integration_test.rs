@@ -1,7 +1,7 @@
 //! Integration test for standard library functions
 
-use pasta::{stdlib, ir::ScriptEvent};
-use rune::{Context, Source, Vm};
+use pasta::stdlib;
+use rune::{Context, Vm};
 use std::sync::Arc;
 
 #[test]
