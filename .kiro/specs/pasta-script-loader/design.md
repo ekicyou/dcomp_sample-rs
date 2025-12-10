@@ -373,6 +373,30 @@ Total: 2 error(s)
 | `list_global_labels` | `(&self) -> Vec<String>` | グローバルラベルのみ列挙 | - |
 | `reload_directory` | `(&mut self) -> Result<()>` | ディレクトリ再読み込み | 同上 |
 
+##### Struct Definition
+```rust
+/// Pastaスクリプトエンジン
+pub struct PastaEngine {
+    /// コンパイル済みRuneユニット
+    unit: Arc<rune::Unit>,
+    /// Runeランタイムコンテキスト
+    runtime: Arc<rune::runtime::RuntimeContext>,
+    /// ラベルテーブル（ラベル検索・ランダム選択）
+    label_table: LabelTable,
+    /// スクリプトルートディレクトリ（from_directory()で初期化時のみ設定）
+    /// `None`の場合、reload_directory()は利用不可
+    script_root: Option<PathBuf>,
+}
+```
+
+**Field Rationale**:
+- `unit`, `runtime`: 既存フィールド（不変）
+- `label_table`: 既存フィールド（型は`LabelTable`のまま、Arcラップ不要）
+- `script_root`: 新規フィールド
+  - `from_directory()`で`Some(path.to_path_buf())`を設定
+  - `new()`では`None`のまま（文字列初期化では再読み込み不可）
+  - `reload_directory()`の前提条件チェックに使用
+
 ##### Service Interface
 ```rust
 impl PastaEngine {
