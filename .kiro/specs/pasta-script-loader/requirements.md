@@ -25,18 +25,23 @@ pastaエンジンは初期化時にスクリプトディレクトリの絶対・
 
 ### Requirement 2: DSL/Runeファイル配置ルール
 
-**目的:** PastaEngineの開発者として、スクリプトディレクトリ内のファイル配置ルールを理解し、それに従ってスクリプトを整理したい。これにより、保守性の高いプロジェクト構造を実現できる。
+**目的:** PastaEngineの開発者として、areka-P0-script-engineで定義されたファイル構成規約に従い、スクリプトを整理したい。これにより、宣言的な会話データ（pasta）と手続き的なロジック（rune）を明確に分離できる。
+
+**参照仕様**: areka-P0-script-engine「ファイル構成とロード規則」
 
 #### Acceptance Criteria
-1. The Pastaエンジン shall スクリプトディレクトリ直下およびサブディレクトリ内の`.pasta`拡張子ファイル（大文字小文字区別なし）をPasta DSLファイルとして認識する
-2. The Pastaエンジン shall スクリプトディレクトリ直下およびサブディレクトリ内の`.rn`拡張子ファイル（大文字小文字区別なし）をRune補助スクリプトとして認識する
-3. The Pastaエンジン shall サブディレクトリを再帰的に探索する
-4. The Pastaエンジン shall ファイル名が`_`（アンダースコア）で始まるファイルをスキップする
-5. The Pastaエンジン shall 隠しファイル（`.`で始まる）を自動的に除外する
-6. The Pastaエンジン shall ファイル探索順序を保証せず、ファイルシステム依存の順序で処理する
-7. The Pastaエンジン shall Rust標準ライブラリ（`std::fs::read_to_string`）のUTF-8取り扱いルールに準じてファイルを読み込む
-8. When ディレクトリ内に`.pasta`ファイルが存在しない場合、the Pastaエンジン shall 警告ログを出力する
-9. When 空の`.pasta`ファイルが存在する場合、the Pastaエンジン shall 警告ログを出力しエラーとしては扱わない
+1. The Pastaエンジン shall スクリプトディレクトリ配下の`dic/`サブディレクトリ内の`.pasta`ファイルのみを検索する
+2. The Pastaエンジン shall `dic/`ディレクトリを再帰的に探索し、全サブディレクトリ内の`.pasta`ファイルを読み込む（`./dic/**/*.pasta`パターン）
+3. The Pastaエンジン shall スクリプトディレクトリ直下（ルート階層）の`.rn`ファイルをRune補助スクリプトとして認識する
+4. If `dic/`内に`.rn`ファイルが存在する場合、then the Pastaエンジン shall 警告ログを出力する（技術的に可能だが作法違反）
+5. The Pastaエンジン shall 拡張子を大文字小文字区別なく認識する（`.PASTA`, `.Rn`も認識）
+6. The Pastaエンジン shall ファイル名が`_`（アンダースコア）で始まるファイルをスキップする
+7. The Pastaエンジン shall 隠しファイル（`.`で始まる）を自動的に除外する
+8. The Pastaエンジン shall ファイル探索順序を保証せず、ファイルシステム依存の順序で処理する
+9. The Pastaエンジン shall Rust標準ライブラリ（`std::fs::read_to_string`）のUTF-8取り扱いルールに準じてファイルを読み込む
+10. If `dic/`ディレクトリが存在しない場合、then the Pastaエンジン shall 初期化時に`PastaError::DicDirectoryNotFound`を返す
+11. When `dic/`内に`.pasta`ファイルが存在しない場合、the Pastaエンジン shall 警告ログを出力する
+12. When 空の`.pasta`ファイルが存在する場合、the Pastaエンジン shall 警告ログを出力しエラーとしては扱わない
 
 ### Requirement 3: スクリプトファイル読み込み
 
@@ -70,16 +75,18 @@ pastaエンジンは初期化時にスクリプトディレクトリの絶対・
 
 ### Requirement 5: テスト用スクリプトディレクトリ
 
-**目的:** PastaEngineの開発者として、ユニットテスト・統合テストで使用するテスト用スクリプトディレクトリを整備したい。これにより、ディレクトリローダー機能の動作を継続的に検証できる。
+**目的:** PastaEngineの開発者として、既存のサンプルスクリプトをテスト用フィクスチャとしても活用したい。これにより、areka-P0-script-engineの規約に準拠したディレクトリ構造でローダー機能を検証できる。
+
+**参照**: 既存の`crates/pasta/examples/scripts/`を活用
 
 #### Acceptance Criteria
-1. The プロジェクト shall `crates/pasta/tests/fixtures/scripts/`配下にテスト用スクリプトディレクトリを配置する
-2. The テストフィクスチャ shall 基本的な会話スクリプト（`basic_conversation.pasta`）を含む
-3. The テストフィクスチャ shall さくらスクリプトサンプル（`sakura_script.pasta`）を含む
-4. The テストフィクスチャ shall 変数操作スクリプト（`variables.pasta`）を含む
-5. The テストフィクスチャ shall 制御フロースクリプト（`control_flow.pasta`）を含む
-6. The テストフィクスチャ shall サブディレクトリ構造を持つ複雑なシナリオ（`nested/`）を含む
-7. The テストフィクスチャ shall 無効なファイル名パターン（`_ignored.pasta`）を含む
+1. The プロジェクト shall `crates/pasta/examples/scripts/`を統合テストのフィクスチャとして使用する
+2. The スクリプトディレクトリ shall areka-P0-script-engineの規約に従い`dic/`サブディレクトリ構造を持つ
+3. The `dic/`ディレクトリ shall 既存サンプル（`01_basic_conversation.pasta`～`06_event_handlers.pasta`）を配置する
+4. The `dic/`ディレクトリ shall サブディレクトリ構造のテスト用に`special/`などのネストを含む
+5. The スクリプトディレクトリ shall 無効ファイル名パターンのテスト用に`_ignored.pasta`を`dic/`配下に含む
+6. The スクリプトディレクトリルート shall `.rn`ファイルのテスト用にサンプルRuneモジュール（`helpers.rn`など）を配置する
+7. The `dic/`ディレクトリ shall 作法違反テスト用に`.rn`ファイル（警告対象）を含む
 
 ### Requirement 6: 統合テスト
 
