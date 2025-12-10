@@ -311,3 +311,356 @@ fn test_context_passing_without_persistence_path() -> Result<()> {
 
 **Status**: 完了 - 設計フェーズで実装可能  
 **Next**: R2調査へ進む
+
+---
+
+## R2: Rune TOML Serialization API
+
+### 調査目的
+Rune 0.14での標準TOML機能の利用可否と、ドキュメント例で使用するAPI仕様を確定する。
+
+### 調査内容
+
+#### 1. Rune 0.14 標準ライブラリ調査
+
+**Rune公式ドキュメント確認**:
+- Rune 0.14はコア言語機能のみを提供
+- 標準ライブラリに**TOMLモジュールは含まれていない**
+- ファイルI/O機能も標準では提供されない
+
+**理由**: Runeはembeddable scripting languageとして設計されており、ホスト環境（この場合Rust）が必要な機能を提供する想定
+
+#### 2. ホスト側での対応方針
+
+**Option A: Rust側でTOML機能を提供**
+
+Pastaスクリプトエンジンのstdlib（`crates/pasta/src/stdlib/mod.rs`）に、TOML関連の関数を追加:
+
+```rust
+// crates/pasta/Cargo.toml に依存追加
+[dependencies]
+toml = "0.8"  # TOMLシリアライズ・デシリアライズ
+
+// crates/pasta/src/stdlib/mod.rs
+use rune::{ContextError, Module};
+
+pub fn create_module() -> Result<Module, ContextError> {
+    let mut module = Module::with_crate("pasta_stdlib")?;
+    
+    // 既存の関数登録
+    module.function_meta(emit_text)?;
+    module.function_meta(change_speaker)?;
+    // ...
+    
+    // TOML関連関数を追加
+    module.function_meta(toml_serialize)?;
+    module.function_meta(toml_deserialize)?;
+    module.function_meta(file_read)?;
+    module.function_meta(file_write)?;
+    
+    Ok(module)
+}
+
+// TOML serialize関数
+#[rune::function]
+fn toml_serialize(data: rune::Value) -> Result<String, String> {
+    // rune::Value を Rust の serde 互換型に変換
+    let rust_value: toml::Value = rune::from_value(data)
+        .map_err(|e| format!("Failed to convert value: {}", e))?;
+    
+    toml::to_string(&rust_value)
+        .map_err(|e| format!("TOML serialization failed: {}", e))
+}
+
+// TOML deserialize関数
+#[rune::function]
+fn toml_deserialize(toml_str: &str) -> Result<rune::Value, String> {
+    let rust_value: toml::Value = toml::from_str(toml_str)
+        .map_err(|e| format!("TOML parsing failed: {}", e))?;
+    
+    rune::to_value(rust_value)
+        .map_err(|e| format!("Failed to convert to Rune value: {}", e))
+}
+
+// ファイル読み込み関数
+#[rune::function]
+fn file_read(path: &str) -> Result<String, String> {
+    std::fs::read_to_string(path)
+        .map_err(|e| format!("File read failed: {}", e))
+}
+
+// ファイル書き込み関数
+#[rune::function]
+fn file_write(path: &str, content: &str) -> Result<(), String> {
+    std::fs::write(path, content)
+        .map_err(|e| format!("File write failed: {}", e))
+}
+```
+
+**Option B: Runeスクリプトでraw file I/Oのみ使用**
+
+TOMLパース・生成を手動実装（非現実的、複雑すぎる）
+
+### 推奨アプローチ
+
+**Option A (Rust側でTOML機能提供)** を推奨
+
+**理由**:
+1. **現実的**: Rune標準にTOML機能がない以上、ホスト側提供が必須
+2. **既存パターン踏襲**: pasta stdlibは既に`emit_text`等の関数を提供
+3. **型安全**: `rune::Value` ⇔ `toml::Value` 変換により、Rune側で安全にデータ操作可能
+4. **要件合致**: Req 5.1「Runeの標準機能を活用」→ホスト提供の機能を"Runeから使える標準機能"と解釈
+
+### 実装詳細
+
+#### Cargo.toml更新
+
+```toml
+# crates/pasta/Cargo.toml
+[dependencies]
+toml = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+```
+
+#### stdlib拡張
+
+**`crates/pasta/src/stdlib/persistence.rs`** (新規):
+
+```rust
+//! Persistence-related functions for Rune scripts
+
+use rune::{ContextError, Module};
+use std::fs;
+
+/// Create persistence module with TOML and file I/O functions
+pub fn create_persistence_module() -> Result<Module, ContextError> {
+    let mut module = Module::with_crate("pasta_stdlib::persistence")?;
+    
+    module.function_meta(toml_to_string)?;
+    module.function_meta(toml_from_string)?;
+    module.function_meta(read_text_file)?;
+    module.function_meta(write_text_file)?;
+    
+    Ok(module)
+}
+
+/// Serialize a Rune value to TOML string
+#[rune::function]
+fn toml_to_string(data: rune::Value) -> Result<String, String> {
+    // Convert rune::Value to toml::Value
+    let toml_value: toml::Value = rune::from_value(data)
+        .map_err(|e| format!("Value conversion failed: {}", e))?;
+    
+    toml::to_string(&toml_value)
+        .map_err(|e| format!("TOML serialization failed: {}", e))
+}
+
+/// Deserialize TOML string to Rune value
+#[rune::function]
+fn toml_from_string(toml_str: &str) -> Result<rune::Value, String> {
+    let toml_value: toml::Value = toml::from_str(toml_str)
+        .map_err(|e| format!("TOML parsing failed: {}", e))?;
+    
+    rune::to_value(toml_value)
+        .map_err(|e| format!("Failed to convert to Rune value: {}", e))
+}
+
+/// Read text file as string
+#[rune::function]
+fn read_text_file(path: &str) -> Result<String, String> {
+    fs::read_to_string(path)
+        .map_err(|e| format!("Failed to read file '{}': {}", path, e))
+}
+
+/// Write text to file
+#[rune::function]
+fn write_text_file(path: &str, content: &str) -> Result<(), String> {
+    fs::write(path, content)
+        .map_err(|e| format!("Failed to write file '{}': {}", path, e))
+}
+```
+
+#### エンジン統合
+
+**`crates/pasta/src/engine.rs`** (Context初期化時):
+
+```rust
+// Step 4: Compile Rune code
+let mut context = Context::with_default_modules().map_err(|e| {
+    PastaError::RuneRuntimeError(format!("Failed to create Rune context: {}", e))
+})?;
+
+// Install standard library
+context
+    .install(crate::stdlib::create_module().map_err(|e| {
+        PastaError::RuneRuntimeError(format!("Failed to install stdlib: {}", e))
+    })?)
+    .map_err(|e| {
+        PastaError::RuneRuntimeError(format!("Failed to install context: {}", e))
+    })?;
+
+// Install persistence module (新規)
+context
+    .install(crate::stdlib::persistence::create_persistence_module().map_err(|e| {
+        PastaError::RuneRuntimeError(format!("Failed to install persistence module: {}", e))
+    })?)
+    .map_err(|e| {
+        PastaError::RuneRuntimeError(format!("Failed to install persistence context: {}", e))
+    })?;
+```
+
+### Runeスクリプトでの使用例
+
+#### ドキュメント例（Req 5対応）
+
+**保存処理**:
+```rune
+pub fn save_game(ctx) {
+    let path = ctx["persistence_path"];
+    if path.is_empty() {
+        yield emit_text("永続化パスが設定されていません");
+        return;
+    }
+    
+    // 保存データ構造（Runeのobject literal）
+    let save_data = #{
+        player_name: "さくら",
+        level: 10,
+        gold: 5000,
+        items: ["薬草", "剣", "盾"],
+    };
+    
+    // TOMLシリアライズ
+    let toml_str = toml_to_string(save_data)?;
+    
+    // ファイルパス構築（パストラバーサル対策: basename only）
+    let filename = "save_data.toml";
+    let full_path = `${path}/${filename}`;
+    
+    // ファイル書き込み
+    write_text_file(full_path, toml_str)?;
+    
+    yield emit_text("セーブしました");
+}
+```
+
+**読み込み処理**:
+```rune
+pub fn load_game(ctx) {
+    let path = ctx["persistence_path"];
+    if path.is_empty() {
+        yield emit_text("永続化パスが設定されていません");
+        return;
+    }
+    
+    let filename = "save_data.toml";
+    let full_path = `${path}/${filename}`;
+    
+    // ファイル読み込み
+    let toml_str = read_text_file(full_path)?;
+    
+    // TOMLデシリアライズ
+    let save_data = toml_from_string(toml_str)?;
+    
+    // データ使用
+    let player_name = save_data["player_name"];
+    let level = save_data["level"];
+    
+    yield emit_text(`ロードしました: ${player_name} Lv.${level}`);
+}
+```
+
+### パストラバーサル攻撃対策（Req 5.3対応）
+
+**ベストプラクティスドキュメント**:
+
+```markdown
+## セキュリティガイド: パストラバーサル攻撃の防止
+
+### 問題
+ユーザー入力を含むファイル名で`../`を使用すると、永続化ディレクトリ外のファイルにアクセス可能
+
+### 対策
+
+#### 1. ファイル名のベースネームのみ使用
+```rune
+// ❌ 危険: ユーザー入力を直接使用
+let user_filename = input["filename"];  // 悪意: "../../etc/passwd"
+let full_path = `${ctx["persistence_path"]}/${user_filename}`;
+
+// ✅ 安全: ベースネームのみ抽出（ディレクトリ区切りを除去）
+let sanitized = user_filename.replace("/", "_").replace("\\", "_");
+let full_path = `${ctx["persistence_path"]}/${sanitized}`;
+```
+
+#### 2. 固定ファイル名使用（推奨）
+```rune
+// ✅ 最も安全: ハードコードされたファイル名のみ
+let filename = "save_data.toml";
+let full_path = `${ctx["persistence_path"]}/${filename}`;
+```
+
+#### 3. ホワイトリスト検証
+```rune
+const ALLOWED_FILES = ["save_data.toml", "config.toml", "progress.toml"];
+
+fn is_safe_filename(name) {
+    ALLOWED_FILES.contains(name)
+}
+
+if !is_safe_filename(filename) {
+    yield emit_text("無効なファイル名です");
+    return;
+}
+```
+```
+
+### エラーハンドリング例
+
+```rune
+pub fn safe_save(ctx) {
+    let path = ctx["persistence_path"];
+    
+    // 1. パス未設定チェック
+    if path.is_empty() {
+        yield emit_text("エラー: 永続化が無効です");
+        return;
+    }
+    
+    // 2. データ準備
+    let data = #{ level: 5 };
+    
+    // 3. TOML変換（エラーハンドリング）
+    let toml_str = match toml_to_string(data) {
+        Ok(s) => s,
+        Err(e) => {
+            yield emit_text(`シリアライズエラー: ${e}`);
+            return;
+        }
+    };
+    
+    // 4. ファイル書き込み（エラーハンドリング）
+    let full_path = `${path}/save.toml`;
+    match write_text_file(full_path, toml_str) {
+        Ok(_) => yield emit_text("保存成功"),
+        Err(e) => yield emit_text(`保存失敗: ${e}`),
+    }
+}
+```
+
+---
+
+## R2 調査結果サマリ
+
+✅ **Rune 0.14標準機能**: TOMLモジュール**なし**（ホスト提供が必要）  
+✅ **推奨アプローチ**: Rust側でTOML機能をpasta stdlibに追加  
+✅ **実装パターン**: 
+- `toml_to_string(data)` - シリアライズ
+- `toml_from_string(str)` - デシリアライズ  
+- `read_text_file(path)` / `write_text_file(path, content)` - ファイルI/O
+
+✅ **ドキュメント例**: 保存・読み込み・エラーハンドリング・セキュリティ対策を含む  
+✅ **依存追加**: `toml = "0.8"` を`crates/pasta/Cargo.toml`に追加  
+
+**Status**: 完了 - 設計フェーズで実装可能  
+**Next**: R3調査へ進む
