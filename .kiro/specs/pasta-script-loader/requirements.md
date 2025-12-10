@@ -77,37 +77,47 @@ pastaエンジンは初期化時にスクリプトディレクトリの絶対・
 
 ### Requirement 5: テスト用スクリプトディレクトリ
 
-**目的:** PastaEngineの開発者として、既存のサンプルスクリプトをテスト用フィクスチャとしても活用したい。これにより、areka-P0-script-engineの規約に準拠したディレクトリ構造でローダー機能を検証できる。
+**目的:** PastaEngineの開発者として、areka-P0-script-engineの規約に準拠したテスト用スクリプトディレクトリを整備したい。これにより、ディレクトリローダー機能を包括的に検証できる。
 
-**参照**: 既存の`crates/pasta/examples/scripts/`を活用
+**参照**: areka-P0-script-engine「ファイル構成とロード規則」
 
 #### Acceptance Criteria
-1. The プロジェクト shall `crates/pasta/examples/scripts/`を統合テストのフィクスチャとして使用する
-2. The スクリプトディレクトリ shall areka-P0-script-engineの規約に従い`dic/`サブディレクトリ構造を持つ
-3. The `dic/`ディレクトリ shall 既存サンプル（`01_basic_conversation.pasta`～`06_event_handlers.pasta`）を配置する
-4. The `dic/`ディレクトリ shall サブディレクトリ構造のテスト用に`special/`などのネストを含む
-5. The スクリプトディレクトリ shall 無効ファイル名パターンのテスト用に`_ignored.pasta`を`dic/`配下に含む
-6. The スクリプトディレクトリルート shall `.rn`ファイルのテスト用にサンプルRuneモジュール（`helpers.rn`など）を配置する
-7. The `dic/`ディレクトリ shall 作法違反テスト用に`.rn`ファイル（警告対象）を含む
-
+1. The プロジェクト shall `crates/pasta/tests/fixtures/test-project/`にテスト用プロジェクト構造を作成する
+2. The テストプロジェクト shall ルートディレクトリに`main.rune`を配置する（必須ファイル）
+3. The テストプロジェクト shall `dic/`サブディレクトリを持つ
+4. The `dic/`ディレクトリ shall 基本会話スクリプト（`greetings.pasta`）を含む
+5. The `dic/`ディレクトリ shall さくらスクリプトサンプル（`sakura_script.pasta`）を含む
+6. The `dic/`ディレクトリ shall 変数操作スクリプト（`variables.pasta`）を含む
+7. The `dic/`ディレクトリ shall サブディレクトリ構造（`special/holiday.pasta`）を含む
+8. The `dic/`ディレクトリ shall 無効ファイル名パターン（`_ignored.pasta`）を含む
 ### Requirement 6: 統合テスト
 
 **目的:** PastaEngineの開発者として、スクリプトローダー機能が仕様通りに動作することを自動テストで検証したい。これにより、機能追加やリファクタリング時の回帰を防止できる。
 
 #### Acceptance Criteria
-1. When テストがスクリプトディレクトリからPastaEngineを初期化する場合、the テスト shall 初期化が成功することを確認する
-2. When テストがディレクトリ内の全ラベルを列挙する場合、the テスト shall 期待されるラベル名が全て存在することを確認する
+1. When テストが`tests/fixtures/test-project/`からPastaEngineを初期化する場合、the テスト shall 初期化が成功することを確認する
+2. When テストがディレクトリ内の全グローバルラベルを列挙する場合、the テスト shall `dic/`内の全`.pasta`ファイルから期待されるラベルが存在することを確認する
 3. When テストが複数ファイル由来の同名ラベルを実行する場合、the テスト shall いずれかのラベル定義が選択されることを確認する
-4. When テストがローカルラベルを実行する場合、the テスト shall ファイルスコープが正しく隔離されていることを確認する
-5. When テストが存在しないディレクトリを指定する場合、the テスト shall 適切なエラーが返されることを確認する
-6. When テストが読み取り権限のないディレクトリを指定する場合、the テスト shall 権限エラーが返されることを確認する
-7. The 統合テスト shall `tests/script_loader_integration_test.rs`として実装される
-
+4. When テストがローカルラベルを実行する場合、the テスト shall 親ラベルスコープが正しく隔離されていることを確認する
+5. When テストが`_ignored.pasta`を含むディレクトリから初期化する場合、the テスト shall `_ignored.pasta`がスキップされることを確認する
+6. When テストが`dic/`ディレクトリが存在しないパスを指定する場合、the テスト shall `PastaError::DicDirectoryNotFound`が返されることを確認する
+7. When テストが`main.rune`が存在しないパスを指定する場合、the テスト shall `PastaError::MainRuneNotFound`が返されることを確認する
+8. When テストがRuneモジュールをインポートするスクリプトを実行する場合、the テスト shall `main.rune`から`mod`参照されたモジュールが正しく動作することを確認する
 ### Requirement 7: エラーハンドリング
 
 **目的:** PastaEngineの開発者として、スクリプトローダーが発生させる可能性のあるエラーを適切にハンドリングしたい。これにより、デバッグ効率とユーザー体験を向上させられる。
 
 #### Acceptance Criteria
+1. If 指定されたディレクトリが存在しない場合、then the Pastaエンジン shall `PastaError::DirectoryNotFound`エラーを返す
+2. If `dic/`ディレクトリが存在しない場合、then the Pastaエンジン shall `PastaError::DicDirectoryNotFound`エラーを返す
+3. If `main.rune`が存在しない場合、then the Pastaエンジン shall `PastaError::MainRuneNotFound`エラーを返す
+4. If `.pasta`ファイルのパースに失敗した場合、then the Pastaエンジン shall ファイルパス・行番号・エラー詳細を含む`PastaError::ParseError`を返す
+5. If 複数の`.pasta`ファイルでパースエラーが発生した場合、then the Pastaエンジン shall 全エラーを含む`PastaError::MultipleParseErrors`を返す
+6. If ファイルの読み込みに失敗した場合、then the Pastaエンジン shall ファイルパスとI/Oエラー詳細を含む`PastaError::IoError`を返す
+7. If Runeコンパイル中にエラーが発生した場合、then the Pastaエンジン shall Runeエラー詳細を含む`PastaError::RuneCompileError`を返す
+8. The Pastaエンジン shall 全てのエラーに対して`std::error::Error`トレイトを実装する
+9. The Pastaエンジン shall 開発者向けの詳細エラーメッセージ（ファイルパス、行番号、スタックトレース）を提供する
+10. The Pastaエンジン shall エラー時に`pasta_errors.log`へ詳細情報を出力する
 1. If ディレクトリが存在しない場合、then the Pastaエンジン shall `PastaError::DirectoryNotFound`エラーを返す
 2. If ファイルのパースに失敗した場合、then the Pastaエンジン shall ファイルパス・行番号・エラー詳細を含む`PastaError::ParseError`を返す
 3. If ファイルの読み込みに失敗した場合、then the Pastaエンジン shall ファイルパスとI/Oエラー詳細を含む`PastaError::IoError`を返す
