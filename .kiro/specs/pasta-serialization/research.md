@@ -664,3 +664,337 @@ pub fn safe_save(ctx) {
 
 **Status**: 完了 - 設計フェーズで実装可能  
 **Next**: R3調査へ進む
+
+---
+
+## R3: Path Traversal Attack Mitigation
+
+### 調査目的
+Runeスクリプトでのファイルパス操作におけるパストラバーサル攻撃の防止策をドキュメント化する。
+
+### 攻撃シナリオ
+
+#### 脆弱なコード例
+
+```rune
+pub fn save_user_data(ctx, user_input) {
+    let base_path = ctx["persistence_path"];  // "/app/data"
+    let filename = user_input["filename"];     // 攻撃者が制御可能
+    
+    // ❌ 危険: ユーザー入力を直接連結
+    let full_path = `${base_path}/${filename}`;
+    
+    write_text_file(full_path, "secret data");
+}
+
+// 攻撃例:
+// filename = "../../../etc/passwd" 
+// → full_path = "/app/data/../../../etc/passwd" 
+// → 実際のパス = "/etc/passwd" (システムファイルを上書き)
+```
+
+### Rust側での対策（参考）
+
+Rustでは標準ライブラリで安全なパス操作が可能:
+
+```rust
+use std::path::{Path, PathBuf};
+
+fn safe_join(base: &Path, user_input: &str) -> Result<PathBuf, String> {
+    let joined = base.join(user_input);
+    
+    // canonicalize()で正規化し、親ディレクトリの確認
+    let canonical = joined.canonicalize()
+        .map_err(|e| format!("Path resolution failed: {}", e))?;
+    
+    // ベースディレクトリ外を指していないか確認
+    if !canonical.starts_with(base) {
+        return Err("Path traversal attempt detected".to_string());
+    }
+    
+    Ok(canonical)
+}
+
+// 使用例
+let base = Path::new("/app/data");
+let user_input = "../../../etc/passwd";
+
+match safe_join(base, user_input) {
+    Ok(path) => println!("Safe: {:?}", path),
+    Err(e) => println!("Blocked: {}", e),  // "Path traversal attempt detected"
+}
+```
+
+### Rune側での対策（推奨パターン）
+
+Runeスクリプトではファイルシステムの詳細な操作が限定的なため、以下の防御策を推奨:
+
+#### 対策1: 固定ファイル名のみ使用（最も安全）
+
+```rune
+// ✅ 推奨: ハードコードされたファイル名
+pub fn save_game(ctx) {
+    let base = ctx["persistence_path"];
+    let filename = "save_data.toml";  // 固定値
+    let path = `${base}/${filename}`;
+    
+    write_text_file(path, data);
+}
+```
+
+**利点**: ユーザー入力を含まないため、攻撃不可能
+
+#### 対策2: ホワイトリスト検証
+
+```rune
+// 許可されたファイル名のリスト
+const ALLOWED_FILES = [
+    "save_data.toml",
+    "config.toml",
+    "progress.toml",
+    "preferences.toml",
+];
+
+fn is_safe_filename(name) {
+    ALLOWED_FILES.iter().any(|allowed| allowed == name)
+}
+
+pub fn save_file(ctx, filename) {
+    // ✅ ホワイトリスト検証
+    if !is_safe_filename(filename) {
+        yield emit_text("エラー: 無効なファイル名");
+        return;
+    }
+    
+    let base = ctx["persistence_path"];
+    let path = `${base}/${filename}`;
+    write_text_file(path, data);
+}
+```
+
+**利点**: 限定されたファイルセットのみ許可、柔軟性あり
+
+#### 対策3: ファイル名サニタイズ（パス区切り文字除去）
+
+```rune
+fn sanitize_filename(input) {
+    // パス区切り文字を除去・置換
+    input
+        .replace("/", "_")
+        .replace("\\", "_")
+        .replace("..", "_")  // 親ディレクトリ参照も除去
+}
+
+pub fn save_custom_file(ctx, user_input) {
+    // ✅ サニタイズ処理
+    let safe_name = sanitize_filename(user_input);
+    
+    let base = ctx["persistence_path"];
+    let path = `${base}/${safe_name}`;
+    write_text_file(path, data);
+}
+
+// 例:
+// user_input = "../../../etc/passwd"
+// safe_name = "_.._.._.._etc_passwd" (無害化)
+```
+
+**利点**: ユーザー入力を許容しつつ、パストラバーサルを防止
+
+#### 対策4: ベースネーム抽出（最後のコンポーネントのみ）
+
+```rune
+fn extract_basename(path) {
+    // 最後の "/" または "\" 以降を抽出
+    let parts = path.split("/");
+    let last = parts.last().unwrap_or("");
+    
+    // さらに "\" でも分割（Windows対応）
+    let win_parts = last.split("\\");
+    win_parts.last().unwrap_or("")
+}
+
+pub fn save_with_basename(ctx, user_path) {
+    // ✅ ベースネームのみ使用
+    let filename = extract_basename(user_path);
+    
+    let base = ctx["persistence_path"];
+    let path = `${base}/${filename}`;
+    write_text_file(path, data);
+}
+
+// 例:
+// user_path = "../../etc/passwd"
+// filename = "passwd" (ディレクトリ部分を除去)
+```
+
+**注意**: この方法でも意図しないファイル名が残る可能性あり（`passwd`など）
+
+### 推奨実装順序
+
+**優先度順**:
+1. **固定ファイル名** - ユーザー入力を含まない場合
+2. **ホワイトリスト** - 限定されたファイルセットの場合
+3. **サニタイズ** - 動的ファイル名が必要な場合
+
+### ドキュメント化（Req 5.3対応）
+
+**Runeスクリプト開発者向けガイド** (`doc/rune-persistence-guide.md` として作成予定):
+
+```markdown
+# Pastaエンジン永続化ガイド
+
+## セキュリティ: パストラバーサル攻撃の防止
+
+### 概要
+永続化ディレクトリ外のファイルへの不正アクセスを防ぐため、ファイルパス構築時に以下の対策を実施してください。
+
+### 対策一覧
+
+#### 1. 固定ファイル名の使用（推奨）
+最も安全な方法は、ハードコードされたファイル名のみを使用することです。
+
+\`\`\`rune
+pub fn save_game(ctx) {
+    let base = ctx["persistence_path"];
+    let filename = "save_data.toml";  // ✅ 固定値
+    let path = `${base}/${filename}`;
+    write_text_file(path, data);
+}
+\`\`\`
+
+#### 2. ホワイトリスト検証
+複数のファイルが必要な場合、許可リストで検証します。
+
+\`\`\`rune
+const ALLOWED_FILES = ["save_data.toml", "config.toml"];
+
+fn is_allowed(name) {
+    ALLOWED_FILES.iter().any(|f| f == name)
+}
+
+pub fn save_file(ctx, filename) {
+    if !is_allowed(filename) {
+        yield emit_text("エラー: 許可されていないファイル");
+        return;
+    }
+    // ... 保存処理
+}
+\`\`\`
+
+#### 3. ファイル名サニタイズ
+ユーザー入力を使用する場合、パス区切り文字を除去します。
+
+\`\`\`rune
+fn sanitize(input) {
+    input.replace("/", "_").replace("\\", "_").replace("..", "_")
+}
+
+pub fn save_custom(ctx, user_input) {
+    let safe_name = sanitize(user_input);  // ✅ 無害化
+    let path = `${ctx["persistence_path"]}/${safe_name}`;
+    write_text_file(path, data);
+}
+\`\`\`
+
+### 脆弱なコード例
+
+❌ **危険**: ユーザー入力を直接使用
+\`\`\`rune
+pub fn vulnerable_save(ctx, filename) {
+    let path = `${ctx["persistence_path"]}/${filename}`;  // ❌
+    write_text_file(path, data);
+}
+
+// 攻撃例: filename = "../../../etc/passwd"
+// 結果: システムファイルを上書き
+\`\`\`
+
+### チェックリスト
+
+- [ ] ファイル名はハードコードされているか？
+- [ ] ユーザー入力を使用する場合、ホワイトリスト検証を実施しているか？
+- [ ] パス区切り文字（`/`, `\\`, `..`）を除去しているか？
+- [ ] エラーハンドリングを実装しているか？
+
+### エラーハンドリング例
+
+\`\`\`rune
+pub fn safe_save(ctx, filename) {
+    // 1. 永続化パス確認
+    let base = ctx["persistence_path"];
+    if base.is_empty() {
+        yield emit_text("エラー: 永続化が無効です");
+        return;
+    }
+    
+    // 2. ファイル名検証
+    if !is_allowed(filename) {
+        yield emit_text("エラー: 無効なファイル名");
+        return;
+    }
+    
+    // 3. 保存処理
+    let path = `${base}/${filename}`;
+    match write_text_file(path, data) {
+        Ok(_) => yield emit_text("保存成功"),
+        Err(e) => yield emit_text(`保存失敗: ${e}`),
+    }
+}
+\`\`\`
+```
+
+### Rust側での追加対策（将来的な強化案）
+
+**stdlib関数にパス検証を組み込む**:
+
+```rust
+// crates/pasta/src/stdlib/persistence.rs
+
+/// Write text to file (with path traversal protection)
+#[rune::function]
+fn write_text_file_safe(base_dir: &str, filename: &str, content: &str) -> Result<(), String> {
+    // ベースディレクトリのPath化
+    let base = Path::new(base_dir);
+    
+    // ファイル名にパス区切りが含まれていないか確認
+    if filename.contains('/') || filename.contains('\\') {
+        return Err("Filename must not contain path separators".to_string());
+    }
+    
+    // 親ディレクトリ参照を禁止
+    if filename.contains("..") {
+        return Err("Filename must not contain '..'".to_string());
+    }
+    
+    // 安全に結合
+    let full_path = base.join(filename);
+    
+    // 書き込み
+    fs::write(full_path, content)
+        .map_err(|e| format!("Failed to write file: {}", e))
+}
+```
+
+**Rune側での使用**:
+```rune
+// ✅ Rust側で検証済み
+write_text_file_safe(ctx["persistence_path"], filename, data);
+```
+
+---
+
+## R3 調査結果サマリ
+
+✅ **攻撃シナリオ**: `../` を含むユーザー入力でディレクトリ外アクセス  
+✅ **推奨対策（優先度順)**:
+1. 固定ファイル名（最も安全）
+2. ホワイトリスト検証
+3. ファイル名サニタイズ（パス区切り文字除去）
+
+✅ **実装パターン**: 3つの対策パターンとサンプルコード  
+✅ **ドキュメント**: Runeスクリプト開発者向けガイド（セキュリティチェックリスト含む）  
+✅ **将来的な強化**: Rust側stdlib関数にパス検証を組み込む案  
+
+**Status**: 完了 - ドキュメント化準備完了  
+**Next**: R4調査へ進む
