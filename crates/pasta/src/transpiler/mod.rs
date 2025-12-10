@@ -7,6 +7,7 @@ use crate::{
     Argument, BinOp, Expr, JumpTarget, LabelDef, LabelScope, Literal, PastaError,
     PastaFile, SpeechPart, Statement, VarScope,
 };
+use std::collections::HashMap;
 
 /// Transpiler that converts Pasta AST to Rune source code.
 pub struct Transpiler;
@@ -19,21 +20,27 @@ impl Transpiler {
         // Add imports for standard library functions
         output.push_str("use pasta_stdlib::*;\n\n");
 
+        // Track label counters to generate unique function names for duplicates
+        let mut label_counters: HashMap<String, usize> = HashMap::new();
+
         // Transpile each global label
         for label in &file.labels {
-            Self::transpile_label(&mut output, label, None)?;
+            let counter = label_counters.entry(label.name.clone()).or_insert(0);
+            Self::transpile_label_with_counter(&mut output, label, None, *counter)?;
+            *counter += 1;
         }
 
         Ok(output)
     }
 
-    /// Transpile a single label definition to a Rune function.
-    fn transpile_label(
+    /// Transpile a single label definition to a Rune function with a counter for duplicates.
+    fn transpile_label_with_counter(
         output: &mut String,
         label: &LabelDef,
         parent_name: Option<&str>,
+        counter: usize,
     ) -> Result<(), PastaError> {
-        let fn_name = Self::label_to_fn_name(label, parent_name);
+        let fn_name = Self::label_to_fn_name_with_counter(label, parent_name, counter);
 
         // Function signature - generators don't need async keyword in Rune
         output.push_str(&format!("pub fn {}() {{\n", fn_name));
@@ -43,19 +50,21 @@ impl Transpiler {
             Self::transpile_statement(output, stmt)?;
         }
 
-        // Transpile local labels
+        // Transpile local labels (with their own counter tracking)
+        let mut local_counters: HashMap<String, usize> = HashMap::new();
         for local_label in &label.local_labels {
-            // Local labels are nested functions
-            Self::transpile_label(output, local_label, Some(&label.name))?;
+            let counter = local_counters.entry(local_label.name.clone()).or_insert(0);
+            Self::transpile_label_with_counter(output, local_label, Some(&label.name), *counter)?;
+            *counter += 1;
         }
 
         output.push_str("}\n\n");
         Ok(())
     }
 
-    /// Generate a function name from a label definition.
-    fn label_to_fn_name(label: &LabelDef, parent_name: Option<&str>) -> String {
-        match label.scope {
+    /// Generate a function name from a label definition with counter for duplicates.
+    fn label_to_fn_name_with_counter(label: &LabelDef, parent_name: Option<&str>, counter: usize) -> String {
+        let base_name = match label.scope {
             LabelScope::Global => {
                 // Global labels use their name directly
                 Self::sanitize_identifier(&label.name)
@@ -68,6 +77,13 @@ impl Transpiler {
                     Self::sanitize_identifier(&label.name)
                 }
             }
+        };
+        
+        // Append counter if this is a duplicate (counter > 0)
+        if counter > 0 {
+            format!("{}_{}", base_name, counter)
+        } else {
+            base_name
         }
     }
 
