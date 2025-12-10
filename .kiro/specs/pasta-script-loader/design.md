@@ -484,9 +484,35 @@ pub enum PastaError {
     MainRuneNotFound { script_root: String },
     
     /// 複数のパースエラーが発生
-    #[error("Multiple parse errors ({count} errors). See pasta_errors.log for details.")]
-    MultipleParseErrors { count: usize, errors: Vec<PastaError> },
+    #[error("Multiple parse errors ({} errors). See pasta_errors.log for details.", .errors.len())]
+    MultipleParseErrors { 
+        /// パースエラー一覧（ParseError限定で循環参照を防止）
+        errors: Vec<ParseError> 
+    },
 }
+```
+
+**Error Type Design Rationale**:
+- **`count`フィールド削除**: `.errors.len()`で動的に取得可能、冗長性排除
+- **`errors`型を限定**: `Vec<ParseError>`構造体に変更（`Vec<PastaError>`から）
+  - 循環参照防止: `MultipleParseErrors`が自身を含むネストを回避
+  - 意味的整合性: 複数パースエラー集約は構文エラーのみを対象とすべき
+- **`ParseError`構造体定義**:
+  ```rust
+  /// 個別パースエラー（MultipleParseErrors内で使用）
+  #[derive(Debug, Clone)]
+  pub struct ParseError {
+      pub file: String,
+      pub line: usize,
+      pub column: usize,
+      pub message: String,
+  }
+  ```
+- **`std::error::Error::source()`実装**: 
+  - `MultipleParseErrors`では`source()`は`None`を返す
+  - 詳細エラー情報は`pasta_errors.log`で確認（個別エラーの列挙は冗長）
+
+```rust
 ```
 
 ## Data Models
