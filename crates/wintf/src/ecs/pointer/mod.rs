@@ -8,9 +8,9 @@
 mod dispatch;
 
 pub use dispatch::{
-    build_bubble_path, dispatch_event_for_handler, dispatch_pointer_events, EventHandler,
-    OnPointerEntered, OnPointerExited, OnPointerMoved, OnPointerPressed, OnPointerReleased, Phase,
-    PointerEventHandler,
+    dispatch_pointer_events, dispatch_event_for_handler, build_bubble_path,
+    EventHandler, OnPointerEntered, OnPointerExited, OnPointerMoved,
+    OnPointerPressed, OnPointerReleased, Phase, PointerEventHandler,
 };
 
 use bevy_ecs::prelude::*;
@@ -276,10 +276,7 @@ impl PointerBuffer {
         }
         let newest = self.samples.back().unwrap();
         let prev = &self.samples[self.samples.len() - 2];
-        let dt = newest
-            .timestamp
-            .duration_since(prev.timestamp)
-            .as_secs_f32();
+        let dt = newest.timestamp.duration_since(prev.timestamp).as_secs_f32();
         if dt < 0.0001 {
             return (0.0, 0.0);
         }
@@ -378,10 +375,6 @@ thread_local! {
 
     /// Entity ごとの修飾キー状態（最新値）
     pub(crate) static MODIFIER_STATE: RefCell<HashMap<Entity, (bool, bool)>> = RefCell::new(HashMap::new());
-
-    /// グローバルなダブルクリック情報（エンティティに紐付けない）
-    /// このフレームでダブルクリックが発生したかを記録し、全PointerStateに適用する
-    pub(crate) static DOUBLE_CLICK_THIS_FRAME: RefCell<DoubleClick> = RefCell::new(DoubleClick::None);
 }
 
 // 後方互換性エイリアス（コンパイル時参照のため関数ではなくマクロは使えない）
@@ -432,12 +425,12 @@ pub fn hit_test_with_local_coords(
 /// Inputスケジュールで実行され、バッファ内容をPointerStateコンポーネントに反映する。
 pub fn process_pointer_buffers(mut query: Query<(Entity, &mut PointerState)>) {
     tracing::trace!("[process_pointer_buffers] Called");
-
+    
     // ButtonBufferの内容をPointerStateに反映（エンティティIDで照合）
     // Note: BUTTON_BUFFERSのリセットはdispatch_pointer_eventsで行われる
     BUTTON_BUFFERS.with(|buffers| {
         let buffers = buffers.borrow();
-
+        
         for (entity, mut pointer) in query.iter_mut() {
             // 各ボタンの処理（DOWN優先ルール）
             for button in [
@@ -491,7 +484,7 @@ pub fn process_pointer_buffers(mut query: Query<(Entity, &mut PointerState)>) {
             thread_id = ?std::thread::current().id(),
             "[process_pointer_buffers] Checking POINTER_BUFFERS"
         );
-
+        
         // PointerBuffer から位置と速度を取得
         POINTER_BUFFERS.with(|buffers| {
             let mut buffers = buffers.borrow_mut();
@@ -500,7 +493,7 @@ pub fn process_pointer_buffers(mut query: Query<(Entity, &mut PointerState)>) {
                     entity = ?entity,
                     "[process_pointer_buffers] Buffer found"
                 );
-
+                
                 // 速度計算
                 let (vx, vy) = buffer.calculate_velocity();
                 pointer.velocity = CursorVelocity::new(vx, vy);
@@ -512,7 +505,7 @@ pub fn process_pointer_buffers(mut query: Query<(Entity, &mut PointerState)>) {
                     pointer.screen_point = PhysicalPoint::new(sample.x as i32, sample.y as i32);
                     // Note: local_point は hit_test 結果から設定（Phase 1ではscreen_pointと同じ）
                     pointer.local_point = pointer.screen_point;
-
+                    
                     tracing::trace!(
                         entity = ?entity,
                         old_x, old_y,
@@ -766,19 +759,6 @@ pub(crate) fn add_wheel_horizontal(entity: Entity, delta: i16) {
     });
 }
 
-/// DoubleClickを設定（グローバル）
-/// エンティティには紐付けず、このフレームでダブルクリックが発生したことを記録
-#[inline]
-pub(crate) fn set_double_click(_entity: Entity, double_click: DoubleClick) {
-    DOUBLE_CLICK_THIS_FRAME.with(|dc| {
-        let mut dc = dc.borrow_mut();
-        // 既にダブルクリックが記録されていない場合のみ設定（最初のみ）
-        if *dc == DoubleClick::None {
-            *dc = double_click;
-        }
-    });
-}
-
 /// 修飾キー状態を設定
 #[inline]
 pub(crate) fn set_modifier_state(entity: Entity, shift: bool, ctrl: bool) {
@@ -965,7 +945,7 @@ mod tests {
 // ============================================================================
 
 /// WndProcスレッドのthread_localバッファからWorldのPointerStateに直接データを転送
-///
+/// 
 /// この関数は`try_tick_world()`の冒頭（Inputスケジュール実行前）で呼ばれ、
 /// WndProcスレッド（メインスレッド）で収集したポインター情報を、
 /// マルチスレッドで実行されるシステムがアクセスできるように転送する。
@@ -973,21 +953,20 @@ pub(crate) fn transfer_buffers_to_world(world: &mut World) {
     // POINTER_BUFFERSからPointerStateへ位置情報を転送
     POINTER_BUFFERS.with(|buffers| {
         let mut buffers = buffers.borrow_mut();
-
+        
         for (entity, buffer) in buffers.iter_mut() {
             // 最新位置を取得
             if let Some(sample) = buffer.latest() {
                 // 速度計算
                 let (vx, vy) = buffer.calculate_velocity();
-
+                
                 // Worldから該当エンティティのPointerStateを取得または作成
                 if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
                     // 既存のPointerStateを更新
-                    pointer_state.screen_point =
-                        PhysicalPoint::new(sample.x as i32, sample.y as i32);
+                    pointer_state.screen_point = PhysicalPoint::new(sample.x as i32, sample.y as i32);
                     pointer_state.local_point = pointer_state.screen_point;
                     pointer_state.velocity = CursorVelocity::new(vx, vy);
-
+                    
                     tracing::trace!(
                         entity = ?entity,
                         x = sample.x,
@@ -996,19 +975,19 @@ pub(crate) fn transfer_buffers_to_world(world: &mut World) {
                     );
                 }
             }
-
+            
             // バッファをクリア
             buffer.clear();
         }
     });
-
+    
     // BUTTON_BUFFERSからPointerStateへボタン状態を転送
     // down_receivedがtrueの場合のみ、ボタンが押されたとしてtrue設定
     // up_receivedがtrueの場合のみ、ボタンが離されたとしてfalse設定
     // どちらでもない場合は既存の状態を維持（エッジ検出）
     BUTTON_BUFFERS.with(|buffers| {
         let buffers = buffers.borrow();
-
+        
         for ((entity, button), buf) in buffers.iter() {
             if buf.down_received {
                 // ボタンが押された瞬間
@@ -1020,7 +999,7 @@ pub(crate) fn transfer_buffers_to_world(world: &mut World) {
                         PointerButton::XButton1 => pointer_state.xbutton1_down = true,
                         PointerButton::XButton2 => pointer_state.xbutton2_down = true,
                     }
-
+                    
                     tracing::trace!(
                         entity = ?entity,
                         button = ?button,
@@ -1037,7 +1016,7 @@ pub(crate) fn transfer_buffers_to_world(world: &mut World) {
                         PointerButton::XButton1 => pointer_state.xbutton1_down = false,
                         PointerButton::XButton2 => pointer_state.xbutton2_down = false,
                     }
-
+                    
                     tracing::trace!(
                         entity = ?entity,
                         button = ?button,
@@ -1047,7 +1026,7 @@ pub(crate) fn transfer_buffers_to_world(world: &mut World) {
             }
         }
     });
-
+    
     // BUTTON_BUFFERSをリセット（転送完了後）
     BUTTON_BUFFERS.with(|buffers| {
         let mut buffers = buffers.borrow_mut();
@@ -1055,33 +1034,11 @@ pub(crate) fn transfer_buffers_to_world(world: &mut World) {
             buf.reset();
         }
     });
-
-    // グローバルなダブルクリック情報を、PointerStateを持つ全エンティティに適用
-    let double_click_this_frame = DOUBLE_CLICK_THIS_FRAME.with(|dc| *dc.borrow());
-
-    if double_click_this_frame != DoubleClick::None {
-        for (entity, mut pointer_state) in
-            world.query::<(Entity, &mut PointerState)>().iter_mut(world)
-        {
-            pointer_state.double_click = double_click_this_frame;
-
-            tracing::info!(
-                entity = ?entity,
-                double_click = ?double_click_this_frame,
-                "[DOUBLE-CLICK] Applied to PointerState"
-            );
-        }
-    }
-
-    // DOUBLE_CLICK_THIS_FRAMEをリセット
-    DOUBLE_CLICK_THIS_FRAME.with(|dc| {
-        *dc.borrow_mut() = DoubleClick::None;
-    });
-
+    
     // MODIFIER_STATEからPointerStateへ修飾キー状態を転送
     MODIFIER_STATE.with(|state| {
         let state = state.borrow();
-
+        
         for (entity, (shift_down, ctrl_down)) in state.iter() {
             if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
                 pointer_state.shift_down = *shift_down;
