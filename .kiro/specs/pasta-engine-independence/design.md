@@ -258,10 +258,11 @@ impl ParseCache {
     /// 新しい空のキャッシュを作成
     pub fn new() -> Self;
     
-    /// スクリプトに対応するキャッシュエントリを取得
+    /// スクリプトに対応するキャッシュエントリを取得（clone返却）
     /// - Preconditions: なし
-    /// - Postconditions: 存在する場合は参照を返す
-    pub fn get(&self, script: &str) -> Option<(&PastaFile, &str)>;
+    /// - Postconditions: 存在する場合は所有権を持つコピーを返す
+    /// - Note: ライフタイム問題を避けるため、参照ではなく所有値を返す
+    pub fn get(&self, script: &str) -> Option<(PastaFile, String)>;
     
     /// パース結果をキャッシュに保存
     /// - Preconditions: astとrune_sourceは有効なパース結果
@@ -285,7 +286,8 @@ impl ParseCache {
 
 **Implementation Notes**
 - `&mut self`メソッドへの変更（RwLock不要）
-- get()は参照を返す（Arcクローン不要）
+- get()はcloneした所有値を返す（借用チェッカー問題を回避）
+- PastaFile/Stringのcloneコストは許容範囲（キャッシュヒット時のみ）
 - PastaEngine::new()内でcache変更が必要なため`&mut cache`を使用
 
 ---
@@ -315,14 +317,18 @@ impl ParseCache {
 
 | Field | Detail |
 |-------|--------|
-| Intent | マルチスレッド環境での並行実行を検証 |
+| Intent | マルチスレッド環境でのSend実装を実証（補助的検証） |
 | Requirements | 5.1, 5.2, 5.3, 5.4, 5.5 |
 
 **Test Cases**:
-1. 複数スレッドで独立エンジンが同時にexecute_label
-2. 複数スレッドが同一スクリプトから各自のエンジンを作成
-3. データ競合・デッドロックの不発生確認
-4. 全スレッドが独立した結果を生成
+1. 複数スレッドで独立エンジンを作成し、各スレッドでexecute_label
+2. 各スレッドが独立した結果を生成することを確認
+3. グローバル状態不在により構造的にデータ競合が発生しないことを確認
+
+**Note**: 
+- 主要検証は`engine_independence_test`で実施（同一スレッド内の複数インスタンス）
+- 本テストは`Send`トレイト実装の実証と、マルチスレッド環境での動作確認
+- 「確実な同時実行」は不要、スレッド間移動と独立実行を確認すれば十分
 
 **File Location**: `crates/pasta/tests/concurrent_execution_test.rs`
 
@@ -393,12 +399,19 @@ classDiagram
 4. **engine_independence_test::test_random_selector_independence**: RandomSelector独立性
 5. **engine_independence_test::test_drop_independence**: エンジン破棄の独立性
 
-### Concurrency Tests
+### Concurrency Tests (補助的検証)
 
-1. **concurrent_execution_test::test_parallel_execution**: 並行execute_label
-2. **concurrent_execution_test::test_parallel_engine_creation**: 並行エンジン作成
-3. **concurrent_execution_test::test_no_data_race**: データ競合不発生
-4. **concurrent_execution_test::test_independent_results**: 独立結果生成
+1. **concurrent_execution_test::test_thread_safety**: 複数スレッドでエンジン作成・実行
+   - 各スレッドで独立エンジンを作成し`execute_label()`
+   - 各スレッドが期待通りのイベントを返すことを検証
+   - `thread::spawn() + join()`で実装（Barrier不要）
+2. **concurrent_execution_test::test_send_trait**: `Send`トレイトの実証
+   - エンジンをスレッド境界越えに移動できることを確認
+
+**検証アプローチ**:
+- 複雑な同期機構は不要（単純なspawn + join）
+- 主眼は「グローバル状態不在により構造的に安全」の実証
+- データ競合検出ツール（Thread Sanitizer, Miri）は任意
 
 ### Static Analysis
 
@@ -422,10 +435,37 @@ classDiagram
 
 ### Phase 2: engine.rs変更
 
-1. `static PARSE_CACHE`削除
+1. `static PARSE_CACHE`と`global_cache()`関数削除
 2. `PastaEngine`に`cache: ParseCache`フィールド追加
-3. `new()`でキャッシュを初期化し、`&mut cache`で操作
-4. `global_cache()`関数削除
+3. `new()`および`with_random_selector()`の構築フロー変更：
+   ```rust
+   pub fn with_random_selector(script: &str, random_selector: Box<dyn RandomSelector>) -> Result<Self> {
+       // Step 1: 空のキャッシュを作成
+       let mut cache = ParseCache::new();
+       
+       // Step 2: キャッシュからパース結果取得（なければパース・保存）
+       let (ast, rune_source) = if let Some(cached) = cache.get(script) {
+           cached  // キャッシュヒット: 所有値を受け取る
+       } else {
+           // キャッシュミス: パース→トランスパイル→保存
+           let ast = parse_str(script, "<script>")?;
+           let rune_source = Transpiler::transpile(&ast)?;
+           cache.insert(script, ast.clone(), rune_source.clone());
+           (ast, rune_source)
+       };
+       
+       // Step 3: ラベルテーブル構築
+       let mut label_table = LabelTable::new(random_selector);
+       Self::register_labels(&mut label_table, &ast.labels, None)?;
+       
+       // Step 4: Runeコンパイル（unit, runtime作成）
+       // ... 既存のコンパイル処理 ...
+       
+       // Step 5: 全フィールドを持つPastaEngine構築
+       Ok(Self { unit, runtime, label_table, cache })
+   }
+   ```
+4. デバッグ出力の調整（キャッシュヒット/ミスのログ）
 
 ### Phase 3: テスト追加
 
