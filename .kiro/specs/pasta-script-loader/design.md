@@ -544,6 +544,25 @@ pub fn from_directory(path: impl AsRef<Path>) -> Result<Self> {
 - **Error Collection**: .pastaパース(Step 2-3) - 全ファイル処理後に集約
 - **Immediate Return**: IoError, RuneCompileError等の致命的エラー
 
+**merge_asts() Implementation Details**:
+```rust
+/// 複数ASTを単一ASTに統合
+/// 
+/// 全ファイルのラベルを1つのVecに結合し、register_labels()で
+/// 一括処理することで、同名ラベルの関数名が全ファイル間でユニークになる。
+fn merge_asts(asts: Vec<Ast>) -> Ast {
+    let mut merged_labels = Vec::new();
+    for ast in asts {
+        merged_labels.extend(ast.labels);
+    }
+    Ast { labels: merged_labels }
+}
+```
+- **重要**: ファイルごとに`register_labels()`を呼ぶと、カウンターがリセットされ、
+  同名ラベルの関数名が重複する（例: 複数ファイルで`挨拶_0`が生成される）
+- **採用理由**: 全ラベル統合後に1回だけ`register_labels()`を呼ぶことで、
+  カウンターが連続し、関数名の一意性を保証（`挨拶_0`, `挨拶_1`, `挨拶_2`...）
+
 **State Management for reload_directory()**:
 - **PastaEngine構造体拡張**: `script_root: Option<PathBuf>` フィールドを追加
   - `from_directory()`呼び出し時に設定（`Some(path)`）
