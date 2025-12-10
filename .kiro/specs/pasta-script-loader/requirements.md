@@ -28,13 +28,15 @@ pastaエンジンは初期化時にスクリプトディレクトリの絶対・
 **目的:** PastaEngineの開発者として、スクリプトディレクトリ内のファイル配置ルールを理解し、それに従ってスクリプトを整理したい。これにより、保守性の高いプロジェクト構造を実現できる。
 
 #### Acceptance Criteria
-1. The Pastaエンジン shall スクリプトディレクトリ直下の`.pasta`拡張子ファイルをPasta DSLファイルとして認識する
-2. The Pastaエンジン shall スクリプトディレクトリ直下の`.rn`拡張子ファイルをRune補助スクリプトとして認識する
-3. The Pastaエンジン shall サブディレクトリ内の`.pasta`および`.rn`ファイルを再帰的に探索する
+1. The Pastaエンジン shall スクリプトディレクトリ直下およびサブディレクトリ内の`.pasta`拡張子ファイル（大文字小文字区別なし）をPasta DSLファイルとして認識する
+2. The Pastaエンジン shall スクリプトディレクトリ直下およびサブディレクトリ内の`.rn`拡張子ファイル（大文字小文字区別なし）をRune補助スクリプトとして認識する
+3. The Pastaエンジン shall サブディレクトリを再帰的に探索する
 4. The Pastaエンジン shall ファイル名が`_`（アンダースコア）で始まるファイルをスキップする
-5. When ディレクトリ内に`.pasta`ファイルが存在しない場合、the Pastaエンジン shall 警告ログを出力する
-6. The Pastaエンジン shall 隠しファイル（`.`で始まる）とシステムファイルを自動的に除外する
-7. The Pastaエンジン shall UTF-8エンコーディングでファイルを読み込む
+5. The Pastaエンジン shall 隠しファイル（`.`で始まる）を自動的に除外する
+6. The Pastaエンジン shall ファイル探索順序を保証せず、ファイルシステム依存の順序で処理する
+7. The Pastaエンジン shall Rust標準ライブラリ（`std::fs::read_to_string`）のUTF-8取り扱いルールに準じてファイルを読み込む
+8. When ディレクトリ内に`.pasta`ファイルが存在しない場合、the Pastaエンジン shall 警告ログを出力する
+9. When 空の`.pasta`ファイルが存在する場合、the Pastaエンジン shall 警告ログを出力しエラーとしては扱わない
 
 ### Requirement 3: スクリプトファイル読み込み
 
