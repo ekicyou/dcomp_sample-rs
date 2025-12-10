@@ -411,7 +411,22 @@ impl PastaEngine {
 **Implementation Notes**
 - Integration: `from_directory()`は内部で`DirectoryLoader::load()`を呼び出し
 - Validation: `path.is_absolute()`で絶対パスチェック
-- Risks: `reload_directory()`は実行中のジェネレータに影響しない設計
+
+**State Management for reload_directory()**:
+- **PastaEngine構造体拡張**: `script_root: Option<PathBuf>` フィールドを追加
+  - `from_directory()`呼び出し時に設定（`Some(path)`）
+  - `new()`呼び出し時は`None`（文字列ベース初期化では再読み込み不可）
+- **Arc<LabelTable>共有戦略**: 
+  - 既存の`label_table: Arc<LabelTable>`を再利用
+  - reload成功時、新しいLabelTableを構築してArcを更新
+  - 実行中のジェネレータは古いArcを参照し続ける（影響なし）
+- **エラー時の状態維持**: 
+  - reload失敗時はロールバック不要
+  - 既存の`label_table`、`context`、`runtime`をそのまま維持
+  - エラーを呼び出し元に返すのみ（部分的な状態更新なし）
+- **Rune Sources再構築**: 
+  - reload成功時、新しい`main.rune`で`Sources::new()`を再作成
+  - 既存のRuneコンテキスト・ランタイムは破棄し、新規構築
 
 ### Cross-cutting
 
