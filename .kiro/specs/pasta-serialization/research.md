@@ -998,3 +998,283 @@ write_text_file_safe(ctx["persistence_path"], filename, data);
 
 **Status**: 完了 - ドキュメント化準備完了  
 **Next**: R4調査へ進む
+
+---
+
+## R4: pasta-engine-independence Integration
+
+### 調査目的
+`pasta-engine-independence`スペックとの統合順序を確認し、競合を回避する。
+
+### pasta-engine-independence の概要
+
+**目的**: PastaEngineインスタンスの完全な独立性を保証
+
+**主要変更**:
+1. **グローバルキャッシュ削除**: `static PARSE_CACHE` → `PastaEngine::cache` フィールド
+2. **インスタンス所有**: 各エンジンが独自のキャッシュ、ラベルテーブル、変数を所有
+3. **Arc削除**: Rune Unit/RuntimeContext以外で共有ポインタを使用しない
+
+**実装フェーズ** (gap-analysis.mdより):
+- Phase 1: ParseCache simplification
+- Phase 2: PastaEngine restructure
+- Phase 3: Test suite creation
+
+### pasta-serialization の変更内容
+
+**主要変更**:
+1. **フィールド追加**: `PastaEngine::persistence_path: Option<PathBuf>`
+2. **コンストラクタ追加**: `PastaEngine::new_with_persistence(script, path)`
+3. **実行ロジック変更**: `vm.execute(hash, context)` - コンテキスト引数追加
+4. **トランスパイラ変更**: ラベル関数シグネチャ変更
+
+### 競合分析
+
+#### 競合なし（独立領域）
+
+| 領域 | pasta-engine-independence | pasta-serialization |
+|------|---------------------------|---------------------|
+| キャッシュ | グローバル→インスタンスフィールド化 | 変更なし |
+| フィールド | `cache: ParseCache` 追加 | `persistence_path: Option<PathBuf>` 追加 |
+| コンストラクタ | `new(script)` 内部ロジック変更 | `new_with_persistence(script, path)` 新規追加 |
+| VM実行 | 変更なし | `vm.execute(hash, context)` 引数変更 |
+
+**結論**: 両スペックは異なる領域を変更するため、**競合リスクは極めて低い**
+
+#### 統合ポイント
+
+**PastaEngine構造体の最終形** (両スペック統合後):
+
+```rust
+pub struct PastaEngine {
+    // Rune関連（既存）
+    unit: Arc<rune::Unit>,
+    runtime: Arc<rune::runtime::RuntimeContext>,
+    
+    // ラベルテーブル（既存）
+    label_table: LabelTable,
+    
+    // キャッシュ（pasta-engine-independence）
+    cache: ParseCache,
+    
+    // 永続化パス（pasta-serialization）
+    persistence_path: Option<PathBuf>,
+}
+```
+
+### 推奨実装順序
+
+#### Option A: 並行実装（推奨）
+
+両スペックは独立しているため、同時進行可能:
+
+**Timeline**:
+- Week 1: `pasta-engine-independence` Phase 1-2 + `pasta-serialization` Phase 1
+- Week 2: `pasta-engine-independence` Phase 3 + `pasta-serialization` Phase 2
+- Week 3: `pasta-serialization` Phase 3 + 統合テスト
+
+**利点**:
+- 開発速度最大化
+- 各スペックの独立性が高いため、マージ競合最小
+
+**欠点**:
+- 2つのブランチ管理が必要
+
+#### Option B: 順次実装
+
+**Sequence 1: pasta-engine-independence → pasta-serialization**
+
+**Timeline**:
+- Week 1-2: `pasta-engine-independence` 完全実装
+- Week 3-4: `pasta-serialization` 完全実装
+
+**利点**:
+- シンプルな進行管理
+- `pasta-engine-independence`で確立した所有権パターンを`pasta-serialization`で踏襲可能
+
+**欠点**:
+- 総期間が長い
+
+**Sequence 2: pasta-serialization → pasta-engine-independence**
+
+**Timeline**:
+- Week 1-2: `pasta-serialization` 完全実装
+- Week 3-4: `pasta-engine-independence` 完全実装
+
+**利点**:
+- 永続化機能を早期に利用可能
+
+**欠点**:
+- グローバルキャッシュが残った状態で永続化実装（後でリファクタリング）
+
+### 推奨: Option B - Sequence 1
+
+**理由**:
+1. **基盤の確立**: `pasta-engine-independence`でインスタンス所有パターンを確立
+2. **一貫性**: `persistence_path`フィールド追加時、既にキャッシュフィールドが存在
+3. **テスト簡素化**: 独立性テストが完了後、永続化テストで独立性を前提にできる
+
+**実装計画**:
+
+```
+[Week 1-2] pasta-engine-independence
+├─ Phase 1: ParseCache simplification
+├─ Phase 2: PastaEngine restructure (cache field追加)
+└─ Phase 3: Test suite
+
+[Week 3-4] pasta-serialization
+├─ Phase 1: Core extension (persistence_path field追加)
+│  ├─ PastaEngine::new_with_persistence()
+│  ├─ Transpiler signature change
+│  └─ VM execution context passing
+├─ Phase 2: Testing infrastructure
+└─ Phase 3: Logging & documentation
+
+[Week 5] Integration & Validation
+├─ 統合テスト: 複数インスタンス × 異なる永続化パス
+└─ CI/CD整備
+```
+
+### マージ戦略
+
+**ブランチ構成** (Option Aを選択する場合):
+
+```
+master
+  ├─ feature/pasta-engine-independence
+  │   └─ 各Phase実装
+  └─ feature/pasta-serialization
+      └─ 各Phase実装
+```
+
+**マージ順序**:
+1. `pasta-engine-independence` → `master`
+2. `pasta-serialization` を `master` にリベース
+3. `pasta-serialization` → `master`
+
+### 統合テスト計画
+
+**テストケース**: 両スペックの機能を組み合わせ
+
+```rust
+#[test]
+fn test_multiple_engines_with_different_persistence_paths() -> Result<()> {
+    let script = r#"
+＊save
+    さくら：保存します
+"#;
+
+    // Engine 1: persistence path A
+    let temp_dir1 = tempfile::TempDir::new()?;
+    let mut engine1 = PastaEngine::new_with_persistence(script, temp_dir1.path())?;
+    
+    // Engine 2: persistence path B
+    let temp_dir2 = tempfile::TempDir::new()?;
+    let mut engine2 = PastaEngine::new_with_persistence(script, temp_dir2.path())?;
+    
+    // 各エンジンが独立して動作
+    let events1 = engine1.execute_label("save")?;
+    let events2 = engine2.execute_label("save")?;
+    
+    // 両方成功
+    assert_eq!(events1.len(), 2);
+    assert_eq!(events2.len(), 2);
+    
+    // パスが異なることを確認（内部状態検証）
+    // （engine1とengine2は異なる永続化ディレクトリを保持）
+    
+    Ok(())
+}
+
+#[test]
+fn test_engine_independence_with_persistence() -> Result<()> {
+    let script = r#"
+＊test
+    さくら：テスト
+"#;
+
+    let temp_dir = tempfile::TempDir::new()?;
+    
+    // 同一スクリプトから複数インスタンス作成
+    let mut engine1 = PastaEngine::new_with_persistence(script, temp_dir.path())?;
+    let mut engine2 = PastaEngine::new_with_persistence(script, temp_dir.path())?;
+    
+    // 各エンジンが独立してキャッシュ・永続化パスを所有
+    let events1 = engine1.execute_label("test")?;
+    let events2 = engine2.execute_label("test")?;
+    
+    // 互いに干渉しない
+    assert_eq!(events1, events2);
+    
+    Ok(())
+}
+```
+
+### 潜在的な問題と対策
+
+#### 問題1: コンストラクタの複雑化
+
+**現状**:
+- `PastaEngine::new(script)`
+- `PastaEngine::with_random_selector(script, selector)`
+
+**追加**:
+- `PastaEngine::new_with_persistence(script, path)`
+- `PastaEngine::with_persistence_and_random_selector(script, path, selector)`?
+
+**対策**: Builder パターンの検討（将来的な拡張案）
+
+```rust
+// 将来的な改善案（Option）
+let engine = PastaEngine::builder()
+    .script(script)
+    .persistence_path(path)
+    .random_selector(selector)
+    .build()?;
+```
+
+**現時点の推奨**: 単純な追加メソッドで十分（Builderは過剰）
+
+#### 問題2: トランスパイラ変更の影響範囲
+
+**変更**: 全ラベル関数が`ctx`引数を受け取る
+
+**影響**:
+- 既存のRuneスクリプト例（`examples/`）が`ctx`を使用しない
+- ドキュメント更新が必要
+
+**対策**:
+- Phase 3でドキュメント更新を含める
+- `ctx`は未使用でも問題なし（Runeは未使用引数を許容）
+
+---
+
+## R4 調査結果サマリ
+
+✅ **競合分析**: pasta-engine-independence と pasta-serialization は独立領域を変更、競合リスク極めて低  
+✅ **統合後の構造体**: 4フィールド（unit, runtime, label_table, cache, persistence_path）  
+✅ **推奨実装順序**: Sequence 1 - pasta-engine-independence → pasta-serialization  
+✅ **理由**: 基盤確立（所有権パターン）後に永続化機能を追加、一貫性・テスト簡素化  
+✅ **統合テスト**: 複数インスタンス × 異なる永続化パスの独立性検証  
+✅ **潜在的問題**: コンストラクタ複雑化（現時点は単純メソッド追加で対応）、トランスパイラ変更の影響範囲（ドキュメント更新で対応）  
+
+**Status**: 完了 - 統合計画確定  
+**Overall Research Status**: **全議題完了** - 設計フェーズへ進行可能
+
+---
+
+## 全調査議題完了サマリ
+
+### R1: Rune VM Context Passing
+✅ HashMap + `rune::to_value` + タプル引数パターン確定
+
+### R2: Rune TOML Serialization API
+✅ Rust側でTOML機能をpasta stdlibとして提供、4関数実装
+
+### R3: Path Traversal Attack Mitigation
+✅ 3段階防御策ドキュメント化（固定ファイル名/ホワイトリスト/サニタイズ）
+
+### R4: pasta-engine-independence Integration
+✅ 実装順序確定（engine-independence → serialization）、統合テスト計画策定
+
+**Next Step**: `/kiro-spec-design pasta-serialization` で設計フェーズへ移行
