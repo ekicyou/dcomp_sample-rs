@@ -1096,25 +1096,40 @@ pub(super) unsafe fn WM_XBUTTONUP(
 
 /// ダブルクリックメッセージハンドラ共通処理
 #[inline]
+/// WM_*BUTTONDBLCLK ハンドラ共通処理
+///
+/// ダブルクリックイベントを処理し、hit_testでターゲットエンティティを特定して
+/// PointerStateを付与する。WM_LBUTTONDOWNの代わりにWM_LBUTTONDBLCLKが来るため、
+/// ボタン押下記録も同時に行う。
+///
+/// # Arguments
+/// - `hwnd`: ウィンドウハンドル
+/// - `wparam`: 修飾キー状態とXBUTTON情報
+/// - `lparam`: クリック座標（クライアント座標）
+/// - `double_click`: ダブルクリック種別
 unsafe fn handle_double_click_message(
     hwnd: HWND,
+    wparam: WPARAM,
+    lparam: LPARAM,
     double_click: crate::ecs::pointer::DoubleClick,
 ) -> HandlerResult {
-    let Some(entity) = super::get_entity_from_hwnd(hwnd) else {
+    use crate::ecs::layout::hit_test::{hit_test_in_window, PhysicalPoint as HitTestPoint};
+    use crate::ecs::pointer::{PointerState, PhysicalPoint};
+
+    let Some(window_entity) = super::get_entity_from_hwnd(hwnd) else {
         return None;
     };
 
-    tracing::info!(
-        entity = ?entity,
-        double_click = ?double_click,
-        "[handle_double_click_message] Double-click detected"
-    );
-
-    // ダブルクリック情報を設定
-    crate::ecs::pointer::set_double_click(entity, double_click);
+    // クリック位置を取得
+    let x = (lparam.0 & 0xFFFF) as i16 as i32;
+    let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
     
-    // ダブルクリックも通常のボタン押下として記録
-    // （WM_LBUTTONDBLCLKはWM_LBUTTONDOWNの代わりに来る）
+    // 修飾キー状態を抽出
+    let wparam_val = wparam.0 as u32;
+    let shift = (wparam_val & 0x04) != 0;
+    let ctrl = (wparam_val & 0x08) != 0;
+
+    // ダブルクリックに対応するボタンを取得
     let button = match double_click {
         crate::ecs::pointer::DoubleClick::Left => crate::ecs::pointer::PointerButton::Left,
         crate::ecs::pointer::DoubleClick::Right => crate::ecs::pointer::PointerButton::Right,
@@ -1123,7 +1138,62 @@ unsafe fn handle_double_click_message(
         crate::ecs::pointer::DoubleClick::XButton2 => crate::ecs::pointer::PointerButton::XButton2,
         crate::ecs::pointer::DoubleClick::None => return Some(LRESULT(0)),
     };
-    crate::ecs::pointer::record_button_down(entity, button);
+
+    // hit_test でターゲットエンティティを特定し、PointerState を確保
+    if let Some(world) = super::try_get_ecs_world() {
+        if let Ok(mut world_borrow) = world.try_borrow_mut() {
+            
+            if let Some(target_entity) = hit_test_in_window(
+                world_borrow.world(),
+                window_entity,
+                HitTestPoint::new(x as f32, y as f32),
+            ) {
+                tracing::info!(
+                    window_entity = ?window_entity,
+                    target_entity = ?target_entity,
+                    double_click = ?double_click,
+                    x, y,
+                    "[handle_double_click_message] Double-click detected"
+                );
+
+                // PointerState がない場合は付与
+                if world_borrow.world().get::<PointerState>(target_entity).is_none() {
+                    world_borrow.world_mut().entity_mut(target_entity).insert(PointerState {
+                        screen_point: PhysicalPoint::new(x, y),
+                        local_point: PhysicalPoint::new(x, y),
+                        left_down: button == crate::ecs::pointer::PointerButton::Left,
+                        right_down: button == crate::ecs::pointer::PointerButton::Right,
+                        middle_down: button == crate::ecs::pointer::PointerButton::Middle,
+                        xbutton1_down: button == crate::ecs::pointer::PointerButton::XButton1,
+                        xbutton2_down: button == crate::ecs::pointer::PointerButton::XButton2,
+                        shift_down: shift,
+                        ctrl_down: ctrl,
+                        double_click,
+                        ..Default::default()
+                    });
+                    debug!(
+                        entity = ?target_entity,
+                        button = ?button,
+                        double_click = ?double_click,
+                        "PointerState inserted on double-click event"
+                    );
+                } else {
+                    // 既存の PointerState に double_click を設定
+                    if let Some(mut ps) = world_borrow.world_mut().get_mut::<PointerState>(target_entity) {
+                        ps.double_click = double_click;
+                        ps.shift_down = shift;
+                        ps.ctrl_down = ctrl;
+                    }
+                }
+
+                // 修飾キー状態を記録
+                crate::ecs::pointer::set_modifier_state(target_entity, shift, ctrl);
+
+                // ボタン状態をバッファに記録
+                crate::ecs::pointer::record_button_down(target_entity, button);
+            }
+        }
+    }
     
     Some(LRESULT(0))
 }
@@ -1133,10 +1203,10 @@ unsafe fn handle_double_click_message(
 pub(super) unsafe fn WM_LBUTTONDBLCLK(
     hwnd: HWND,
     _message: u32,
-    _wparam: WPARAM,
-    _lparam: LPARAM,
+    wparam: WPARAM,
+    lparam: LPARAM,
 ) -> HandlerResult {
-    handle_double_click_message(hwnd, crate::ecs::pointer::DoubleClick::Left)
+    handle_double_click_message(hwnd, wparam, lparam, crate::ecs::pointer::DoubleClick::Left)
 }
 
 /// WM_RBUTTONDBLCLK: 右ボタンダブルクリック
@@ -1144,10 +1214,10 @@ pub(super) unsafe fn WM_LBUTTONDBLCLK(
 pub(super) unsafe fn WM_RBUTTONDBLCLK(
     hwnd: HWND,
     _message: u32,
-    _wparam: WPARAM,
-    _lparam: LPARAM,
+    wparam: WPARAM,
+    lparam: LPARAM,
 ) -> HandlerResult {
-    handle_double_click_message(hwnd, crate::ecs::pointer::DoubleClick::Right)
+    handle_double_click_message(hwnd, wparam, lparam, crate::ecs::pointer::DoubleClick::Right)
 }
 
 /// WM_MBUTTONDBLCLK: 中ボタンダブルクリック
@@ -1155,10 +1225,10 @@ pub(super) unsafe fn WM_RBUTTONDBLCLK(
 pub(super) unsafe fn WM_MBUTTONDBLCLK(
     hwnd: HWND,
     _message: u32,
-    _wparam: WPARAM,
-    _lparam: LPARAM,
+    wparam: WPARAM,
+    lparam: LPARAM,
 ) -> HandlerResult {
-    handle_double_click_message(hwnd, crate::ecs::pointer::DoubleClick::Middle)
+    handle_double_click_message(hwnd, wparam, lparam, crate::ecs::pointer::DoubleClick::Middle)
 }
 
 /// WM_XBUTTONDBLCLK: 拡張ボタンダブルクリック
@@ -1167,7 +1237,7 @@ pub(super) unsafe fn WM_XBUTTONDBLCLK(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
-    _lparam: LPARAM,
+    lparam: LPARAM,
 ) -> HandlerResult {
     let xbutton = ((wparam.0 >> 16) & 0xFFFF) as u16;
     let double_click = if xbutton == 1 {
@@ -1175,7 +1245,7 @@ pub(super) unsafe fn WM_XBUTTONDBLCLK(
     } else {
         crate::ecs::pointer::DoubleClick::XButton2
     };
-    handle_double_click_message(hwnd, double_click)
+    handle_double_click_message(hwnd, wparam, lparam, double_click)
 }
 
 /// WM_MOUSEWHEEL: 垂直ホイール回転

@@ -375,10 +375,6 @@ thread_local! {
 
     /// Entity ごとの修飾キー状態（最新値）
     pub(crate) static MODIFIER_STATE: RefCell<HashMap<Entity, (bool, bool)>> = RefCell::new(HashMap::new());
-    
-    /// グローバルなダブルクリック情報（エンティティに紐付けない）
-    /// このフレームでダブルクリックが発生したかを記録し、全PointerStateに適用する
-    pub(crate) static DOUBLE_CLICK_THIS_FRAME: RefCell<DoubleClick> = RefCell::new(DoubleClick::None);
 }
 
 // 後方互換性エイリアス（コンパイル時参照のため関数ではなくマクロは使えない）
@@ -763,19 +759,6 @@ pub(crate) fn add_wheel_horizontal(entity: Entity, delta: i16) {
     });
 }
 
-/// DoubleClickを設定（グローバル）
-/// エンティティには紐付けず、このフレームでダブルクリックが発生したことを記録
-#[inline]
-pub(crate) fn set_double_click(_entity: Entity, double_click: DoubleClick) {
-    DOUBLE_CLICK_THIS_FRAME.with(|dc| {
-        let mut dc = dc.borrow_mut();
-        // 既にダブルクリックが記録されていない場合のみ設定（最初のみ）
-        if *dc == DoubleClick::None {
-            *dc = double_click;
-        }
-    });
-}
-
 /// 修飾キー状態を設定
 #[inline]
 pub(crate) fn set_modifier_state(entity: Entity, shift: bool, ctrl: bool) {
@@ -1050,26 +1033,6 @@ pub(crate) fn transfer_buffers_to_world(world: &mut World) {
         for buf in buffers.values_mut() {
             buf.reset();
         }
-    });
-    
-    // グローバルなダブルクリック情報を、PointerStateを持つ全エンティティに適用
-    let double_click_this_frame = DOUBLE_CLICK_THIS_FRAME.with(|dc| *dc.borrow());
-    
-    if double_click_this_frame != DoubleClick::None {
-        for (entity, mut pointer_state) in world.query::<(Entity, &mut PointerState)>().iter_mut(world) {
-            pointer_state.double_click = double_click_this_frame;
-            
-            tracing::info!(
-                entity = ?entity,
-                double_click = ?double_click_this_frame,
-                "[DOUBLE-CLICK] Applied to PointerState"
-            );
-        }
-    }
-    
-    // DOUBLE_CLICK_THIS_FRAMEをリセット
-    DOUBLE_CLICK_THIS_FRAME.with(|dc| {
-        *dc.borrow_mut() = DoubleClick::None;
     });
     
     // MODIFIER_STATEからPointerStateへ修飾キー状態を転送
