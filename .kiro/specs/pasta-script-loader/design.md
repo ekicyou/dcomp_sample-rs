@@ -436,6 +436,77 @@ impl PastaEngine {
 - Integration: `from_directory()`は内部で`DirectoryLoader::load()`を呼び出し
 - Validation: `path.is_absolute()`で絶対パスチェック
 
+**from_directory() Implementation Algorithm**:
+```rust
+pub fn from_directory(path: impl AsRef<Path>) -> Result<Self> {
+    let path = path.as_ref();
+    
+    // Step 1: ディレクトリ検証 (Fail-Fast)
+    let loaded = DirectoryLoader::load(path)?; // NotAbsolutePath, DirectoryNotFound, etc.
+    
+    // Step 2: 全.pastaファイルパース (エラー収集)
+    let mut asts = Vec::new();
+    let mut parse_errors = Vec::new();
+    
+    for pasta_file in &loaded.pasta_files {
+        match parse_file(pasta_file, pasta_file.to_string_lossy().as_ref()) {
+            Ok(ast) => asts.push(ast),
+            Err(e) => {
+                // ParseError variantのみ収集、他のエラーは即座に返却
+                if let Some(parse_err) = Option::<ParseError>::from(&e) {
+                    parse_errors.push(parse_err);
+                } else {
+                    return Err(e); // IoError等はfail-fast
+                }
+            }
+        }
+    }
+    
+    // Step 3: パースエラーがあればログ出力して即座に返却
+    if !parse_errors.is_empty() {
+        ErrorLogWriter::write(&loaded.script_root, &parse_errors)?;
+        return Err(PastaError::MultipleParseErrors { errors: parse_errors });
+    }
+    
+    // Step 4: 全AST統合とトランスパイル
+    let merged_ast = merge_asts(asts); // 全ラベルをマージ
+    let rune_source = Transpiler::transpile(&merged_ast)?;
+    
+    // Step 5: Rune Sources構築
+    let mut sources = rune::Sources::new();
+    sources.insert(rune::Source::new("entry", rune_source))?;
+    sources.insert(rune::Source::from_path(&loaded.main_rune)?)?;
+    
+    // Step 6: Runeコンパイル (Fail-Fast)
+    let mut context = rune::Context::with_default_modules()?;
+    let mut diagnostics = rune::Diagnostics::new();
+    let unit = rune::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .build()?; // RuneCompileError
+    
+    let runtime = Arc::new(context.runtime()?);
+    
+    // Step 7: LabelTable構築
+    let label_table = LabelTable::from_labels(
+        merged_ast.labels,
+        Box::new(DefaultRandomSelector::new())
+    );
+    
+    Ok(Self {
+        unit: Arc::new(unit),
+        runtime,
+        label_table,
+        script_root: Some(path.to_path_buf()),
+    })
+}
+```
+
+**Error Handling Strategy**:
+- **Fail-Fast**: ディレクトリ検証(Step 1)、Runeコンパイル(Step 6)
+- **Error Collection**: .pastaパース(Step 2-3) - 全ファイル処理後に集約
+- **Immediate Return**: IoError, RuneCompileError等の致命的エラー
+
 **State Management for reload_directory()**:
 - **PastaEngine構造体拡張**: `script_root: Option<PathBuf>` フィールドを追加
   - `from_directory()`呼び出し時に設定（`Some(path)`）
