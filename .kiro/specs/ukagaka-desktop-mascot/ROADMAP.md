@@ -1,6 +1,6 @@
 # ROADMAP - ukagaka-desktop-mascot
 
-> 最終更新: 2025-12-03
+> 最終更新: 2025-12-10
 
 ---
 
@@ -21,9 +21,9 @@
 
 | Status | Count | 割合 |
 |--------|-------|------|
-| 🟢 Completed | 4 | 13% |
+| 🟢 Completed | 5 | 16% |
 | 🔵 In Progress | 1 | 3% |
-| ⚪ Not Started | 27 | 84% |
+| ⚪ Not Started | 26 | 81% |
 | **Total** | **32** | 100% |
 
 ---
@@ -81,7 +81,7 @@ graph TB
 | 1 | `wintf-P0-animation-system` | ⚪ requirements-draft | ○ | ✅ image-widget |
 | 1 | `wintf-P0-balloon-system` | ⚪ requirements-draft | ○ | typewriter |
 | 1 | `areka-P0-window-placement` | ⚪ requirements-draft | ○ | event-system |
-| 2 | `areka-P0-script-engine` | ⚪ requirements-draft | - | animation, balloon |
+| 2 | `areka-P0-script-engine` | 🟢 completed | - | animation, balloon |
 | 2 | `areka-P0-package-manager` | ⚪ requirements-draft | ○ | - |
 | 2 | `areka-P0-persistence` | ⚪ requirements-draft | ○ | - |
 | 2 | `areka-P0-mcp-server` | ⚪ requirements-draft | ○ | - |
