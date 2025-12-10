@@ -512,12 +512,17 @@ impl PastaEngine {
   - ❌ **ファイル名ソート不要**: 要件で順序保証なし（Req 2 AC 8）、テストは順序非依存
   - ❌ **モックFS不要**: 実ファイルシステム（`tests/fixtures/` + `tempfile`）で十分
 
-**2. エラー収集戦略**
+**2. エラー収集戦略** ✅ **議題クローズ**
 - **課題**: 全ファイルパース試行、部分的失敗の処理
-- **調査事項**:
-  - `Result<Vec<T>>` vs `Vec<Result<T>>` のトレードオフ
-  - エラーログへのスタックトレース含有の要否
-  - パフォーマンス影響（全ファイルパース vs 早期停止）
+- **決定事項**:
+  - ✅ **`Vec<Result<T, E>>`パターン採用**: 全ファイルパース試行、partition()でエラー分離
+    ```rust
+    let results: Vec<Result<PastaFile, PastaError>> = pasta_files.iter().map(parse_file).collect();
+    let (asts, errors) = results.into_iter().partition(Result::is_ok);
+    if !errors.is_empty() { write_error_log(); return Err(MultipleParseErrors); }
+    ```
+  - ❌ **スタックトレース不要**: Req 3 AC 6 - ファイルパス・行番号・列番号・エラー詳細のみ
+  - ✅ **全ファイルパース方針**: 開発者体験優先（全エラー一括確認）、IoErrorのみ早期停止
 
 **3. Rune Sources統合**
 - **課題**: 複数Runeファイル（main.rune + mod）の統合順序
