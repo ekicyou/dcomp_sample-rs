@@ -24,7 +24,7 @@ impl DefaultRandomSelector {
     /// Create a new random selector with system entropy.
     pub fn new() -> Self {
         Self {
-            rng: StdRng::from_seed(rand::rng().gen()),
+            rng: StdRng::from_seed(rand::rng().random()),
         }
     }
 

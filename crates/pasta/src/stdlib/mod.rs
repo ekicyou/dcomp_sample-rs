@@ -9,26 +9,22 @@ use rune::{ContextError, Module};
 
 /// Create the Pasta standard library module for Rune.
 pub fn create_module() -> Result<Module, ContextError> {
-    let module = Module::new();
+    let mut module = Module::with_crate("pasta_stdlib")?;
 
-    // Note: Function registration temporarily disabled due to Rune 0.14 API changes
-    // The functions are implemented but need to be registered with the new API
-    // TODO: Research Rune 0.14 Module::function() API and update registration code
-    
     // Register emit functions
-    // module.function("emit_text", emit_text)?.build()?;
-    // module.function("emit_sakura_script", emit_sakura_script)?.build()?;
-    // module.function("change_speaker", change_speaker)?.build()?;
-    // module.function("change_surface", change_surface)?.build()?;
-    // module.function("wait", wait)?.build()?;
+    module.function("emit_text", emit_text).build()?;
+    module.function("emit_sakura_script", emit_sakura_script).build()?;
+    module.function("change_speaker", change_speaker).build()?;
+    module.function("change_surface", change_surface).build()?;
+    module.function("wait", wait).build()?;
 
     // Register synchronization functions
-    // module.function("begin_sync", begin_sync)?.build()?;
-    // module.function("sync_point", sync_point)?.build()?;
-    // module.function("end_sync", end_sync)?.build()?;
+    module.function("begin_sync", begin_sync).build()?;
+    module.function("sync_point", sync_point).build()?;
+    module.function("end_sync", end_sync).build()?;
 
     // Register utility functions
-    // module.function("fire_event", fire_event)?.build()?;
+    module.function("fire_event", fire_event).build()?;
 
     Ok(module)
 }
@@ -37,7 +33,7 @@ pub fn create_module() -> Result<Module, ContextError> {
 ///
 /// This function should be called within a generator context and will yield
 /// a ScriptEvent::Talk with the current speaker and text content.
-fn emit_text(text: String) -> ScriptEvent {
+pub fn emit_text(text: String) -> ScriptEvent {
     // Note: In actual implementation, this needs to be aware of the current speaker
     // For now, we'll create a simplified version
     ScriptEvent::Talk {

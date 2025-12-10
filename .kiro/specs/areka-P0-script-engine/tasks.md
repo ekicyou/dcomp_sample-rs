@@ -91,13 +91,13 @@ AST から Rune コードへの変換を実装する。
 
 **Requirements**: 6.4, 6.5, 6.6, 6.7
 
-**Status**: ⚠️ Partial - Standard Library関数として設計済み。Rune 0.14 API統合は Task 5.1で実施。
+**Status**: ✅ Complete - 同期セクションは関数呼び出しとして実装（特殊構文不要）
 
-**Dependencies**: Task 4.1完了後
-
-**Notes**: 
-- 関数定義は完了（`begin_sync`, `sync_point`, `end_sync`）
-- Rune Module登録は Task 5.1で対応
+**Implementation Notes**:
+- 同期セクションは`＠同時発言開始`, `＠同期`, `＠同時発言終了`などの関数呼び出しとして実装
+- Standard Library関数として提供（`begin_sync`, `sync_point`, `end_sync`）
+- Transpilerの既存`Statement::Call`変換で対応可能
+- 要件分析により、特別なAST拡張や構文変換は不要であることを確認
 
 ### 3.5 トランスパイラ単体テストの作成
 
@@ -117,22 +117,27 @@ Rune 実行環境と Generator を実装する。
 
 **Requirements**: 2.1, 2.2, 2.3, 2.4, 2.5, 8.3
 
-**Status**: ⚠️ Partial - 全関数実装完了。Rune 0.14 Module登録APIは Task 5.1で対応。
+**Status**: ✅ Complete - Rune 0.14 API調査完了、全関数登録成功
 
 **Implementation Notes**:
 - ✅ 全9関数の実装完了（emit_text, emit_sakura_script, change_speaker, change_surface, wait, begin_sync, sync_point, end_sync, fire_event）
 - ✅ ScriptEvent IRを返す純粋関数として実装
-- ⚠️ Rune 0.14で`#[rune::function]`マクロが廃止されたため、Module登録は保留
-- **Resolution**: Task 5.1でRune 0.14の正しいModule::function() APIを調査・実装
+- ✅ Rune 0.14 Module登録API調査・実装完了
+- ✅ 統合テスト3件passing
 
-**Known Issue**: 
+**Rune 0.14 API Solution**:
 ```rust
-// Rune 0.13のAPI（動作しない）
-#[rune::function]
-fn emit_text(text: String) -> ScriptEvent { ... }
+// Module作成
+let mut module = Module::with_crate("pasta_stdlib")?;
 
-// Rune 0.14で必要な実装（要調査）
-// 手動でFunction traitを実装、またはビルダーパターンを使用
+// 関数登録（builderパターン + .build()）
+module.function("emit_text", emit_text).build()?;
+module.function("change_speaker", change_speaker).build()?;
+// ... 他の関数も同様
+
+// VM初期化
+let runtime = Arc::new(context.runtime()?);
+let mut vm = Vm::new(runtime, Arc::new(unit));
 ```
 
 ### 4.2 ScriptGenerator の実装
@@ -177,32 +182,30 @@ PastaEngine としての統合と公開 API を実装する。
 
 **Requirements**: 1.1, 2.1, 8.1, 8.7
 
-**Additional Tasks** (from Task 3.4 and 4.1 completion):
+**Prerequisites**: 
+- ✅ Task 3.4完了（同期セクション変換）
+- ✅ Task 4.1完了（StandardLibrary実装）
+- ✅ Rune 0.14 API調査完了
 
-#### 5.1.1 Rune 0.14 API調査と対応
+**Implementation Guidance**:
 
-**Description**: Rune 0.14の正しいModule::function()登録APIを調査し、StandardLibrary関数を登録する。
+Rune 0.14の正しい使用パターン：
+```rust
+// 1. Module登録
+let mut context = Context::with_default_modules()?;
+context.install(stdlib::create_module()?)?;
 
-**Steps**:
-1. Rune 0.14ドキュメント/examplesを確認
-2. `Module::function()`の新しいAPI仕様を理解
-3. 手動でFunction trait実装、またはビルダーパターンを使用
-4. `crates/pasta/src/stdlib/mod.rs`の`create_module()`を完成
-5. 統合テストで動作確認
+// 2. Runtime作成
+let runtime = Arc::new(context.runtime()?);
 
-**Priority**: High（PastaEngine初期化に必須）
+// 3. Rune code compilation
+let unit = rune::prepare(&mut sources)
+    .with_context(&context)
+    .build()?;
 
-**Estimated**: 2-3時間
-
-**Reference Issue**: 
+// 4. VM初期化
+let mut vm = Vm::new(runtime, Arc::new(unit));
 ```
-error[E0277]: the trait bound `fn() -> Result<FunctionMetaData, Error> {begin_sync}: Function<_, _>` is not satisfied
-```
-
-**Possible Solutions**:
-- Rune 0.14では`module.function()`の戻り値に`.build()`を呼ぶ必要がある
-- または、`module.function_meta()`など別のAPIを使用
-- Rust FFI経由で直接登録する方法も検討
 
 ### 5.2 execute_label メソッドの実装
 
@@ -409,6 +412,99 @@ error[E0277]: the trait bound `fn() -> Result<FunctionMetaData, Error> {begin_sy
 
 ---
 
+## Task 12: テスト完遂（Test Completion）
+
+実装中に無効化・リジェクトしたテストを調査し、再有効化とテストの完遂を行う。
+
+### 12.1 無効化テストの調査
+
+**Description**: 実装中に`#[ignore]`、`#[cfg(feature = "...")]`、コメントアウト等で無効化されたテストを全て洗い出す。無効化の理由を記録し、再有効化の条件を明確にする。
+
+**調査対象**:
+- `#[ignore]`属性付きテスト
+- `#[cfg(feature = "...")]`で条件付きコンパイルされたテスト
+- コメントアウトされたテストコード
+- 実装途中でスキップされたテストケース
+
+**成果物**: 無効化テスト一覧表（テスト名、無効化理由、再有効化条件）
+
+**推定工数**: 1-2時間
+
+### 12.2 無効化理由の分類と対応方針
+
+**Description**: 無効化されたテストを理由別に分類し、対応方針を決定する。
+
+**分類例**:
+1. **依存機能未実装**: 該当機能実装後に再有効化
+2. **API変更待ち**: 上流ライブラリ更新後に対応
+3. **設計変更**: テストを設計に合わせて書き直し
+4. **バグ回避**: バグ修正後に再有効化
+5. **不要判定**: 削除候補（削除理由を明記）
+
+**推定工数**: 1時間
+
+### 12.3 無効化テストの再有効化
+
+**Description**: 無効化理由が解消されたテストを順次再有効化し、パスすることを確認する。パスしない場合は原因調査と修正を行う。
+
+**手順**:
+1. 無効化属性を削除
+2. テスト実行
+3. 失敗時は原因調査・修正
+4. パス確認
+5. 次のテストへ
+
+**優先順位**:
+- High: コア機能のテスト
+- Medium: エッジケース・エラーハンドリングのテスト
+- Low: 最適化・パフォーマンステスト
+
+**推定工数**: 3-5時間
+
+### 12.4 テストカバレッジの検証
+
+**Description**: 全テスト再有効化後、テストカバレッジを測定し、未カバー領域を特定する。必要に応じて追加テストを作成する。
+
+**検証項目**:
+- 行カバレッジ（目標: 80%以上）
+- 分岐カバレッジ（目標: 70%以上）
+- 関数カバレッジ（目標: 90%以上）
+
+**ツール**: `cargo tarpaulin` または `cargo llvm-cov`
+
+**推定工数**: 2-3時間
+
+### 12.5 CI/CD統合
+
+**Description**: 全テストがパスすることを確認し、CI/CDパイプラインに統合する。無効化テストが残っている場合はCIで警告を出す仕組みを実装する。
+
+**実装項目**:
+- GitHub Actions ワークフロー設定
+- テスト失敗時の通知設定
+- カバレッジレポート自動生成
+
+**推定工数**: 1-2時間
+
+---
+
+**Task 12 総推定工数**: 8-13時間
+
+**重要性**: 🔴 **必達**  
+全機能実装完了時点で、無効化テストが残っていることはプロダクション品質を満たさない。このタスクは最終フェーズで必ず完遂すること。
+
+---
+
+## 既知の無効化テスト (2025-12-10時点)
+
+| テストファイル | テスト名 | 無効化方法 | 理由 | 再有効化条件 |
+|--------------|---------|-----------|------|-------------|
+| `grammar_tests.rs` | `test_rune_block` | `#[ignore]` | Task 11未実装 | Task 11.1-11.4完了後 |
+| `grammar_diagnostic.rs` | `test_rune_block_minimal` | `#[ignore]` | Task 11未実装 | Task 11.1-11.4完了後 |
+| `negative_lookahead_test.rs` | 全テスト | `#[cfg(feature = "rune_block_support")]` | `rune_content`文法ルール未実装 | Task 11.1完了後 |
+| `rune_block_debug.rs` | 全テスト | `#[cfg(feature = "rune_block_support")]` | `rune_content`文法ルール未実装 | Task 11.1完了後 |
+
+---
+
 ## Dependencies Between Tasks
 
 ```
@@ -434,6 +530,12 @@ Task 1 (Foundation)
                                                      │
                                                      v
                                           Task 10 (Documentation)
+                                                     │
+                                                     v
+                                          Task 11 (Rune Block Support)
+                                                     │
+                                                     v
+                                          Task 12 (Test Completion) ⚠️ CRITICAL
 ```
 
 ---
@@ -452,4 +554,6 @@ Task 1 (Foundation)
 | 8 | エラーハンドリング強化 | 3 | 2-3 |
 | 9 | パフォーマンス最適化 | 3 | 3-4 |
 | 10 | ドキュメントとサンプル | 3 | 2-3 |
-| **Total** | | **40** | **43-57** |
+| 11 | Rune Block サポート | 4 | 6-8 |
+| 12 | **テスト完遂（必達）** | 5 | 8-13 |
+| **Total** | | **49** | **59-80** |
