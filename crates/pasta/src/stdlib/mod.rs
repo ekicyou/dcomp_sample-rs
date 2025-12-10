@@ -25,6 +25,7 @@ pub fn create_module() -> Result<Module, ContextError> {
 
     // Register utility functions
     module.function("fire_event", fire_event).build()?;
+    module.function("emit_error", emit_error).build()?;
 
     Ok(module)
 }
@@ -101,6 +102,27 @@ fn fire_event(event_name: String, params: Vec<(String, String)>) -> ScriptEvent 
     }
 }
 
+/// Emit a runtime error event.
+///
+/// This function allows scripts to yield error events that can be handled
+/// by the application layer. The generator continues execution after yielding
+/// an error, allowing for error recovery.
+///
+/// # Example (Rune code)
+///
+/// ```rune
+/// pub fn risky_operation() {
+///     if something_wrong {
+///         yield emit_error("Something went wrong!");
+///         // Execution continues after the error
+///     }
+///     yield emit_text("Continuing normally");
+/// }
+/// ```
+fn emit_error(message: String) -> ScriptEvent {
+    ScriptEvent::Error { message }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,5 +182,16 @@ mod tests {
         // Test that module creation succeeds
         let result = create_module();
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_emit_error() {
+        let event = emit_error("Test error message".to_string());
+        assert!(event.is_error());
+        if let ScriptEvent::Error { message } = event {
+            assert_eq!(message, "Test error message");
+        } else {
+            panic!("Expected Error event");
+        }
     }
 }
