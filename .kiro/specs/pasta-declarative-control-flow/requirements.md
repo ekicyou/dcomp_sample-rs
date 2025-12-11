@@ -114,6 +114,7 @@
    - `ctx.scope.global`: 現在のグローバルスコープラベル名
    - `ctx.scope.local`: 現在のローカルスコープラベル名
    - `ctx.save`: `＄変数＝値`で設定される永続化変数のオブジェクト
+   - `ctx.args`: 関数呼び出し時に渡される引数配列（`＞ラベル（引数1　引数2）`で指定）
 6. **単語定義スコープ**: 
    - グローバル単語定義（`＠グローバル単語：...`）→ モジュール外で`add_words()`を直接呼び出し
    - ローカル単語定義（`＠単語：...`）→ 関数内で`ctx.pasta.add_words()` + `ctx.pasta.commit_words()`
@@ -139,9 +140,11 @@
 4. When トランスパイラーがローカルラベルを処理する, the Pasta Transpiler shall `pub fn ラベル名_番号(ctx) { ... }`関数を生成する
 5. When トランスパイラーがローカル単語定義（`＠単語：値1 値2`）を処理する, the Pasta Transpiler shall `ctx.pasta.add_words("単語", ["値1", "値2"]); ctx.pasta.commit_words();`を生成する
 6. When トランスパイラーが変数代入（`＄変数＝値`）を処理する, the Pasta Transpiler shall `ctx.save.変数 = 値;`を生成する
-7. When トランスパイラーがcall文（`＞ラベル名`）を処理する, the Pasta Transpiler shall `while let Some(a) = ctx.pasta.call("親ラベル", "ラベル名").next() { yield a; }`を生成する
-8. When トランスパイラーがjump文（`？ラベル名`）を処理する, the Pasta Transpiler shall `while let Some(a) = ctx.pasta.jump("親ラベル", "ラベル名").next() { yield a; }`を生成する
-9. When トランスパイラーが発言者切り替え（`さくら：`）を処理する, the Pasta Transpiler shall `ctx.actor = さくら; yield Actor("さくら");`を生成する（`さくら`はグローバル変数として定義された発言者オブジェクト）
+7. When トランスパイラーが引数なしcall文（`＞ラベル名`）を処理する, the Pasta Transpiler shall `while let Some(a) = ctx.pasta.call(ctx, "親ラベル", "ラベル名", []).next() { yield a; }`を生成する
+8. When トランスパイラーが引数付きcall文（`＞ラベル名（引数1　引数2）`）を処理する, the Pasta Transpiler shall `while let Some(a) = ctx.pasta.call(ctx, "親ラベル", "ラベル名", [引数1, 引数2]).next() { yield a; }`を生成する
+9. When トランスパイラーがjump文（`？ラベル名`）を処理する, the Pasta Transpiler shall call文と同様に引数配列を第4引数として渡す（`ctx.pasta.jump(ctx, "親ラベル", "ラベル名", [...])`）
+10. When トランスパイラーが発言者切り替え（`さくら：`）を処理する, the Pasta Transpiler shall `ctx.actor = さくら; yield Actor("さくら");`を生成する（`さくら`はグローバル変数として定義された発言者オブジェクト）
+11. When トランスパイラーがローカルラベル関数を生成する, the Pasta Transpiler shall すべての関数を`pub fn 名前(ctx)`シグネチャで統一し、引数は`ctx.args`経由でアクセスする
 10. When トランスパイラーが発言内容を処理する, the Pasta Transpiler shall `yield Talk("発言内容");`を生成する
 11. When トランスパイラーが単語展開（`＠単語名`）を発言内で処理する, the Pasta Transpiler shall `while let Some(a) = ctx.pasta.word(ctx, "単語名").next() { yield a; };`を生成する
 12. When トランスパイラーがRuneブロックを検出する, the Pasta Transpiler shall Runeコードをそのままモジュール内に展開する
@@ -185,9 +188,9 @@ pub mod 会話_1 {
         ctx.pasta.add_words("場所", ["東京", "大阪"]); 
         ctx.pasta.commit_words();
         ctx.save.変数 = 10;
-        while let Some(a) = ctx.pasta.call("会話_1", "コール１").next() { yield a; }
-        while let Some(a) = ctx.pasta.call("会話_1", "コール２").next() { yield a; }
-        while let Some(a) = ctx.pasta.jump("会話_1", "ジャンプ").next() { yield a; }
+        while let Some(a) = ctx.pasta.call(ctx, "会話_1", "コール１", []).next() { yield a; }
+        while let Some(a) = ctx.pasta.call(ctx, "会話_1", "コール２", []).next() { yield a; }
+        while let Some(a) = ctx.pasta.jump(ctx, "会話_1", "ジャンプ", []).next() { yield a; }
     }
 
     pub fn ジャンプ_1(ctx) {
