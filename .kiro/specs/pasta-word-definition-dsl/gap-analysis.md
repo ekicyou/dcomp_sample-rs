@@ -112,12 +112,23 @@
 - `global_label`ルール: attribute_line, rune_block, local_label, statementを許可
 - `local_label`ルール: attribute_line, rune_block, statementを許可
 
-**ギャップ**:
-- **Constraint**: グローバルレベル（ファイルルート）でのword_def_stmt配置をサポート
-  - pasta.pestの`file`ルールに`word_def_stmt`を追加
-- **Constraint**: ローカルword_defは宣言部のみ
-  - パーサーで配置位置を検証、実行部での定義はエラー
-  - **Research Needed**: 宣言部と実行部の境界判定ロジック（会話行出現をトリガーにする？）
+**決定事項**（議題2で確定）:
+- **宣言部/実行部の境界判定**: 方式C（トリガー検出）を採用
+- **実行部トリガー**: 以下のstatement出現で実行部開始と判断
+  - `speech_line` (speaker: content)
+  - `local_label` (ーlabel_name)
+  - `jump_stmt` (？target)
+  - `call_stmt` (＞target)
+- **トリガーにならない要素**:
+  - `attribute_line` - 宣言部
+  - `rune_block` - 宣言部
+  - `var_assign` - 宣言部・実行部の両方で可（トリガーにならない）
+  - 空行・コメント - トリガーにならない
+- **実装方針**:
+  - パーサーで`ParsePhase`状態管理（Declaration/Execution）
+  - 実行部開始後にword_def出現 → 構文エラー
+  - エラーメッセージ: "Local word definition must be in declaration block (before speech lines, local labels, jumps, or calls)"
+- **文法レベル**: pasta.pestの`file`ルールに`word_def_stmt`を追加（グローバルレベル配置）
 
 #### 2.4 Transpiler拡張
 **要件**: 単語定義をRune静的変数に変換
