@@ -43,6 +43,7 @@ pub mod cache;
 pub mod engine;
 pub mod error;
 pub mod ir;
+mod loader;
 pub mod parser;
 pub mod runtime;
 pub mod stdlib;
@@ -51,8 +52,9 @@ pub mod transpiler;
 // Re-export commonly used types
 pub use cache::ParseCache;
 pub use engine::PastaEngine;
-pub use error::{PastaError, Result};
+pub use error::{ParseErrorInfo, PastaError, Result};
 pub use ir::{ContentPart, ScriptEvent};
+pub use loader::{DirectoryLoader, LoadedFiles};
 pub use parser::{
     parse_file, parse_str, Argument, Attribute, AttributeValue, BinOp, Expr, FunctionScope,
     JumpTarget, LabelDef, LabelScope, Literal, PastaFile, Span, SpeechPart, Statement, VarScope,

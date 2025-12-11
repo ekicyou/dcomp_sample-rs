@@ -56,6 +56,43 @@ pub enum PastaError {
     /// Invalid persistence path.
     #[error("Invalid persistence path: {path}")]
     InvalidPersistencePath { path: String },
+
+    /// Path must be absolute.
+    #[error("Path must be absolute: {path}")]
+    NotAbsolutePath { path: String },
+
+    /// Directory not found.
+    #[error("Directory not found: {path}")]
+    DirectoryNotFound { path: String },
+
+    /// Path is not a directory.
+    #[error("Path is not a directory: {path}")]
+    NotADirectory { path: String },
+
+    /// Permission denied.
+    #[error("Permission denied: {path}")]
+    PermissionDenied { path: String },
+
+    /// dic/ directory not found.
+    #[error("dic/ directory not found in: {script_root}")]
+    DicDirectoryNotFound { script_root: String },
+
+    /// main.rune not found.
+    #[error("main.rune not found in: {script_root}")]
+    MainRuneNotFound { script_root: String },
+
+    /// Multiple parse errors.
+    #[error("Multiple parse errors ({} errors). See logs for details.", .errors.len())]
+    MultipleParseErrors { errors: Vec<ParseErrorInfo> },
+}
+
+/// Individual parse error information for MultipleParseErrors.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParseErrorInfo {
+    pub file: String,
+    pub line: usize,
+    pub column: usize,
+    pub message: String,
 }
 
 impl PastaError {
@@ -97,5 +134,24 @@ impl PastaError {
     /// Create a new pest parse error.
     pub fn pest_error(message: impl Into<String>) -> Self {
         PastaError::PestError(message.into())
+    }
+}
+
+impl From<&PastaError> for Option<ParseErrorInfo> {
+    fn from(e: &PastaError) -> Self {
+        match e {
+            PastaError::ParseError {
+                file,
+                line,
+                column,
+                message,
+            } => Some(ParseErrorInfo {
+                file: file.clone(),
+                line: *line,
+                column: *column,
+                message: message.clone(),
+            }),
+            _ => None,
+        }
     }
 }

@@ -135,6 +135,40 @@ impl LabelTable {
     pub fn has_label(&self, name: &str) -> bool {
         self.labels.contains_key(name)
     }
+
+    /// List all labels (global + local).
+    pub fn list_all_labels(&self) -> Vec<String> {
+        let mut all_labels = Vec::new();
+        for (name, infos) in &self.labels {
+            for (idx, _) in infos.iter().enumerate() {
+                if infos.len() > 1 {
+                    all_labels.push(format!("{}_{}", name, idx));
+                } else {
+                    all_labels.push(name.clone());
+                }
+            }
+        }
+        all_labels.sort();
+        all_labels
+    }
+
+    /// List only global labels.
+    pub fn list_global_labels(&self) -> Vec<String> {
+        let mut global_labels = Vec::new();
+        for (name, infos) in &self.labels {
+            for (idx, info) in infos.iter().enumerate() {
+                if info.scope == LabelScope::Global {
+                    if infos.len() > 1 {
+                        global_labels.push(format!("{}_{}", name, idx));
+                    } else {
+                        global_labels.push(name.clone());
+                    }
+                }
+            }
+        }
+        global_labels.sort();
+        global_labels
+    }
 }
 
 #[cfg(test)]
