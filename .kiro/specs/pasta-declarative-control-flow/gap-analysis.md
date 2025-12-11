@@ -572,12 +572,217 @@ pub enum JumpTarget {
    - ✅ ドキュメント: https://rune-rs.github.io/ → "Embedding Rune"セクション
    - ✅ 既存コード: `crates/pasta/src/engine.rs`のVM初期化処理
 
-### 5.4. 次のステップ
+### 5.4. ワード解決の設計課題 ✅ **解決済み**
+
+**問題**: Pastaにおける「Rune関数呼び出しとしてのワード」と「文字列辞書としてのワード」の区別
+
+#### 5.4.1. 問題の詳細
+
+PastaのワードシンタックスはすべてDSLレベルで`＠単語名`で統一されている:
+
+```pasta
+単語：挨拶 = 「こんにちは」「やあ」「おはよう」  // 文字列リスト（ランダム選択）
+
+＠挨拶                    // ← 文字列ワード（＠で呼び出し）
+＠ローカル関数（「引数」）  // ← Rune関数呼び出し（＠で呼び出し）
+```
+
+**根本的制約**: 
+- DSL解析時点では「＠単語名」が文字列辞書なのかRune関数なのか区別不可能
+- Runeコードブロック（`` ```rune ... ``` ``）に定義された関数は、パース時点では未コンパイル
+- 従来の1パストランスパイル（Pasta → Rune生成）では解決不可能
+
+**回避できない理由**:
+1. **パース時点で情報が存在しない**: Runeコード内の関数定義はコンパイル前なのでメタデータ未生成
+2. **動的ディスパッチ不可**: Rune VMはevalなし、動的関数呼び出しなし（型安全のため）
+3. **DSL構文の拡張は要件違反**: 案C（シンボル分離: `＠単語` vs `＃関数`）は既存コードの破壊的変更
+
+#### 5.4.2. 検証済み解決案: 予約関数による2パス解決方式
+
+**コンセプト**: すべてのワード呼び出し`＠単語`を予約関数`__word_単語__()`に変換し、2パス目で関数本体を生成
+
+**アーキテクチャ**:
+```
+Phase 1: 初期トランスパイル（予約関数生成）
+  Pasta AST → Rune生成（コードブロック展開）
+  ↓
+  すべての＠単語 → for value in __word_単語__(ctx, args) { yield value; }
+  ↓
+  Rune中間コード（__word_*__関数は宣言のみ、本体なし）
+
+Phase 2: メタデータ取得
+  Rune中間コードをコンパイル → Unit生成
+  ↓
+  unit.debug_info() → 関数一覧取得（HashMap<Hash, DebugSignature>）
+  ↓
+  関数名セット構築: HashSet<String> { "ローカル関数", "function_a", ... }
+  スコープ解決: モジュールパスから「ローカル vs グローバル」を判定
+
+Phase 3: 予約関数本体生成
+  各__word_*__関数に対して、3パターンのいずれかを生成:
+  
+  Pattern 1 (ローカル関数): メイン_1::単語 が存在
+    pub fn __word_単語__(ctx, args) {
+        for value in 単語(ctx, args) { yield value; }
+    }
+  
+  Pattern 2 (グローバル関数): ::単語 が存在
+    pub fn __word_単語__(ctx, args) {
+        for value in ::単語(ctx, args) { yield value; }
+    }
+  
+  Pattern 3 (辞書単語): 関数が存在しない
+    pub fn __word_単語__(ctx, args) {
+        for value in ctx.pasta.word(ctx, "単語", args) { yield value; }
+    }
+  ↓
+  最終Runeコード生成
+```
+
+**解決の優先順位**:
+1. **ローカル関数**: 同一モジュール内の関数（例: `メイン_1::ローカル関数`）
+2. **グローバル関数**: モジュール外の関数（例: `::shared_function`）
+3. **辞書単語**: 関数が見つからない場合、文字列辞書から検索
+
+**技術的根拠**:
+- ✅ **Rune Unit は不変のコンパイル結果**: 
+  - Unit = バイトコード + 定数プール + 関数メタデータ（不変）
+  - VM実行状態（変数、スタック）は含まない
+  - Arc<Unit>で安全に共有可能
+- ✅ **Rune Unit Metadata API**: `unit.debug_info()`で完全修飾関数名を取得
+  ```rust
+  if let Some(debug_info) = unit.debug_info() {
+      for (hash, signature) in debug_info.functions.iter() {
+          let path = format!("{}", signature.path);
+          // 例: "メイン_1::ローカル関数", "::global_func"
+          println!("Function: {} -> Hash: {:?}", path, hash);
+      }
+  }
+  ```
+- ✅ **検証コード**: `crates/pasta/tests/test_rune_metadata.rs`
+  - `test_inspect_unit_functions`: メタデータアクセス確認
+  - `test_word_function_detection`: 2パス解決シミュレーション
+  - **テスト結果**:
+    ```
+    Function: test_mod::function_b -> Hash: 0xb07e1d4e40970ae2
+    Function: test_mod::function_a -> Hash: 0xd4d89d3848ca264a
+    Found Rune function: ローカル関数
+    'ローカル関数' -> Rune関数として呼び出し
+    '存在しない単語' -> 文字列辞書から検索
+    test result: ok. 2 passed
+    ```
+
+**利点**:
+- ✅ **1パス目のシンプル化**: すべての`＠単語`を機械的に`__word_単語__()`に変換、判定ロジック不要
+- ✅ **2パス目の明確な責任**: unit.debug_info()で関数存在確認 → 適切なパターンの関数本体生成
+- ✅ **メモリ安全**: 動的コンパイル不要、Arc<Unit>の参照カウントのみ
+- ✅ **型安全**: 静的解決のため、Runeの型チェックが機能
+- ✅ **デバッグ性向上**: `__word_単語__`関数名でワード呼び出しが明確、スタックトレースで追跡可能
+- ✅ **パフォーマンス**: 実行時オーバーヘッド最小（+1関数呼び出しのみ）
+- ✅ **既存DSL互換**: `＠単語`構文の変更不要
+
+**命名規則: 予約パターン**:
+```
+__start__         // ラベルエントリポイント（既存）
+__word_単語__     // ワード解決用予約関数
+__word_ローカル関数__  // 日本語関数名も対応
+```
+
+**禁止パターン**: `__`で始まり`__`で終わるラベル名はシステム予約
+```pasta
+# ❌ エラー: 予約パターンのため使用不可
+■__start__:
+    さくら：これは禁止
+
+■__test__:
+    さくら：これも禁止
+```
+
+**統一アーキテクチャへの拡張: Call/Jump文も同じパターン**:
+
+Call文とJump文も**ワードと本質的に同じ問題**を抱えています：
+- `＞ラベル名` → ローカル関数？ グローバル関数？ ランタイム解決？
+- `？ラベル名` → ローカル関数？ グローバル関数？ ランタイム解決？
+
+**統一的な解決策**: すべてのコントロールフロー構文を予約関数パターンに統一
+```
+＠単語     → __word_単語__(ctx, args)
+＞ラベル   → __call_ラベル__(ctx, args)
+？ラベル   → __jump_ラベル__(ctx, args)
+```
+
+**予約関数の生成パターン（Call/Jump共通）**:
+```rune
+// Pattern 1: ローカル関数が存在（静的解決）
+fn __call_自己紹介__(ctx, args) {
+    for value in 自己紹介(ctx) { yield value; }
+}
+
+// Pattern 2: ランタイム解決（クロスモジュール、動的ラベル）
+fn __call_自己紹介__(ctx, args) {
+    for value in ctx.pasta.call(ctx, "自己紹介", args) { yield value; }
+}
+```
+
+**利点**:
+- ✅ **統一されたアーキテクチャ**: Word/Call/Jump が同じパターン
+- ✅ **スコープ解決の一貫性**: すべて2パス目でunit.debug_info()から解決
+- ✅ **柔軟性**: 静的解決とランタイム解決の混在可能
+- ✅ **デバッグ性向上**: `__call_*__`, `__jump_*__`でスタックトレースが明確
+
+**実装への影響**:
+- **予約パターン拡張**: `__word_*__`, `__call_*__`, `__jump_*__` をすべて予約
+- **Pest文法拡張**: `label_name`ルールに予約パターンチェック追加
+  ```pest
+  label_name = @{ !label_name_forbidden ~ !reserved_pattern ~ XID_START ~ (!local_label_marker ~ XID_CONTINUE)* }
+  reserved_pattern = { "__" ~ XID_START ~ XID_CONTINUE* ~ "__" }
+  ```
+- **パーサーバリデーション**: `validate_label_name()`で予約パターンを検出してエラー
+- **トランスパイラー**: 2段階生成に変更
+  1. `PastaTranspiler::initial_pass()`: 予約関数呼び出しを含む中間Runeコード生成
+     - `＠単語` → `__word_単語__(ctx, args)`
+     - `＞ラベル` → `__call_ラベル__(ctx, args)`
+     - `？ラベル` → `__jump_ラベル__(ctx, args)`
+  2. `PastaTranspiler::resolve_all()`: Unit解析 → 予約関数本体生成 → 最終コード
+     - 各予約関数について、unit.debug_info()から関数存在を確認
+     - 静的解決可能 → 直接関数呼び出し
+     - 静的解決不可 → `ctx.pasta.{word,call,jump}()`でランタイム解決
+- **Rust stdlib**: `ctx.pasta.{word,call,jump}(ctx, name, args)`メソッド群を実装
+- **テストケース**: 
+  - 関数ワード/Call/Jumpと文字列/ランタイム解決の混在
+  - 予約パターン禁止エラー（`__word_*__`, `__call_*__`, `__jump_*__`）
+
+#### 5.4.3. 代替案の検討 ❌ **却下**
+
+**案A: 動的ディスパッチ（ランタイム解決）**
+- Rune VMに`eval()`または動的関数呼び出し機能がない
+- カスタムディスパッチャー実装には以下の問題:
+  - メモリリーク: 動的コンパイルでUnitが増殖
+  - GC要求: クロージャーストレージが必要
+  - Runeの設計哲学に反する（静的型付け言語）
+
+**案B: イベントバッファリング**
+- ジェネレーター実行を中断してバッファに溜め、後で解決
+- **欠点**: ストリーミング性喪失、メモリ使用量増大、実装複雑度
+
+**案C: DSL構文拡張**
+- `＠単語`（文字列）と`＃関数`（Rune）を区別
+- **欠点**: 既存Pastaコードの破壊的変更、要件定義違反
+
+**結論**: 2パス解決が最もクリーンで実装可能な解決策
+
+---
+
+### 5.5. 次のステップ
 
 1. **設計ドキュメント生成**: `/kiro-spec-design pasta-declarative-control-flow` を実行
 2. **調査項目の完了**: 上記4項目を調査し、設計ドキュメントに反映
-3. **詳細設計**: モジュール構造、APIシグネチャ、エラーハンドリングを定義
-4. **実装タスク分解**: 設計ドキュメントからタスクリストを生成（`/kiro-spec-tasks`）
+3. **2パストランスパイラー設計**: 
+   - 中間コード生成フェーズの設計
+   - メタデータ取得とキャッシュ戦略
+   - 静的解決ロジックの詳細仕様
+4. **詳細設計**: モジュール構造、APIシグネチャ、エラーハンドリングを定義
+5. **実装タスク分解**: 設計ドキュメントからタスクリストを生成（`/kiro-spec-tasks`）
 
 ---
 
@@ -596,6 +801,133 @@ pub enum JumpTarget {
 
 **工数**: M（3-7日）、リスク: Medium
 - 主要リスク: Rune VM API理解、yield伝播メカニズムの検証
+
+**次のアクション**: `/kiro-spec-design pasta-declarative-control-flow` で詳細設計を開始
+
+---
+
+## 7. 追加要件: ラベル検索装置と単語検索装置のVM初期化
+
+### 7.1. Send実装の必要性
+
+**課題**: Pasta Engine自体がRune VMインスタンスを所有しているため、エンジンオブジェクト全体をVM内に送り込むことはできない（所有権の問題）。
+
+**解決策**: ラベル検索装置（LabelTable）と単語検索装置（WordDictionary）を独立した構造体として実装し、`Send` traitを満たすようにする。
+
+**ライフサイクルの特性**:
+- 検索装置は、**DSLの解釈（トランスパイル）が完了したタイミングで完成**する
+- 完成後は、**Rune VM内部からのみ参照**される（Rust側からの直接アクセスは不要）
+- VMへの送り込みは**`VM::send_execute()`**を使用し、これには`Send` traitが必須
+
+#### 7.1.1. 構造分離
+
+**アーキテクチャ**:
+```
+PastaEngine (Rust側)
+  ├── vm: rune::Vm             // VMインスタンスを所有
+  ├── unit: Arc<rune::Unit>    // コンパイル済みコード
+  └── (検索装置は所有しない)
+
+ctx.pasta (Rune VM内)
+  ├── label_table: LabelTable     // Send実装、VM内で動作
+  ├── word_dict: WordDictionary   // Send実装、VM内で動作
+  └── (メソッド: call, jump, word, add_words等)
+```
+
+#### 7.1.2. Send要件の詳細
+
+**LabelTable**:
+- ラベル名 → ハッシュ値のマッピング（HashMap<String, Hash>）
+- 前方一致選択ロジック
+- ランダム選択器への参照
+- キャッシュベース消化状態
+
+**WordDictionary**:
+- 単語名 → 値リストのマッピング（Trie構造またはHashMap）
+- 単語展開ロジック
+- ランダム選択器への参照
+
+**Send実装の条件**:
+- `VM::send_execute()`の使用には`Send` traitが必須（API制約）
+- 実質的にはマルチタスクは発生しないが、Generator動作のため念のため`Send`付きで実装
+- 内部のHashMap/Vecはすべて`Send`を満たす必要がある（標準ライブラリの型はOK）
+- `Rc`/`RefCell`などの`Send`でない型を使用してはならない
+- マルチスレッド安全性が必要な場合は`Arc`/`Mutex`/`RwLock`を使用（実際には不要な可能性が高い）
+
+### 7.2. VM初期化フロー
+
+#### 7.2.1. 初期化タイミング
+
+1. **Pastaエンジン作成時**:
+   - Rune型システムに`LabelTable`と`WordDictionary`を登録
+   - スタンダードライブラリに`ctx.pasta.*`メソッドを登録
+
+2. **DSL解釈（トランスパイル）完了時**:
+   - `LabelTable`インスタンスを作成（トランスパイル結果から構築）
+   - `WordDictionary`インスタンスを作成（空の状態）
+   - この時点で検索装置は**完成**し、以後Rust側からの直接アクセスは不要
+
+3. **`__start__`関数呼び出し時**:
+   - `ctx`オブジェクトを構築
+   - `ctx.pasta`フィールドに検索装置への参照を設定
+   - **`VM::send_execute()`**でVM内に送り込む（ここで`Send`が必須）
+
+4. **Rune関数実行中**:
+   - `ctx.pasta.call()`/`jump()`/`word()`がVM内の検索装置にアクセス
+   - Rust側からは参照されず、Rune VM内部からのみ使用
+
+#### 7.2.2. コード例
+
+**Rust側（エンジン初期化）**:
+```rust
+// 型登録（エンジン作成時に1回）
+module.ty::<LabelTable>()?;
+module.ty::<WordDictionary>()?;
+
+// インスタンス作成（DSL解釈完了時）
+let label_table = LabelTable::from_unit(&unit)?;
+let word_dict = WordDictionary::new();
+
+// ctx構築と送り込み（__start__呼び出し時）
+let ctx = rune::Object::new();
+let pasta = rune::Object::new();
+pasta.set("label_table", label_table)?; // label_tableはSendを実装
+pasta.set("word_dict", word_dict)?;     // word_dictはSendを実装
+ctx.set("pasta", pasta)?;
+
+// VM::send_execute()で送り込む（Sendが必須）
+let result = vm.send_execute(&["module", "__start__"], (ctx,))?;
+// この後、Rust側からlabel_table/word_dictへの直接アクセスは不要
+```
+
+**Rune側（生成コード）**:
+```rune
+pub fn __start__(ctx) {
+    // ctx.pastaは既にVM内に存在
+    while let Some(a) = ctx.pasta.call(ctx, "parent", "label", []).next() {
+        yield a;
+    }
+}
+```
+
+### 7.3. 設計への影響
+
+**追加すべき設計項目**:
+1. `LabelTable`構造体の詳細設計（フィールド、メソッド、`Send`実装）
+   - 標準ライブラリの型（HashMap, Vec）はそのまま使用可能
+   - マルチスレッド安全性は実質不要だが、API制約のため`Send`を満たす
+2. `WordDictionary`構造体の詳細設計（フィールド、メソッド、`Send`実装）
+3. VM初期化シーケンス図（エンジン作成 → DSL解釈完了 → VM::send_execute）
+4. `ctx`オブジェクト構築ロジック（Rust側でどう組み立てるか）
+5. エラーハンドリング（検索装置が見つからない場合、型エラー等）
+
+**実装タスクへの影響**:
+- `LabelTable`と`WordDictionary`の実装を最初のタスクとする
+- `Send`実装の単体テスト（コンパイルチェックのみ、実際のスレッド送信テストは不要）
+- `VM::send_execute()`を使用したVM初期化フローの統合テスト（エンド・トゥ・エンド）
+- DSL解釈完了後、Rust側から検索装置へのアクセスがないことを確認
+
+---
 
 **次のアクション**: `/kiro-spec-design pasta-declarative-control-flow` で詳細設計を開始
 

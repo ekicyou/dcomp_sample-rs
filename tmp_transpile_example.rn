@@ -1,0 +1,28 @@
+// Pastaソース例:
+// 
+// ＊挨拶
+// 　さくら：こんにちは
+// 　うにゅう：やあ
+// 　＞sub
+// 
+// ＊sub
+// 　さくら：良い天気ですね
+
+// ==========================================
+// トランスパイル後のRune IR（現在の実装）
+// ==========================================
+
+use pasta_stdlib::*;
+
+pub fn 挨拶(ctx) {
+    yield change_speaker("さくら");
+    yield emit_text("こんにちは");
+    yield change_speaker("うにゅう");
+    yield emit_text("やあ");
+    sub();  // ← 引数なし！
+}
+
+pub fn sub(ctx) {
+    yield change_speaker("さくら");
+    yield emit_text("良い天気ですね");
+}

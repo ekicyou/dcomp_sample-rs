@@ -35,8 +35,11 @@ local_label = ${
 global_label_marker = { "＊" | "*" }
 local_label_marker = { "ー" | "-" }
 
-label_name = @{ !label_name_forbidden ~ XID_START ~ (!local_label_marker ~ XID_CONTINUE)* }
+label_name = @{ !label_name_forbidden ~ !reserved_label_pattern ~ XID_START ~ (!local_label_marker ~ XID_CONTINUE)* }
 label_name_forbidden = { global_label_marker | local_label_marker | call_marker | jump_marker | at_marker | dollar_marker | colon | equals }
+// Reserved pattern: label names starting and ending with "__" are reserved for system use
+// Examples: __start__, __word_test__, __reserved__
+reserved_label_pattern = @{ "__" ~ XID_START ~ XID_CONTINUE* ~ "__" }
 
 // === Attributes ===
 

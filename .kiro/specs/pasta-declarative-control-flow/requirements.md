@@ -286,6 +286,58 @@ pub mod 会話_1 {
 - **期待出力**: `crates/pasta/tests/fixtures/comprehensive_control_flow.expected.rune`
 - **テストコード**: `crates/pasta/tests/transpiler_comprehensive_test.rs`
 
+### Requirement 8: ラベル検索装置と単語検索装置のVM初期化
+
+**Objective:** 開発者として、ラベル検索装置（LabelTable）と単語検索装置（WordDictionary）をRune VM内で安全に動作させるため、Send traitを実装し、VM初期化後の最初の関数呼び出し時にVM内に送り込む仕組みを実装する。
+
+#### Background
+
+Pastaエンジン自体はRune VMインスタンスを保持しているため、エンジンオブジェクト自体を直接VM内に送り込むことはできない（所有権の問題）。そのため、ラベル検索と単語検索の機能を独立した構造体として実装し、それらをVM初期化後に`ctx.pasta`オブジェクトの一部としてVM内に送り込む必要がある。
+
+**ライフサイクルの特性**:
+- ラベル検索装置と単語検索装置は、**DSLの解釈（トランスパイル）が完了したタイミングで完成**する
+- 完成後は、**Rune VM内部からのみ参照**される（Rust側からの直接アクセスは不要）
+- VMへの送り込みは`VM::send_execute()`を使用し、これには`Send` traitが必須
+
+#### Acceptance Criteria
+
+1. When 開発者がラベル検索装置（LabelTable）を実装する, the Pasta Runtime shall `Send` traitを実装し、`VM::send_execute()`でVM内に送り込み可能にする
+2. When 開発者が単語検索装置（WordDictionary）を実装する, the Pasta Runtime shall `Send` traitを実装し、`VM::send_execute()`でVM内に送り込み可能にする
+3. When PastaエンジンがDSL解釈（トランスパイル）を完了する, the Pasta Engine shall ラベル検索装置と単語検索装置のインスタンスを作成し、Runeの型システムに登録する
+4. When Pastaエンジンが最初のスクリプト関数を呼び出す, the Pasta Engine shall `ctx.pasta`オブジェクトを構築し、ラベル検索装置と単語検索装置への参照を含めて`VM::send_execute()`でVM内に送り込む
+5. When `ctx.pasta.call()`/`ctx.pasta.jump()`/`ctx.pasta.word()`が実行される, the Pasta Runtime shall VM内に送り込まれたラベル検索装置と単語検索装置を使用してラベル解決・単語展開を実行する
+6. When 開発者がPastaエンジン構造体を設計する, the Development Team shall エンジン自体をVM内に送り込まないアーキテクチャを採用し、検索装置のみをVM内で動作させる
+7. When 開発者が`ctx`オブジェクト構造を実装する, the Development Team shall `ctx.pasta`フィールドに検索装置への参照を保持し、Rune関数から直接アクセス可能にする
+8. When 検索装置がVM内に送り込まれた後, the Pasta Runtime shall Rust側からの直接アクセスを行わず、Rune VM内部からのみ参照されることを保証する
+
+#### アーキテクチャ原則
+
+**所有権の分離**:
+```
+PastaEngine (Rust側)
+  ├── vm: rune::Vm             // VMインスタンスを所有
+  ├── unit: Arc<rune::Unit>    // コンパイル済みコード
+  └── (検索装置は所有しない)
+
+ctx.pasta (Rune VM内)
+  ├── label_table: LabelTable     // Send実装、VM内で動作
+  ├── word_dict: WordDictionary   // Send実装、VM内で動作
+  └── (メソッド: call, jump, word, add_words等)
+```
+
+**初期化フロー**:
+1. Pastaエンジン作成時: `LabelTable`と`WordDictionary`をRune型システムに登録
+2. スクリプト実行開始時: 検索装置インスタンスを作成
+3. `__start__`関数呼び出し時: `ctx`オブジェクトを構築し、検索装置を含めてVM内に送り込む
+4. Rune関数実行中: `ctx.pasta.*`メソッドが検索装置にアクセス
+
+**Send要件の理由**:
+- `VM::send_execute()`の使用には`Send` traitが必須（API制約）
+- Rune VMはGenerator実行をサポートし、内部で中断・再開が発生する
+- 実質的にはマルチタスクは発生しないが、Generator動作のため念のため`Send`付きで実装
+- `Send`がないと、Rune型システムに登録できない（コンパイルエラー）
+- 検索装置の内部状態（HashMap等）も`Send`を満たす必要がある
+
 ---
 
 ## Related Documentation
@@ -310,3 +362,6 @@ pub mod 会話_1 {
 8. トランスパイラーが要件5で定義された出力規則に従ってRuneコードを生成する
 9. 生成されたRuneコードがwhile-let-yieldパターンを使用してyieldイベントを正しく伝播する
 10. すべてのサンプルコードがPasta Engineで正常に実行できる
+11. `LabelTable`と`WordDictionary`が`Send` traitを実装している
+12. VM初期化後の最初の関数呼び出し時に、検索装置がVM内に正しく送り込まれる
+13. `ctx.pasta`オブジェクトが検索装置への参照を保持し、Rune関数からアクセス可能である
