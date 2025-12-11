@@ -445,17 +445,128 @@ pub enum JumpTarget {
 
 **設計前に調査すべき項目**:
 
-1. **Runeモジュール構文**:
-   - ✅ ドキュメント: https://rune-rs.github.io/ → "Modules"セクション
-   - ✅ サンプルコード: Rune公式リポジトリの`examples/`
+1. **Runeモジュール構文** ✅ **調査完了**:
+   - **基本構文**: `pub mod モジュール名 { pub fn 関数名(引数) { ... } }`
+   - **ネストモジュール**: Rustと同様に`mod a { pub mod b { ... } }`形式でネスト可能
+   - **可視性**: `pub`, `pub(super)`, `pub(crate)`, `pub(in path)`をサポート
+   - **関数定義**: モジュール内で`pub fn`で公開関数、無印`fn`でプライベート関数
+   - **モジュール参照**: `crate::module::function()`, `super::function()`, `self::function()`
+   - **実例**: `rune-rs/rune`リポジトリの`src/tests/vm_test_mod.rs`, `vm_test_imports.rs`参照
+   - **ジェネレーター**: モジュール内関数もジェネレーター関数として定義可能（`fn name() { yield ... }`）
+   - **重要**: Runeのモジュールシステムは完全に機能しており、要件で規定したモジュール構造の生成に問題なし
+
+2. **Rune Object型操作（ctx.pastaフィールド）** ✅ **調査完了 + 🚨重大制約発見**:
+   - **外部構造体公開**: `#[derive(Any)]` + `module.ty::<T>()?`で完全サポート
+   - **フィールドアクセス**: `#[rune(get, set)]`属性で直接読み書き可能
+   - **メソッド公開**: `module.associated_function(&Protocol, fn)`で任意のメソッド公開可能
+   - **Mut参照渡し**: Rust側で`Mut<T>`型を使えばRune側に可変参照を渡せる
+   - **🚨 致命的制約**: **Runeジェネレーター内でMut参照を`yield`跨ぎで保持できない**
+     - ジェネレーターは`yield`時に状態をVmExecutionにキャプチャ・サスペンド
+     - `resume()`で状態復元するが、Mut参照のライフタイムは`yield`を跨げない
+     - これはRustの借用チェッカーと同じ制約（一時停止時に参照を保持できない）
+     - 各`yield`前にすべてのMut/BorrowMut参照をdropする必要がある
+   - **設計への影響**: **すべての設計案で`Arc<Mutex<PastaEngine>>`が必須**
+     - 問題: どの方式でも関数内部で`PastaEngine`への可変参照が必要
+     - `Mut<PastaEngine>`単体では関数呼び出し後にジェネレーターが所有権を持てない
+     - **根本原因**: PastaEngineは`execute_label()`でVmを生成するため、自身への可変参照が必要
+     - **唯一の解決策**: `Arc<Mutex<PastaEngine>>`または`Arc<RwLock<PastaEngine>>`で共有所有権
+   
+   **🚨 さらなる問題: Call/Jumpのネスト時の多重ロック**:
+   ```rune
+   // ラベルAからラベルBをCallする場合
+   pub mod label_a {
+       pub fn __start__() {
+           let gen = pasta_call(ctx.engine, "label_b", None, []); // ← Lock 1
+           while let Some(ev) = gen.resume() { yield ev; }
+       }
+   }
+   pub mod label_b {
+       pub fn __start__() {
+           let gen = pasta_call(ctx.engine, "label_c", None, []); // ← Lock 2 (デッドロック!)
+           while let Some(ev) = gen.resume() { yield ev; }
+       }
+   }
+   ```
+   - **問題**: `Mutex`は再入不可 → ネストCall時にデッドロック
+   - **RwLock使用でも解決不可**: 書き込みロック中は他の読み取りもブロック
+   - **根本原因**: PastaEngine自体がラベル実行状態を持つ設計では、ネスト呼び出しに対応不可能
+   
+   **🔑 根本的な設計変更が必要**:
+   - **案C**: **責任分離による瞬間ロック方式** ← ✅ **最適解（Rune VMスタック特性により確定）**
+     - **PastaEngineの役割**: ラベル名→Rune関数パスの解決**のみ**
+     - **Runeジェネレーターの役割**: 実際の実行とyield伝播
+     - **フロー**:
+       1. `pasta_resolve_label(engine, "label_b")` → `Arc<Mutex>`を瞬間ロック → 関数パス文字列を返却 → 即unlock
+       2. Rune側で`crate::label_b::__start__()`を直接呼び出し
+       3. ネストCallでも同様に瞬間ロック→解決→unlock
+     - **利点**: 
+       - ✅ ロック時間が極小（文字列マッピングのみ）
+       - ✅ ネスト呼び出し対応（各resolveは独立）
+       - ✅ 既存のPastaEngine構造を大幅変更不要
+       - ✅ **Cスタック消費なし（Rune VMスタックはヒープ上で動作）**
+       - ✅ **深いネストでもスタックオーバーフローなし**
+     ```rune
+     // 生成されるRuneコード例
+     pub mod label_a {
+         pub fn __start__() {
+             let path = pasta_resolve_label(ctx.engine, "label_b", None)?; // ← 瞬間Lock
+             let gen = call_by_path(path, [])?; // ← Rune関数呼び出し（lockなし）
+             while let Some(ev) = gen.resume() { yield ev; }
+         }
+     }
+     ```
+     
+     **🔬 技術的根拠: Rune VMスタックベース実行**:
+     ```rust
+     // runtime/memory.rs - ヒープ上のVMスタック
+     pub struct Stack {
+         stack: Vec<Value>,  // ヒープに確保
+         top: usize,
+     }
+     
+     // runtime/vm.rs - スタックベースVM
+     pub struct Vm {
+         stack: Stack,                // ヒープ上のスタック
+         call_frames: Vec<CallFrame>, // コールフレーム（ヒープ）
+         ip: usize,                   // 命令ポインタ
+     }
+     
+     // generator.rs - Cスタック再帰なし
+     pub fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
+         let execution = self.execution.as_mut()...;
+         let outcome = execution.resume().with_value(value).complete()?;
+         // ↑ VMスタック上で実行、Cスタック再帰なし
+     }
+     ```
+     - Runeジェネレーターの`resume()`は**Cスタックではなくヒープ上のVMスタック**を使用
+     - 深いネストされたCall/Jumpでも**スタックオーバーフローの心配なし**
+     - これにより**Runeレベルでのpastaオブジェクト実装が最適解**となる
+   
+   - **案D**: **PastaEngineを実行状態から分離** ← 将来的な最適化
+     - `PastaEngine`: 不変データのみ（Unit, Runtime, LabelTable定義）
+     - `ExecutionContext`: 実行状態（args, 変数スタック） ← 各Generatorが独立所有
+     - **利点**: 完全にロック不要、並列実行可能
+     - **欠点**: 既存コードの大規模リファクタリング必要
+   
+   - **案E**: **トランポリン方式** ← 複雑すぎ、不採用
+     - 全ジェネレーターを単一のイベントループで管理
+     - **欠点**: 実装複雑度が高く、Runeのジェネレーターシステムと相性悪い
 
 2. **Rune Object型操作**:
    - ✅ ドキュメント: https://rune-rs.github.io/ → "Types"セクション
    - ✅ 既存コード: `crates/pasta/src/stdlib/`のRune関数実装
 
-3. **Runeジェネレーター動作**:
+3. **Runeジェネレーター動作** ✅ **検証完了**:
    - ✅ ドキュメント: https://rune-rs.github.io/ → "Generators"セクション
-   - ⚠️ while-let-yieldパターンの動作確認（実験コード）
+   - ✅ **while-let-yieldパターン動作確認**（実験コード: `test_while_let_yield.rs`）
+   - **検証内容**: `for value in generator() { yield value; }`パターンでネストされたyield伝播を検証
+   - **結果**: ✅ **3層ネスト（outer → middle → inner）で全イベントが正しく伝播**
+     - テストケース: `outer_start` → `middle_start` → `inner_1` → `inner_2` → `middle_end` → `outer_end`
+     - 期待値6イベント、実測6イベント: **完全一致**
+   - **重要な発見**: `Vm::without_runtime()`ではプロトコル解決が失敗する
+     - **必須**: `context.runtime()`を使って`Vm::new(runtime, unit)`で初期化
+     - INTO_ITERプロトコルの解決には`Context::runtime()`由来のruntimeが必要
+   - **設計への影響**: 案Cの`for value in gen() { yield value; }`パターンは完全に動作可能
 
 4. **Rune FFI（Rust ↔ Rune）**:
    - ✅ ドキュメント: https://rune-rs.github.io/ → "Embedding Rune"セクション
