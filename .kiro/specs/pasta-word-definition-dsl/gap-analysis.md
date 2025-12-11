@@ -385,9 +385,14 @@
      - ソート済みキー+二分探索: O(log n + k)、更新時再ソート必要
    - パフォーマンス目標: <1ms（理想値、実測後に再評価）
 
-4. **エラーメッセージの日本語化**
-   - 既存のエラーメッセージパターン確認
-   - 多言語対応の方針
+4. **エラーメッセージの言語**（議題7で決定）
+   - **決定**: 英語で維持（既存コードと一貫性）
+   - 既存の`PastaError` enumはすべて英語メッセージ
+   - 単語定義関連の新規エラーメッセージ例:
+     - `Empty word definition: @{name} has no words`
+     - `Local word definition in execution block: @{name} must be in declaration block`
+     - `Word not found: @{name} not found in any dictionary or label`
+   - 多言語対応（i18n）は導入しない
 
 ---
 
