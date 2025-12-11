@@ -1,0 +1,6 @@
+// Main Rune entry point for test project
+// This file is intentionally minimal for testing purposes
+
+pub fn main() {
+    // Entry point (not used in tests)
+}

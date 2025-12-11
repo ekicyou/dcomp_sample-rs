@@ -7,10 +7,11 @@ use crate::{
     cache::ParseCache,
     error::{PastaError, Result},
     ir::ScriptEvent,
-    parser::parse_str,
+    loader::{DirectoryLoader, ErrorLogWriter},
+    parser::{parse_file, parse_str},
     runtime::{DefaultRandomSelector, LabelInfo, LabelTable, RandomSelector},
     transpiler::Transpiler,
-    LabelDef, LabelScope,
+    LabelDef, LabelScope, PastaFile,
 };
 use rune::{Context, Vm};
 use std::collections::HashMap;
@@ -63,43 +64,61 @@ pub struct PastaEngine {
 }
 
 impl PastaEngine {
-    /// Create a new PastaEngine from a Pasta DSL script.
+    /// Create a new PastaEngine from script and persistence directories.
     ///
-    /// This performs:
-    /// 1. Parsing the DSL to AST
-    /// 2. Transpiling AST to Rune source code
-    /// 3. Compiling Rune code to bytecode
-    /// 4. Building label table for runtime lookup
+    /// This is the primary constructor for production use. It loads all `.pasta` files
+    /// from the `dic/` directory and `main.rune` from the script root, following
+    /// areka-P0-script-engine conventions.
     ///
-    /// # Errors
+    /// # Directory Structure
     ///
-    /// Returns an error if:
-    /// - The DSL has syntax errors
-    /// - The transpilation fails
-    /// - The Rune compilation fails
-    pub fn new(script: &str) -> Result<Self> {
-        tracing::debug!("[PastaEngine::new] Initialized without persistence path");
-        Self::with_random_selector(script, Box::new(DefaultRandomSelector::new()))
-    }
-
-    /// Create a new PastaEngine with a persistence directory path.
+    /// ```text
+    /// script_root/
+    ///   ├── main.rune           # Rune entry point
+    ///   └── dic/                # Pasta scripts
+    ///       ├── *.pasta
+    ///       └── ...
+    ///
+    /// persistence_root/
+    ///   ├── variables.toml      # Persisted variables
+    ///   └── ...                 # Other runtime data
+    /// ```
     ///
     /// # Arguments
     ///
-    /// * `script` - Pasta DSL script
-    /// * `persistence_path` - Path to persistence directory (absolute or relative)
+    /// * `script_root` - Script root directory (must be absolute path)
+    /// * `persistence_root` - Persistence root directory (absolute or relative)
     ///
     /// # Errors
     ///
     /// Returns an error if:
-    /// - The persistence directory does not exist
-    /// - The path cannot be resolved
-    /// - The DSL has syntax errors
-    /// - The transpilation or compilation fails
-    pub fn new_with_persistence(script: &str, persistence_path: impl AsRef<Path>) -> Result<Self> {
-        Self::with_persistence_and_random_selector(
-            script,
-            persistence_path,
+    /// - Script path is not absolute
+    /// - Script directory does not exist or is not readable
+    /// - Persistence directory does not exist
+    /// - `dic/` directory not found
+    /// - `main.rune` not found
+    /// - Parse errors in `.pasta` files
+    /// - Rune compilation fails
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pasta::PastaEngine;
+    /// use std::path::Path;
+    ///
+    /// let engine = PastaEngine::new(
+    ///     Path::new("/path/to/script_root"),
+    ///     Path::new("/path/to/persistence_root")
+    /// )?;
+    /// # Ok::<(), pasta::PastaError>(())
+    /// ```
+    pub fn new(
+        script_root: impl AsRef<Path>,
+        persistence_root: impl AsRef<Path>,
+    ) -> Result<Self> {
+        Self::with_random_selector(
+            script_root,
+            persistence_root,
             Box::new(DefaultRandomSelector::new()),
         )
     }
@@ -107,35 +126,131 @@ impl PastaEngine {
     /// Create a new PastaEngine with a custom random selector.
     ///
     /// This is primarily useful for testing with deterministic random selection.
-    pub fn with_random_selector(
-        script: &str,
-        random_selector: Box<dyn RandomSelector>,
-    ) -> Result<Self> {
-        Self::build_engine(script, None, random_selector)
-    }
-
-    /// Create a new PastaEngine with persistence path and custom random selector.
     ///
     /// # Arguments
     ///
-    /// * `script` - Pasta DSL script
-    /// * `persistence_path` - Path to persistence directory
+    /// * `script_root` - Script root directory (must be absolute path)
+    /// * `persistence_root` - Persistence root directory (absolute or relative)
     /// * `random_selector` - Custom random selector implementation
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The persistence directory does not exist
-    /// - The path cannot be resolved
-    /// - The DSL has syntax errors
-    /// - The transpilation or compilation fails
-    pub fn with_persistence_and_random_selector(
-        script: &str,
-        persistence_path: impl AsRef<Path>,
+    /// Same as `new()`
+    pub fn with_random_selector(
+        script_root: impl AsRef<Path>,
+        persistence_root: impl AsRef<Path>,
         random_selector: Box<dyn RandomSelector>,
     ) -> Result<Self> {
-        let validated_path = Self::validate_persistence_path(persistence_path.as_ref())?;
-        Self::build_engine(script, Some(validated_path), random_selector)
+        let path = script_root.as_ref();
+
+        // Step 1: Load files from directory
+        let loaded = DirectoryLoader::load(path)?;
+
+        // Step 2: Parse all .pasta files (collect errors)
+        let mut all_labels = Vec::new();
+        let mut parse_errors = Vec::new();
+
+        for pasta_file in &loaded.pasta_files {
+            match parse_file(pasta_file) {
+                Ok(ast) => {
+                    all_labels.extend(ast.labels);
+                }
+                Err(e) => {
+                    // Collect parse errors, fail-fast on other errors
+                    if let Some(parse_err) = Option::from(&e) {
+                        parse_errors.push(parse_err);
+                    } else {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        // Step 3: If parse errors exist, log and return error
+        if !parse_errors.is_empty() {
+            ErrorLogWriter::log(&loaded.script_root, &parse_errors);
+            return Err(PastaError::MultipleParseErrors {
+                errors: parse_errors,
+            });
+        }
+
+        // Step 4: Merge all ASTs into a single AST
+        let merged_ast = PastaFile {
+            path: loaded.script_root.clone(),
+            labels: all_labels,
+            span: crate::parser::Span::new(1, 1, 1, 0),
+        };
+
+        // Step 5: Transpile merged AST to Rune source
+        let rune_source = Transpiler::transpile(&merged_ast)?;
+
+        #[cfg(debug_assertions)]
+        {
+            eprintln!("=== Generated Rune Source (from directory) ===");
+            eprintln!("{}", rune_source);
+            eprintln!("===============================================");
+        }
+
+        // Step 6: Build Rune sources with main.rune
+        let mut context = Context::with_default_modules().map_err(|e| {
+            PastaError::RuneRuntimeError(format!("Failed to create Rune context: {}", e))
+        })?;
+
+        // Install standard library
+        context
+            .install(crate::stdlib::create_module().map_err(|e| {
+                PastaError::RuneRuntimeError(format!("Failed to install stdlib: {}", e))
+            })?)
+            .map_err(|e| {
+                PastaError::RuneRuntimeError(format!("Failed to install context: {}", e))
+            })?;
+
+        let runtime = Arc::new(context.runtime().map_err(|e| {
+            PastaError::RuneRuntimeError(format!("Failed to create runtime: {}", e))
+        })?);
+
+        let mut sources = rune::Sources::new();
+
+        // Add transpiled pasta source
+        sources
+            .insert(rune::Source::new("entry", rune_source).map_err(|e| {
+                PastaError::RuneRuntimeError(format!("Failed to create source: {}", e))
+            })?)
+            .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to insert source: {}", e)))?;
+
+        // Add main.rune
+        sources
+            .insert(rune::Source::from_path(&loaded.main_rune).map_err(|e| {
+                PastaError::RuneRuntimeError(format!("Failed to load main.rune: {}", e))
+            })?)
+            .map_err(|e| {
+                PastaError::RuneRuntimeError(format!("Failed to insert main.rune: {}", e))
+            })?;
+
+        // Step 7: Compile Rune code
+        let unit = rune::prepare(&mut sources)
+            .with_context(&context)
+            .build()
+            .map_err(|e| PastaError::RuneCompileError(format!("Failed to compile Rune: {}", e)))?;
+
+        // Step 8: Build label table
+        let mut label_table = LabelTable::new(random_selector);
+        Self::register_labels(&mut label_table, &merged_ast.labels, None)?;
+
+        // Step 9: Validate persistence path
+        let validated_persistence_path =
+            Self::validate_persistence_path(persistence_root.as_ref())?;
+
+        // Step 10: Create instance-local cache and construct engine
+        let cache = ParseCache::new();
+
+        Ok(Self {
+            unit: Arc::new(unit),
+            runtime,
+            label_table,
+            cache,
+            persistence_path: Some(validated_persistence_path),
+        })
     }
 
     /// Validate and canonicalize the persistence path.
@@ -442,6 +557,16 @@ impl PastaEngine {
     /// Get all registered label names.
     pub fn label_names(&self) -> Vec<String> {
         self.label_table.label_names()
+    }
+
+    /// List all labels (global + local).
+    pub fn list_labels(&self) -> Vec<String> {
+        self.label_table.list_all_labels()
+    }
+
+    /// List only global labels.
+    pub fn list_global_labels(&self) -> Vec<String> {
+        self.label_table.list_global_labels()
     }
 
     /// Find labels matching an event naming convention.
