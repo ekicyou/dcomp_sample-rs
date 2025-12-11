@@ -32,6 +32,10 @@ pasta DSLで、現在、「＊挨拶」など、会話ブロックについて�
 - **エスケープ処理**（議題4で決定）:
   - 二重引用符エスケープ: `「「` → `「`、`」」` → `」`
   - 例: `「彼女は「「ありがとう」」と言った」` → `彼女は「ありがとう」と言った`
+- **命名規則**（議題5で決定）:
+  - Rust識別子ルール適用（ラベル名と同じ）
+  - 使用可能: ASCII英数字・アンダースコア、Unicode XID_Start/XID_Continue（日本語含む）
+  - 禁止: 数字始まり、予約記号（`＠`, `＄`, `＞`等）、空白、引用符
 
 ---
 
@@ -50,11 +54,12 @@ pasta DSLで、現在、「＊挨拶」など、会話ブロックについて�
 #### Acceptance Criteria
 
 1. When パーサーが`＠単語名：単語1　単語2　単語3`形式の行を検出した場合, the Pasta Parser shall 単語定義として解析する（**記号を`＄`から`＠`に変更**）
-2. The Pasta Parser shall 全角スペースまたはタブ文字を単語の区切り文字として認識する
-3. When 引用符`「」`で囲まれた文字列が定義された場合, the Pasta Parser shall 内部の全角スペースを区切り文字として扱わず、一つの単語として認識する
-4. The Pasta Parser shall 引用符内で`「「`を`「`に、`」」`を`」`に変換する（二重引用符エスケープ）
-5. When 同じ単語名が複数回定義された場合, the Pasta Parser shall すべての定義を自動的にマージし、単一の単語リストとして扱う
-5. When `＠単語名＝`のように単語リストが空の場合, the Pasta Parser shall 構文エラーとして検出し、エラーを記録してパースを継続する
+2. The Pasta Parser shall 単語名がRust識別子規則に従うことを検証する（ASCII: a-z, A-Z, 0-9, _、Unicode: XID_Start/XID_Continue、数字始まり禁止）
+3. The Pasta Parser shall 全角スペースまたはタブ文字を単語の区切り文字として認識する
+4. When 引用符`「」`で囲まれた文字列が定義された場合, the Pasta Parser shall 内部の全角スペースを区切り文字として扱わず、一つの単語として認識する
+5. The Pasta Parser shall 引用符内で`「「`を`「`に、`」」`を`」`に変換する（二重引用符エスケープ）
+6. When 同じ単語名が複数回定義された場合, the Pasta Parser shall すべての定義を自動的にマージし、単一の単語リストとして扱う
+7. When `＠単語名＝`のように単語リストが空の場合, the Pasta Parser shall 構文エラーとして検出し、エラーを記録してパースを継続する
 6. The Pasta Parser shall すべての構文エラーを収集した後、`Result::Err`でエラーを返す（panic禁止）
 7. The Pasta Parser shall 空の単語定義を単語辞書に登録せず、マージ対象から除外する
 8. When 会話行内で`＠場所　`のように単語参照があった場合, the Pasta Runtime shall `場所`で始まるすべての単語定義（例：`場所`, `場所＿日本`, `場所＿外国`）を前方一致検索し、すべての単語を候補として列挙する
