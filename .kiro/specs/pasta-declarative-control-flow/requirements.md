@@ -119,7 +119,10 @@
    - グローバル単語定義（`＠グローバル単語：...`）→ モジュール外で`add_words()`を直接呼び出し
    - ローカル単語定義（`＠単語：...`）→ 関数内で`ctx.pasta.add_words()` + `ctx.pasta.commit_words()`
 
-**注**: `ctx`オブジェクトのフィールド構造は上記の通り。詳細な型定義、`ctx.pasta`の完全なメソッドシグネチャ、内部実装メカニズムは設計フェーズで定義する。
+**注**: 
+- `ctx`オブジェクトのフィールド構造は上記の通り
+- 詳細な型定義、`ctx.pasta`の完全なメソッドシグネチャ、内部実装メカニズムは設計フェーズで定義する
+- **重要**: `ctx.pasta.call()`は呼び出し前に`ctx.args`を保存し、呼び出し完了後に復元することで、`ctx`のミュータビリティによる副作用を最小化する（設計原則）
 
 #### 現在の実装との差異
 
@@ -145,9 +148,8 @@
 9. When トランスパイラーがjump文（`？ラベル名`）を処理する, the Pasta Transpiler shall call文と同様に引数配列を第4引数として渡す（`ctx.pasta.jump(ctx, "親ラベル", "ラベル名", [...])`）
 10. When トランスパイラーが発言者切り替え（`さくら：`）を処理する, the Pasta Transpiler shall `ctx.actor = さくら; yield Actor("さくら");`を生成する（`さくら`はグローバル変数として定義された発言者オブジェクト）
 11. When トランスパイラーがローカルラベル関数を生成する, the Pasta Transpiler shall すべての関数を`pub fn 名前(ctx)`シグネチャで統一し、引数は`ctx.args`経由でアクセスする
-10. When トランスパイラーが発言内容を処理する, the Pasta Transpiler shall `yield Talk("発言内容");`を生成する
-11. When トランスパイラーが単語展開（`＠単語名`）を発言内で処理する, the Pasta Transpiler shall `while let Some(a) = ctx.pasta.word(ctx, "単語名").next() { yield a; };`を生成する
-12. When トランスパイラーがRuneブロックを検出する, the Pasta Transpiler shall Runeコードをそのままモジュール内に展開する
+12. When Pastaランタイムが`ctx.pasta.call()`を実装する, the Pasta Runtime shall 呼び出し前に`ctx.args`を保存し、呼び出し後に復元することで、`ctx`の汚染を最小化する
+13. When Pastaランタイムが`ctx.pasta.call()`または`ctx.pasta.jump()`を実装する, the Pasta Runtime shall 呼び出し先関数からyieldされるイベントを`yield event`で透過的に伝播し、結果を配列に蓄積してはならない（ジェネレーター関数の本質）
 
 #### 出力例（リファレンス実装）
 
