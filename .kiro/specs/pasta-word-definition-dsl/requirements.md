@@ -50,8 +50,10 @@ pasta DSLで、現在、「＊挨拶」など、会話ブロックについて�
 2. The Pasta Parser shall 全角スペースまたはタブ文字を単語の区切り文字として認識する
 3. When 引用符`「」`で囲まれた文字列が定義された場合, the Pasta Parser shall 内部の全角スペースを区切り文字として扱わず、一つの単語として認識する
 4. When 同じ単語名が複数回定義された場合, the Pasta Parser shall すべての定義を自動的にマージし、単一の単語リストとして扱う
-5. The Pasta Parser shall 単語定義行の構文エラーを検出し、適切なエラーメッセージを出力する
-6. When 会話行内で`＠場所　`のように単語参照があった場合, the Pasta Runtime shall `場所`で始まるすべての単語定義（例：`場所`, `場所＿日本`, `場所＿外国`）を前方一致検索し、すべての単語を候補として列挙する
+5. When `＠単語名＝`のように単語リストが空の場合, the Pasta Parser shall 構文エラーとして検出し、エラーを記録してパースを継続する
+6. The Pasta Parser shall すべての構文エラーを収集した後、`Result::Err`でエラーを返す（panic禁止）
+7. The Pasta Parser shall 空の単語定義を単語辞書に登録せず、マージ対象から除外する
+8. When 会話行内で`＠場所　`のように単語参照があった場合, the Pasta Runtime shall `場所`で始まるすべての単語定義（例：`場所`, `場所＿日本`, `場所＿外国`）を前方一致検索し、すべての単語を候補として列挙する
 
 ### Requirement 2: グローバルスコープ単語定義
 
@@ -89,8 +91,8 @@ pasta DSLで、現在、「＊挨拶」など、会話ブロックについて�
 
 1. When 会話行（Speech文）内に`＠単語名`形式の参照が記述された場合, the Pasta Runtime shall 対応する単語定義からランダムに一つの単語を選択する
 2. The Pasta Runtime shall 選択された単語を会話内容に展開して出力する
-3. When 参照された単語名が存在しない場合, the Pasta Runtime shall エラーを発生させ、適切なエラーメッセージを出力する
-4. When 単語定義が空リスト（単語が一つも定義されていない）の場合, the Pasta Runtime shall エラーを発生させる
+3. When `＠name`がRune変数/関数・単語辞書・前方一致ラベルのいずれにも該当しない場合, the Pasta Runtime shall エラーログを出力し、空文字列として処理を継続する（panic禁止）
+4. The Pasta Runtime shall エラーハンドリングに`Result`型を使用し、実行時エラーでもスクリプト実行を停止しない
 5. The Pasta Runtime shall 同一会話行内で複数の単語参照があった場合、それぞれ独立してランダム選択を実行する
 6. When 単語参照が前方一致で複数の単語定義にマッチした場合（例：`＠場所`が`場所`, `場所＿日本`, `場所＿外国`にマッチ）, the Pasta Runtime shall すべての単語定義の単語を統合し、ランダムに1つ選択する
 
@@ -157,11 +159,12 @@ pasta DSLで、現在、「＊挨拶」など、会話ブロックについて�
 
 #### Acceptance Criteria
 
-1. When 単語定義の構文エラーが発生した場合（例：閉じ「が欠落）, the Pasta Parser shall ファイル名、行番号、エラー内容を含むメッセージを出力する
-2. When `＠name`が前方一致で複数の単語定義に該当し、空の単語リストがマージされた場合, the Pasta Runtime shall 単語名と該当した定義箇所を含むエラーメッセージを出力する
-3. When `＠name`がRuneスコープ・単語辞書・前方一致ラベルのいずれにも該当しない場合, the Pasta Runtime shall 参照箇所、名前、試行した検索順序を含むエラーメッセージを出力する
-4. When 前方一致検索で複数の候補が見つかり、ランダム選択の結果空文字列が選ばれた場合, the Pasta Runtime shall 単語名、候補数、空文字列の出現回数を含む警告メッセージを出力する
-5. The Pasta Error Messages shall 日本語でわかりやすいメッセージを提供する
+1. When 単語定義の構文エラーが発生した場合（例：閉じ「が欠落、空の単語リスト）, the Pasta Parser shall ファイル名、行番号、エラー内容を含むメッセージを出力する
+2. The Pasta Parser shall すべての構文エラーを収集した後、`Result::Err`でエラーを返す（panic禁止）
+3. The Pasta Parser shall 空の単語定義（`＠単語名＝`）をエラーとして記録し、単語辞書に登録しない
+4. When `＠name`がRuneスコープ・単語辞書・前方一致ラベルのいずれにも該当しない場合, the Pasta Runtime shall 参照箇所、名前、試行した検索順序を含むエラーログを出力し、空文字列として処理を継続する（panic禁止）
+5. The Pasta Runtime shall エラーハンドリングに`Result`型を使用し、実行時エラーでもスクリプト実行を停止しない
+6. The Pasta Error Messages shall 日本語でわかりやすいメッセージを提供する
 
 ### Requirement 10: ドキュメント更新
 
