@@ -160,13 +160,13 @@
 - **将来的なリファクタリング**: 複雑化した際にpreprocessor.rsへ分離可能（Option C移行）
 
 #### 2.5 Runtime拡張
-**要件**: フォールバック検索（Runeスコープ → 単語辞書 → 前方一致ラベル）
+**要件**: フォールバック検索(改訂版：開発者フィードバックで修正)
 
 **現状**:
 - Rune IR実行はrune crateに委託
-- ラベル検索は`labels.rs`で前方一致をサポート
+- ラベル検索は`labels.rs`で前方一致をサポート(※単語検索では使用しない)
 
-**決定事項**（議題3で確定）:
+**決定事項**(開発者フィードバック反映):
 - **実装アプローチ**: Transpiler生成Rune関数方式
 - **Runeスコープ検索は不使用**: Rune crateのAPI調査不要
   - 理由: Runeの変数スコープ解決は自動（Rune言語仕様）
@@ -186,24 +186,34 @@
       // ...
   };
   
+  // キャッシュレジストリ
+  static LOCAL_WORD_CACHE = #{};
+  static GLOBAL_WORD_CACHE = #{};
+  
   // 参照解決ヘルパー関数
   fn resolve_ref(name) {
-      // 1. Rune変数は自動解決済み（この関数が呼ばれる = 未定義）
-      // 2. ローカル単語辞書検索（前方一致）
-      if let Some(words) = prefix_search(LOCAL_WORD_DICT, name) {
-          return random_choice(words);
+      // 1-2. Rune変数は自動解決済み（この関数が呼ばれる = 未定義）
+      // 3. ローカル単語辞書検索（前方一致 + キャッシュ）
+      if let Some(word) = search_with_cache(LOCAL_WORD_CACHE, LOCAL_WORD_TRIE, name) {
+          return word;
       }
-      // 3. グローバル単語辞書検索（前方一致）
-      if let Some(words) = prefix_search(GLOBAL_WORD_DICT, name) {
-          return random_choice(words);
+      // 4. グローバル単語辞書検索（前方一致 + キャッシュ）
+      if let Some(word) = search_with_cache(GLOBAL_WORD_CACHE, GLOBAL_WORD_TRIE, name) {
+          return word;
       }
-      // 4. ラベル前方一致検索
-      return call_label_prefix(name);
+      // 5. エラーログ、空文字列返却
+      emit_error("Word not found: @" + name);
+      return "";
+  }
+  
+  // グローバルキャッシュクリア（Runeから呼び出し可能）
+  fn clear_global_word_cache() {
+      GLOBAL_WORD_CACHE.clear();
   }
   ```
 - **VarRef変換**: `SpeechPart::VarRef("名前")` → Rune IR `resolve_ref("名前")`
-- **前方一致検索**: `prefix_search(dict, key)`ヘルパー実装
-- **ランダム選択**: `random_choice(words)`ヘルパー実装
+- **検索ルール**: ローカル→グローバル、ラベル検索は行わない
+- **キャッシュ機構**: シャッフルベース、ローカル/グローバル分離
 
 #### 2.6 会話内参照
 **要件**: `＠単語名`で会話行内から単語参照
@@ -212,11 +222,12 @@
 - `SpeechPart::VarRef`: 変数参照をサポート
 - `SpeechPart::FuncCall`: 関数呼び出しをサポート
 
-**決定事項**（議題1で確定）:
+**決定事項**（議題1で確定、開発者フィードバックで修正）:
 - **採用**: Option A（VarRef拡張）
 - **実装方針**: 
   - AST構造変更なし、`SpeechPart::VarRef(String)`をそのまま使用
-  - Runtime側でフォールバック検索を実装（Rune変数 → 単語辞書 → ラベル）
+  - Runtime側でフォールバック検索を実装（Rune変数 → ローカル単語辞書 → グローバル単語辞書）
+  - **ラベル検索は削除**: ジャンプ・コール構文と責務を分離
   - パーサー変更不要、Transpiler最小変更
 - **VarRefの意味拡張**:
   - AST段階: `＠名前`形式の参照全般を表現（変数、単語、ラベルを区別しない）
@@ -329,12 +340,16 @@
 ### Option C: ハイブリッドアプローチ
 
 #### 組み合わせ戦略（決定事項：議題5で確定）
-- **Phase 1 (MVP)**: Option A（既存拡張）で基本機能を実装
+- **Phase 1 (MVP)**: Option A(既存拡張)+ 最適化機構を含む
   - Statement::WordDef追加
   - 基本的なパース・トランスパイル
-  - **単純なランダム選択**（Rust `rand::thread_rng().gen_range()`使用）
-  - シャッフルキャッシュは実装しない（Phase 2に延期）
-  - 理由: 要件定義でキャッシュ仕様が不明確、基本機能優先
+  - **trie-rs採用**(前方一致検索最適化)
+  - **シャッフルキャッシュ実装**(Phase 1スコープ)
+    - ローカル/グローバル分離キャッシュ
+    - キャッシュライフサイクル管理
+    - `remaining`からpop、空なら`all_words`から再シャッフル
+  - **検索ルール**:ローカル/グローバル辞書を分離検索
+  - **グローバルキャッシュクリア関数**: Runeから呼び出し可能
 
 - **Phase 2（最適化）**: 複雑なロジックを追加・分離
   - **シャッフルキャッシュ機構**: 単語リストをシャッフル→順次消費→再シャッフル
@@ -366,24 +381,34 @@
 
 以下の項目は設計フェーズで詳細調査が必要：
 
-1. **Runeヘルパー関数実装**
-   - `prefix_search(dict, key)`の効率的な実装
-   - `random_choice(words)`のRNG選択
-   - `call_label_prefix(name)`の既存labels.rs統合
+1. **trie-rs統合の詳細**（Phase 1）
+   - Transpiler前処理でのTrie構築ロジック
+   - 単語辞書からTrieへの変換処理
+   - Runeランタイムへのデータ渡し方法（静的変数生成）
+   - **依存関係**: `trie-rs = "0.4"`, `rand` (ランダム選択用)
 
-2. **シャッフルキャッシュ機構の詳細仕様**（Phase 2で実装）
-   - 要件定義での仕様が不明確、設計フェーズで詳細化
-   - キャッシュのライフサイクル管理（ラベルスコープ？セッションスコープ？）
-   - キャッシュクリアのトリガー
-   - 既存実装の参照可能性（里々など）
+2. **シャッフルキャッシュ機構の実装**（Phase 1スコープ）
+   - `search_with_cache(cache, trie, key)`の実装:
+     1. キャッシュ検索（キーワードでヒット判定）
+     2. ミス時: Trieで前方一致検索 → `all_words`作成 → シャッフル → キャッシュ作成
+     3. `remaining.pop()`で1単語取り出し
+     4. `remaining`が空なら`all_words`から再シャッフル
+     5. キャッシュ更新
+   - `WordCache`構造体:
+     ```rust
+     struct WordCache {
+         key: String,
+         remaining: Vec<String>,
+         all_words: Vec<String>,
+     }
+     ```
+   - ライフサイクル管理:
+     - `local_cache`: グローバルラベル終了時にクリア
+     - `global_cache`: セッション永続、`clear_global_word_cache()`で手動クリア
 
-3. **前方一致検索の最適化**（Phase 2で検討、議題6で決定）
-   - **MVP実装**: HashMap線形走査（`dict.iter().filter(|k| k.starts_with(prefix))`）
-   - 理由: 一般的な辞書サイズ（10-100エントリ）では十分高速、実装簡潔
-   - **Phase 2最適化候補**（実測でパフォーマンス問題が発生した場合）:
-     - Trie（前置木）: O(m)検索、メモリ消費増
-     - ソート済みキー+二分探索: O(log n + k)、更新時再ソート必要
-   - パフォーマンス目標: <1ms（理想値、実測後に再評価）
+3. **Rune標準関数登録**
+   - `clear_global_word_cache()`をPasta標準ライブラリに登録
+   - エラーログ出力（既存の`emit_error()`使用）
 
 4. **エラーメッセージの言語**（議題7で決定）
    - **決定**: 英語で維持（既存コードと一貫性）
@@ -398,13 +423,13 @@
 
 ## 5. 実装複雑度とリスク
 
-### 工数見積もり: **M (中規模: 3-7日)**
+### 工数見積もり: **L (大規模: 7-14日)**
 
 #### 内訳
-- AST/Parser拡張: 1-2日（新variant追加、pest文法定義）
-- Transpiler拡張: 2-3日（マージロジック、静的変数生成）
-- Runtime拡張: 2-3日（フォールバック検索、ランダム選択）
-- テスト作成: 1-2日
+- AST/Parser拡張: 1-2日(新variant追加、pest文法定義)
+- Transpiler拡張: 3-4日(マージロジック、Trie構築、静的変数生成)
+- Runtime拡張: 3-5日(シャッフルキャッシュ、フォールバック検索、trie-rs統合)
+- テスト作成: 2-3日(キャッシュ動作、前方一致、ライフサイクル)
 
 #### 根拠
 - 既存パターンが確立されており、新機能追加の precedent あり
