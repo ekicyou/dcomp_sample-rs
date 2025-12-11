@@ -36,6 +36,10 @@ pasta DSLで、現在、「＊挨拶」など、会話ブロックについて�
   - Rust識別子ルール適用（ラベル名と同じ）
   - 使用可能: ASCII英数字・アンダースコア、Unicode XID_Start/XID_Continue（日本語含む）
   - 禁止: 数字始まり、予約記号（`＠`, `＄`, `＞`等）、空白、引用符
+- **マージ順序**（議題6で決定）:
+  - 順序保証なし（ランダム選択なので順序は無意味）
+  - 重複許容（同じ単語を複数回登録で選択確率調整可能）
+  - ファイル読み込み順序は環境依存
 
 ---
 
@@ -74,8 +78,10 @@ pasta DSLで、現在、「＊挨拶」など、会話ブロックについて�
 2. The Pasta Parser shall インデントなしの単語定義をファイル内のどこにでも配置可能とする（ラベル定義の前後、ラベル内外を問わず）
 3. The Pasta Runtime shall グローバルスコープの単語定義をスクリプト全体で参照可能にする
 4. When 複数のファイルまたは複数行で同じグローバル単語名が定義された場合, the Pasta Runtime shall すべての定義を統合マージし、単一の単語リストとして管理する
-5. The Pasta Runtime shall グローバル単語定義をファイル解析時に登録し、実行開始前に利用可能にする
-6. The Pasta Runtime shall グローバル単語定義を`HashMap<String, Vec<String>>`形式で管理する（キー：単語名、値：単語リスト）
+5. The Pasta Runtime shall マージ時に重複する単語を排除せず、そのまま保持する（重複登録で選択確率を調整可能）
+6. The Pasta Runtime shall マージ順序を保証せず、ファイル読み込み順序は環境依存とする（ランダム選択なので順序は非本質的）
+7. The Pasta Runtime shall グローバル単語定義をファイル解析時に登録し、実行開始前に利用可能にする
+8. The Pasta Runtime shall グローバル単語定義を`HashMap<String, Vec<String>>`形式で管理する（キー：単語名、値：単語リスト）
 
 ### Requirement 3: ローカルスコープ単語定義
 
