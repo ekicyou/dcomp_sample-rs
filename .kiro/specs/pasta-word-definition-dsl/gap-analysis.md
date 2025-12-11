@@ -159,18 +159,44 @@
 - Rune IR実行はrune crateに委託
 - ラベル検索は`labels.rs`で前方一致をサポート
 
-**ギャップ**:
-- **Missing**: 単語辞書アクセス関数（Rune側で実装）
+**決定事項**（議題3で確定）:
+- **実装アプローチ**: Transpiler生成Rune関数方式
+- **Runeスコープ検索は不使用**: Rune crateのAPI調査不要
+  - 理由: Runeの変数スコープ解決は自動（Rune言語仕様）
+  - `@名前`が既存変数ならRune側で自動解決
+  - 変数が未定義なら単語辞書・ラベル検索に進む
+- **Transpiler生成コード**:
   ```rune
-  fn resolve_word(name) {
-      // 1. Rune scope check (変数/関数)
-      // 2. Word dict prefix-match search
-      // 3. Label prefix-match search
+  // グローバル単語辞書（静的変数）
+  static GLOBAL_WORD_DICT = #{
+      "場所": ["東京", "大阪", "名古屋"],
+      // ...
+  };
+  
+  // ローカル単語辞書（ラベルごと）
+  static LOCAL_WORD_DICT_会話 = #{
+      "天気": ["晴れ", "雨", "曇り"],
+      // ...
+  };
+  
+  // 参照解決ヘルパー関数
+  fn resolve_ref(name) {
+      // 1. Rune変数は自動解決済み（この関数が呼ばれる = 未定義）
+      // 2. ローカル単語辞書検索（前方一致）
+      if let Some(words) = prefix_search(LOCAL_WORD_DICT, name) {
+          return random_choice(words);
+      }
+      // 3. グローバル単語辞書検索（前方一致）
+      if let Some(words) = prefix_search(GLOBAL_WORD_DICT, name) {
+          return random_choice(words);
+      }
+      // 4. ラベル前方一致検索
+      return call_label_prefix(name);
   }
   ```
-- **Missing**: 前方一致検索＋ランダム選択ロジック
-- **Missing**: シャッフルベースキャッシュ機構（既存実装を参考にできる可能性）
-- **Research Needed**: Rune crateのスコープ検索API調査
+- **VarRef変換**: `SpeechPart::VarRef("名前")` → Rune IR `resolve_ref("名前")`
+- **前方一致検索**: `prefix_search(dict, key)`ヘルパー実装
+- **ランダム選択**: `random_choice(words)`ヘルパー実装
 
 #### 2.6 会話内参照
 **要件**: `＠単語名`で会話行内から単語参照
@@ -328,15 +354,12 @@
 
 以下の項目は設計フェーズで詳細調査が必要：
 
-1. **Rune crateスコープ検索API**
-   - Runeの変数/関数解決機構の調査
-   - カスタム検索ロジックの統合方法
+1. **Runeヘルパー関数実装**
+   - `prefix_search(dict, key)`の効率的な実装
+   - `random_choice(words)`のRNG選択
+   - `call_label_prefix(name)`の既存labels.rs統合
 
-2. **宣言部/実行部の境界判定**
-   - 会話行出現をトリガーとする案の妥当性
-   - ローカルラベル出現時の扱い
-
-3. **シャッフルキャッシュ機構**
+2. **シャッフルキャッシュ機構**
    - 既存実装の有無確認（里々の実装を参考にできる可能性）
    - キャッシュのライフサイクル管理
 
