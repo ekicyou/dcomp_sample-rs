@@ -137,20 +137,27 @@
 - `transpile_statement()`は各Statement variantに対応
 - グローバル変数は`set_global()`関数呼び出しで設定
 
-**ギャップ**:
-- **Missing**: WordDef → Rune静的変数初期化コード生成
+**決定事項**（議題4で確定）:
+- **前処理実装場所**: Option A（Transpiler内実装）を採用
+- **実装方針**:
+  - `transpiler/mod.rs`に以下の関数を追加:
+    - `extract_word_defs(ast: &PastaFile) -> Vec<WordDef>` - AST全体からWordDefを抽出
+    - `merge_word_defs(defs: Vec<WordDef>) -> WordDefRegistry` - 同名定義をマージ
+  - `transpile_file()`冒頭で前処理実行
+  - マージ後の辞書データからRune静的変数コード生成
+- **生成コード例**:
   ```rune
   static GLOBAL_WORD_DICT = #{
-      "場所": ["東京", "大阪", "名古屋"],
+      "場所": ["東京", "大阪", "名古屋", "カナダ"],  // マージ済み
       // ...
   };
-  static LOCAL_WORD_DICT = #{
-      ("会話", "天気"): ["晴れ", "雨", "曇り"],
+  static LOCAL_WORD_DICT_会話 = #{
+      "天気": ["晴れ", "雨", "曇り", "晴れか、　あめ"],
       // ...
   };
   ```
-- **Missing**: AST全体スキャンして同名単語定義をマージするロジック
-- **複雑度**: 前処理フェーズでWordDefを抽出・マージ → Transpiler本体で辞書初期化コード生成
+- **Statement::WordDef処理**: `transpile_statement()`でスキップ（既に辞書初期化済み）
+- **将来的なリファクタリング**: 複雑化した際にpreprocessor.rsへ分離可能（Option C移行）
 
 #### 2.5 Runtime拡張
 **要件**: フォールバック検索（Runeスコープ → 単語辞書 → 前方一致ラベル）
