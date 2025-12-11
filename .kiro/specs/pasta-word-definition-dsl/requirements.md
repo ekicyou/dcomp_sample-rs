@@ -25,6 +25,10 @@ pasta DSLで、現在、「＊挨拶」など、会話ブロックについて�
 - **自動マージ**: 同じ名前の単語定義は自動的に統合される
 - **独立した辞書**: 単語辞書とラベル辞書は別のデータ構造で管理
 - **`＠＊`廃止**: グローバル明示構文は不要（フォールバック機構で自動解決）
+- **配置制約**（議題2で決定）:
+  - グローバル単語定義（インデントなし）: ファイル内のどこでも配置可能
+  - ローカル単語定義（インデントあり）: グローバルラベル直後の宣言部のみ配置可能（会話行・ローカルラベル・ジャンプ・コール文の後は不可）
+  - 変数定義との違い: 変数定義は実行部でも可能だが、単語定義は宣言部のみ
 
 ---
 
@@ -56,10 +60,11 @@ pasta DSLで、現在、「＊挨拶」など、会話ブロックについて�
 #### Acceptance Criteria
 
 1. When 単語定義行がインデントなしで記述された場合, the Pasta Parser shall グローバルスコープの単語定義として登録する
-2. The Pasta Runtime shall グローバルスコープの単語定義をスクリプト全体で参照可能にする
-3. When 複数のファイルまたは複数行で同じグローバル単語名が定義された場合, the Pasta Runtime shall すべての定義を統合マージし、単一の単語リストとして管理する
-4. The Pasta Runtime shall グローバル単語定義をファイル解析時に登録し、実行開始前に利用可能にする
-5. The Pasta Runtime shall グローバル単語定義を`HashMap<String, Vec<String>>`形式で管理する（キー：単語名、値：単語リスト）
+2. The Pasta Parser shall インデントなしの単語定義をファイル内のどこにでも配置可能とする（ラベル定義の前後、ラベル内外を問わず）
+3. The Pasta Runtime shall グローバルスコープの単語定義をスクリプト全体で参照可能にする
+4. When 複数のファイルまたは複数行で同じグローバル単語名が定義された場合, the Pasta Runtime shall すべての定義を統合マージし、単一の単語リストとして管理する
+5. The Pasta Runtime shall グローバル単語定義をファイル解析時に登録し、実行開始前に利用可能にする
+6. The Pasta Runtime shall グローバル単語定義を`HashMap<String, Vec<String>>`形式で管理する（キー：単語名、値：単語リスト）
 
 ### Requirement 3: ローカルスコープ単語定義
 
@@ -68,10 +73,13 @@ pasta DSLで、現在、「＊挨拶」など、会話ブロックについて�
 #### Acceptance Criteria
 
 1. When 単語定義行がラベル定義内でインデント付きで記述された場合, the Pasta Parser shall ローカルスコープの単語定義として登録する
-2. The Pasta Runtime shall ローカルスコープの単語定義を当該グローバルラベル実行中のみ参照可能にする
-3. When ローカルとグローバルで同じ単語名が定義された場合, the Pasta Runtime shall ローカル定義を優先して参照する（シャドーイング）
-4. The Pasta Runtime shall ラベル実行終了時にローカル単語定義のスコープを解放する
-5. The Pasta Runtime shall ローカル単語定義を`HashMap<(String, String), Vec<String>>`形式で管理する（キー：(グローバルラベル名, 単語名)、値：単語リスト）
+2. The Pasta Parser shall インデント付き単語定義をグローバルラベル定義直後の宣言部（属性設定・変数定義と同じブロック）のみ配置可能とする
+3. The Pasta Parser shall 会話行・ローカルラベル・ジャンプ文・コール文の後に単語定義が現れた場合、構文エラーとする
+4. The Pasta Parser shall 変数定義（`＄variable = value`）は実行部でも配置可能だが、単語定義は宣言部のみに制限する
+5. The Pasta Runtime shall ローカルスコープの単語定義を当該グローバルラベル実行中のみ参照可能にする
+6. When ローカルとグローバルで同じ単語名が定義された場合, the Pasta Runtime shall ローカル定義を優先して参照する（シャドーイング）
+7. The Pasta Runtime shall ラベル実行終了時にローカル単語定義のスコープを解放する
+8. The Pasta Runtime shall ローカル単語定義を`HashMap<(String, String), Vec<String>>`形式で管理する（キー：(グローバルラベル名, 単語名)、値：単語リスト）
 
 ### Requirement 4: 会話内からの単語参照
 
