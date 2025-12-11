@@ -246,6 +246,46 @@ pub mod 会話_1 {
 4. When 開発者が`04_control_flow.pasta`を修正する, the Pasta Engine shall 動的call/jumpを使用したメニュー選択の実装例を含める
 5. When 開発者が`04_control_flow.pasta`を修正する, the Pasta Engine shall ファイル冒頭のコメントを修正し、「宣言的コントロールフロー」を正しく説明する
 
+### Requirement 7: 包括的なリファレンス実装とテストスイート
+
+**Objective:** 開発者として、実装初期段階で仕様の理解齟齬を防ぐため、包括的なコントロールフロー実装例とトランスパイル結果の参照実装を用意する。
+
+**Background**: トランスパイラー実装時の最初のタスクとして、期待されるトランスパイル結果を`.rune`ファイルとして定義し、包括的なテストスイートを設定することで、実装の早い段階で勘違いの発生を抑制する。
+
+#### Acceptance Criteria
+
+1. When 開発者が実装タスクを開始する, the Development Team shall 最初のタスクとして包括的な`comprehensive_control_flow.pasta`サンプルファイルを作成する
+2. When 開発者が`comprehensive_control_flow.pasta`を作成する, the Development Team shall 以下の全機能を網羅した実装例を含める:
+   - グローバルラベル定義とローカルラベル定義
+   - call文（引数なし、引数あり）
+   - jump文（引数なし、引数あり）
+   - ロングジャンプ（`＞＊グローバルーローカル`）
+   - 動的call/jump（`＞＠変数名`）
+   - 同名ラベルの複数定義（ランダム選択）
+   - 前方一致選択
+   - 変数代入（ローカル/グローバル）
+   - Runeブロック内での条件分岐
+   - 発言者切り替え
+   - 単語定義（グローバル/ローカル）
+   - 単語展開（`＠単語名`）
+3. When 開発者が`comprehensive_control_flow.pasta`を作成する, the Development Team shall 期待されるトランスパイル結果を`comprehensive_control_flow.rune`として作成する
+4. When 開発者が`comprehensive_control_flow.rune`を作成する, the Development Team shall Requirement 5のトランスパイラー出力仕様（モジュール構造、`__start__`関数、while-let-yield、ctx構造）に厳密に準拠した内容とする
+5. When 開発者が実装タスクを開始する, the Development Team shall `comprehensive_control_flow.pasta`のトランスパイル結果と`comprehensive_control_flow.rune`を比較する包括的なユニットテストを作成する
+6. When 開発者がユニットテストを作成する, the Development Team shall 以下の検証項目を含める:
+   - モジュール構造の正確性（グローバルラベル → `pub mod`）
+   - `__start__`関数の生成
+   - ローカルラベル関数の親モジュール内配置
+   - call/jump文のwhile-let-yieldパターン生成
+   - 引数配列の正確な生成
+   - `ctx.pasta.call()`/`ctx.pasta.jump()`呼び出し形式
+7. When 開発者がトランスパイラー実装を進める, the Development Team shall ユニットテストが全てパスすることを確認してから次のタスクに進む
+
+#### ファイル配置
+
+- **入力**: `crates/pasta/tests/fixtures/comprehensive_control_flow.pasta`
+- **期待出力**: `crates/pasta/tests/fixtures/comprehensive_control_flow.expected.rune`
+- **テストコード**: `crates/pasta/tests/transpiler_comprehensive_test.rs`
+
 ---
 
 ## Related Documentation
@@ -260,10 +300,13 @@ pub mod 会話_1 {
 
 以下の基準をすべて満たす場合、本仕様の実装は成功とみなされる：
 
-1. `04_control_flow.pasta`に命令型構文（`＠if`, `＠elif`, `＠else`, `＠while`）が含まれない
-2. call/jump/ラベル定義を使用した宣言的なコントロールフロー例が実装されている
-3. ランダム選択と前方一致の動作例が含まれている
-4. 動的call/jumpを使用したメニュー選択例が含まれている
-5. トランスパイラーが要件5で定義された出力規則に従ってRuneコードを生成する
-6. 生成されたRuneコードがwhile-let-yieldパターンを使用してyieldイベントを正しく伝播する
-7. すべてのサンプルコードがPasta Engineで正常に実行できる
+1. `comprehensive_control_flow.pasta`が全機能を網羅し、期待される`.rune`ファイルとの照合テストがパスする
+2. `comprehensive_control_flow.rune`が要件5のトランスパイラー出力仕様に厳密に準拠している
+3. 包括的なユニットテスト（`transpiler_comprehensive_test.rs`）が全てパスする
+4. `04_control_flow.pasta`に命令型構文（`＠if`, `＠elif`, `＠else`, `＠while`）が含まれない
+5. call/jump/ラベル定義を使用した宣言的なコントロールフロー例が実装されている
+6. ランダム選択と前方一致の動作例が含まれている
+7. 動的call/jumpを使用したメニュー選択例が含まれている
+8. トランスパイラーが要件5で定義された出力規則に従ってRuneコードを生成する
+9. 生成されたRuneコードがwhile-let-yieldパターンを使用してyieldイベントを正しく伝播する
+10. すべてのサンプルコードがPasta Engineで正常に実行できる
