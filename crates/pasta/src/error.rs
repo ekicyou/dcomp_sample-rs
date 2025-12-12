@@ -77,8 +77,8 @@ pub enum PastaError {
     #[error("dic/ directory not found in: {script_root}")]
     DicDirectoryNotFound { script_root: String },
 
-    /// main.rune not found.
-    #[error("main.rune not found in: {script_root}")]
+    /// main.rn not found.
+    #[error("main.rn not found in: {script_root}")]
     MainRuneNotFound { script_root: String },
 
     /// Multiple parse errors.

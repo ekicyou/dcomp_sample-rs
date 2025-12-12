@@ -141,8 +141,8 @@ fn test_dic_directory_not_found_error() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let temp_path = temp_dir.path().canonicalize().unwrap();
 
-    // Create main.rune but no dic/ directory
-    std::fs::write(temp_path.join("main.rune"), "pub fn main() {}").unwrap();
+    // Create main.rn but no dic/ directory
+    std::fs::write(temp_path.join("main.rn"), "pub fn main() {}").unwrap();
 
     let persistence_path = get_test_persistence_path();
     let result = PastaEngine::new(&temp_path, &persistence_path);
@@ -169,7 +169,7 @@ fn test_main_rune_not_found_error() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let temp_path = temp_dir.path().canonicalize().unwrap();
 
-    // Create dic/ directory but no main.rune
+    // Create dic/ directory but no main.rn
     std::fs::create_dir(temp_path.join("dic")).unwrap();
 
     let persistence_path = get_test_persistence_path();
@@ -177,7 +177,7 @@ fn test_main_rune_not_found_error() {
 
     assert!(
         result.is_err(),
-        "Should return error when main.rune is missing"
+        "Should return error when main.rn is missing"
     );
 
     if let Err(e) = result {

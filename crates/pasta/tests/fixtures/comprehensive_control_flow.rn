@@ -1,0 +1,153 @@
+pub mod メイン_1 {
+    use super::{さくら, うにゅう};
+    
+    pub fn __start__(ctx) {
+        ctx.pasta.add_words("場所", ["東京", "大阪"]);
+        ctx.pasta.commit_words();
+        
+        ctx.var.カウンタ = 10;
+        
+        ctx.actor = さくら;
+        yield #{ type: "Actor", actor: ctx.actor };
+        for a in __word_挨拶__(ctx, []) { yield a; }
+        yield #{ type: "Talk", text: "！" };
+
+        ctx.actor = うにゅう;
+        yield #{ type: "Actor", actor: ctx.actor };
+        for a in __word_ローカル関数__(ctx, ["はろー"]) { yield a; }
+
+        for a in __call_自己紹介__(ctx, []) { yield a; }
+
+        ctx.var.カウンタ = 1;
+
+        for a in __call_カウント表示__(ctx, [ctx.var.カウンタ]) { yield a; }
+
+        for a in __jump_会話分岐__(ctx, []) { yield a; }
+    }
+    
+    fn __word_挨拶__(ctx, args) {
+        for value in ctx.pasta.word(ctx, "挨拶", args) {
+            yield value;
+        }
+    }
+    
+    fn __word_ローカル関数__(ctx, args) {
+        for value in ローカル関数(ctx, args) {
+            yield value;
+        }
+    }
+    
+    fn __call_自己紹介__(ctx, args) {
+        for value in 自己紹介(ctx) {
+            yield value;
+        }
+    }
+    
+    fn __call_カウント表示__(ctx, args) {
+        for value in カウント表示(ctx, args) {
+            yield value;
+        }
+    }
+    
+    fn __jump_会話分岐__(ctx, args) {
+        for value in 会話分岐_1(ctx) {
+            yield value;
+        }
+    }
+    
+    fn __call_趣味紹介__(ctx, args) {
+        for value in 趣味紹介(ctx) {
+            yield value;
+        }
+    }
+    
+    fn __jump_別の話題__(ctx, args) {
+        for value in 別の話題_1(ctx) {
+            yield value;
+        }
+    }
+    
+    fn __word_場所__(ctx, args) {
+        for value in ctx.pasta.word(ctx, "場所", args) {
+            yield value;
+        }
+    }
+    
+    fn __word_天気__(ctx, args) {
+        for value in ctx.pasta.word(ctx, "天気", args) {
+            yield value;
+        }
+    }
+    
+    pub fn 自己紹介(ctx) {
+        ctx.actor = さくら;
+        yield #{ type: "Actor", actor: ctx.actor };
+        yield #{ type: "Talk", text: "私はさくらです。" };
+        
+        ctx.actor = うにゅう;
+        yield #{ type: "Actor", actor: ctx.actor };
+        yield #{ type: "Talk", text: "僕はうにゅうだよ。" };
+        
+        for a in __call_趣味紹介__(ctx, []) {
+            yield a;
+        }
+    }
+    
+    pub fn 趣味紹介(ctx) {
+        ctx.actor = さくら;
+        yield #{ type: "Actor", actor: ctx.actor };
+        yield #{ type: "Talk", text: "私の趣味は読書です。" };
+        
+        ctx.actor = うにゅう;
+        yield #{ type: "Actor", actor: ctx.actor };
+        yield #{ type: "Talk", text: "僕はゲームが好き。" };
+    }
+    
+    pub fn カウント表示(ctx, args) {
+        let 値 = args[0];
+        
+        ctx.actor = さくら;
+        yield #{ type: "Actor", actor: ctx.actor };
+        yield #{ type: "Talk", text: `カウンターは${値}です。` };
+    }
+    
+    pub fn 会話分岐_1(ctx) {
+        ctx.actor = さくら;
+        yield #{ type: "Actor", actor: ctx.actor };
+        
+        for a in __word_場所__(ctx, []) {
+            yield a;
+        }
+        yield #{ type: "Talk", text: "の天気は" };
+        
+        for a in __word_天気__(ctx, []) {
+            yield a;
+        }
+        yield #{ type: "Talk", text: "だね。" };
+        
+        ctx.actor = うにゅう;
+        yield #{ type: "Actor", actor: ctx.actor };
+        yield #{ type: "Talk", text: "そうだね。" };
+        
+        for a in __jump_別の話題__(ctx, []) {
+            yield a;
+        }
+    }
+    
+    pub fn 別の話題_1(ctx) {
+        ctx.actor = さくら;
+        yield #{ type: "Actor", actor: ctx.actor };
+        yield #{ type: "Talk", text: "ところで、明日は何する？" };
+        
+        ctx.actor = うにゅう;
+        yield #{ type: "Actor", actor: ctx.actor };
+        yield #{ type: "Talk", text: "まだ決めてないなぁ。" };
+    }
+
+    pub fn ローカル関数(ctx, args) {
+        let メッセージ = args[0];
+        ctx.actor = super::うにゅう;
+        yield #{ type: "Actor", actor: ctx.actor };
+        yield #{ type: "Talk", text: `ローカル関数が呼ばれました: ${メッセージ}` };
+    }
+}

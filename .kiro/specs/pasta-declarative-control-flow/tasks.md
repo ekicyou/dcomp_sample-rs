@@ -9,12 +9,39 @@
 
 ---
 
+## 🎯 必達条件（Critical Success Criteria）
+
+**本タスクリスト完了時に以下が必ず達成されること：**
+
+### 1. `comprehensive_control_flow.pasta` → `comprehensive_control_flow.rn` トランスパイル成功
+
+- ✅ `crates/pasta/tests/fixtures/comprehensive_control_flow.pasta` を正しくトランスパイル
+- ✅ 期待される `comprehensive_control_flow.rn` と一致する出力を生成
+- ✅ 包括的なトランスパイルテストが合格（`assert_eq!` で厳密一致）
+
+### 2. P0範囲の完全実装
+
+- ✅ モジュール構造生成（グローバルラベル → `pub mod ラベル名_番号`）
+- ✅ `__start__`関数生成
+- ✅ ローカルラベル関数の親モジュール内配置
+- ✅ call/jump文の for-loop + yield パターン生成
+- ✅ `mod pasta {}` と `label_selector()` 生成
+- ✅ 完全一致ラベル解決（`pasta_stdlib::select_label_to_id`）
+- ✅ 単語展開、変数代入、発言者切り替えの正しい生成
+- ✅ Runeブロックの適切な配置
+
+### 3. P0 Validation Criteria（9項目）すべて合格
+
+（詳細は本ドキュメント末尾の Validation Criteria セクション参照）
+
+---
+
 ## Task List
 
 ### Phase 1: テストファースト基盤構築
 
-- [ ] 1. 包括的なリファレンス実装とテストスイート作成
-- [ ] 1.1 包括的なPasta DSLサンプルファイル作成
+- [x] 1. 包括的なリファレンス実装とテストスイート作成
+- [x] 1.1 包括的なPasta DSLサンプルファイル作成
   - グローバルラベル定義とローカルラベル定義を含む
   - call文（引数なし、引数あり）とjump文を含む
   - ロングジャンプ構文（`＞＊グローバルーローカル`）を含む
@@ -27,7 +54,7 @@
   - ファイル配置: `crates/pasta/tests/fixtures/comprehensive_control_flow_simple.pasta`
   - _Requirements: 7.1, 7.2_
 
-- [ ] 1.2 期待されるRune出力ファイル作成
+- [x] 1.2 期待されるRune出力ファイル作成
   - 要件5の出力例（リファレンス実装）に厳密に準拠
   - モジュール構造: グローバルラベル → `pub mod ラベル名_番号`
   - `__start__`関数: グローバルラベルの最初のスコープを関数化
@@ -35,10 +62,10 @@
   - call/jump文: for-loop + yieldパターン（`for a in pasta::call(...) { yield a; }`）
   - `mod pasta {}`: Pass 2で生成される予約関数群（`jump`, `call`, `label_selector`）
   - 引数配列の正確な生成
-  - ファイル配置: `crates/pasta/tests/fixtures/comprehensive_control_flow_simple.expected.rune`
+  - ファイル配置: `crates/pasta/tests/fixtures/comprehensive_control_flow_simple.expected.rn`
   - _Requirements: 7.3, 7.4, 5.1, 5.2, 5.3, 5.4, 5.7, 5.8, 5.9_
 
-- [ ] 1.3 包括的なトランスパイルテスト作成
+- [x] 1.3 包括的なトランスパイルテスト作成
   - トランスパイル結果と期待出力を厳密比較（`assert_eq!`）
   - モジュール構造の正確性を検証
   - `__start__`関数生成を検証
@@ -68,17 +95,27 @@
   - 連番管理ロジックを検証（P0: 常に`_1`）
   - _Requirements: 5.2, 5.3, 5.4_
 
-- [ ] 3. 2パストランスパイラー統合
-- [ ] 3.1 既存Transpiler::transpile()のリファクタリング
-  - 既存インターフェース維持（`pub fn transpile(&self, ast: &PastaFile) -> Result<String>`）
-  - 内部で2パス実行: `transpile_pass1()` → `transpile_pass2()`
-  - Pass 1とPass 2を`pub(crate)`メソッドとして分離（ユニットテスト用）
-  - LabelRegistryを内部で生成・管理
+- [ ] 3. 2パストランスパイラー統合（Writeトレイト対応）
+- [ ] 3.1 Transpilerインターフェースのリファクタリング
+  - **主要インターフェース**:
+    - `pub fn transpile_pass1<W: Write>(file: &PastaFile, registry: &mut LabelRegistry, writer: &mut W)`
+    - `pub fn transpile_pass2<W: Write>(registry: &LabelRegistry, writer: &mut W)`
+  - **テスト用便利メソッド**: `#[doc(hidden)] pub fn transpile_to_string(file: &PastaFile) -> Result<String>`
+    - **注意**: 本番コードでは使用しない（複数ファイル非対応）
+    - 単体テスト専用の便利関数
+  - Pass 1は複数回呼び出し可能（各PastaFileごとにregistryに蓄積）
+  - Pass 2は全ファイル処理後に1回のみ呼び出し
+  - **重要**: Pass 1とPass 2は文字列生成のみ、Runeコンパイルは最後に1回
+  - キャッシュ機能の基盤（オプショナル）: `persistence_root/cache/pass1/`
   - _Requirements: 5.1, 5.2_
 
 - [ ] 3.2 (P) 2パストランスパイラー統合テスト
+  - Writeトレイトへの出力を検証（String, File, Vecなど）
+  - 複数PastaFileの処理を検証（Pass 1を複数回呼び出し）
+  - Pass 1出力のみの検証テスト追加
+  - Pass 2出力（mod pasta）の検証テスト追加
+  - transpile_to_string()の単体テスト（テスト専用）
   - 既存テストケースが引き続きパスすることを確認
-  - 出力Runeコードの期待値を新仕様に合わせて更新
   - _Requirements: 5.1, 5.2_
 
 ### Phase 3: Pass 1 - モジュール構造生成
@@ -211,7 +248,9 @@
 
 ### Phase 8: 最終検証
 
-- [ ] 11. 包括的統合テスト実行
+- [ ] 11. 包括的統合テスト実行（必達条件の検証）
+  - **🎯 必達**: `comprehensive_control_flow.pasta` → `comprehensive_control_flow.rn` トランスパイル成功
+  - **🎯 必達**: トランスパイル結果が期待される `.rn` ファイルと厳密一致（`assert_eq!`）
   - comprehensive_control_flow_simple.pastaのトランスパイルテストがパスすることを確認
   - 既存の全テストケースがパスすることを確認
   - 04_control_flow.pastaが正常に実行できることを確認
@@ -222,20 +261,47 @@
 
 ## Notes
 
+### トランスパイラー設計の重要原則
+
+**2パス戦略の正確な意味**:
+1. **Pass 1**: Pasta AST → 中間Runeコード（文字列生成、Runeコンパイルなし）
+2. **Pass 2**: 中間Runeコード + `mod pasta {}` → 最終Runeコード（文字列生成）
+3. **Runeコンパイル**: 最終Runeコード → 実行可能Unit（**1回のみ実行**）
+
+**Writeトレイト対応**:
+- トランスパイラーは`std::io::Write`を出力先として受け取る
+- 柔軟な出力先: String（メモリ）、File、Stderr、Vec<u8>など
+- キャッシュ機能: `persistence_root/cache/pass1/`, `persistence_root/cache/final/`
+
+**なぜRuneを2回コンパイルしないのか**:
+- Runeは**コンパイル時に全ての名前を解決**する必要がある
+- Pass 1で`pasta::call()`を参照するが、`mod pasta {}`はPass 2で生成
+- したがって、Pass 1の出力は**不完全なRuneコード**（コンパイル不可）
+- Pass 2で完全なRuneコードを生成してから、初めてコンパイル可能になる
+
+**Runeのファイル拡張子とモジュール解決**:
+- 正式な拡張子：`.rn`（`.rune`は誤り）
+- `main.rn`のディレクトリが`mod foo;`の解決基準
+- トランスパイル済みコードは`Source::new("entry", code)`で仮想登録（ファイルパスなし）
+- 設計：トランスパイル済みコードは自己完結、main.rnから参照不要
+
 ### P0/P1スコープ分離
 
 **P0範囲（本タスクリスト）**:
 - 簡易ラベル解決（完全一致のみ）
 - 同名ラベルなし（全ラベルに`_1`連番）
 - 静的HashMap使用の`select_label_to_id`実装
-- comprehensive_control_flow_simple.pastaによる検証
+- **🎯 comprehensive_control_flow.pasta の完全サポート（必達）**
+- comprehensive_control_flow_simple.pasta による基礎検証
+
+**重要**: `comprehensive_control_flow.pasta` は同名ラベルを使用していないため、P0実装で完全にサポート可能。
 
 **P1範囲（別仕様: pasta-label-resolution-runtime）**:
 - 前方一致検索
-- ランダム選択
+- **同名ラベル**のランダム選択
 - 属性フィルタリング
 - キャッシュベース消化
-- comprehensive_control_flow.pasta（完全版）による検証
+- 同名ラベルを使用する高度なテストケース
 
 ### 並列実行可能タスク
 

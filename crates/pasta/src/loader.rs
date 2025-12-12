@@ -1,7 +1,7 @@
 //! Directory-based script loader for Pasta engine.
 //!
 //! This module provides functionality to load Pasta scripts from a directory structure
-//! following the areka-P0-script-engine convention (dic/ + main.rune).
+//! following the areka-P0-script-engine convention (dic/ + main.rn).
 
 use crate::error::{ParseErrorInfo, PastaError, Result};
 use std::path::{Path, PathBuf};
@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 ///
 /// Loads scripts from a directory following the areka-P0-script-engine convention:
 /// - `dic/` subdirectory containing `.pasta` files
-/// - `main.rune` file at the script root
+/// - `main.rn` file at the script root
 pub struct DirectoryLoader;
 
 /// Loaded files from a script directory.
@@ -20,7 +20,7 @@ pub struct LoadedFiles {
     pub script_root: PathBuf,
     /// Collected .pasta file paths.
     pub pasta_files: Vec<PathBuf>,
-    /// main.rune file path.
+    /// main.rn file path.
     pub main_rune: PathBuf,
 }
 
@@ -39,13 +39,13 @@ impl DirectoryLoader {
     /// - Path is not a directory (`NotADirectory`)
     /// - Read permission is denied (`PermissionDenied`)
     /// - `dic/` directory not found (`DicDirectoryNotFound`)
-    /// - `main.rune` not found (`MainRuneNotFound`)
+    /// - `main.rn` not found (`MainRuneNotFound`)
     pub fn load(script_root: &Path) -> Result<LoadedFiles> {
         // Step 1: Validate directory
         Self::validate_directory(script_root)?;
 
-        // Step 2: Check main.rune and dic/ directory
-        Self::check_main_rune(script_root)?;
+        // Step 2: Check main.rn and dic/ directory
+        Self::check_main_rn(script_root)?;
         let dic_path = script_root.join("dic");
         if !dic_path.exists() {
             return Err(PastaError::DicDirectoryNotFound {
@@ -64,7 +64,7 @@ impl DirectoryLoader {
             );
         }
 
-        let main_rune = script_root.join("main.rune");
+        let main_rune = script_root.join("main.rn");
 
         Ok(LoadedFiles {
             script_root: script_root.to_path_buf(),
@@ -104,9 +104,9 @@ impl DirectoryLoader {
         Ok(())
     }
 
-    /// Check if main.rune exists.
-    fn check_main_rune(script_root: &Path) -> Result<()> {
-        let main_rune_path = script_root.join("main.rune");
+    /// Check if main.rn exists.
+    fn check_main_rn(script_root: &Path) -> Result<()> {
+        let main_rune_path = script_root.join("main.rn");
         if !main_rune_path.exists() {
             return Err(PastaError::MainRuneNotFound {
                 script_root: script_root.display().to_string(),

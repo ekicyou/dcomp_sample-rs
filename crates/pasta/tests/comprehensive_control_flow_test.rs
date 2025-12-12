@@ -1,6 +1,6 @@
 //! 包括的なコントロールフロー参照実装のテスト
 //!
-//! このテストは comprehensive_control_flow.rune が正しくコンパイルされることを確認します。
+//! このテストは comprehensive_control_flow.rn が正しくコンパイルされることを確認します。
 //! トランスパイラー実装の目標ベースラインとして機能します。
 
 use rune::Context;
@@ -10,8 +10,8 @@ fn test_comprehensive_control_flow_reference() -> Result<(), Box<dyn std::error:
     // Runeコンテキストを準備
     let context = Context::with_default_modules()?;
 
-    // comprehensive_control_flow.runeファイルを読み込み
-    let rune_code = include_str!("fixtures/comprehensive_control_flow.rune");
+    // comprehensive_control_flow.rnファイルを読み込み
+    let rune_code = include_str!("fixtures/comprehensive_control_flow.rn");
 
     // コンパイル準備
     let mut sources = rune::Sources::new();
@@ -21,7 +21,7 @@ fn test_comprehensive_control_flow_reference() -> Result<(), Box<dyn std::error:
     let _unit = rune::prepare(&mut sources).with_context(&context).build()?;
 
     // ✅ コンパイル成功 = Runeコードの構文が正しい
-    println!("✅ comprehensive_control_flow.rune: コンパイル成功");
+    println!("✅ comprehensive_control_flow.rn: コンパイル成功");
     println!("   ✓ 全ての関数定義が正しく認識されました");
     println!("   ✓ ctx引数を持つgenerator関数の構文が正しいです");
     println!("   ✓ for value in gen(ctx) {{ yield value; }} パターンが正しいです");
@@ -54,7 +54,7 @@ fn test_comprehensive_control_flow_reference() -> Result<(), Box<dyn std::error:
 
 #[test]
 fn verify_reference_implementation_structure() -> Result<(), Box<dyn std::error::Error>> {
-    let rune_code = include_str!("fixtures/comprehensive_control_flow.rune");
+    let rune_code = include_str!("fixtures/comprehensive_control_flow.rn");
 
     // 必須パターンの存在確認
     assert!(

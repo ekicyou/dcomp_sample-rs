@@ -67,14 +67,14 @@ impl PastaEngine {
     /// Create a new PastaEngine from script and persistence directories.
     ///
     /// This is the primary constructor for production use. It loads all `.pasta` files
-    /// from the `dic/` directory and `main.rune` from the script root, following
+    /// from the `dic/` directory and `main.rn` from the script root, following
     /// areka-P0-script-engine conventions.
     ///
     /// # Directory Structure
     ///
     /// ```text
     /// script_root/
-    ///   ├── main.rune           # Rune entry point
+    ///   ├── main.rn             # Rune entry point
     ///   └── dic/                # Pasta scripts
     ///       ├── *.pasta
     ///       └── ...
@@ -96,7 +96,7 @@ impl PastaEngine {
     /// - Script directory does not exist or is not readable
     /// - Persistence directory does not exist
     /// - `dic/` directory not found
-    /// - `main.rune` not found
+    /// - `main.rn` not found
     /// - Parse errors in `.pasta` files
     /// - Rune compilation fails
     ///
@@ -191,7 +191,7 @@ impl PastaEngine {
             eprintln!("===============================================");
         }
 
-        // Step 6: Build Rune sources with main.rune
+        // Step 6: Build Rune sources with main.rn
         let mut context = Context::with_default_modules().map_err(|e| {
             PastaError::RuneRuntimeError(format!("Failed to create Rune context: {}", e))
         })?;
@@ -218,13 +218,13 @@ impl PastaEngine {
             })?)
             .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to insert source: {}", e)))?;
 
-        // Add main.rune
+        // Add main.rn
         sources
             .insert(rune::Source::from_path(&loaded.main_rune).map_err(|e| {
-                PastaError::RuneRuntimeError(format!("Failed to load main.rune: {}", e))
+                PastaError::RuneRuntimeError(format!("Failed to load main.rn: {}", e))
             })?)
             .map_err(|e| {
-                PastaError::RuneRuntimeError(format!("Failed to insert main.rune: {}", e))
+                PastaError::RuneRuntimeError(format!("Failed to insert main.rn: {}", e))
             })?;
 
         // Step 7: Compile Rune code

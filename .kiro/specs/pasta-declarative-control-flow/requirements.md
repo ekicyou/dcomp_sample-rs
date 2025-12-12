@@ -137,6 +137,15 @@
 
 #### Acceptance Criteria
 
+**トランスパイラー実装の前提条件**:
+- トランスパイラーは`std::io::Write`トレイトを出力先として受け取る
+- Pass 1は複数回呼び出し可能（各PastaFileごとに処理、LabelRegistryに蓄積）
+- Pass 2は全ファイル処理後に1回のみ呼び出し
+- Pass 1とPass 2は文字列生成のみ行い、Runeコンパイルは実行しない
+- Runeコンパイルは最終的な完全なRuneコード文字列に対して1回のみ実行される
+- 出力先はメモリ（String）、ファイル、標準出力など柔軟に対応可能
+- `transpile_to_string()`便利メソッドはテスト専用（本番コードでは使用しない）
+
 1. When トランスパイラーがグローバル単語定義（`＠グローバル単語：値1 値2`）を処理する, the Pasta Transpiler shall `add_words("単語名", ["値1", "値2"])`をモジュール外部で生成する
 2. When トランスパイラーがグローバルラベルを処理する, the Pasta Transpiler shall `pub mod ラベル名_番号 { ... }`形式のRuneモジュールを生成する
 3. When トランスパイラーがグローバルラベルの最初のスコープ（ローカルラベルなし）を処理する, the Pasta Transpiler shall `pub fn __start__(ctx) { ... }`関数を生成する
@@ -282,7 +291,7 @@ pub mod pasta {
 
 **Objective:** 開発者として、実装初期段階で仕様の理解齟齬を防ぐため、包括的なコントロールフロー実装例とトランスパイル結果の参照実装を用意する。
 
-**Background**: トランスパイラー実装時の最初のタスクとして、期待されるトランスパイル結果を`.rune`ファイルとして定義し、包括的なテストスイートを設定することで、実装の早い段階で勘違いの発生を抑制する。
+**Background**: トランスパイラー実装時の最初のタスクとして、期待されるトランスパイル結果を`.rn`ファイルとして定義し、包括的なテストスイートを設定することで、実装の早い段階で勘違いの発生を抑制する。
 
 #### Acceptance Criteria
 
@@ -300,9 +309,9 @@ pub mod pasta {
    - 発言者切り替え
    - 単語定義（グローバル/ローカル）
    - 単語展開（`＠単語名`）
-3. When 開発者が`comprehensive_control_flow.pasta`を作成する, the Development Team shall 期待されるトランスパイル結果を`comprehensive_control_flow.rune`として作成する
-4. When 開発者が`comprehensive_control_flow.rune`を作成する, the Development Team shall Requirement 5のトランスパイラー出力仕様（モジュール構造、`__start__`関数、while-let-yield、ctx構造）に厳密に準拠した内容とする
-5. When 開発者が実装タスクを開始する, the Development Team shall `comprehensive_control_flow.pasta`のトランスパイル結果と`comprehensive_control_flow.rune`を比較する包括的なユニットテストを作成する
+3. When 開発者が`comprehensive_control_flow.pasta`を作成する, the Development Team shall 期待されるトランスパイル結果を`comprehensive_control_flow.rn`として作成する
+4. When 開発者が`comprehensive_control_flow.rn`を作成する, the Development Team shall Requirement 5のトランスパイラー出力仕様（モジュール構造、`__start__`関数、while-let-yield、ctx構造）に厳密に準拠した内容とする
+5. When 開発者が実装タスクを開始する, the Development Team shall `comprehensive_control_flow.pasta`のトランスパイル結果と`comprehensive_control_flow.rn`を比較する包括的なユニットテストを作成する
 6. When 開発者がユニットテストを作成する, the Development Team shall 以下の検証項目を含める:
    - モジュール構造の正確性（グローバルラベル → `pub mod`）
    - `__start__`関数の生成
@@ -315,7 +324,7 @@ pub mod pasta {
 #### ファイル配置
 
 - **入力**: `crates/pasta/tests/fixtures/comprehensive_control_flow.pasta`
-- **期待出力**: `crates/pasta/tests/fixtures/comprehensive_control_flow.expected.rune`
+- **期待出力**: `crates/pasta/tests/fixtures/comprehensive_control_flow.expected.rn`
 - **テストコード**: `crates/pasta/tests/transpiler_comprehensive_test.rs`
 
 ### Requirement 8: ラベル検索装置と単語検索装置のVM初期化
@@ -384,8 +393,8 @@ ctx.pasta (Rune VM内)
 
 以下の基準をすべて満たす場合、本仕様の実装は成功とみなされる：
 
-1. `comprehensive_control_flow.pasta`が全機能を網羅し、期待される`.rune`ファイルとの照合テストがパスする
-2. `comprehensive_control_flow.rune`が要件5のトランスパイラー出力仕様に厳密に準拠している
+1. `comprehensive_control_flow.pasta`が全機能を網羅し、期待される`.rn`ファイルとの照合テストがパスする
+2. `comprehensive_control_flow.rn`が要件5のトランスパイラー出力仕様に厳密に準拠している
 3. 包括的なユニットテスト（`transpiler_comprehensive_test.rs`）が全てパスする
 4. `04_control_flow.pasta`に命令型構文（`＠if`, `＠elif`, `＠else`, `＠while`）が含まれない
 5. call/jump/ラベル定義を使用した宣言的なコントロールフロー例が実装されている

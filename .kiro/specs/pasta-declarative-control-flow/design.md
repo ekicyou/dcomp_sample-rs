@@ -29,6 +29,7 @@
 - Pastaランタイムメソッド（call/jump/word）の実装
 - 検索装置（LabelTable/WordDictionary）のSend trait実装とVM初期化
 - 包括的なテストスイートの作成
+- **🎯 必達**: `comprehensive_control_flow.pasta` → `comprehensive_control_flow.rn` トランスパイル成功
 
 ### Non-Goals
 - 命令型制御構文（`if/elif/else/while`）のサポート
@@ -66,32 +67,116 @@
 
 **2パストランスパイラー統合戦略**:
 
-既存の`Transpiler::transpile()`インターフェースを維持し、内部実装を2パスに変更します。
+トランスパイラーは**Writeトレイト**を出力先として受け取り、柔軟な出力先対応を実現します。
 
 ```rust
 impl Transpiler {
-    // 既存インターフェースを維持（外部API）
-    pub fn transpile(&self, ast: &PastaFile) -> Result<String, PastaError> {
-        // 内部で2パス実行
+    /// Pass 1: Label collection and module generation
+    /// 
+    /// この関数は複数回呼び出し可能。各PastaFileのラベルがregistryに蓄積される。
+    /// 
+    /// # 使用方法
+    /// 
+    /// 複数のPastaFileを処理する場合：
+    /// ```rust
+    /// let mut registry = LabelRegistry::new();
+    /// let mut output = String::new();
+    /// 
+    /// for pasta_file in &files {
+    ///     let ast = parse_file(pasta_file)?;
+    ///     Transpiler::transpile_pass1(&ast, &mut registry, &mut output)?;
+    /// }
+    /// 
+    /// Transpiler::transpile_pass2(&registry, &mut output)?;
+    /// ```
+    pub fn transpile_pass1<W: std::io::Write>(
+        file: &PastaFile, 
+        registry: &mut LabelRegistry,
+        writer: &mut W
+    ) -> Result<(), PastaError>;
+    
+    /// Pass 2: Reserved function generation (mod pasta {})
+    /// 
+    /// Pass 1を全ファイルに対して実行した後、最後に1回だけ呼び出す。
+    pub fn transpile_pass2<W: std::io::Write>(
+        registry: &LabelRegistry, 
+        writer: &mut W
+    ) -> Result<(), PastaError>;
+    
+    /// Convenience method: Single-file transpile (for testing only)
+    /// 
+    /// **注意**: 本番コードでは使用しないこと。
+    /// 複数ファイルを処理する場合は、transpile_pass1()を複数回呼び出し、
+    /// 最後にtranspile_pass2()を1回呼び出すこと。
+    /// 
+    /// このメソッドは単体テスト用の便利関数として提供される。
+    #[doc(hidden)]
+    pub fn transpile_to_string(file: &PastaFile) -> Result<String, PastaError> {
+        let mut output = String::new();
         let mut registry = LabelRegistry::new();
-        let pass1_code = self.transpile_pass1(ast, &mut registry)?;
-        let final_code = self.transpile_pass2(&registry, pass1_code)?;
-        Ok(final_code)
+        Self::transpile_pass1(file, &mut registry, &mut output)?;
+        Self::transpile_pass2(&registry, &mut output)?;
+        Ok(output)
+    }
+}
+```
+
+**使用例**:
+
+```rust
+// 本番コード: 複数のPastaFileを処理
+pub fn new(script_root: impl AsRef<Path>) -> Result<Self> {
+    let loaded = DirectoryLoader::load(script_root)?;
+    let mut registry = LabelRegistry::new();
+    let mut output = String::new();
+    
+    // Pass 1: 各pastaファイルを処理
+    for pasta_file in &loaded.pasta_files {
+        let ast = parse_file(pasta_file)?;
+        Transpiler::transpile_pass1(&ast, &mut registry, &mut output)?;
     }
     
-    // 内部メソッド（テスト用にpub(crate)）
-    pub(crate) fn transpile_pass1(
-        &self, 
-        ast: &PastaFile, 
-        registry: &mut LabelRegistry
-    ) -> Result<String, PastaError>;
+    // Pass 2: mod pasta {} を生成（1回のみ）
+    Transpiler::transpile_pass2(&registry, &mut output)?;
     
-    pub(crate) fn transpile_pass2(
-        &self, 
-        registry: &LabelRegistry, 
-        pass1_code: String
-    ) -> Result<String, PastaError>;
+    // Runeコンパイル（1回のみ）
+    let unit = rune::prepare(&output).build()?;
+    Ok(Self { unit, ... })
 }
+
+// オプション: Pass 1の出力を個別ファイルにキャッシュ
+let cache_dir = persistence_root.join("cache/pass1");
+std::fs::create_dir_all(&cache_dir)?;
+
+for pasta_file in &loaded.pasta_files {
+    let ast = parse_file(pasta_file)?;
+    let file_name = pasta_file.file_stem().unwrap();
+    let cache_path = cache_dir.join(format!("{}.rn", file_name));
+    let mut cache_file = File::create(&cache_path)?;
+    
+    Transpiler::transpile_pass1(&ast, &mut registry, &mut cache_file)?;
+}
+
+// テストコード: 単一ファイルの便利メソッド
+#[test]
+fn test_simple_transpile() {
+    let ast = parse_str("＊会話\n　さくら：こんにちは", "test.pasta")?;
+    let output = Transpiler::transpile_to_string(&ast)?;
+    assert!(output.contains("pub mod 会話_1"));
+}
+```
+
+**キャッシュディレクトリ構造**:
+
+```
+persistence_root/
+  ├── save/           # セーブデータ
+  ├── cache/          # トランスパイルキャッシュ（オプショナル）
+  │   ├── pass1/      # Pass 1出力（デバッグ用）
+  │   │   └── transpiled.rn
+  │   └── final/      # 最終Runeコード
+  │       └── transpiled.rn
+  └── logs/           # エラーログ
 ```
 
 **メリット**:
@@ -102,37 +187,50 @@ impl Transpiler {
 
 ### Architecture Pattern & Boundary Map
 
-**選択パターン**: 責任分離アーキテクチャ + 2パストランスパイラー
+**選択パターン**: 責任分離アーキテクチャ + 2パストランスパイラー（Write出力）
 
 ```mermaid
 graph TB
-    subgraph "Phase 1: 初期トランスパイル"
-        AST[Pasta AST] --> P1[初期トランスパイラー]
-        P1 --> IC[中間Runeコード]
+    subgraph "Transpile Pass 1: ラベル収集 + モジュール生成"
+        AST[Pasta AST] --> P1[Pass 1 Transpiler]
+        P1 --> LR[LabelRegistry構築]
+        P1 --> W1[Writer<br/>中間Runeコード出力]
     end
     
-    subgraph "Phase 2: メタデータ取得"
-        IC --> RC1[Runeコンパイル]
-        RC1 --> UNIT1[Rune Unit]
-        UNIT1 --> META[メタデータ抽出]
-        META --> FS[関数セット]
+    subgraph "Transpile Pass 2: mod pasta {} 生成"
+        LR --> P2[Pass 2 Transpiler]
+        P2 --> W2[Writer<br/>mod pasta 追加]
     end
     
-    subgraph "Phase 3: 予約関数解決"
-        FS --> P2[予約関数生成]
-        IC --> P2
-        P2 --> FC[最終Runeコード]
+    subgraph "出力先（柔軟）"
+        W1 --> OUT[String | File | Stderr]
+        W2 --> OUT
+    end
+    
+    subgraph "Rune Compile（1回のみ）"
+        OUT --> RC[Runeコンパイラー]
+        RC --> UNIT[Rune Unit]
     end
     
     subgraph "Runtime"
-        FC --> RC2[Runeコンパイル]
-        RC2 --> UNIT2[最終Unit]
-        UNIT2 --> VM[Rune VM]
+        UNIT --> VM[Rune VM]
         CTX[ctx.pasta] --> VM
         LT[LabelTable] --> CTX
         WD[WordDictionary] --> CTX
     end
 ```
+
+**重要な設計原則**:
+1. **Pass 1とPass 2は文字列生成のみ**（Runeコンパイルなし）
+2. **Runeコンパイルは最後に1回だけ**（全ての名前が解決済み）
+3. **Writeトレイトで柔軟な出力先対応**（メモリ/ファイル/標準出力）
+
+**Runeモジュール解決の仕組み**:
+- Runeの正式な拡張子は `.rn`（`.rune`ではない）
+- `mod foo;` は `foo.rn` または `foo/mod.rn` を自動ロード
+- パス解決の基準：`Source::from_path()`で読み込んだファイルのディレクトリ
+- `Source::new("entry", code)` は仮想ソース（ファイルパスなし、mod解決不可）
+- 現在の設計：トランスパイル済みコードは完全に自己完結（mod解決不要）
 
 **責任分離**:
 - **PastaEngine（Rust側）**: ラベル名→Rune関数パス解決のみ
@@ -1155,23 +1253,32 @@ for event in pasta::jump(ctx, "ラベル", #{}, []) {
 
 ### P0 (最小動作セット) Validation
 
-1. ✅ トランスパイラーがグローバルラベルを`pub mod`形式で生成
-2. ✅ `__start__`関数が正しく生成される
-3. ✅ ローカルラベルが親モジュール内に配置される
-4. ✅ call/jumpがfor-loop + yieldパターンで生成される
-5. ✅ `pasta_stdlib::select_label_to_id()`が完全一致検索で動作する
-6. ✅ `comprehensive_control_flow_simple.pasta`（同名ラベルなし）のテストがパス
-7. ✅ LabelTable/WordDictionaryがSend traitを実装
-8. ✅ VM::send_execute()で検索装置がVM内に送り込まれる
-9. ✅ 既存テストの修正後に全テストがパス
+**🎯 必達条件**:
+1. ✅ **`comprehensive_control_flow.pasta` → `comprehensive_control_flow.rn` トランスパイル成功**
+2. ✅ **トランスパイル結果が期待される `.rn` ファイルと厳密一致**
 
-### P1 (完全実装) Validation
+**P0実装の検証項目**:
+3. ✅ トランスパイラーがグローバルラベルを`pub mod`形式で生成
+4. ✅ `__start__`関数が正しく生成される
+5. ✅ ローカルラベルが親モジュール内に配置される
+6. ✅ call/jumpがfor-loop + yieldパターンで生成される
+7. ✅ `pasta_stdlib::select_label_to_id()`が完全一致検索で動作する
+8. ✅ `comprehensive_control_flow_simple.pasta`（基礎テスト）がパス
+9. ✅ LabelTable/WordDictionaryがSend traitを実装
+10. ✅ VM::send_execute()で検索装置がVM内に送り込まれる
+11. ✅ 既存テストの修正後に全テストがパス
+
+### P1 (拡張機能) Validation
 
 **注**: P1機能は別仕様 [pasta-label-resolution-runtime](../pasta-label-resolution-runtime/requirements.md) で定義される。
 
+**P0とP1の違い**:
+- **P0**: 完全一致ラベル解決、同名ラベルなし → `comprehensive_control_flow.pasta` を完全サポート
+- **P1**: 前方一致検索、**同名ラベル**のランダム選択、キャッシュベース消化
+
+**P1検証項目**:
 1. ✅ 前方一致検索が正しく動作する
-2. ✅ ランダム選択が正しく動作する
+2. ✅ **同名ラベル**のランダム選択が正しく動作する
 3. ✅ 属性フィルタリングが正しく動作する
 4. ✅ キャッシュベース消化が正しく動作する
-5. ✅ `comprehensive_control_flow.pasta`（完全版）のテストがパス
-5. ✅ `comprehensive_control_flow.pasta`（完全版）のテストがパス
+5. ✅ 同名ラベルを使用する高度なテストケースがパス
