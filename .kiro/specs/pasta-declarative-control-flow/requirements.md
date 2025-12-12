@@ -246,7 +246,7 @@ pub mod pasta {
     }
     
     pub fn label_selector(label, filters) {
-        let id = select_label_to_id(label, filters);
+        let id = pasta_stdlib::select_label_to_id(label, filters);
         match id {
             1 => crate::会話_1::__start__,
             2 => crate::会話_1::コール１_1,
@@ -255,10 +255,6 @@ pub mod pasta {
             5 => crate::会話_1::ジャンプ_2,
             _ => panic!("Unknown label id: {}", id),
         }
-    }
-    
-    pub fn select_label_to_id(label, filters) {
-        pasta_stdlib::select_label_to_id(label, filters)
     }
     
     pub fn word(ctx, keyword, args) {

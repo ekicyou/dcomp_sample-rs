@@ -64,6 +64,42 @@
 - `LabelTable`: ラベル解決、前方一致選択、キャッシュベース消化
 - `RandomSelector`: ランダム選択ロジック
 
+**2パストランスパイラー統合戦略**:
+
+既存の`Transpiler::transpile()`インターフェースを維持し、内部実装を2パスに変更します。
+
+```rust
+impl Transpiler {
+    // 既存インターフェースを維持（外部API）
+    pub fn transpile(&self, ast: &PastaFile) -> Result<String, PastaError> {
+        // 内部で2パス実行
+        let mut registry = LabelRegistry::new();
+        let pass1_code = self.transpile_pass1(ast, &mut registry)?;
+        let final_code = self.transpile_pass2(&registry, pass1_code)?;
+        Ok(final_code)
+    }
+    
+    // 内部メソッド（テスト用にpub(crate)）
+    pub(crate) fn transpile_pass1(
+        &self, 
+        ast: &PastaFile, 
+        registry: &mut LabelRegistry
+    ) -> Result<String, PastaError>;
+    
+    pub(crate) fn transpile_pass2(
+        &self, 
+        registry: &LabelRegistry, 
+        pass1_code: String
+    ) -> Result<String, PastaError>;
+}
+```
+
+**メリット**:
+- 既存の呼び出し元（`PastaEngine::new()`等）を変更不要
+- テストケースは出力Runeコードの期待値を更新するだけで対応可能
+- 段階的な移行が可能（Pass 1実装 → Pass 2実装）
+- 内部メソッドを`pub(crate)`とすることでユニットテストが可能
+
 ### Architecture Pattern & Boundary Map
 
 **選択パターン**: 責任分離アーキテクチャ + 2パストランスパイラー
@@ -460,16 +496,12 @@ pub mod pasta {
     }
     
     pub fn label_selector(label, filters) {
-        let id = select_label_to_id(label, filters);
+        let id = pasta_stdlib::select_label_to_id(label, filters);
         match id {
             1 => crate::会話_1::__start__,
             2 => crate::会話_1::選択肢_1,
             ...
         }
-    }
-    
-    pub fn select_label_to_id(label, filters) {
-        pasta_stdlib::select_label_to_id(label, filters)
     }
 }
 ```
@@ -1002,30 +1034,13 @@ pub mod pasta {
     
     // ラベルから関数ポインタを返す
     pub fn label_selector(label, filters) {
-        let id = select_label_to_id(label, filters);
+        let id = pasta_stdlib::select_label_to_id(label, filters);
         match id {
             1 => crate::会話_1::__start__,
             2 => crate::会話_1::コール１_1,
             3 => crate::会話_1::ジャンプ_1,
             _ => panic!("Unknown label id: {}", id),
         }
-    }
-    
-    // Rust側で実装するrust関数を呼び出す転送関数
-    pub fn select_label_to_id(label, filters) {
-        pasta_stdlib::select_label_to_id(label, filters)
-    }
-}
-```
-    
-    fn __jump_ジャンプ__(ctx, args) {
-        // 静的解決: ローカル関数が存在
-        for a in ジャンプ_1(ctx) { yield a; }
-    }
-    
-    fn __word_場所__(ctx, args) {
-        // 静的解決不可: 辞書単語
-        for a in ctx.pasta.word(ctx, "場所", args) { yield a; }
     }
 }
 ```
