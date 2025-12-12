@@ -143,13 +143,13 @@
 4. When トランスパイラーがローカルラベルを処理する, the Pasta Transpiler shall `pub fn ラベル名_番号(ctx) { ... }`関数を生成する
 5. When トランスパイラーがローカル単語定義（`＠単語：値1 値2`）を処理する, the Pasta Transpiler shall `ctx.pasta.add_words("単語", ["値1", "値2"]); ctx.pasta.commit_words();`を生成する
 6. When トランスパイラーが変数代入（`＄変数＝値`）を処理する, the Pasta Transpiler shall `ctx.save.変数 = 値;`を生成する
-7. When トランスパイラーが引数なしcall文（`＞ラベル名`）を処理する, the Pasta Transpiler shall `while let Some(a) = ctx.pasta.call(ctx, "親ラベル", "ラベル名", []).next() { yield a; }`を生成する
-8. When トランスパイラーが引数付きcall文（`＞ラベル名（引数1　引数2）`）を処理する, the Pasta Transpiler shall `while let Some(a) = ctx.pasta.call(ctx, "親ラベル", "ラベル名", [引数1, 引数2]).next() { yield a; }`を生成する
-9. When トランスパイラーがjump文（`？ラベル名`）を処理する, the Pasta Transpiler shall call文と同様に引数配列を第4引数として渡す（`ctx.pasta.jump(ctx, "親ラベル", "ラベル名", [...])`）
+7. When トランスパイラーが引数なしcall文（`＞ラベル名`）を処理する, the Pasta Transpiler shall `for a in pasta::call(ctx, "検索キー", #{}, []) { yield a; }`を生成する（検索キー: グローバル="会話", ローカル="会話_1::選択肢"）
+8. When トランスパイラーが引数付きcall文（`＞ラベル名（引数1　引数2）`）を処理する, the Pasta Transpiler shall `for a in pasta::call(ctx, "検索キー", #{}, [引数1, 引数2]) { yield a; }`を生成する
+9. When トランスパイラーがjump文（`？ラベル名`）を処理する, the Pasta Transpiler shall call文と同様の形式で`pasta::jump(ctx, "検索キー", #{}, [...])`を生成する
 10. When トランスパイラーが発言者切り替え（`さくら：`）を処理する, the Pasta Transpiler shall `ctx.actor = さくら; yield Actor("さくら");`を生成する（`さくら`はグローバル変数として定義された発言者オブジェクト）
 11. When トランスパイラーがローカルラベル関数を生成する, the Pasta Transpiler shall すべての関数を`pub fn 名前(ctx)`シグネチャで統一し、引数は`ctx.args`経由でアクセスする
-12. When Pastaランタイムが`ctx.pasta.call()`を実装する, the Pasta Runtime shall 呼び出し前に`ctx.args`を保存し、呼び出し後に復元することで、`ctx`の汚染を最小化する
-13. When Pastaランタイムが`ctx.pasta.call()`または`ctx.pasta.jump()`を実装する, the Pasta Runtime shall 呼び出し先関数からyieldされるイベントを`yield event`で透過的に伝播し、結果を配列に蓄積してはならない（ジェネレーター関数の本質）
+12. When Pastaランタイムが`pasta::call()`を実装する, the Pasta Runtime shall `ctx.args`を第4引数として渡し、呼び出し先関数で`ctx.args`経由でアクセスできるようにする
+13. When Pastaランタイムが`pasta::call()`または`pasta::jump()`を実装する, the Pasta Runtime shall 呼び出し先関数からyieldされるイベントを`yield event`で透過的に伝播し、結果を配列に蓄積してはならない（ジェネレーター関数の本質）
 
 #### 出力例（リファレンス実装）
 
@@ -181,7 +181,7 @@
 
 **期待される出力 Rune:**
 ```rune
-use pasta::add_words;
+use pasta_stdlib::*;
 
 add_words("グローバル単語", ["はろー", "わーるど"]);
 
@@ -190,9 +190,9 @@ pub mod 会話_1 {
         ctx.pasta.add_words("場所", ["東京", "大阪"]); 
         ctx.pasta.commit_words();
         ctx.save.変数 = 10;
-        while let Some(a) = ctx.pasta.call(ctx, "会話_1", "コール１", []).next() { yield a; }
-        while let Some(a) = ctx.pasta.call(ctx, "会話_1", "コール２", []).next() { yield a; }
-        while let Some(a) = ctx.pasta.jump(ctx, "会話_1", "ジャンプ", []).next() { yield a; }
+        for a in pasta::call(ctx, "会話_1::コール１", #{}, []) { yield a; }
+        for a in pasta::call(ctx, "会話_1::コール２", #{}, []) { yield a; }
+        for a in pasta::jump(ctx, "会話_1::ジャンプ", #{}, []) { yield a; }
     }
 
     pub fn ジャンプ_1(ctx) {
@@ -210,7 +210,7 @@ pub mod 会話_1 {
         // さくら：＠場所　では雨が降ってる。
         ctx.actor = さくら;
         yield Actor("さくら");
-        while let Some(a) = ctx.pasta.word(ctx, "場所").next() { yield a; };
+        for a in pasta::word(ctx, "場所", []) { yield a; }
         yield Talk("では雨が降ってる。");
         // うにゅう：ぐんにょり。
         ctx.actor = うにゅう;
@@ -218,18 +218,52 @@ pub mod 会話_1 {
         yield Talk("ぐんにょり。");
     }
 
-    pub fn コール１(ctx) {  
+    pub fn コール１_1(ctx) {  
         // さくら：はろー。
         ctx.actor = さくら;
         yield Actor("さくら");
         yield Talk("はろー。");
     }
 
-    pub fn コール２(ctx) {
+    pub fn コール２_1(ctx) {
         // うにゅう：わーるど。
         ctx.actor = うにゅう;
         yield Actor("うにゅう");
         yield Talk("わーるど。");
+    }
+}
+
+// Pass 2で生成
+pub mod pasta {
+    pub fn jump(ctx, label, filters, args) {
+        let label_fn = label_selector(label, filters);
+        for event in label_fn(ctx, args) { yield event; }
+    }
+    
+    pub fn call(ctx, label, filters, args) {
+        let label_fn = label_selector(label, filters);
+        for event in label_fn(ctx, args) { yield event; }
+    }
+    
+    pub fn label_selector(label, filters) {
+        let id = select_label_to_id(label, filters);
+        match id {
+            1 => crate::会話_1::__start__,
+            2 => crate::会話_1::コール１_1,
+            3 => crate::会話_1::コール２_1,
+            4 => crate::会話_1::ジャンプ_1,
+            5 => crate::会話_1::ジャンプ_2,
+            _ => panic!("Unknown label id: {}", id),
+        }
+    }
+    
+    pub fn select_label_to_id(label, filters) {
+        pasta_stdlib::select_label_to_id(label, filters)
+    }
+    
+    pub fn word(ctx, keyword, args) {
+        // P1実装対象
+        yield Talk("[単語未実装]");
     }
 }
 ```
