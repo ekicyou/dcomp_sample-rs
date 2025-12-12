@@ -711,15 +711,42 @@ pub fn create_module() -> Result<Module, ContextError> {
     // 既存関数...
     module.function("emit_text", emit_text).build()?;
     
-    // P0: ラベルID解決関数を登録
+    // P0: ラベルID解決関数を登録（完全一致のみ）
     module.function("select_label_to_id", select_label_to_id_p0).build()?;
     
     Ok(module)
 }
 
-// P0実装: 固定値を返す
-pub fn select_label_to_id_p0(_label: String, _filters: Value) -> i64 {
-    1
+// P0実装: 完全一致検索（静的HashMap使用）
+pub fn select_label_to_id_p0(label: String, _filters: Value) -> Result<i64, String> {
+    // トランスパイル時に生成されたLABEL_TABLEを参照
+    // 例: static LABEL_TABLE: phf::Map<&str, usize> = ...
+    match LABEL_TABLE.get(label.as_str()) {
+        Some(&id) => Ok(id as i64),
+        None => Err(format!("ラベル '{}' が見つかりません", label)),
+    }
+}
+```
+
+**P1実装 (関連仕様: [pasta-label-resolution-runtime](../pasta-label-resolution-runtime/requirements.md))**:
+```rust
+// P1: 前方一致、フィルタ、ランダム選択
+// Arc<Mutex<LabelTable>>をキャプチャしたクロージャを登録
+pub fn create_module_p1(
+    label_table: Arc<Mutex<LabelTable>>,
+) -> Result<Module, ContextError> {
+    let mut module = Module::with_crate("pasta_stdlib")?;
+    
+    let lt = Arc::clone(&label_table);
+    module.function("select_label_to_id", move |label: String, filters: Value| -> Result<i64, String> {
+        // 前方一致検索 + フィルタ + ランダム選択
+        lt.lock().unwrap()
+            .resolve_label_id(&label, &parse_filters(filters))
+            .map(|id| id as i64)
+            .map_err(|e| e.to_string())
+    }).build()?;
+    
+    Ok(module)
 }
 ```
 
@@ -1126,13 +1153,25 @@ for event in pasta::jump(ctx, "ラベル", #{}, []) {
 
 以下の基準をすべて満たす場合、本設計の実装は成功とみなされる：
 
+### P0 (最小動作セット) Validation
+
 1. ✅ トランスパイラーがグローバルラベルを`pub mod`形式で生成
 2. ✅ `__start__`関数が正しく生成される
 3. ✅ ローカルラベルが親モジュール内に配置される
-4. ✅ call/jump/wordが予約関数パターンで生成される
-5. ✅ 2パス解決が正しく動作する（静的/ランタイム判定）
-6. ✅ while-let-yieldパターンでイベントが正しく伝播する
+4. ✅ call/jumpがfor-loop + yieldパターンで生成される
+5. ✅ `pasta_stdlib::select_label_to_id()`が完全一致検索で動作する
+6. ✅ `comprehensive_control_flow_simple.pasta`（同名ラベルなし）のテストがパス
 7. ✅ LabelTable/WordDictionaryがSend traitを実装
 8. ✅ VM::send_execute()で検索装置がVM内に送り込まれる
-9. ✅ `comprehensive_control_flow.pasta`のテストがパス
-10. ✅ 既存テストの修正後に全テストがパス
+9. ✅ 既存テストの修正後に全テストがパス
+
+### P1 (完全実装) Validation
+
+**注**: P1機能は別仕様 [pasta-label-resolution-runtime](../pasta-label-resolution-runtime/requirements.md) で定義される。
+
+1. ✅ 前方一致検索が正しく動作する
+2. ✅ ランダム選択が正しく動作する
+3. ✅ 属性フィルタリングが正しく動作する
+4. ✅ キャッシュベース消化が正しく動作する
+5. ✅ `comprehensive_control_flow.pasta`（完全版）のテストがパス
+5. ✅ `comprehensive_control_flow.pasta`（完全版）のテストがパス
