@@ -706,28 +706,55 @@ classDiagram
 ### Logical Data Model
 
 **Entity: TranspileLabelInfo**
-- name: String (ラベル名)
-- id: usize (ユニークID)
-- scope: LabelScope (Global/Local)
+- name: String (完全修飾ラベル名: グローバル="会話", ローカル="会話::選択肢")
+- id: usize (ユニークID、自動採番)
 - attributes: HashMap<String, String> (フィルタ属性)
-- fn_path: String (完全修飾Rune関数パス)
-- parent: Option<String> (親ラベル名、ローカルのみ)
+- fn_path: String (相対Rune関数パス: "会話_1::__start__", "会話_1::選択肢_1")
 
-**Entity: LabelInfo**
-- name: String (ラベル名)
+**具体例:**
+```rust
+// グローバルラベル「＊会話」
+TranspileLabelInfo {
+    name: "会話".to_string(),
+    id: 0,
+    attributes: HashMap::new(),
+    fn_path: "会話_1::__start__".to_string(),  // crate:: なし
+}
+
+// ローカルラベル「ー選択肢」（1つ目）
+TranspileLabelInfo {
+    name: "会話::選択肢".to_string(),          // 親を含む完全修飾名
+    id: 1,
+    attributes: { "場所" => "東京" },
+    fn_path: "会話_1::選択肢_1".to_string(),   // crate:: なし
+}
+
+// ローカルラベル「ー選択肢」（2つ目）
+TranspileLabelInfo {
+    name: "会話::選択肢".to_string(),          // 同じ名前
+    id: 2,
+    attributes: { "場所" => "大阪" },
+    fn_path: "会話_1::選択肢_2".to_string(),   // 連番で区別
+}
+```
+
+**Entity: LabelInfo (Runtime, P1実装対象)**
+- name: String (完全修飾ラベル名)
 - id: usize (ユニークID、match文用)
-- scope: LabelScope (Global/Local)
 - attributes: HashMap<String, String> (フィルタ属性)
-- fn_path: String (完全修飾Rune関数パス)
-- parent: Option<String> (親ラベル名、ローカルのみ)
+- fn_path: String (相対Rune関数パス)
 
 **Consistency & Integrity**
-- ラベル名の一意性は連番で保証（`ラベル_1`, `ラベル_2`）
+- fn_pathの一意性は連番で保証（`会話_1`, `選択肢_1`, `選択肢_2`）
 - IDはトランスパイル時に自動採番（0から連番）
+- nameは完全修飾名（親を含む）で保持
+- fn_pathは相対パス（`crate::`なし）で保持
+  - match文生成時: `format!("crate::{}", fn_path)` でフルパス化
+  - Trie登録時: fn_pathをそのままキーとして使用（メモリ効率）
 - 検索キー生成規則:
-  - グローバル: `"会話"` → `"会話::__start__"`
-  - ローカル: `"会話_1::選択肢"` → 前方一致検索
-- ラベル解決はP1実装（transpiler P0は関数ポインタ生成まで）
+  - グローバル: `"会話"` → `"会話_1::__start__"` で前方一致
+  - ローカル: `"会話_1::選択肢"` → `"会話_1::選択肢"` で前方一致
+- ラベル解決（Trie検索）はP1実装（transpiler P0はmatch文生成まで）
 
 ---
 
