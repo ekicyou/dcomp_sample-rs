@@ -876,8 +876,17 @@ pub mod 会話_1 {
         ctx.pasta.add_words("場所", ["東京", "大阪"]); 
         ctx.pasta.commit_words();
         ctx.save.変数 = 10;
-        for a in __call_コール１__(ctx, []) { yield a; }
-        for a in __jump_ジャンプ__(ctx, []) { yield a; }
+        
+        // Call: 実行後に次の行に進む
+        for event in pasta::label_selector("会話_1::コール１", #{}) {
+            yield event;
+        }
+        
+        // Jump: 実行後に次の行に進む（Callと同じコード）
+        // ※ DSL構文でJump後にステートメントを書けないだけ
+        for event in pasta::label_selector("会話_1::ジャンプ", #{}) {
+            yield event;
+        }
     }
 
     pub fn コール１_1(ctx) {
@@ -889,15 +898,26 @@ pub mod 会話_1 {
     pub fn ジャンプ_1(ctx) {
         ctx.actor = さくら;
         yield Actor("さくら");
-        for a in __word_場所__(ctx, []) { yield a; }
+        for event in pasta::label_selector("場所", #{}) {
+            yield event;
+        }
         yield Talk("では雨が降ってる。");
     }
-    
-    // 予約関数（2パス目で生成）
-    fn __call_コール１__(ctx, args) {
-        // 静的解決: ローカル関数が存在
-        for a in コール１_1(ctx) { yield a; }
+}
+
+// Pass 2で生成
+ pub mod pasta {
+    pub fn label_selector(label, filters) {
+        let id = 1; // 仮実装
+        match id {
+            1 => crate::会話_1::__start__,
+            2 => crate::会話_1::コール１_1,
+            3 => crate::会話_1::ジャンプ_1,
+            _ => panic!("Unknown label id: {}", id),
+        }
     }
+}
+```
     
     fn __jump_ジャンプ__(ctx, args) {
         // 静的解決: ローカル関数が存在
@@ -910,6 +930,49 @@ pub mod 会話_1 {
     }
 }
 ```
+
+### 予約パターン命名規則
+
+| パターン | 用途 | 例 |
+|----------|------|----- |
+| `＊` | グローバルラベル | `＊会話` |
+| `ー` | ローカルラベル | `ー選択肢` |
+| `＄` | 永続化変数 | `＄score＝100` |
+| `＠` | 単語辞書 | `＠場所：東京　大阪` |
+| `＆` | 属性 | `＆time：morning` |
+| `＞` | Call | `＞ラベル` |
+| `？` | Jump | `？ラベル` |
+
+### Call と Jump の違い
+
+**生成されるRuneコード**: 同じ
+```rune
+// Call も Jump も同じ while-let-yield パターン
+for event in pasta::label_selector("ラベル", #{}) {
+    yield event;
+}
+```
+
+**DSL構文制約**: 異なる
+
+| 構文 | Call後 | Jump後 |
+|------|--------|--------|
+| 許可される次の行 | 任意のステートメント | ローカルラベル行、Runeブロック、グローバルラベル行、コメント行のみ |
+
+**例**:
+```pasta
+＊会話
+　＞サブルーチン    ← Call
+　さくら：戻ってきた！  ← OK: Call後は任意のステートメント可
+　
+　？別の会話        ← Jump
+　さくら：これは実行されない  ← NG: Jump後にステートメントを書けない
+　
+　// コメントはOK
+　ー次のラベル  ← OK: ローカルラベル行
+```
+
+**パーサー責任**: Jump後の不正なステートメントを検出してエラーまたは警告を出力
 
 ### 予約パターン命名規則
 
