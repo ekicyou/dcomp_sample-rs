@@ -253,7 +253,9 @@ pub mod pasta {
             3 => crate::会話_1::コール２_1,
             4 => crate::会話_1::ジャンプ_1,
             5 => crate::会話_1::ジャンプ_2,
-            _ => panic!("Unknown label id: {}", id),
+            _ => |ctx, args| {
+                yield Error(`ラベルID ${id} が見つかりませんでした。`);
+            },
         }
     }
     

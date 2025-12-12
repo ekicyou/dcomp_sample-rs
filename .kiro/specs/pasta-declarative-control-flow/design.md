@@ -377,7 +377,7 @@ impl ModuleCodegen {
     fn generate_module(
         output: &mut String,
         label: &LabelDef,
-        label_info: &TranspileLabelInfo,
+        label_info: &LabelInfo,  // TranspileLabelInfo → LabelInfo
         registry: &LabelRegistry,
     ) -> Result<(), PastaError>;
     
@@ -392,7 +392,7 @@ impl ModuleCodegen {
     fn generate_local_function(
         output: &mut String,
         label: &LabelDef,
-        label_info: &TranspileLabelInfo,
+        label_info: &LabelInfo,  // TranspileLabelInfo → LabelInfo
         registry: &LabelRegistry,
     ) -> Result<(), PastaError>;
 }
@@ -501,6 +501,9 @@ pub mod pasta {
             1 => crate::会話_1::__start__,
             2 => crate::会話_1::選択肢_1,
             ...
+            _ => |ctx, args| {
+                yield Error(`ラベルID ${id} が見つかりませんでした。`);
+            },
         }
     }
 }
@@ -570,14 +573,14 @@ pub mod pasta {
 ```rune
 pub mod pasta {
     pub fn label_selector(label, filters) {
-        // TODO: resolve_label_id実装後に有効化
-        // let id = resolve_label_id(label, filters)?;
-        let id = 1; // 仮実装
+        let id = pasta_stdlib::select_label_to_id(label, filters);
         match id {
             1 => crate::会話_1::__start__,
             2 => crate::会話_1::選択肢_1,
             3 => crate::会話_1::選択肢_2,
-            _ => panic!("Unknown label id: {}", id),
+            _ => |ctx, args| {
+                yield Error(`ラベルID ${id} が見つかりませんでした。`);
+            },
         }
     }
 }
@@ -611,32 +614,32 @@ pub mod pasta {
 - Concurrency: Send実装必須、内部は単一スレッドアクセス想定
 
 ```rust
-/// ラベル情報（ランタイム用）
-#[derive(Debug, Clone)]
-pub struct LabelInfo {
-    pub id: usize,        // トランスパイル時に割り当てられたID
-    pub name: String,
-    pub scope: LabelScope,
-    pub attributes: HashMap<String, String>,
-    pub fn_path: String,  // 完全修飾関数パス (crate::会話_1::__start__)
-    pub parent: Option<String>,
-}
-
 /// ラベルテーブル（Send実装必須）
 pub struct LabelTable {
-    labels: HashMap<String, Vec<LabelInfo>>,
+    labels: HashMap<String, Vec<LabelInfo>>,  // nameでインデックス化
     history: HashMap<String, Vec<usize>>,
     random_selector: Box<dyn RandomSelector>,
 }
 
 impl LabelTable {
-    pub fn new(random_selector: Box<dyn RandomSelector>) -> Self;
-    
-    /// LabelRegistryから構築
-    pub fn from_registry(
-        registry: &LabelRegistry,
+    /// LabelRegistryから構築（所有権移譲）
+    pub fn new(
+        labels: Vec<LabelInfo>,
         random_selector: Box<dyn RandomSelector>,
-    ) -> Self;
+    ) -> Self {
+        // Vec<LabelInfo>をHashMapに変換
+        let mut label_map = HashMap::new();
+        for info in labels {
+            label_map.entry(info.name.clone())
+                .or_insert_with(Vec::new)
+                .push(info);
+        }
+        Self {
+            labels: label_map,
+            history: HashMap::new(),
+            random_selector,
+        }
+    }
     
     /// ラベル解決（実装は後回し: P1）
     pub fn resolve_label_id(
@@ -897,7 +900,7 @@ classDiagram
 
 ### Logical Data Model
 
-**Entity: TranspileLabelInfo**
+**Entity: LabelInfo (トランスパイル時もランタイム時も同一)**
 - name: String (完全修飾ラベル名: グローバル="会話", ローカル="会話::選択肢")
 - id: usize (ユニークID、自動採番)
 - attributes: HashMap<String, String> (フィルタ属性)
@@ -906,7 +909,7 @@ classDiagram
 **具体例:**
 ```rust
 // グローバルラベル「＊会話」
-TranspileLabelInfo {
+LabelInfo {
     name: "会話".to_string(),
     id: 0,
     attributes: HashMap::new(),
@@ -914,7 +917,7 @@ TranspileLabelInfo {
 }
 
 // ローカルラベル「ー選択肢」（1つ目、属性 ＆time：morning）
-TranspileLabelInfo {
+LabelInfo {
     name: "会話::選択肢".to_string(),          // 親を含む完全修飾名
     id: 1,
     attributes: { "time" => "morning" },      // ＆time：morning から収集
@@ -922,19 +925,13 @@ TranspileLabelInfo {
 }
 
 // ローカルラベル「ー選択肢」（2つ目、属性 ＆time：evening）
-TranspileLabelInfo {
+LabelInfo {
     name: "会話::選択肢".to_string(),          // 同じ名前
     id: 2,
     attributes: { "time" => "evening" },      // ＆time：evening から収集
     fn_path: "会話_1::選択肢_2".to_string(),   // 連番で区別
 }
 ```
-
-**Entity: LabelInfo (Runtime, P1実装対象)**
-- name: String (完全修飾ラベル名)
-- id: usize (ユニークID、match文用)
-- attributes: HashMap<String, String> (フィルタ属性)
-- fn_path: String (相対Rune関数パス)
 
 **Consistency & Integrity**
 - fn_pathの一意性は連番で保証（`会話_1`, `選択肢_1`, `選択肢_2`）
@@ -1039,7 +1036,9 @@ pub mod pasta {
             1 => crate::会話_1::__start__,
             2 => crate::会話_1::コール１_1,
             3 => crate::会話_1::ジャンプ_1,
-            _ => panic!("Unknown label id: {}", id),
+            _ => |ctx, args| {
+                yield Error(`ラベルID ${id} が見つかりませんでした。`);
+            },
         }
     }
 }
