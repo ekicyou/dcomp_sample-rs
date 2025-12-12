@@ -125,29 +125,39 @@ graph TB
 
 ### トランスパイルフロー（2パス）
 
+**Pass 1**: DSL → Rune モジュール構造変換
+- LabelRegistry でラベル収集とID割り当て
+- `mod グローバル { fn ローカル }` 構造生成
+- `pasta::label_selector()` 呼び出しを生成（実装なし）
+
+**Pass 2**: `mod pasta {}` 生成
+- LabelRegistry から ID→関数パス マッピング取得
+- `pasta::label_selector()` の match 文生成
+- Pass 1 の出力に `mod pasta {}` を追加
+
 ```mermaid
 sequenceDiagram
     participant CLI as Pasta CLI
-    participant T1 as Initial Transpiler
-    participant RC as Rune Compiler
-    participant META as Metadata Extractor
-    participant T2 as Resolver
+    participant P1 as Pass 1: ModuleCodegen
+    participant REG as LabelRegistry
+    participant P2 as Pass 2: ReservedFunctionResolver
     
-    CLI->>T1: Pasta AST
-    T1->>T1: 予約関数呼び出し生成
-    Note over T1: ＠単語 → __word_単語__()
-    Note over T1: ＞ラベル → __call_ラベル__()
-    T1-->>RC: 中間Runeコード
+    CLI->>P1: Pasta AST
+    P1->>REG: ラベル登録・ID割り当て
+    REG-->>P1: TranspileLabelInfo
     
-    RC->>RC: コンパイル
-    RC-->>META: Rune Unit
+    P1->>P1: mod 生成
+    Note over P1: mod 会話_1 { fn __start__ }
+    Note over P1: pasta::label_selector() 呼び出し
+    P1-->>P2: 中間Runeコード
     
-    META->>META: unit.debug_info()
-    META-->>T2: 関数セット
+    P2->>REG: ID→fn_path マッピング取得
+    REG-->>P2: 全ラベル情報
     
-    T2->>T2: 各予約関数の本体生成
-    Note over T2: 関数存在 → 直接呼び出し
-    Note over T2: 関数なし → ctx.pasta.*()
+    P2->>P2: mod pasta {} 生成
+    Note over P2: match id {<br/>  1 => crate::会話_1::__start__,<br/>  ...
+    Note over P2: }
+    P2-->>CLI: 最終Runeコード
     T2-->>CLI: 最終Runeコード
 ```
 
@@ -426,17 +436,17 @@ impl ContextCodegen {
 
 | Field | Detail |
 |-------|--------|
-| Intent | pasta::label_selectorの本体を生成（2-pass目） |
+| Intent | mod pasta{} 生成（Pass 2） |
 | Requirements | 5.7, 5.8, 5.9 |
 
 **Responsibilities & Constraints**
-- 1-pass目で生成された空実装を置換
+- Pass 1 の中間Runeコードに `mod pasta {}` を追加
 - LabelRegistryからID→関数パスマッピングを取得
-- match文を生成（全ラベルのID分岐）
-- resolve_label_id呼び出しコードを生成（仮実装付き）
+- `label_selector()` 関数のmatch文を生成（全ラベルのID分岐）
+- 仮実装: `let id = 1;` 固定（P1で resolve_label_id 実装）
 
 **Dependencies**
-- Inbound: Transpiler::resolve_reserved_functions() — 2パス目呼び出し (P0)
+- Inbound: Transpiler::transpile_pass2() — Pass 2呼び出し (P0)
 - Inbound: LabelRegistry — ID→パスマッピング (P0)
 
 **Contracts**: Service [x]
@@ -446,16 +456,52 @@ impl ContextCodegen {
 pub struct ReservedFunctionResolver;
 
 impl ReservedFunctionResolver {
-    /// label_selectorの本体を生成
-    fn generate_label_selector_body(
+    /// mod pasta {} を生成してPass 1コードに追加
+    fn generate_pasta_module(
         registry: &LabelRegistry,
     ) -> String;
     
-    /// 予約関数を解決して最終コードを生成
-    fn resolve_label_selector(
-        intermediate_code: &str,
+    /// label_selector のmatch文を生成
+    fn generate_label_selector_match(
+        registry: &LabelRegistry,
+    ) -> String;
+    
+    /// Pass 2: 最終Runeコード生成
+    fn resolve(
+        pass1_code: &str,
         registry: &LabelRegistry,
     ) -> Result<String, PastaError>;
+}
+```
+
+##### 生成コード例（Pass 2出力）
+```rune
+// Pass 1 の mod 会話_1 {} はそのまま保持
+pub mod 会話_1 {
+    pub fn __start__(ctx) {
+        // pasta::label_selector() 呼び出しあり
+    }
+}
+
+// Pass 2 で追加
+pub mod pasta {
+    pub fn label_selector(label, filters) {
+        let id = 1; // 仮実装（P1で resolve_label_id 実装）
+        match id {
+            1 => crate::会話_1::__start__,
+            2 => crate::会話_1::選択肢_1,
+            3 => crate::会話_1::選択肢_2,
+            _ => panic!("Unknown label id: {}", id),
+        }
+    }
+}
+```
+
+**実装優先度**:
+- Phase 1 (P0): mod pasta{} 生成とmatch文
+- Phase 2 (P1): resolve_label_id 実装（別仕様: pasta-label-resolution-runtime）
+
+### Runtime Domain
 }
 ```
 
