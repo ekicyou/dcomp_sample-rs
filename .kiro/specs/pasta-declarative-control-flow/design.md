@@ -444,7 +444,7 @@ impl ContextCodegen {
 - LabelRegistryからID→関数パスマッピングを取得
 - `jump()`, `call()`, `label_selector()`, `select_label_to_id()` の4関数を生成
 - `label_selector()` 内のmatch文を生成（全ラベルのID分岐）
-- P0実装: `select_label_to_id()` は固定値 `1` を返す（P1で実装）
+- `select_label_to_id()` は `pasta_stdlib::select_label_to_id()` を呼び出す転送関数
 
 **生成される構造**:
 ```rune
@@ -469,7 +469,7 @@ pub mod pasta {
     }
     
     pub fn select_label_to_id(label, filters) {
-        1  // P0: 固定値
+        pasta_stdlib::select_label_to_id(label, filters)
     }
 }
 ```
@@ -653,6 +653,58 @@ pub struct WordDictionary {
 
 // Send実装
 unsafe impl Send for WordDictionary {}
+```
+
+#### PastaApi
+
+| Field | Detail |
+|-------|--------|
+| Intent | Rust関数をRuneに登録 |
+| Requirements | 5.10 |
+
+**Responsibilities & Constraints**
+- `pasta_stdlib::select_label_to_id()` をRuneに登録
+- P0実装: 常に `1` を返す
+- P1実装: LabelTableを使って実際のラベル解決 (別spec)
+
+**実装例**:
+```rust
+// stdlib/mod.rs
+pub fn create_module() -> Result<Module, ContextError> {
+    let mut module = Module::with_crate("pasta_stdlib")?;
+    
+    // 既存関数...
+    module.function("emit_text", emit_text).build()?;
+    
+    // P0: ラベルID解決関数を登録
+    module.function("select_label_to_id", select_label_to_id_p0).build()?;
+    
+    Ok(module)
+}
+
+// P0実装: 固定値を返す
+pub fn select_label_to_id_p0(_label: String, _filters: Value) -> i64 {
+    1
+}
+```
+
+**Dependencies**
+- Inbound: PastaEngine::build() — Contextにモジュール登録 (P0)
+- Outbound (P1): LabelTable — ラベル検索 (P1)
+
+**Contracts**: Service [x]
+
+##### Service Interface
+```rust
+// P0実装
+pub fn select_label_to_id_p0(label: String, filters: Value) -> i64;
+
+// P1実装 (将来)
+pub fn select_label_to_id_p1(
+    label: String,
+    filters: Value,
+    label_table: &LabelTable,
+) -> Result<i64, PastaError>;
 ```
 
 #### PastaApi
@@ -907,13 +959,13 @@ pub mod 会話_1 {
         ctx.save.変数 = 10;
         
         // Call: 実行後に次の行に進む
-        for event in pasta::label_selector("会話_1::コール１", #{}) {
+        for event in pasta::call(ctx, "会話_1::コール１", #{}, []) {
             yield event;
         }
         
         // Jump: 実行後に次の行に進む（Callと同じコード）
         // ※ DSL構文でJump後にステートメントを書けないだけ
-        for event in pasta::label_selector("会話_1::ジャンプ", #{}) {
+        for event in pasta::jump(ctx, "会話_1::ジャンプ", #{}, []) {
             yield event;
         }
     }
@@ -959,10 +1011,9 @@ pub mod pasta {
         }
     }
     
-    // Rust側で実装するrust関数。ラベルとfiltersから関数番号を返す。
-    // P0実装: 常に1を返す
+    // Rust側で実装するrust関数を呼び出す転送関数
     pub fn select_label_to_id(label, filters) {
-        1
+        pasta_stdlib::select_label_to_id(label, filters)
     }
 }
 ```
