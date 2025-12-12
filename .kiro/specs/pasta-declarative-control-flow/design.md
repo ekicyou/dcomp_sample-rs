@@ -754,19 +754,19 @@ TranspileLabelInfo {
     fn_path: "会話_1::__start__".to_string(),  // crate:: なし
 }
 
-// ローカルラベル「ー選択肢」（1つ目）
+// ローカルラベル「ー選択肢」（1つ目、属性 ＆time：morning）
 TranspileLabelInfo {
     name: "会話::選択肢".to_string(),          // 親を含む完全修飾名
     id: 1,
-    attributes: { "場所" => "東京" },
+    attributes: { "time" => "morning" },      // ＆time：morning から収集
     fn_path: "会話_1::選択肢_1".to_string(),   // crate:: なし
 }
 
-// ローカルラベル「ー選択肢」（2つ目）
+// ローカルラベル「ー選択肢」（2つ目、属性 ＆time：evening）
 TranspileLabelInfo {
     name: "会話::選択肢".to_string(),          // 同じ名前
     id: 2,
-    attributes: { "場所" => "大阪" },
+    attributes: { "time" => "evening" },      // ＆time：evening から収集
     fn_path: "会話_1::選択肢_2".to_string(),   // 連番で区別
 }
 ```
@@ -784,6 +784,11 @@ TranspileLabelInfo {
 - fn_pathは相対パス（`crate::`なし）で保持
   - match文生成時: `format!("crate::{}", fn_path)` でフルパス化
   - Trie登録時: fn_pathをそのままキーとして使用（メモリ効率）
+- 属性（attributes）:
+  - 構文: `＆属性名：値` (例: `＆time：morning`)
+  - 収集タイミング: Pass 1でAST解析時に収集
+  - スコープ: 直下のラベル（グローバル/ローカル）に付与
+  - 用途: フィルタリング条件（ランダム選択時の絞り込み、P1実装）
 - 検索キー生成規則:
   - グローバル: `"会話"` → `"会話_1::__start__"` で前方一致
   - ローカル: `"会話_1::選択肢"` → `"会話_1::選択肢"` で前方一致
@@ -800,12 +805,14 @@ TranspileLabelInfo {
 ＠グローバル単語：はろー　わーるど
 
 ＊会話
+　＆time：morning
 　＠場所：東京　大阪
 　＄変数＝１０
 　＞コール１
 　？ジャンプ
 
 　ーコール１
+　＆mood：happy
 　さくら：はろー。
 
 　ージャンプ
