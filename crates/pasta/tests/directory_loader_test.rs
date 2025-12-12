@@ -14,16 +14,16 @@ fn get_test_project_path() -> PathBuf {
 }
 
 fn get_test_persistence_path() -> PathBuf {
-    use tempfile::TempDir;
     use std::sync::Mutex;
     use std::sync::OnceLock;
-    
+    use tempfile::TempDir;
+
     static TEMP_DIR: OnceLock<Mutex<TempDir>> = OnceLock::new();
-    
+
     let temp_dir = TEMP_DIR.get_or_init(|| {
         Mutex::new(TempDir::new().expect("Failed to create temp dir for persistence"))
     });
-    
+
     temp_dir.lock().unwrap().path().to_path_buf()
 }
 
@@ -86,7 +86,8 @@ fn test_from_directory_success() {
 fn test_ignored_files_skipped() {
     let script_path = get_test_project_path();
     let persistence_path = get_test_persistence_path();
-    let engine = PastaEngine::new(&script_path, &persistence_path).expect("Engine should initialize");
+    let engine =
+        PastaEngine::new(&script_path, &persistence_path).expect("Engine should initialize");
 
     let all_labels = engine.list_labels();
 
@@ -194,7 +195,8 @@ fn test_main_rune_not_found_error() {
 fn test_multiple_labels_random_selection() {
     let script_path = get_test_project_path();
     let persistence_path = get_test_persistence_path();
-    let mut engine = PastaEngine::new(&script_path, &persistence_path).expect("Engine should initialize");
+    let mut engine =
+        PastaEngine::new(&script_path, &persistence_path).expect("Engine should initialize");
 
     // Execute the same label multiple times
     // With 3 definitions, at least one should be selected
@@ -216,7 +218,8 @@ fn test_multiple_labels_random_selection() {
 fn test_label_execution() {
     let script_path = get_test_project_path();
     let persistence_path = get_test_persistence_path();
-    let mut engine = PastaEngine::new(&script_path, &persistence_path).expect("Engine should initialize");
+    let mut engine =
+        PastaEngine::new(&script_path, &persistence_path).expect("Engine should initialize");
 
     // Execute a simple label
     let events = engine.execute_label("別れ").expect("Label should execute");

@@ -112,10 +112,7 @@ impl PastaEngine {
     /// )?;
     /// # Ok::<(), pasta::PastaError>(())
     /// ```
-    pub fn new(
-        script_root: impl AsRef<Path>,
-        persistence_root: impl AsRef<Path>,
-    ) -> Result<Self> {
+    pub fn new(script_root: impl AsRef<Path>, persistence_root: impl AsRef<Path>) -> Result<Self> {
         Self::with_random_selector(
             script_root,
             persistence_root,

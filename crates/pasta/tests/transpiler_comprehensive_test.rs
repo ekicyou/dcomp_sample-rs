@@ -8,14 +8,14 @@ use std::fs;
 #[test]
 fn test_comprehensive_control_flow_simple_transpile() {
     // Task 1.1で作成したPastaファイルを読み込み
-    let pasta_content = fs::read_to_string(
-        "tests/fixtures/comprehensive_control_flow_simple.pasta"
-    ).expect("Failed to read comprehensive_control_flow_simple.pasta");
+    let pasta_content =
+        fs::read_to_string("tests/fixtures/comprehensive_control_flow_simple.pasta")
+            .expect("Failed to read comprehensive_control_flow_simple.pasta");
 
     // Task 1.2で作成した期待されるRune出力を読み込み
-    let expected_rune = fs::read_to_string(
-        "tests/fixtures/comprehensive_control_flow_simple.expected.rn"
-    ).expect("Failed to read comprehensive_control_flow_simple.expected.rn");
+    let expected_rune =
+        fs::read_to_string("tests/fixtures/comprehensive_control_flow_simple.expected.rn")
+            .expect("Failed to read comprehensive_control_flow_simple.expected.rn");
 
     // パース
     let ast = parse_str(&pasta_content, "comprehensive_control_flow_simple.pasta")
@@ -109,11 +109,11 @@ fn test_comprehensive_control_flow_simple_transpile() {
         eprintln!("{}", normalized_expected);
         eprintln!("\n=== Normalized Actual ===");
         eprintln!("{}", normalized_actual);
-        
+
         // 差分を見やすくするために行ごとに比較
         let expected_lines: Vec<&str> = normalized_expected.lines().collect();
         let actual_lines: Vec<&str> = normalized_actual.lines().collect();
-        
+
         eprintln!("\n=== Line-by-line Diff ===");
         let max_lines = expected_lines.len().max(actual_lines.len());
         for i in 0..max_lines {
