@@ -233,40 +233,73 @@ sequenceDiagram
 #[derive(Debug, Clone)]
 pub struct TranspileLabelInfo {
     pub id: usize,                    // 一意なID（match文用）
-    pub name: String,                 // 元のラベル名
-    pub scope: LabelScope,            // Global or Local
-    pub parent: Option<String>,       // 親ラベル名
-    pub fn_path: String,              // crate::会話_1::__start__
-    pub counter: usize,               // 同名ラベルの連番
+    pub name: String,                 // 完全修飾ラベル名（"会話" or "会話::選択肢"）
+    pub attributes: HashMap<String, String>,  // フィルタ属性
+    pub fn_path: String,              // 相対関数パス（"会話_1::__start__", "会話_1::選択肢_1"）
 }
 
 pub struct LabelRegistry {
     labels: Vec<TranspileLabelInfo>,
     next_id: usize,
-    global_counters: HashMap<String, usize>,
-    local_counters: HashMap<(String, String), usize>,
+    // 統一カウンター: (親名, 子名 or "__start__") → 連番
+    counters: HashMap<(String, String), usize>,
 }
 
 impl LabelRegistry {
     pub fn new() -> Self;
     
     /// グローバルラベルを登録してID割り当て
-    pub fn register_global(&mut self, name: &str) -> TranspileLabelInfo;
+    /// キー: (name, "__start__")
+    /// fn_path: "{name}_{counter}::__start__"
+    pub fn register_global(
+        &mut self,
+        name: &str,
+        attributes: HashMap<String, String>,
+    ) -> TranspileLabelInfo;
     
     /// ローカルラベルを登録してID割り当て
+    /// キー: (parent_name, local_name)
+    /// fn_path: "{parent_name}_{parent_counter}::{local_name}_{counter}"
+    /// 注: 同じlocal_nameの連番はグローバルで管理（親をまたいで増加）
     pub fn register_local(
         &mut self,
         parent_name: &str,
-        parent_counter: usize,
         local_name: &str,
+        attributes: HashMap<String, String>,
     ) -> TranspileLabelInfo;
+    
+    /// 親の現在の連番を取得
+    fn get_parent_counter(&self, parent_name: &str) -> usize;
     
     /// 全ラベル情報を取得（label_selector生成用）
     pub fn all_labels(&self) -> &[TranspileLabelInfo];
     
-    /// LabelTable構築（ランタイム用）
-    pub fn build_label_table(&self, random_selector: Box<dyn RandomSelector>) -> LabelTable;
+    /// LabelTable構築（ランタイム用、P1）
+    pub fn into_label_table(self, random_selector: Box<dyn RandomSelector>) -> LabelTable;
 }
+```
+
+**連番管理の具体例:**
+```rust
+// 1つ目の「＊会話」
+register_global("会話", attrs);
+// → fn_path: "会話_1::__start__"
+
+// 会話_1 内の1つ目「ー選択肢」
+register_local("会話", "選択肢", attrs);
+// → fn_path: "会話_1::選択肢_1"
+
+// 会話_1 内の2つ目「ー選択肢」
+register_local("会話", "選択肢", attrs);
+// → fn_path: "会話_1::選択肢_2"
+
+// 2つ目の「＊会話」
+register_global("会話", attrs);
+// → fn_path: "会話_2::__start__"
+
+// 会話_2 内の1つ目「ー選択肢」（グローバル連番で3）
+register_local("会話", "選択肢", attrs);
+// → fn_path: "会話_2::選択肢_3"
 ```
 
 #### ModuleCodegen
