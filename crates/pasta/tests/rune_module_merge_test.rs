@@ -1,14 +1,13 @@
 /// Test: Rune module merge behavior when same module name exists in multiple sources
-/// 
+///
 /// Purpose: Verify if functions in the same module from different sources are merged or overwritten
-/// 
+///
 /// Scenario:
 /// - source1: pub mod pasta { pub fn func_a() {} }
 /// - source2: pub mod pasta { pub fn func_b() {} }
-/// 
+///
 /// Expected: Both pasta::func_a() and pasta::func_b() should be callable
 /// Failure: One source overwrites the other, causing "function not found" error
-
 use rune::{Context, Diagnostics, Source, Sources, Vm};
 use std::sync::Arc;
 
@@ -85,7 +84,7 @@ fn test_module_merge_in_multiple_sources() {
 
     // Try to execute
     let mut vm = Vm::new(runtime, Arc::new(unit));
-    
+
     match vm.execute(["main"], ()) {
         Ok(mut result) => {
             let output = result.complete().expect("Failed to complete execution");
@@ -93,7 +92,10 @@ fn test_module_merge_in_multiple_sources() {
             println!("✅ CONFIRMED: Rune MERGES functions from same module in different sources");
         }
         Err(e) => {
-            panic!("❌ Execution failed: {:?}\nModules compiled but runtime failed", e);
+            panic!(
+                "❌ Execution failed: {:?}\nModules compiled but runtime failed",
+                e
+            );
         }
     }
 }
@@ -172,7 +174,10 @@ fn test_module_function_overwrite() {
             }
         }
         Err(e) => {
-            println!("✅ Compilation failed for duplicate function names: {:?}", e);
+            println!(
+                "✅ Compilation failed for duplicate function names: {:?}",
+                e
+            );
             println!("✅ CONFIRMED: Rune rejects duplicate function names in same module");
         }
     }

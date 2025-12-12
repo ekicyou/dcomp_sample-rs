@@ -1,11 +1,10 @@
 /// Test: Rune module behavior with Source::memory() for same module additions
-/// 
+///
 /// Purpose: Verify if we can add functions to the same module incrementally using Source::memory()
-/// 
+///
 /// Scenario:
 /// - Use Source::memory() to add pasta module functions incrementally
 /// - Check if later additions extend or overwrite the module
-
 use rune::{Context, Diagnostics, Source, Sources, Vm};
 use std::sync::Arc;
 
@@ -72,7 +71,7 @@ fn test_incremental_module_with_memory() {
         Ok(unit) => {
             println!("✅ Compilation succeeded with Source::memory()");
             let mut vm = Vm::new(runtime, Arc::new(unit));
-            
+
             match vm.execute(["main"], ()) {
                 Ok(mut result) => {
                     let output = result.complete().expect("Failed to complete");
@@ -154,7 +153,7 @@ fn test_single_source_memory_with_complete_module() {
         Ok(unit) => {
             println!("✅ Single Source::memory() with complete pasta module compiled successfully");
             let mut vm = Vm::new(runtime, Arc::new(unit));
-            
+
             match vm.execute(["main"], ()) {
                 Ok(mut result) => {
                     let _ = result.complete().expect("Failed to complete");
