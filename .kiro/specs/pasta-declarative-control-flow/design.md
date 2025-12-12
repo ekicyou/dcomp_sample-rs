@@ -442,8 +442,37 @@ impl ContextCodegen {
 **Responsibilities & Constraints**
 - Pass 1 の中間Runeコードに `mod pasta {}` を追加
 - LabelRegistryからID→関数パスマッピングを取得
-- `label_selector()` 関数のmatch文を生成（全ラベルのID分岐）
-- 仮実装: `let id = 1;` 固定（P1で resolve_label_id 実装）
+- `jump()`, `call()`, `label_selector()`, `select_label_to_id()` の4関数を生成
+- `label_selector()` 内のmatch文を生成（全ラベルのID分岐）
+- P0実装: `select_label_to_id()` は固定値 `1` を返す（P1で実装）
+
+**生成される構造**:
+```rune
+pub mod pasta {
+    pub fn jump(ctx, label, filters, args) {
+        let label_fn = label_selector(label, filters);
+        for event in label_fn(ctx, args) { yield event; }
+    }
+    
+    pub fn call(ctx, label, filters, args) {
+        let label_fn = label_selector(label, filters);
+        for event in label_fn(ctx, args) { yield event; }
+    }
+    
+    pub fn label_selector(label, filters) {
+        let id = select_label_to_id(label, filters);
+        match id {
+            1 => crate::会話_1::__start__,
+            2 => crate::会話_1::選択肢_1,
+            ...
+        }
+    }
+    
+    pub fn select_label_to_id(label, filters) {
+        1  // P0: 固定値
+    }
+}
+```
 
 **Dependencies**
 - Inbound: Transpiler::transpile_pass2() — Pass 2呼び出し (P0)
@@ -898,7 +927,7 @@ pub mod 会話_1 {
     pub fn ジャンプ_1(ctx) {
         ctx.actor = さくら;
         yield Actor("さくら");
-        for event in pasta::label_selector("場所", #{}) {
+        for event in pasta::call(ctx, "場所", #{}, []) {
             yield event;
         }
         yield Talk("では雨が降ってる。");
@@ -906,15 +935,34 @@ pub mod 会話_1 {
 }
 
 // Pass 2で生成
- pub mod pasta {
+pub mod pasta {
+    // Jump関数。Callとやることは同じ。
+    pub fn jump(ctx, label, filters, args) {
+        let label_fn = label_selector(label, filters);
+        for event in label_fn(ctx, args) { yield event; }
+    }
+    
+    // Call関数。Jumpと同じ実装。
+    pub fn call(ctx, label, filters, args) {
+        let label_fn = label_selector(label, filters);
+        for event in label_fn(ctx, args) { yield event; }
+    }
+    
+    // ラベルから関数ポインタを返す
     pub fn label_selector(label, filters) {
-        let id = 1; // 仮実装
+        let id = select_label_to_id(label, filters);
         match id {
             1 => crate::会話_1::__start__,
             2 => crate::会話_1::コール１_1,
             3 => crate::会話_1::ジャンプ_1,
             _ => panic!("Unknown label id: {}", id),
         }
+    }
+    
+    // Rust側で実装するrust関数。ラベルとfiltersから関数番号を返す。
+    // P0実装: 常に1を返す
+    pub fn select_label_to_id(label, filters) {
+        1
     }
 }
 ```
@@ -947,11 +995,18 @@ pub mod 会話_1 {
 
 **生成されるRuneコード**: 同じ
 ```rune
-// Call も Jump も同じ while-let-yield パターン
-for event in pasta::label_selector("ラベル", #{}) {
+// Call
+for event in pasta::call(ctx, "ラベル", #{}, []) {
+    yield event;
+}
+
+// Jump
+for event in pasta::jump(ctx, "ラベル", #{}, []) {
     yield event;
 }
 ```
+
+**注**: `pasta::call()` と `pasta::jump()` は実装が同一。DSL構文での使い分けのみ。
 
 **DSL構文制約**: 異なる
 
