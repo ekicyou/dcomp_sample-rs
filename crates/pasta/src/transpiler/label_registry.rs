@@ -21,6 +21,9 @@ pub struct LabelInfo {
     /// Full Rune function path (e.g., "crate::会話_1::__start__").
     pub fn_path: String,
 
+    /// Module/function name without "crate::" prefix (e.g., "会話_1::__start__").
+    pub fn_name: String,
+
     /// Parent label name (for local labels only, None for global labels).
     pub parent: Option<String>,
 }
@@ -75,17 +78,19 @@ impl LabelRegistry {
         let id = self.next_id;
         self.next_id += 1;
 
-        let fn_path = format!(
-            "crate::{}_{}::__start__",
+        let fn_name = format!(
+            "{}_{}::__start__",
             Self::sanitize_name(name),
             counter
         );
+        let fn_path = format!("crate::{}", fn_name);
 
         let info = LabelInfo {
             id,
             name: name.to_string(),
             attributes,
             fn_path,
+            fn_name,
             parent: None,
         };
 
@@ -120,19 +125,21 @@ impl LabelRegistry {
 
         // Local label function path: parent module + local function
         // Format: crate::親_番号::子_番号
-        let fn_path = format!(
-            "crate::{}_{}::{}_{}",
+        let fn_name = format!(
+            "{}_{}::{}_{}",
             Self::sanitize_name(parent_name),
             parent_counter,
             Self::sanitize_name(name),
             counter
         );
+        let fn_path = format!("crate::{}", fn_name);
 
         let info = LabelInfo {
             id,
             name: name.to_string(),
             attributes,
             fn_path,
+            fn_name,
             parent: Some(parent_name.to_string()),
         };
 
@@ -150,6 +157,11 @@ impl LabelRegistry {
     /// Get a label by ID.
     pub fn get_label(&self, id: i64) -> Option<&LabelInfo> {
         self.labels.get(&id)
+    }
+
+    /// Iterate over all registered labels.
+    pub fn iter(&self) -> impl Iterator<Item = (&i64, &LabelInfo)> {
+        self.labels.iter()
     }
 
     /// Increment the counter for a label name and return the new value.

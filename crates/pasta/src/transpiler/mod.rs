@@ -11,7 +11,7 @@ use crate::{
     Argument, BinOp, Expr, FunctionScope, JumpTarget, LabelDef, LabelScope, Literal, PastaError,
     PastaFile, SpeechPart, Statement, VarScope,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// Transpile context that holds scope information during transpilation.
 #[derive(Clone)]
@@ -133,54 +133,16 @@ impl Transpiler {
         #[allow(unused_imports)]
         use std::io::Write;
 
-        // Extract all unique actor names from the AST
-        let actors = Self::extract_actors(file);
-
         // Add imports for standard library functions
         writeln!(writer, "use pasta_stdlib::*;\n")
             .map_err(|e| PastaError::io_error(e.to_string()))?;
 
         // Register all labels and generate modules
         for label in &file.labels {
-            Self::transpile_global_label(label, registry, writer, &actors)?;
+            Self::transpile_global_label(label, registry, writer)?;
         }
 
         Ok(())
-    }
-
-    /// Extract all unique actor names from the Pasta file.
-    fn extract_actors(file: &PastaFile) -> HashSet<String> {
-        let mut actors = HashSet::new();
-
-        for label in &file.labels {
-            Self::extract_actors_from_label(label, &mut actors);
-        }
-
-        actors
-    }
-
-    /// Extract actor names from a label definition (recursive).
-    fn extract_actors_from_label(label: &LabelDef, actors: &mut HashSet<String>) {
-        // Extract from statements
-        for stmt in &label.statements {
-            Self::extract_actors_from_statement(stmt, actors);
-        }
-
-        // Extract from local labels (recursive)
-        for local_label in &label.local_labels {
-            Self::extract_actors_from_label(local_label, actors);
-        }
-    }
-
-    /// Extract actor names from a statement.
-    fn extract_actors_from_statement(stmt: &Statement, actors: &mut HashSet<String>) {
-        match stmt {
-            Statement::Speech { speaker, .. } => {
-                actors.insert(speaker.clone());
-            }
-            // Other statement types don't contain actor names
-            _ => {}
-        }
     }
 
     /// Transpile Pass 2: Generate `mod pasta {}` with label selector.
@@ -273,12 +235,26 @@ impl Transpiler {
         String::from_utf8(output).map_err(|e| PastaError::io_error(e.to_string()))
     }
 
+    /// Transpile and return both the Rune source and the label registry.
+    ///
+    /// This is used by PastaEngine to get the label registry that matches
+    /// the generated Rune source code.
+    pub fn transpile_with_registry(file: &PastaFile) -> Result<(String, LabelRegistry), PastaError> {
+        let mut registry = LabelRegistry::new();
+        let mut output = Vec::new();
+
+        Self::transpile_pass1(file, &mut registry, &mut output)?;
+        Self::transpile_pass2(&registry, &mut output)?;
+
+        let source = String::from_utf8(output).map_err(|e| PastaError::io_error(e.to_string()))?;
+        Ok((source, registry))
+    }
+
     /// Transpile a global label and register it.
     fn transpile_global_label<W: std::io::Write>(
         label: &LabelDef,
         registry: &mut LabelRegistry,
         writer: &mut W,
-        actors: &HashSet<String>,
     ) -> Result<(), PastaError> {
         #[allow(unused_imports)]
         use std::io::Write;
@@ -295,14 +271,8 @@ impl Transpiler {
         writeln!(writer, "    use pasta_stdlib::*;")
             .map_err(|e| PastaError::io_error(e.to_string()))?;
 
-        // Import actor definitions from crate root (main.rn will be prepended)
-        // Dynamically generate the import list based on actors found in the file
-        if !actors.is_empty() {
-            let actor_list: Vec<String> = actors.iter().cloned().collect();
-            let actor_list = actor_list.join(", ");
-            writeln!(writer, "    use crate::{{{}}};", actor_list)
-                .map_err(|e| PastaError::io_error(e.to_string()))?;
-        }
+        // Note: Actor definitions should be in main.rn, not auto-imported
+        // The actor names are stored in ctx.actor field as strings
         writeln!(writer).map_err(|e| PastaError::io_error(e.to_string()))?;
 
         // Generate __start__ function
@@ -324,7 +294,6 @@ impl Transpiler {
                 counter,
                 registry,
                 writer,
-                actors,
             )?;
         }
 
@@ -341,7 +310,6 @@ impl Transpiler {
         parent_counter: usize,
         registry: &mut LabelRegistry,
         writer: &mut W,
-        _actors: &HashSet<String>,
     ) -> Result<(), PastaError> {
         #[allow(unused_imports)]
         use std::io::Write;
@@ -382,8 +350,8 @@ impl Transpiler {
                 content,
                 span: _,
             } => {
-                // Generate speaker change (use identifier from super scope)
-                writeln!(writer, "        ctx.actor = {};", speaker)
+                // Generate speaker change (store as string)
+                writeln!(writer, "        ctx.actor = \"{}\";", speaker)
                     .map_err(|e| PastaError::io_error(e.to_string()))?;
                 writeln!(writer, "        yield Actor(\"{}\");", speaker)
                     .map_err(|e| PastaError::io_error(e.to_string()))?;

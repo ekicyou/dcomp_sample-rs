@@ -17,6 +17,9 @@ pub fn get_test_script_dir() -> PathBuf {
 
 /// Get a temporary directory for test persistence storage.
 /// This directory persists for the duration of the test suite.
+///
+/// NOTE: For concurrent tests, use `create_unique_persistence_dir()` instead
+/// to avoid sharing the same directory across threads.
 pub fn get_test_persistence_dir() -> PathBuf {
     static TEMP_DIR: OnceLock<Mutex<TempDir>> = OnceLock::new();
 
@@ -27,19 +30,53 @@ pub fn get_test_persistence_dir() -> PathBuf {
     temp_dir.lock().unwrap().path().to_path_buf()
 }
 
+/// Create a unique temporary directory for persistence storage.
+///
+/// This creates a new temporary directory for each call, which is necessary
+/// for concurrent tests where each thread needs its own persistence directory.
+/// The directory is leaked to prevent cleanup during test execution.
+pub fn create_unique_persistence_dir() -> std::io::Result<PathBuf> {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new()?;
+    let path = temp_dir.path().to_path_buf();
+    
+    // Leak the temp directory to prevent cleanup
+    std::mem::forget(temp_dir);
+    
+    Ok(path)
+}
+
 /// Write a script to a temporary file and return the directory path.
 ///
-/// This function creates a main.pasta file in a shared temporary directory
-/// containing the provided script content. All tests share the same directory
-/// but overwrite the main.pasta file, so this is NOT thread-safe.
+/// This function creates a unique temporary directory for each test with:
+/// - dic/main.pasta file containing the script content (loaded by DirectoryLoader)
+/// - main.rn file (empty, required by PastaEngine)
+/// - dic/ directory (required by PastaEngine)
+///
+/// The directory is leaked to prevent cleanup during test execution.
 pub fn create_test_script(script_content: &str) -> std::io::Result<PathBuf> {
     use std::fs;
+    use tempfile::TempDir;
 
-    let script_dir = get_test_script_dir();
-    let script_file = script_dir.join("main.pasta");
-
-    // Write the script file
+    // Create a unique temporary directory for this test
+    let temp_dir = TempDir::new()?;
+    let script_dir = temp_dir.path().to_path_buf();
+    
+    // Create dic directory (required by PastaEngine)
+    let dic_dir = script_dir.join("dic");
+    fs::create_dir(&dic_dir)?;
+    
+    // Write main.pasta in dic/ directory (DirectoryLoader loads from dic/)
+    let script_file = dic_dir.join("main.pasta");
     fs::write(&script_file, script_content)?;
+    
+    // Write main.rn (required by PastaEngine)
+    let main_rune = script_dir.join("main.rn");
+    fs::write(&main_rune, "pub fn main() {}\n")?;
+    
+    // Leak the temp directory to prevent cleanup
+    std::mem::forget(temp_dir);
 
     Ok(script_dir)
 }

@@ -180,7 +180,7 @@ impl PastaEngine {
         };
 
         // Step 5: Transpile merged AST to Rune source using two-pass transpiler
-        let rune_source = Transpiler::transpile_to_string(&merged_ast)?;
+        let (rune_source, label_registry) = Transpiler::transpile_with_registry(&merged_ast)?;
 
         #[cfg(debug_assertions)]
         {
@@ -231,9 +231,8 @@ impl PastaEngine {
             .build()
             .map_err(|e| PastaError::RuneCompileError(format!("Failed to compile Rune: {}", e)))?;
 
-        // Step 8: Build label table
-        let mut label_table = LabelTable::new(random_selector);
-        Self::register_labels(&mut label_table, &merged_ast.labels, None)?;
+        // Step 8: Build label table from transpiler's label registry
+        let label_table = LabelTable::from_label_registry(label_registry, random_selector);
 
         // Step 9: Validate persistence path
         let validated_persistence_path =

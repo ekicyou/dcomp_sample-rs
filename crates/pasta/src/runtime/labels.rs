@@ -42,6 +42,45 @@ impl LabelTable {
         }
     }
 
+    /// Create a label table from a transpiler's LabelRegistry.
+    ///
+    /// This converts the LabelRegistry (used during transpilation) into
+    /// a LabelTable (used during runtime).
+    pub fn from_label_registry(
+        registry: crate::transpiler::LabelRegistry,
+        random_selector: Box<dyn RandomSelector>,
+    ) -> Self {
+        use crate::transpiler::LabelInfo as RegistryLabelInfo;
+        
+        let mut labels: HashMap<String, Vec<LabelInfo>> = HashMap::new();
+        
+        // Convert each label from the registry
+        for (_, registry_info) in registry.iter() {
+            let runtime_info = LabelInfo {
+                name: registry_info.name.clone(),
+                scope: if registry_info.parent.is_some() {
+                    LabelScope::Local
+                } else {
+                    LabelScope::Global
+                },
+                attributes: registry_info.attributes.clone(),
+                fn_name: registry_info.fn_name.clone(),
+                parent: registry_info.parent.clone(),
+            };
+            
+            labels
+                .entry(runtime_info.name.clone())
+                .or_insert_with(Vec::new)
+                .push(runtime_info);
+        }
+        
+        Self {
+            labels,
+            history: HashMap::new(),
+            random_selector,
+        }
+    }
+
     /// Register a label.
     pub fn register(&mut self, info: LabelInfo) {
         self.labels
