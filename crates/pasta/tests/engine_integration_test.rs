@@ -432,7 +432,9 @@ fn test_label_names_api() -> Result<(), Box<dyn std::error::Error>> {
     さくら：天気がいいね
 "#;
 
-    let engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let names = engine.label_names();
 
     assert_eq!(names.len(), 3);
@@ -450,7 +452,9 @@ fn test_has_label_api() -> Result<(), Box<dyn std::error::Error>> {
     さくら：こんにちは
 "#;
 
-    let engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let engine = PastaEngine::new(&script_dir, &persistence_dir)?;
 
     assert!(engine.has_label("exists"));
     assert!(!engine.has_label("does_not_exist"));
@@ -476,7 +480,9 @@ fn test_engine_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Create another engine to ensure clean state
-    let mut engine2 = PastaEngine::new(script)?;
+    let script_dir2 = create_test_script(script).expect("Failed to create script");
+    let persistence_dir2 = get_test_persistence_dir();
+    let mut engine2 = PastaEngine::new(&script_dir2, &persistence_dir2)?;
     let events2 = engine2.execute_label("test")?;
     assert_eq!(events2.len(), 2);
 

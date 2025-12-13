@@ -30,7 +30,7 @@ fn test_parse_error_with_location() {
     無効な構文
 "#;
 
-    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
+    let result = { let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir) };
     assert!(result.is_err(), "Should fail to parse invalid syntax");
 
     if let Err(err) = result {
@@ -49,7 +49,7 @@ fn test_parse_error_missing_label_content() {
 ＊空ラベル
 "#;
 
-    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
+    let result = { let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir) };
     assert!(result.is_ok(), "Empty label should be valid");
 }
 
@@ -65,7 +65,7 @@ fn test_parse_error_multiple_errors() {
     エラー行2
 "#;
 
-    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
+    let result = { let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir) };
     // Should fail on first error
     assert!(result.is_err());
 }
@@ -243,7 +243,7 @@ fn test_parse_error_message_quality() {
     これは無効な構文です
 "#;
 
-    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
+    let result = { let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir) };
 
     if let Err(err) = result {
         let err_msg = format!("{}", err);

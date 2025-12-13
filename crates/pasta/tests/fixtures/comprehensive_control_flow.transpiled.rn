@@ -2,7 +2,7 @@ use pasta_stdlib::*;
 
 pub mod メイン_1 {
     use pasta_stdlib::*;
-    use crate::{うにゅう, さくら};
+    use crate::{さくら, うにゅう};
 
     pub fn __start__(ctx, args) {
         let カウンタ = 10;

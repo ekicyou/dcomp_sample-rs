@@ -523,6 +523,7 @@ fn parse_speech_line_content(pair: Pair<Rule>) -> Result<Statement, PastaError> 
     })
 }
 
+#[allow(dead_code)]
 fn parse_var_assign_from_parts(pair: Pair<Rule>) -> Result<Statement, PastaError> {
     let span_pest = pair.as_span();
     let start = span_pest.start_pos().line_col();
@@ -591,6 +592,7 @@ fn parse_speech_content(pair: Pair<Rule>) -> Result<Vec<SpeechPart>, PastaError>
     Ok(parts)
 }
 
+#[allow(dead_code)]
 fn parse_call_stmt(pair: Pair<Rule>) -> Result<Statement, PastaError> {
     let span_pest = pair.as_span();
     let start = span_pest.start_pos().line_col();
@@ -624,6 +626,7 @@ fn parse_call_stmt(pair: Pair<Rule>) -> Result<Statement, PastaError> {
     })
 }
 
+#[allow(dead_code)]
 fn parse_jump_stmt(pair: Pair<Rule>) -> Result<Statement, PastaError> {
     let span_pest = pair.as_span();
     let start = span_pest.start_pos().line_col();
@@ -714,6 +717,7 @@ fn parse_filter_list(pair: Pair<Rule>) -> Result<Vec<Attribute>, PastaError> {
     Ok(filters)
 }
 
+#[allow(dead_code)]
 fn parse_var_assign(pair: Pair<Rule>) -> Result<Statement, PastaError> {
     let span_pest = pair.as_span();
     let start = span_pest.start_pos().line_col();
@@ -747,6 +751,7 @@ fn parse_var_assign(pair: Pair<Rule>) -> Result<Statement, PastaError> {
     })
 }
 
+#[allow(dead_code)]
 fn parse_rune_block(pair: Pair<Rule>) -> Result<Statement, PastaError> {
     let span_pest = pair.as_span();
     let start = span_pest.start_pos().line_col();

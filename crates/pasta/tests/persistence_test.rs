@@ -27,51 +27,52 @@ fn copy_fixtures_to_temp(temp_dir: &TempDir) {
 
 #[test]
 fn test_new_with_persistence_absolute_path() {
-    let temp_dir = setup_test_dir();
     let script = r#"
-        ＊test
-            さくら：Hello
-    "#;
+＊test
+    さくら：Hello
+"#;
 
-    let result = PastaEngine::new_with_persistence(script, temp_dir.path());
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let result = PastaEngine::new(&script_dir, &persistence_dir);
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_new_with_persistence_relative_path() {
-    let temp_dir = setup_test_dir();
     let script = r#"
-        ＊test
-            さくら：Hello
-    "#;
+＊test
+    さくら：Hello
+"#;
 
-    // Create a subdirectory
-    let subdir = temp_dir.path().join("data");
-    fs::create_dir(&subdir).expect("Failed to create subdir");
-
-    let result = PastaEngine::new_with_persistence(script, &subdir);
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let result = PastaEngine::new(&script_dir, &persistence_dir);
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_new_without_persistence() {
     let script = r#"
-        ＊test
-            さくら：Hello
-    "#;
+＊test
+    さくら：Hello
+"#;
 
-    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let result = PastaEngine::new(&script_dir, &persistence_dir);
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_invalid_persistence_path() {
     let script = r#"
-        ＊test
-            さくら：Hello
-    "#;
+＊test
+    さくら：Hello
+"#;
 
-    let result = PastaEngine::new_with_persistence(script, "/nonexistent/path/that/does/not/exist");
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let result = PastaEngine::new(&script_dir, std::path::Path::new("/nonexistent/path/that/does/not/exist"));
     assert!(result.is_err());
 
     if let Err(PastaError::PersistenceDirectoryNotFound { path }) = result {
@@ -92,7 +93,7 @@ fn test_rune_script_access_persistence_path() {
             ```
     "#;
 
-    let mut engine = PastaEngine::new_with_persistence(script, temp_dir.path())
+    let mut engine = let script_dir = create_test_script(script).expect("Failed to create script"); PastaEngine::new(&script_dir, temp_dir.path())
         .expect("Failed to create engine");
     let events = engine
         .execute_label("test")
@@ -185,7 +186,7 @@ fn test_rune_toml_serialization() {
         save_file_str, save_file_str
     );
 
-    let mut engine = PastaEngine::new_with_persistence(&script, temp_dir.path())
+    let mut engine = let script_dir = create_test_script(script).expect("Failed to create script"); PastaEngine::new(&script_dir, temp_dir.path())
         .expect("Failed to create engine");
 
     // Save game
@@ -246,9 +247,9 @@ fn test_multiple_engines_different_paths() {
             ```
     "#;
 
-    let mut engine1 = PastaEngine::new_with_persistence(script, temp_dir1.path())
+    let mut engine1 = let script_dir1 = create_test_script(script).expect("Failed to create script"); PastaEngine::new(&script_dir1, temp_dir1.path())
         .expect("Failed to create engine1");
-    let mut engine2 = PastaEngine::new_with_persistence(script, temp_dir2.path())
+    let mut engine2 = let script_dir2 = create_test_script(script).expect("Failed to create script"); PastaEngine::new(&script_dir2, temp_dir2.path())
         .expect("Failed to create engine2");
 
     let events1 = engine1
@@ -322,7 +323,7 @@ fn test_persistence_with_fixture_files() {
         save_file_str
     );
 
-    let mut engine = PastaEngine::new_with_persistence(&script, temp_dir.path())
+    let mut engine = let script_dir = create_test_script(script).expect("Failed to create script"); PastaEngine::new(&script_dir, temp_dir.path())
         .expect("Failed to create engine");
 
     let events = engine

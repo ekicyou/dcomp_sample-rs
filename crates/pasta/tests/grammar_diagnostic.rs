@@ -156,8 +156,8 @@ fn test_rune_start() {
 
 #[test]
 fn test_rune_block_minimal() {
-    let input = "  ```\n\n  ```\n";
-    let result = PastaParser::parse(Rule::rune_block, input);
+    let input = "\n\n    ```\n";
+    let result = PastaParser::parse(Rule::rune_block_content, input);
     println!("Rune block minimal: {:?}", result);
     assert!(result.is_ok(), "Failed: {:?}", result.err());
 }

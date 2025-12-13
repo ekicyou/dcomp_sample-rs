@@ -93,7 +93,9 @@ fn test_rune_block_empty() {
   さくら：こんにちは
 "#;
 
-    let engine = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let engine = PastaEngine::new(&script_dir, &persistence_dir);
     assert!(
         engine.is_ok(),
         "Failed to parse script with empty rune block: {:?}",
