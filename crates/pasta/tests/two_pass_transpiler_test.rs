@@ -36,7 +36,10 @@ fn test_two_pass_transpiler_to_vec() {
 
     // Verify final output contains mod pasta
     assert!(final_output.contains("pub mod pasta"));
-    assert!(final_output.contains("pub fn jump(ctx, label, filters, args)") || final_output.contains("pub fn call(ctx, label, filters, args)"));
+    assert!(
+        final_output.contains("pub fn jump(ctx, label, filters, args)")
+            || final_output.contains("pub fn call(ctx, label, filters, args)")
+    );
     assert!(final_output.contains("for a in crate::会話_1::__start__(ctx, args)"));
 }
 
