@@ -78,11 +78,7 @@ impl LabelRegistry {
         let id = self.next_id;
         self.next_id += 1;
 
-        let fn_name = format!(
-            "{}_{}::__start__",
-            Self::sanitize_name(name),
-            counter
-        );
+        let fn_name = format!("{}_{}::__start__", Self::sanitize_name(name), counter);
         let fn_path = format!("crate::{}", fn_name);
 
         let info = LabelInfo {

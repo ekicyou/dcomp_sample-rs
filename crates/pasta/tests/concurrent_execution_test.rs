@@ -5,8 +5,8 @@
 
 mod common;
 
-use common::{create_test_script, get_test_persistence_dir};
-use pasta::{PastaEngine, ScriptEvent};
+use comuse common::{create_test_script, create_unique_persistence_dir, get_test_persistence_dir};
+a::{PastaEngine, ScriptEvent};
 use std::thread;
 
 #[test]
@@ -24,8 +24,8 @@ fn test_thread_safety() {
     // Spawn threads that create and execute engines
     let handle1 = thread::spawn(move || {
         let script_dir = create_test_script(script1).expect("Failed to create script");
-        let persistence_dir = get_test_persistence_dir();
-        let mut engine = PastaEngine::new(&script_dir, &persistence_dir)
+        let persistence_di        let persistence_dir = create_unique_persistence_dir().expect("Failed to create persistence dir");
+staEngine::new(&script_dir, &persistence_dir)
             .expect("Failed to create engine in thread 1");
         let events = engine
             .execute_label("test1")
@@ -41,8 +41,8 @@ fn test_thread_safety() {
 
     let handle2 = thread::spawn(move || {
         let script_dir = create_test_script(script2).expect("Failed to create script");
-        let persistence_dir = get_test_persistence_dir();
-        let mut engine = PastaEngine::new(&script_dir, &persistence_dir)
+        let persistence_dir = get_test_persi        let persistence_dir = create_unique_persistence_dir().expect("Failed to create persistence dir");
+ript_dir, &persistence_dir)
             .expect("Failed to create engine in thread 2");
         let events = engine
             .execute_label("test2")
@@ -79,6 +79,7 @@ fn test_multiple_threads_same_script() {
             thread::spawn(move || {
                 let script_dir = create_test_script(&script_copy).expect("Failed to create script");
                 let persistence_dir = get_test_persistence_dir();
+                                let persistence_dir = create_unique_persistence_dir().expect("Failed to create persistence dir");
                 let mut engine = PastaEngine::new(&script_dir, &persistence_dir)
                     .unwrap_or_else(|_| panic!("Failed to create engine in thread {}", i));
                 let events = engine
@@ -107,8 +108,10 @@ fn test_send_trait() {
 "#;
 
     let script_dir = create_test_script(script).expect("Failed to create script");
-    let persistence_dir = get_test_persistence_dir();
-    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
+    let persistence_dir = create_unique_persistence_dir().expect("Failed to create persistence dir");
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = create_unique_persistence_dir().expect("Failed to create persistence dir");
+    let engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
 
     // Move engine to another thread
     let handle = thread::spawn(move || {
@@ -135,8 +138,9 @@ fn test_independent_execution_across_threads() {
 
     let handle1 = thread::spawn(move || {
         let script_dir = create_test_script(&script1).expect("Failed to create script");
-        let persistence_dir = get_test_persistence_dir();
-        let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine in thread 1");
+        let persistence_dir = create_unique_persistence_dir().expect("Failed to create persistence dir");
+        let mut engine = PastaEngine::new(&script_dir, &persistence_dir)
+            .expect("Failed to create engine in thread 1");
         engine
             .execute_label("label_a")
             .expect("Failed to execute label_a")
@@ -144,8 +148,9 @@ fn test_independent_execution_across_threads() {
 
     let handle2 = thread::spawn(move || {
         let script_dir = create_test_script(&script2).expect("Failed to create script");
-        let persistence_dir = get_test_persistence_dir();
-        let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine in thread 2");
+        let persistence_dir = create_unique_persistence_dir().expect("Failed to create persistence dir");
+        let mut engine = PastaEngine::new(&script_dir, &persistence_dir)
+            .expect("Failed to create engine in thread 2");
         engine
             .execute_label("label_b")
             .expect("Failed to execute label_b")
@@ -178,7 +183,9 @@ fn test_concurrent_engine_creation() {
         .map(|i| {
             let script_copy = script.to_string();
             thread::spawn(move || {
-                let script_dir = create_test_script(&script_copy).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir)
+                let script_dir = create_test_script(&script_copy).expect("Failed to create script");
+                let persistence_dir = create_unique_persistence_dir().expect("Failed to create persistence dir");
+                PastaEngine::new(&script_dir, &persistence_dir)
                     .unwrap_or_else(|_| panic!("Failed to create engine in thread {}", i))
             })
         })
@@ -210,9 +217,10 @@ fn test_no_data_races() {
         .map(|_| {
             let script_copy = script.to_string();
             thread::spawn(move || {
-                let script_dir = create_test_script(script).expect("Failed to create script");
-                let persistence_dir = get_test_persistence_dir();
-                let mut engine = let script_dir = create_test_script(&script_copy).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
+                let script_dir = create_test_script(&script_copy).expect("Failed to create script");
+                let persistence_dir = create_unique_persistence_dir().expect("Failed to create persistence dir");
+                let mut engine = PastaEngine::new(&script_dir, &persistence_dir)
+                    .expect("Failed to create engine");
                 // Execute multiple times
                 for _ in 0..3 {
                     let events = engine.execute_label("counter").expect("Failed to execute");
@@ -241,16 +249,15 @@ fn test_thread_local_cache() {
             let script_copy = script.to_string();
             thread::spawn(move || {
                 // Create two engines in the same thread
-                let script_dir = create_test_script(script).expect("Failed to create script");
-                let persistence_dir = get_test_persistence_dir();
-                let mut engine1 = let script_dir = create_test_script(&script_copy).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir)
+                let script_dir1 =
+                    create_test_script(&script_copy).expect("Failed to create script");
+                let persistence_dir1 = create_unique_persistence_dir().expect("Failed to create persistence dir");
+                let mut engine1 = PastaEngine::new(&script_dir1, &persistence_dir1)
                     .unwrap_or_else(|_| panic!("Failed to create engine1 in thread {}", i));
-                let mut engine2 = let script_dir = create_test_script(&script_copy).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir)
-                    .unwrap_or_else(|_| panic!("Failed to create engine2 in thread {}", i));
-
-                // Both should work independently even in the same thread
-                let events1 = engine1.execute_label("cached").expect("Failed on engine1");
-                let events2 = engine2.execute_label("cached").expect("Failed on engine2");
+                let script_dir2 =
+                    create_test_script(&script_copy).expect("Failed to create script");
+                let persistence_dir2 = create_unique_persistence_dir().expect("Failed to create persistence dir");
+ched").expect("Failed on engine2");
 
                 assert!(!events1.is_empty());
                 assert!(!events2.is_empty());

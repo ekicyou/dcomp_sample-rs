@@ -51,9 +51,9 @@ impl LabelTable {
         random_selector: Box<dyn RandomSelector>,
     ) -> Self {
         use crate::transpiler::LabelInfo as RegistryLabelInfo;
-        
+
         let mut labels: HashMap<String, Vec<LabelInfo>> = HashMap::new();
-        
+
         // Convert each label from the registry
         for (_, registry_info) in registry.iter() {
             let runtime_info = LabelInfo {
@@ -67,13 +67,13 @@ impl LabelTable {
                 fn_name: registry_info.fn_name.clone(),
                 parent: registry_info.parent.clone(),
             };
-            
+
             labels
                 .entry(runtime_info.name.clone())
                 .or_insert_with(Vec::new)
                 .push(runtime_info);
         }
-        
+
         Self {
             labels,
             history: HashMap::new(),

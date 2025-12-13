@@ -239,7 +239,9 @@ impl Transpiler {
     ///
     /// This is used by PastaEngine to get the label registry that matches
     /// the generated Rune source code.
-    pub fn transpile_with_registry(file: &PastaFile) -> Result<(String, LabelRegistry), PastaError> {
+    pub fn transpile_with_registry(
+        file: &PastaFile,
+    ) -> Result<(String, LabelRegistry), PastaError> {
         let mut registry = LabelRegistry::new();
         let mut output = Vec::new();
 
@@ -288,13 +290,7 @@ impl Transpiler {
 
         // Register and generate local labels
         for local_label in &label.local_labels {
-            Self::transpile_local_label(
-                local_label,
-                &label.name,
-                counter,
-                registry,
-                writer,
-            )?;
+            Self::transpile_local_label(local_label, &label.name, counter, registry, writer)?;
         }
 
         writeln!(writer, "}}").map_err(|e| PastaError::io_error(e.to_string()))?;

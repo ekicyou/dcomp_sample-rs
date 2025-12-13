@@ -1,0 +1,11 @@
+{
+  "created": "2025-12-13T19:08:32.242Z",
+  "name": "pasta-test-missing-entry-hash",
+  "priority": "high",
+  "status": "requirements",
+  "related_specs": [
+    "pasta-declarative-control-flow"
+  ],
+  "description": "Investigate and fix MissingEntryHash errors in pasta engine tests",
+  "language": "ja"
+}
