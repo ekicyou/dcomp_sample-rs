@@ -72,7 +72,10 @@ fn test_invalid_persistence_path() {
 "#;
 
     let script_dir = create_test_script(script).expect("Failed to create script");
-    let result = PastaEngine::new(&script_dir, std::path::Path::new("/nonexistent/path/that/does/not/exist"));
+    let result = PastaEngine::new(
+        &script_dir,
+        std::path::Path::new("/nonexistent/path/that/does/not/exist"),
+    );
     assert!(result.is_err());
 
     if let Err(PastaError::PersistenceDirectoryNotFound { path }) = result {
@@ -94,8 +97,8 @@ fn test_rune_script_access_persistence_path() {
     "#;
 
     let script_dir = create_test_script(script).expect("Failed to create script");
-    let mut engine = PastaEngine::new(&script_dir, temp_dir.path())
-        .expect("Failed to create engine");
+    let mut engine =
+        PastaEngine::new(&script_dir, temp_dir.path()).expect("Failed to create engine");
     let events = engine
         .execute_label("test")
         .expect("Failed to execute label");
@@ -135,7 +138,10 @@ fn test_rune_script_without_persistence_path() {
             ```
     "#;
 
-    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine =
+        PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
     let events = engine
         .execute_label("test")
         .expect("Failed to execute label");
@@ -188,8 +194,8 @@ fn test_rune_toml_serialization() {
     );
 
     let script_dir = create_test_script(&script).expect("Failed to create script");
-    let mut engine = PastaEngine::new(&script_dir, temp_dir.path())
-        .expect("Failed to create engine");
+    let mut engine =
+        PastaEngine::new(&script_dir, temp_dir.path()).expect("Failed to create engine");
 
     // Save game
     let save_events = engine
@@ -250,11 +256,11 @@ fn test_multiple_engines_different_paths() {
     "#;
 
     let script_dir1 = create_test_script(script).expect("Failed to create script");
-    let mut engine1 = PastaEngine::new(&script_dir1, temp_dir1.path())
-        .expect("Failed to create engine1");
+    let mut engine1 =
+        PastaEngine::new(&script_dir1, temp_dir1.path()).expect("Failed to create engine1");
     let script_dir2 = create_test_script(script).expect("Failed to create script");
-    let mut engine2 = PastaEngine::new(&script_dir2, temp_dir2.path())
-        .expect("Failed to create engine2");
+    let mut engine2 =
+        PastaEngine::new(&script_dir2, temp_dir2.path()).expect("Failed to create engine2");
 
     let events1 = engine1
         .execute_label("test")
@@ -330,8 +336,8 @@ fn test_persistence_with_fixture_files() {
     );
 
     let script_dir = create_test_script(&script).expect("Failed to create script");
-    let mut engine = PastaEngine::new(&script_dir, temp_dir.path())
-        .expect("Failed to create engine");
+    let mut engine =
+        PastaEngine::new(&script_dir, temp_dir.path()).expect("Failed to create engine");
 
     let events = engine
         .execute_label("load_save")

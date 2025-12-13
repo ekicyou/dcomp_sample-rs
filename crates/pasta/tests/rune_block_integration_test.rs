@@ -45,7 +45,10 @@ fn test_rune_block_transpilation() {
   さくら：計算します
 "#;
 
-    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine =
+        PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
 
     // The transpiled code should contain the rune function
     // We can't directly access the transpiled code, but we can verify execution works
