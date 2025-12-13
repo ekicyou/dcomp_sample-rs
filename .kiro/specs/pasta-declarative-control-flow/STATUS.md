@@ -47,14 +47,18 @@ Pasta DSL の宣言的コントロールフロー（Call/Jump/Label）のP0実�
 
 ## 残作業
 
-### ⚠️ 自動置換で破損したテストファイル（2ファイル）
+### ⚠️ 共有テストディレクトリの問題
 
-- error_handling_tests.rs
-- persistence_test.rs
+**問題**: `common/mod.rs::create_test_script`が全テストで同じディレクトリを使用  
+**影響**: 並行実行・独立性テストが失敗  
+**原因**: 元の実装が単一の共有ディレクトリを使用する設計  
+**失敗テスト**:
+- concurrent_execution_test.rs（全7テスト）
+- engine_independence_test.rs（全9テスト）
+- その他（4テスト）
 
-**原因**: 自動置換スクリプトが複雑な構文を誤処理  
-**影響**: 核心機能には影響なし（56+ tests passing）  
-**対応**: 手動修正が必要
+**核心機能**: ✅ 動作（72 tests passing）  
+**対応**: `create_test_script`を各テストで一意のディレクトリを作成するように修正が必要
 
 ### Phase 7: その他のクリーンアップ
 

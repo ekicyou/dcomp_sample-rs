@@ -394,7 +394,9 @@ fn test_error_with_event_handlers() {
 fn test_empty_script_no_error() {
     // Empty script should parse successfully
     let script = "";
-    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let result = PastaEngine::new(&script_dir, &persistence_dir);
     assert!(result.is_ok(), "Empty script should parse successfully");
 }
 
@@ -405,7 +407,9 @@ fn test_comments_only_no_error() {
 # これはコメント
 # 別のコメント
 "#;
-    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let result = PastaEngine::new(&script_dir, &persistence_dir);
     assert!(
         result.is_ok(),
         "Comments-only script should parse successfully"
@@ -416,7 +420,9 @@ fn test_comments_only_no_error() {
 fn test_whitespace_only_no_error() {
     // Script with only whitespace should parse successfully
     let script = "   \n  \n  \t  \n";
-    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let result = PastaEngine::new(&script_dir, &persistence_dir);
     assert!(
         result.is_ok(),
         "Whitespace-only script should parse successfully"

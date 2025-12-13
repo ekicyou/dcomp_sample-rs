@@ -29,15 +29,16 @@ pub fn get_test_persistence_dir() -> PathBuf {
 
 /// Write a script to a temporary file and return the directory path.
 ///
-/// This function creates a main.pasta file in a temporary directory
-/// containing the provided script content.
+/// This function creates a main.pasta file in a shared temporary directory
+/// containing the provided script content. All tests share the same directory
+/// but overwrite the main.pasta file, so this is NOT thread-safe.
 pub fn create_test_script(script_content: &str) -> std::io::Result<PathBuf> {
     use std::fs;
 
     let script_dir = get_test_script_dir();
     let script_file = script_dir.join("main.pasta");
 
-    // Create or overwrite the script file
+    // Write the script file
     fs::write(&script_file, script_content)?;
 
     Ok(script_dir)
