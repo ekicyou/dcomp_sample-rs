@@ -25,7 +25,7 @@ fn test_two_pass_transpiler_to_vec() {
 
     // Verify Pass 1 output contains module but not mod pasta
     assert!(pass1_output.contains("pub mod 会話_1"));
-    assert!(pass1_output.contains("pub fn __start__(ctx)"));
+    assert!(pass1_output.contains("pub fn __start__(ctx, args)"));
     assert!(!pass1_output.contains("pub mod pasta")); // mod pasta not yet generated
 
     // Pass 2: Append mod pasta
@@ -36,8 +36,8 @@ fn test_two_pass_transpiler_to_vec() {
 
     // Verify final output contains mod pasta
     assert!(final_output.contains("pub mod pasta"));
-    assert!(final_output.contains("pub fn label_selector(label, filters)"));
-    assert!(final_output.contains("1 => crate::会話_1::__start__"));
+    assert!(final_output.contains("pub fn jump(ctx, label, filters, args)") || final_output.contains("pub fn call(ctx, label, filters, args)"));
+    assert!(final_output.contains("for a in crate::会話_1::__start__(ctx, args)"));
 }
 
 #[test]
@@ -78,8 +78,8 @@ fn test_two_pass_transpiler_to_string() {
     println!("Full output:\n{}", output);
 
     // Verify both labels in label_selector
-    assert!(output.contains("1 => crate::会話_1::__start__"));
-    assert!(output.contains("2 => crate::別会話_1::__start__"));
+    assert!(output.contains("for a in crate::会話_1::__start__(ctx, args)"));
+    assert!(output.contains("for a in crate::別会話_1::__start__(ctx, args)"));
 }
 
 #[test]
@@ -99,7 +99,7 @@ fn test_transpile_to_string_helper() {
     // Should contain both Pass 1 and Pass 2 output
     assert!(output.contains("pub mod 会話_1"));
     assert!(output.contains("pub mod pasta"));
-    assert!(output.contains("1 => crate::会話_1::__start__"));
+    assert!(output.contains("for a in crate::会話_1::__start__(ctx, args)"));
 }
 
 #[test]
@@ -139,6 +139,6 @@ fn test_multiple_files_simulation() {
     assert!(final_output.contains("pub mod サブ_1"));
 
     // label_selector should have both
-    assert!(final_output.contains("1 => crate::メイン_1::__start__"));
-    assert!(final_output.contains("2 => crate::サブ_1::__start__"));
+    assert!(final_output.contains("for a in crate::メイン_1::__start__(ctx, args)"));
+    assert!(final_output.contains("for a in crate::サブ_1::__start__(ctx, args)"));
 }

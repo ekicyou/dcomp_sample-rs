@@ -53,12 +53,16 @@ fn test_simple_end_to_end() {
     // Create a simple context object
     let ctx = rune::to_value(rune::runtime::Object::new()).expect("Failed to create context");
 
-    // Call __start__ function
-    let result = vm.call(["会話_1", "__start__"], (ctx,));
+    // Create empty args array for the second parameter
+    let args = rune::to_value(Vec::<rune::Value>::new()).expect("Failed to create args");
+
+    // Execute __start__ function
+    let hash = rune::Hash::type_hash(&["会話_1", "__start__"]);
+    let result = vm.execute(hash, (ctx, args));
 
     match result {
-        Ok(value) => {
-            println!("Execution succeeded: {:?}", value);
+        Ok(_execution) => {
+            println!("Execution succeeded!");
         }
         Err(e) => {
             panic!("Execution failed: {:?}", e);
@@ -67,7 +71,6 @@ fn test_simple_end_to_end() {
 }
 
 #[test]
-#[ignore] // Ignore for now, need to implement generator support
 fn test_simple_generator_execution() {
     let pasta_code = r#"
 ＊会話
@@ -107,18 +110,26 @@ fn test_simple_generator_execution() {
         .unwrap();
     let ctx = rune::to_value(ctx_obj).expect("Failed to create context");
 
-    // Execute as generator - vm.call returns Value, need to convert
-    let value = vm
-        .call(["会話_1", "__start__"], (ctx,))
-        .expect("Failed to call");
-    let generator = rune::from_value::<rune::runtime::Generator<_>>(value)
-        .expect("Failed to convert to generator");
+    // Create empty args array for the second parameter
+    let args = rune::to_value(Vec::<rune::Value>::new()).expect("Failed to create args");
 
-    // Iterate through events
+    // Execute as generator - vm.execute returns VmExecution
+    let hash = rune::Hash::type_hash(&["会話_1", "__start__"]);
+    let execution = vm.execute(hash, (ctx, args)).expect("Failed to execute");
+    let mut generator = execution.into_generator();
+
+    // Iterate through events using resume
     let mut events = Vec::new();
-    for event in generator {
-        println!("Event: {:?}", event);
-        events.push(event);
+    let unit_value = rune::to_value(()).expect("Failed to create unit value");
+    loop {
+        match generator.resume(unit_value.clone()) {
+            rune::runtime::VmResult::Ok(rune::runtime::GeneratorState::Yielded(value)) => {
+                println!("Event: {:?}", value);
+                events.push(value);
+            }
+            rune::runtime::VmResult::Ok(rune::runtime::GeneratorState::Complete(_)) => break,
+            rune::runtime::VmResult::Err(e) => panic!("Generator error: {:?}", e),
+        }
     }
 
     assert!(!events.is_empty(), "Generator should yield events");

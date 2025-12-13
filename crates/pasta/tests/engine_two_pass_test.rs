@@ -28,7 +28,6 @@ fn test_engine_with_simple_project() {
 }
 
 #[test]
-#[ignore] // test-project has encoding issues
 fn test_engine_with_test_project() {
     let script_root = std::env::current_dir()
         .unwrap()
@@ -42,11 +41,8 @@ fn test_engine_with_test_project() {
         Ok(engine) => {
             println!("Engine created successfully!");
 
-            // Test label existence
-            assert!(
-                engine.has_label("greetings"),
-                "Label 'greetings' should exist"
-            );
+            // Test label existence (use actual Japanese label name)
+            assert!(engine.has_label("挨拶"), "Label '挨拶' should exist");
         }
         Err(e) => {
             panic!("Failed to create engine: {:?}", e);
@@ -55,7 +51,6 @@ fn test_engine_with_test_project() {
 }
 
 #[test]
-#[ignore] // Ignore until we can test execution
 fn test_engine_execute_label() {
     let script_root = std::env::current_dir()
         .unwrap()
@@ -64,8 +59,8 @@ fn test_engine_execute_label() {
 
     let mut engine = PastaEngine::new(&script_root, temp_dir.path()).unwrap();
 
-    // Execute a label
-    let events = engine.execute_label("greetings").unwrap();
+    // Execute a label (use actual Japanese label name)
+    let events = engine.execute_label("挨拶").unwrap();
 
     // Verify events
     assert!(!events.is_empty(), "Should generate events");

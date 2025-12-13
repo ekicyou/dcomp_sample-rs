@@ -50,8 +50,6 @@ impl LabelTable {
         registry: crate::transpiler::LabelRegistry,
         random_selector: Box<dyn RandomSelector>,
     ) -> Self {
-        use crate::transpiler::LabelInfo as RegistryLabelInfo;
-
         let mut labels: HashMap<String, Vec<LabelInfo>> = HashMap::new();
 
         // Convert each label from the registry

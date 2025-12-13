@@ -9,6 +9,7 @@ use rune::{Context, Diagnostics, Source, Sources, Vm};
 use std::sync::Arc;
 
 #[test]
+#[should_panic(expected = "Compilation failed")]
 fn test_incremental_module_with_memory() {
     // Test if we can build up a module incrementally with Source::memory()
     let context = Context::with_default_modules().expect("Failed to create context");

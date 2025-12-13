@@ -4,14 +4,13 @@
 //! and runtime execution to provide a high-level API for running Pasta scripts.
 
 use crate::{
-    cache::ParseCache,
     error::{PastaError, Result},
     ir::ScriptEvent,
     loader::{DirectoryLoader, ErrorLogWriter},
-    parser::{parse_file, parse_str},
-    runtime::{DefaultRandomSelector, LabelInfo, LabelTable, RandomSelector},
+    parser::parse_file,
+    runtime::{DefaultRandomSelector, LabelTable, RandomSelector},
     transpiler::Transpiler,
-    LabelDef, LabelScope, PastaFile,
+    PastaFile,
 };
 use rune::{Context, Vm};
 use std::collections::HashMap;
@@ -57,8 +56,6 @@ pub struct PastaEngine {
     runtime: Arc<rune::runtime::RuntimeContext>,
     /// Label table for label lookup and random selection.
     label_table: LabelTable,
-    /// Parse cache (instance-local).
-    cache: ParseCache,
     /// Persistence directory path (optional).
     persistence_path: Option<PathBuf>,
 }
@@ -238,14 +235,11 @@ impl PastaEngine {
         let validated_persistence_path =
             Self::validate_persistence_path(persistence_root.as_ref())?;
 
-        // Step 10: Create instance-local cache and construct engine
-        let cache = ParseCache::new();
-
+        // Step 10: Construct engine
         Ok(Self {
             unit: Arc::new(unit),
             runtime,
             label_table,
-            cache,
             persistence_path: Some(validated_persistence_path),
         })
     }
@@ -293,95 +287,6 @@ impl PastaEngine {
         Ok(canonical)
     }
 
-    /// Build the PastaEngine with optional persistence path.
-    fn build_engine(
-        script: &str,
-        persistence_path: Option<PathBuf>,
-        random_selector: Box<dyn RandomSelector>,
-    ) -> Result<Self> {
-        // Step 1: Create empty instance-local cache
-        let mut cache = ParseCache::new();
-
-        // Step 2: Try to get from cache first
-        let (ast, rune_source) = if let Some(cached) = cache.get(script) {
-            // Cache hit - reuse parsed AST and Rune source
-            #[cfg(debug_assertions)]
-            {
-                eprintln!("[PastaEngine] Cache hit for script");
-            }
-            cached
-        } else {
-            // Cache miss - parse and transpile
-            #[cfg(debug_assertions)]
-            {
-                eprintln!("[PastaEngine] Cache miss - parsing script");
-            }
-
-            // Parse DSL to AST
-            let ast = parse_str(script, "<script>")?;
-
-            // Transpile AST to Rune source
-            let rune_source = Transpiler::transpile(&ast)?;
-
-            // Store in cache for future use
-            cache.insert(script, ast.clone(), rune_source.clone());
-
-            (ast, rune_source)
-        };
-
-        // Debug output for development
-        #[cfg(debug_assertions)]
-        {
-            eprintln!("=== Generated Rune Source ===");
-            eprintln!("{}", rune_source);
-            eprintln!("=============================");
-        }
-
-        // Step 3: Build label table
-        let mut label_table = LabelTable::new(random_selector);
-        Self::register_labels(&mut label_table, &ast.labels, None)?;
-
-        // Step 4: Compile Rune code
-        let mut context = Context::with_default_modules().map_err(|e| {
-            PastaError::RuneRuntimeError(format!("Failed to create Rune context: {}", e))
-        })?;
-
-        // Install standard library (includes persistence functions)
-        context
-            .install(crate::stdlib::create_module().map_err(|e| {
-                PastaError::RuneRuntimeError(format!("Failed to install stdlib: {}", e))
-            })?)
-            .map_err(|e| {
-                PastaError::RuneRuntimeError(format!("Failed to install context: {}", e))
-            })?;
-
-        let runtime = Arc::new(context.runtime().map_err(|e| {
-            PastaError::RuneRuntimeError(format!("Failed to create runtime: {}", e))
-        })?);
-
-        // Compile the Rune source
-        let mut sources = rune::Sources::new();
-        sources
-            .insert(rune::Source::new("entry", rune_source).map_err(|e| {
-                PastaError::RuneRuntimeError(format!("Failed to create source: {}", e))
-            })?)
-            .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to insert source: {}", e)))?;
-
-        let unit = rune::prepare(&mut sources)
-            .with_context(&context)
-            .build()
-            .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to compile Rune: {}", e)))?;
-
-        // Step 5: Construct PastaEngine with all fields
-        Ok(Self {
-            unit: Arc::new(unit),
-            runtime,
-            label_table,
-            cache,
-            persistence_path,
-        })
-    }
-
     /// Build execution context with persistence path.
     fn build_execution_context(&self) -> Result<rune::Value> {
         let mut ctx = HashMap::new();
@@ -401,70 +306,6 @@ impl PastaEngine {
 
         rune::to_value(ctx)
             .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to build context: {}", e)))
-    }
-
-    /// Register labels from AST into label table.
-    fn register_labels(
-        label_table: &mut LabelTable,
-        labels: &[LabelDef],
-        parent_name: Option<&str>,
-    ) -> Result<()> {
-        // Track label counters for generating unique function names for duplicates
-        let mut label_counters: HashMap<String, usize> = HashMap::new();
-
-        for label in labels {
-            // Get the counter for this label name
-            let counter = label_counters.entry(label.name.clone()).or_insert(0);
-            let fn_name = Self::generate_fn_name_with_counter(label, parent_name, *counter);
-            *counter += 1;
-
-            let mut attributes = HashMap::new();
-            for attr in &label.attributes {
-                attributes.insert(attr.key.clone(), attr.value.to_string());
-            }
-
-            label_table.register(LabelInfo {
-                name: label.name.clone(),
-                scope: label.scope,
-                attributes,
-                fn_name,
-                parent: parent_name.map(|s| s.to_string()),
-            });
-
-            // Register local labels recursively
-            if !label.local_labels.is_empty() {
-                Self::register_labels(label_table, &label.local_labels, Some(&label.name))?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Generate a Rune function name for a label with a counter for duplicates.
-    fn generate_fn_name_with_counter(
-        label: &LabelDef,
-        parent_name: Option<&str>,
-        counter: usize,
-    ) -> String {
-        let sanitize = |name: &str| name.replace(|c: char| !c.is_alphanumeric() && c != '_', "_");
-
-        let base_name = match label.scope {
-            LabelScope::Global => sanitize(&label.name),
-            LabelScope::Local => {
-                if let Some(parent) = parent_name {
-                    format!("{}__{}", sanitize(parent), sanitize(&label.name))
-                } else {
-                    sanitize(&label.name)
-                }
-            }
-        };
-
-        // Append counter if this is a duplicate (counter > 0)
-        if counter > 0 {
-            format!("{}_{}", base_name, counter)
-        } else {
-            base_name
-        }
     }
 
     /// Execute a label and return all events synchronously.
@@ -504,15 +345,24 @@ impl PastaEngine {
         // Create a new VM for this execution
         let mut vm = Vm::new(self.runtime.clone(), self.unit.clone());
 
-        // Call the function
-        let hash = rune::Hash::type_hash(&[fn_name.as_str()]);
+        // Split fn_name into path components for Rune
+        // fn_name format: "module_name::function_name"
+        // Rune expects: ["module_name", "function_name"]
+        let parts: Vec<&str> = fn_name.split("::").collect();
+        let hash = rune::Hash::type_hash(&parts);
 
         // Build execution context
         let context = self.build_execution_context()?;
 
         // Execute and get a generator
+        // Note: Generated functions expect (ctx, args) signature
+        // args is currently an empty array for future argument support
+        let args = rune::to_value(Vec::<rune::Value>::new()).map_err(|e| {
+            PastaError::RuneRuntimeError(format!("Failed to create args array: {}", e))
+        })?;
+
         let execution = vm
-            .execute(hash, (context,))
+            .execute(hash, (context, args))
             .map_err(|e| PastaError::VmError(e))?;
 
         let mut generator = execution.into_generator();

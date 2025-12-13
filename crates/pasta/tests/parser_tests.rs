@@ -36,9 +36,10 @@ fn test_parse_speech_with_var_ref() {
     if let Statement::Speech { content, .. } = &file.labels[0].statements[0] {
         println!("Content length: {}, parts: {:?}", content.len(), content);
         if content.len() >= 2 {
+            // ＠ユーザー名 は単語展開（word expansion）なので FuncCall
             match &content[1] {
-                SpeechPart::VarRef(name) => assert_eq!(name, "ユーザー名"),
-                other => panic!("Expected VarRef at index 1, got: {:?}", other),
+                SpeechPart::FuncCall { name, .. } => assert_eq!(name, "ユーザー名"),
+                other => panic!("Expected FuncCall at index 1, got: {:?}", other),
             }
         } else {
             panic!(
@@ -58,8 +59,8 @@ fn test_parse_speech_with_var_ref() {
 #[test]
 fn test_parse_attributes() {
     let source = r#"＊挨拶
-  ＠時間帯：朝
-  ＠重み：5
+  ＆時間帯：朝
+  ＆重み：5
   さくら：おはよう
 "#;
     let result = parse_str(source, "test.pasta");
@@ -73,9 +74,9 @@ fn test_parse_attributes() {
 #[test]
 fn test_parse_local_label() {
     let source = r#"＊挨拶
-  ー朝
+  -朝
     さくら：おはよう
-  ー昼
+  -昼
     さくら：こんにちは
 "#;
     let result = parse_str(source, "test.pasta");
@@ -338,7 +339,7 @@ fn test_parse_halfwidth_syntax() {
 #[test]
 fn test_parse_long_jump() {
     let source = r#"＊開始
-  ＞＊挨拶ー朝
+  ＞＊挨拶-朝
 "#;
     let result = parse_str(source, "test.pasta");
     assert!(result.is_ok(), "Failed to parse: {:?}", result.err());

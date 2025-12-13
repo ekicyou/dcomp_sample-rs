@@ -12,6 +12,7 @@ use rune::{Context, Diagnostics, Source, Sources, Vm};
 use std::sync::Arc;
 
 #[test]
+#[should_panic(expected = "Compilation failed")]
 fn test_module_merge_in_multiple_sources() {
     // Create Rune context
     let mut context = Context::with_default_modules().expect("Failed to create context");

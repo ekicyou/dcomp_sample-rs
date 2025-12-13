@@ -473,7 +473,7 @@ impl Transpiler {
             SpeechPart::SakuraScript(script) => {
                 writeln!(
                     writer,
-                    "        yield SakuraScript(\"{}\");",
+                    "        yield emit_sakura_script(\"{}\");",
                     Self::escape_string(script)
                 )
                 .map_err(|e| PastaError::io_error(e.to_string()))?;

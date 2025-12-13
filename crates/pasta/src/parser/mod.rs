@@ -149,8 +149,14 @@ fn parse_global_label(pair: Pair<Rule>) -> Result<LabelDef, PastaError> {
                         Rule::at_marker => {
                             // Skip marker
                         }
-                        Rule::word_or_attr => {
-                            parse_word_or_attr(content_pair, &mut local_words, &mut attributes)?;
+                        Rule::word_def_content => {
+                            local_words.push(parse_word_def_from_parts(content_pair)?);
+                        }
+                        Rule::amp_marker => {
+                            // Skip marker
+                        }
+                        Rule::attribute_content => {
+                            attributes.push(parse_attribute_from_parts(content_pair)?);
                         }
                         Rule::dollar_marker => {
                             // Skip marker
@@ -251,8 +257,12 @@ fn parse_local_label_content(pair: Pair<Rule>) -> Result<LabelDef, PastaError> {
                             statements.push(parse_rune_block_content(content_pair)?);
                         }
                         Rule::at_marker => {}
-                        Rule::word_or_attr => {
-                            parse_word_or_attr(content_pair, &mut local_words, &mut attributes)?;
+                        Rule::word_def_content => {
+                            local_words.push(parse_word_def_from_parts(content_pair)?);
+                        }
+                        Rule::amp_marker => {}
+                        Rule::attribute_content => {
+                            attributes.push(parse_attribute_from_parts(content_pair)?);
                         }
                         Rule::dollar_marker => {}
                         Rule::var_assign_content => {
@@ -287,28 +297,6 @@ fn parse_local_label_content(pair: Pair<Rule>) -> Result<LabelDef, PastaError> {
         statements,
         span,
     })
-}
-
-fn parse_word_or_attr(
-    pair: Pair<Rule>,
-    local_words: &mut Vec<WordDef>,
-    attributes: &mut Vec<Attribute>,
-) -> Result<(), PastaError> {
-    // Clone to peek at the first child without consuming
-    let first_child_rule = pair.clone().into_inner().next().map(|p| p.as_rule());
-
-    match first_child_rule {
-        Some(Rule::word_name) => {
-            // Word definition
-            local_words.push(parse_word_def_from_parts(pair)?);
-        }
-        Some(Rule::attribute_key) => {
-            // Attribute
-            attributes.push(parse_attribute_from_parts(pair)?);
-        }
-        _ => {}
-    }
-    Ok(())
 }
 
 fn parse_var_assign_content(pair: Pair<Rule>) -> Result<Statement, PastaError> {

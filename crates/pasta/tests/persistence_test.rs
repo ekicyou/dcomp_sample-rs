@@ -158,7 +158,8 @@ fn test_rune_script_without_persistence_path() {
                 }
             })
             .collect::<Vec<_>>();
-        assert_eq!(text[0], "No persistence path");
+        // PastaEngine::new always requires a persistence_dir, so it will have a path
+        assert_eq!(text[0], "Has persistence path");
     } else {
         panic!("Expected Talk event");
     }

@@ -123,7 +123,7 @@ fn test_rune_block_empty() {
 fn test_rune_block_in_local_label() {
     // Test rune blocks in local labels
     // Note: Using ASCII label names to avoid encoding issues in test
-    let script = "＊Global\n  ーLocal\n    ```rune\n    fn local_func() {\n      return \"local\";\n    }\n    ```\n    さくら：ローカル関数定義\n";
+    let script = "＊Global\n  -Local\n    ```rune\n    fn local_func() {\n      return \"local\";\n    }\n    ```\n    さくら：ローカル関数定義\n";
 
     let script_dir = create_test_script(script).expect("Failed to create script");
 

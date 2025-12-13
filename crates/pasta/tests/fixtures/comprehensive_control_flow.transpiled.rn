@@ -2,14 +2,13 @@ use pasta_stdlib::*;
 
 pub mod メイン_1 {
     use pasta_stdlib::*;
-    use crate::{さくら, うにゅう};
 
     pub fn __start__(ctx, args) {
         let カウンタ = 10;
-        ctx.actor = さくら;
+        ctx.actor = "さくら";
         yield Actor("さくら");
         yield pasta_stdlib::word(ctx, "挨拶", []);
-        ctx.actor = うにゅう;
+        ctx.actor = "うにゅう";
         yield Actor("うにゅう");
         yield pasta_stdlib::word(ctx, "ローカル関数", ["はろー"]);
         for a in crate::pasta::call(ctx, "自己紹介", #{}, []) { yield a; }
@@ -18,47 +17,47 @@ pub mod メイン_1 {
         for a in crate::pasta::jump(ctx, "会話分岐", #{}, []) { yield a; }
     }
     pub fn 自己紹介_1(ctx, args) {
-        ctx.actor = さくら;
+        ctx.actor = "さくら";
         yield Actor("さくら");
         yield Talk("私はさくらです。");
-        ctx.actor = うにゅう;
+        ctx.actor = "うにゅう";
         yield Actor("うにゅう");
         yield Talk("僕はうにゅうだよ。");
         for a in crate::pasta::call(ctx, "趣味紹介", #{}, []) { yield a; }
     }
 
     pub fn 趣味紹介_1(ctx, args) {
-        ctx.actor = さくら;
+        ctx.actor = "さくら";
         yield Actor("さくら");
         yield Talk("私の趣味は読書です。");
-        ctx.actor = うにゅう;
+        ctx.actor = "うにゅう";
         yield Actor("うにゅう");
         yield Talk("僕はゲームが好き。");
     }
 
     pub fn カウント表示_1(ctx, args) {
-        ctx.actor = さくら;
+        ctx.actor = "さくら";
         yield Actor("さくら");
         yield Talk("カウンターは＄値です。");
     }
 
     pub fn 会話分岐_1(ctx, args) {
-        ctx.actor = さくら;
+        ctx.actor = "さくら";
         yield Actor("さくら");
         yield pasta_stdlib::word(ctx, "場所の天気は", []);
         yield pasta_stdlib::word(ctx, "天気だね", []);
         yield Talk("。");
-        ctx.actor = うにゅう;
+        ctx.actor = "うにゅう";
         yield Actor("うにゅう");
         yield Talk("そうだね。");
         for a in crate::pasta::jump(ctx, "別の話題", #{}, []) { yield a; }
     }
 
     pub fn 別の話題_1(ctx, args) {
-        ctx.actor = さくら;
+        ctx.actor = "さくら";
         yield Actor("さくら");
         yield Talk("ところで、明日は何する？");
-        ctx.actor = うにゅう;
+        ctx.actor = "うにゅう";
         yield Actor("うにゅう");
         yield Talk("まだ決めてないなぁ。");
         pub fn ローカル関数(ctx, args) {

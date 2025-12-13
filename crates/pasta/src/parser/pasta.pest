@@ -45,7 +45,8 @@ label_body_line = {
     indent ~ (
         comment_marker ~ comment_content ~ NEWLINE |
         rune_start ~ rune_block_content |
-        at_marker ~ word_or_attr |
+        at_marker ~ word_def_content |
+        amp_marker ~ attribute_content |
         dollar_marker ~ var_assign_content |
         local_label_marker ~ local_label_content |
         call_marker ~ call_content |
@@ -67,7 +68,8 @@ local_label_body_line = {
     indent ~ (
         comment_marker ~ comment_content ~ NEWLINE |
         rune_start ~ rune_block_content |
-        at_marker ~ word_or_attr |
+        at_marker ~ word_def_content |
+        amp_marker ~ attribute_content |
         dollar_marker ~ var_assign_content |
         call_marker ~ call_content |
         jump_marker ~ jump_content |
@@ -79,27 +81,29 @@ comment_marker = { "＃" | "#" }
 comment_content = @{ (!NEWLINE ~ ANY)* }
 
 global_label_marker = { "＊" | "*" }
-local_label_marker = { "ー" | "-" }
+local_label_marker = { "・" | "-" }
 
-label_name = @{ !label_name_forbidden ~ !reserved_label_pattern ~ XID_START ~ (!local_label_marker ~ XID_CONTINUE)* }
-label_name_forbidden = { global_label_marker | local_label_marker | call_marker | jump_marker | at_marker | dollar_marker | colon | equals }
+// Label name: XID_START followed by XID_CONTINUE
+// Note: local_label_marker (・ or -) is not in XID_START, so no exclusion needed
+// Note: Full-width digits (U+FF10-FF19) must be explicitly included due to PEST limitation
+label_name = @{ XID_START ~ (XID_CONTINUE | '\u{FF10}'..'\u{FF19}')* }
 // Reserved pattern: label names starting and ending with "__" are reserved for system use
 // Examples: __start__, __word_test__, __reserved__
 reserved_label_pattern = @{ "__" ~ XID_START ~ XID_CONTINUE* ~ "__" }
 
-// Disambiguate ＠ lines: word def or attribute
-// - Word def: ＠word_name：value1　value2
-// - Attribute: ＠key：value (after checking if colon followed by non-separator)
-word_or_attr = {
-    // Try word definition first (has word_separator)
-    word_name ~ colon ~ word_value_list ~ NEWLINE |
-    // Then attribute (simple key:value)
+// Word definition content: ＠word_name：value1　value2
+word_def_content = {
+    word_name ~ colon ~ word_value_list ~ NEWLINE
+}
+
+// Attribute content: ＆key：value
+attribute_content = {
     attribute_key ~ colon ~ attribute_value ~ NEWLINE
 }
 
-// Variable assignment: ＄var_name＝expr
+// Variable assignment: ＄var_name＝expr or ＄＊var_name＝expr
 var_assign_content = {
-    var_name ~ equals ~ expr ~ NEWLINE
+    var_scope? ~ var_name ~ equals ~ expr ~ NEWLINE
 }
 
 attribute_key = @{ ident }
@@ -288,6 +292,7 @@ digit = { ASCII_DIGIT | '０'..'９' }
 // === Common Elements ===
 
 at_marker = { "＠" | "@" }
+amp_marker = { "＆" | "&" }
 colon = { "：" | ":" }
 
 ident = @{ !ident_forbidden ~ XID_START ~ XID_CONTINUE* }

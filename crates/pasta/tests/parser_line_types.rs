@@ -105,7 +105,7 @@ fn test_jump_statement() {
 
 #[test]
 fn test_local_label_no_args() {
-    let input = "＊メイン\n　ー自己紹介\n";
+    let input = "＊メイン\n　-自己紹介\n";
     let result = parse_str(input, "test");
     assert!(
         result.is_ok(),
@@ -120,7 +120,7 @@ fn test_local_label_no_args() {
 
 #[test]
 fn test_local_label_with_args() {
-    let input = "＊メイン\n　ーカウント表示　＄値\n";
+    let input = "＊メイン\n　-カウント表示　＄値\n";
     let result = parse_str(input, "test");
     assert!(
         result.is_ok(),
