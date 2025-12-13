@@ -83,12 +83,23 @@ Rune: pasta_stdlib::select_label_to_id(label, filters)  ← スタブ実装
   ↓
 Rust: LabelTable::resolve_label_id(label, filters)      ← 未実装
   ↓
-Rust: 前方一致検索 → フィルタリング → ランダム選択 → 履歴記録
+Rust: 前方一致検索 (fn_path.starts_with(search_key))
+  ↓
+Rust: フィルタリング (属性マッチ + "::__start__"サフィックスフィルタ)
+  ↓
+Rust: ランダム選択 (RandomSelector::select_index)
+  ↓
+Rust: 履歴記録 (history[search_key].push(selected.id))
   ↓
 Return: ラベルID (i64)
   ↓
 Rune: match id { ... } → 関数ポインタ取得 → 実行
 ```
+
+**検索キー例:**
+- `JumpTarget::Global("会話")` → `"会話"` → `"会話_1::__start__"`, `"会話_2::__start__"` にマッチ
+- `JumpTarget::Local("選択肢")` → `"選択肢"` → 親ラベルコンテキスト内で検索
+- `JumpTarget::LongJump{"会話", "選択肢"}` → `"会話::選択肢"` → `"会話_1::選択肢_1"` にマッチ
 
 #### 現在のスタブ実装
 
@@ -143,11 +154,20 @@ pub fn find_label(&mut self, name: &str, ...) -> Result<String, PastaError> {
 
 **必要な機能:**
 - `fn_path` が検索キーで始まるすべての `LabelInfo` を抽出
-- 例: 検索キー `"会話"` → `"会話_1::__start__"`, `"会話_2::__start__"` がヒット
+- 例: 検索キー `"会話"` → `"会話_1::__start__"`, `"会話_2::__start__"` にマッチ
+- グローバルラベル: `"::__start__"` で終わるものをフィルタ
 
-**実装オプション:**
-1. **HashMap + フルスキャン**: `labels_by_path.iter().filter(|(path, _)| path.starts_with(search_key))`
-2. **Trie構造**: `prefix_tree` クレート使用（O(M)の検索、M = キー長）
+**採用決定: HashMap + フルスキャン (Option A)**
+```rust
+let candidates: Vec<&LabelInfo> = labels_by_path
+    .iter()
+    .filter(|(path, _)| path.starts_with(search_key))
+    .map(|(_, info)| info)
+    .collect();
+```
+
+**代替案 (Phase 3):**
+- **Trie構造**: `prefix_tree` クレート使用（O(M)の検索、M = キー長）、ラベル数1000以上時に検討
 
 #### Gap 2: ラベルIDフィールドの欠落
 

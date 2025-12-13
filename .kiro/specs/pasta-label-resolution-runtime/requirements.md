@@ -120,11 +120,12 @@ Pasta DSLでは、以下の検索キー生成規則が定義されている（�
 
 #### Acceptance Criteria
 
-1. When ラベル解決エンジンが検索キー `"会話"` を受け取る, the LabelTable shall fn_path が `"会話_"` で始まり `"::__start__"` で終わるすべてのラベルを候補として抽出する
-2. When ラベル解決エンジンが検索キー `"会話_1::選択肢"` を受け取る, the LabelTable shall fn_path が `"会話_1::選択肢_"` で始まるすべてのラベルを候補として抽出する
+1. When ラベル解決エンジンが検索キー `"会話"` を受け取る, the LabelTable shall fn_path が `"会話"` で始まるすべてのラベルを前方一致検索で抽出し、`"::__start__"` で終わるラベルのみを候補とする（例: `"crate::会話_1::__start__"`, `"crate::会話_2::__start__"`）
+2. When ラベル解決エンジンが検索キー `"会話_1::選択肢"` を受け取る, the LabelTable shall fn_path が `"会話_1::選択肢"` で始まるすべてのラベルを前方一致検索で抽出する（例: `"crate::会話_1::選択肢_1"`, `"crate::会話_1::選択肢_2"`）
 3. When 前方一致する候補が存在しない場合, the LabelTable shall `PastaError::LabelNotFound { label: <検索キー> }` エラーを返す
 4. When 検索キーが空文字列の場合, the LabelTable shall `PastaError::InvalidLabel` エラーを返す
 5. When fn_path に連番が含まれる（`"会話_1"`, `"会話_2"`）場合, the LabelTable shall 連番の違いを無視して前方一致検索を実行する（`"会話"` で `"会話_1"`, `"会話_2"` どちらもマッチ）
+   - **注記:** 検索キー生成はトランスパイラーが実施。`JumpTarget::Global("会話")` → `"会話"`, `JumpTarget::LongJump{"会話", "選択肢"}` → `"会話::選択肢"`
 
 ### Requirement 2: 属性フィルタリング
 
@@ -414,6 +415,20 @@ impl LabelTable {
 **デメリット：** 外部クレート依存（`prefix_tree` または `radix_trie`）
 
 **Phase 1 決定：** HashMap + フルスキャン方式を採用。ラベル数100～500の想定でO(N)走査は許容範囲（推定1～2ms）。初期実装はHashMapで開始し、パフォーマンス問題が発生した場合（Phase 3）にTrieに移行する。
+
+**実装アルゴリズム:**
+```rust
+// 1. fn_pathをキーとしてHashMapに格納（前置辞 "crate::" は除去）
+// 2. 検索時に全fn_pathを走査
+let candidates: Vec<&LabelInfo> = labels_by_path
+    .iter()
+    .filter(|(path, _)| path.starts_with(search_key))  // 前方一致
+    .map(|(_, info)| info)
+    .collect();
+
+// 3. グローバルラベル検索時は "::__start__" で終わるものをフィルタ
+// 例: search_key="会話" → "会話_1::__start__", "会話_2::__start__" が候補
+```
 
 ### エラーハンドリング
 
