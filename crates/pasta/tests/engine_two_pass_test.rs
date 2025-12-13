@@ -10,14 +10,14 @@ fn test_engine_with_simple_project() {
         .unwrap()
         .join("tests/fixtures/simple-test");
     let temp_dir = TempDir::new().unwrap();
-    
+
     // Create engine with simple test project
     let result = PastaEngine::new(&script_root, temp_dir.path());
-    
+
     match result {
         Ok(engine) => {
             println!("Engine created successfully!");
-            
+
             // Test label existence
             assert!(engine.has_label("会話"), "Label '会話' should exist");
         }
@@ -34,16 +34,19 @@ fn test_engine_with_test_project() {
         .unwrap()
         .join("tests/fixtures/test-project");
     let temp_dir = TempDir::new().unwrap();
-    
+
     // Create engine with test project
     let result = PastaEngine::new(&script_root, temp_dir.path());
-    
+
     match result {
         Ok(engine) => {
             println!("Engine created successfully!");
-            
+
             // Test label existence
-            assert!(engine.has_label("greetings"), "Label 'greetings' should exist");
+            assert!(
+                engine.has_label("greetings"),
+                "Label 'greetings' should exist"
+            );
         }
         Err(e) => {
             panic!("Failed to create engine: {:?}", e);
@@ -58,12 +61,12 @@ fn test_engine_execute_label() {
         .unwrap()
         .join("tests/fixtures/test-project");
     let temp_dir = TempDir::new().unwrap();
-    
+
     let mut engine = PastaEngine::new(&script_root, temp_dir.path()).unwrap();
-    
+
     // Execute a label
     let events = engine.execute_label("greetings").unwrap();
-    
+
     // Verify events
     assert!(!events.is_empty(), "Should generate events");
 }

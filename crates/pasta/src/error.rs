@@ -135,10 +135,13 @@ impl PastaError {
     pub fn pest_error(message: impl Into<String>) -> Self {
         PastaError::PestError(message.into())
     }
-    
+
     /// Create a new IO error from a string message.
     pub fn io_error(message: impl Into<String>) -> Self {
-        PastaError::IoError(std::io::Error::new(std::io::ErrorKind::Other, message.into()))
+        PastaError::IoError(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            message.into(),
+        ))
     }
 }
 

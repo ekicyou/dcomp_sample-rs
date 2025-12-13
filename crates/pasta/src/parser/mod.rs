@@ -97,11 +97,7 @@ fn parse_word_def(pair: Pair<Rule>) -> Result<WordDef, PastaError> {
         }
     }
 
-    Ok(WordDef {
-        name,
-        values,
-        span,
-    })
+    Ok(WordDef { name, values, span })
 }
 
 fn parse_global_label(pair: Pair<Rule>) -> Result<LabelDef, PastaError> {
@@ -300,7 +296,7 @@ fn parse_word_or_attr(
 ) -> Result<(), PastaError> {
     // Clone to peek at the first child without consuming
     let first_child_rule = pair.clone().into_inner().next().map(|p| p.as_rule());
-    
+
     match first_child_rule {
         Some(Rule::word_name) => {
             // Word definition

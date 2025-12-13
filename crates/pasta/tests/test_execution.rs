@@ -7,9 +7,9 @@ use std::sync::Arc;
 #[test]
 fn test_execute_simple_label() {
     // Read main.rn
-    let main_rn = fs::read_to_string("tests/fixtures/test-project/main.rn")
-        .expect("Failed to read main.rn");
-    
+    let main_rn =
+        fs::read_to_string("tests/fixtures/test-project/main.rn").expect("Failed to read main.rn");
+
     // Simple transpiled code with only one label (no recursion)
     let transpiled = r#"
 use pasta_stdlib::*;
@@ -49,66 +49,72 @@ pub mod pasta {
     }
 }
 "#;
-    
+
     println!("=== Testing Execution ===");
-    
+
     // Create Rune context
     let mut context = Context::with_default_modules().expect("Failed to create context");
-    
+
     // Install pasta_stdlib
-    context.install(pasta::stdlib::create_module().expect("Failed to create stdlib"))
+    context
+        .install(pasta::stdlib::create_module().expect("Failed to create stdlib"))
         .expect("Failed to install stdlib");
-    
+
     // Add sources
     let mut sources = Sources::new();
-    sources.insert(rune::Source::new("main", &main_rn).expect("Failed to create main source"))
+    sources
+        .insert(rune::Source::new("main", &main_rn).expect("Failed to create main source"))
         .expect("Failed to add main source");
-    sources.insert(rune::Source::new("entry", transpiled).expect("Failed to create entry source"))
+    sources
+        .insert(rune::Source::new("entry", transpiled).expect("Failed to create entry source"))
         .expect("Failed to add entry source");
-    
+
     // Compile
     let unit = rune::prepare(&mut sources)
         .with_context(&context)
         .build()
         .expect("Failed to compile");
-    
+
     println!("✅ Compilation successful!");
-    
+
     // Create VM
     let runtime = Arc::new(context.runtime().expect("Failed to get runtime"));
     let unit = Arc::new(unit);
     let mut vm = Vm::new(runtime, unit);
-    
+
     // Create context object
     let mut ctx_obj = rune::runtime::Object::new();
-    ctx_obj.insert(
-        rune::alloc::String::try_from("actor").unwrap(),
-        rune::to_value("").unwrap()
-    ).unwrap();
-    
+    ctx_obj
+        .insert(
+            rune::alloc::String::try_from("actor").unwrap(),
+            rune::to_value("").unwrap(),
+        )
+        .unwrap();
+
     let ctx = rune::to_value(ctx_obj).expect("Failed to create context");
-    
+
     // Execute 会話_1::__start__
     println!("Executing 会話_1::__start__...");
-    let execution = vm.execute(["会話_1", "__start__"], (ctx,))
+    let execution = vm
+        .execute(["会話_1", "__start__"], (ctx,))
         .expect("Failed to execute");
-    
+
     let mut generator = execution.into_generator();
     let unit_value = rune::to_value(()).unwrap();
-    
+
     let mut event_count = 0;
     let max_events = 10; // Safety limit
-    
+
     loop {
         if event_count >= max_events {
             println!("⚠️ Reached safety limit of {} events", max_events);
             break;
         }
-        
+
         match generator.resume(unit_value.clone()) {
             rune::runtime::VmResult::Ok(rune::runtime::GeneratorState::Yielded(value)) => {
                 event_count += 1;
-                
+
                 // Try to extract event information
                 if let Ok(obj) = rune::from_value::<rune::runtime::Object>(value.clone()) {
                     println!("Event {}: {:?}", event_count, obj);
@@ -125,19 +131,22 @@ pub mod pasta {
             }
         }
     }
-    
+
     assert!(event_count > 0, "Should generate at least one event");
-    assert!(event_count <= 5, "Should generate 3-4 events (1 Actor + 2 Talk)");
-    
+    assert!(
+        event_count <= 5,
+        "Should generate 3-4 events (1 Actor + 2 Talk)"
+    );
+
     println!("✅ Execution test passed!");
 }
 
 #[test]
 fn test_execute_with_call() {
     // Read main.rn
-    let main_rn = fs::read_to_string("tests/fixtures/test-project/main.rn")
-        .expect("Failed to read main.rn");
-    
+    let main_rn =
+        fs::read_to_string("tests/fixtures/test-project/main.rn").expect("Failed to read main.rn");
+
     // Code with call statement - will recurse infinitely with stub!
     let transpiled = r#"
 use pasta_stdlib::*;
@@ -189,69 +198,78 @@ pub mod pasta {
     }
 }
 "#;
-    
+
     println!("=== Testing Execution with Call (Infinite Recursion) ===");
-    
+
     // Create Rune context
     let mut context = Context::with_default_modules().expect("Failed to create context");
-    
+
     // Install pasta_stdlib
-    context.install(pasta::stdlib::create_module().expect("Failed to create stdlib"))
+    context
+        .install(pasta::stdlib::create_module().expect("Failed to create stdlib"))
         .expect("Failed to install stdlib");
-    
+
     // Add sources
     let mut sources = Sources::new();
-    sources.insert(rune::Source::new("main", &main_rn).expect("Failed to create main source"))
+    sources
+        .insert(rune::Source::new("main", &main_rn).expect("Failed to create main source"))
         .expect("Failed to add main source");
-    sources.insert(rune::Source::new("entry", transpiled).expect("Failed to create entry source"))
+    sources
+        .insert(rune::Source::new("entry", transpiled).expect("Failed to create entry source"))
         .expect("Failed to add entry source");
-    
+
     // Compile
     let unit = rune::prepare(&mut sources)
         .with_context(&context)
         .build()
         .expect("Failed to compile");
-    
+
     println!("✅ Compilation successful!");
-    
+
     // Create VM
     let runtime = Arc::new(context.runtime().expect("Failed to get runtime"));
     let unit = Arc::new(unit);
     let mut vm = Vm::new(runtime, unit);
-    
+
     // Create context object
     let mut ctx_obj = rune::runtime::Object::new();
-    ctx_obj.insert(
-        rune::alloc::String::try_from("actor").unwrap(),
-        rune::to_value("").unwrap()
-    ).unwrap();
-    
+    ctx_obj
+        .insert(
+            rune::alloc::String::try_from("actor").unwrap(),
+            rune::to_value("").unwrap(),
+        )
+        .unwrap();
+
     let ctx = rune::to_value(ctx_obj).expect("Failed to create context");
-    
+
     // Execute メイン_1::__start__
     println!("Executing メイン_1::__start__ (will recurse infinitely)...");
-    let execution = vm.execute(["メイン_1", "__start__"], (ctx,))
+    let execution = vm
+        .execute(["メイン_1", "__start__"], (ctx,))
         .expect("Failed to execute");
-    
+
     let mut generator = execution.into_generator();
     let unit_value = rune::to_value(()).unwrap();
-    
+
     let mut event_count = 0;
     let max_events = 10; // Safety limit - stop after 10 events
-    
+
     println!("⚠️ Note: Due to stub returning fixed ID=1, this will recurse infinitely");
     println!("⚠️ We limit to {} events for safety", max_events);
-    
+
     loop {
         if event_count >= max_events {
-            println!("⚠️ Reached safety limit of {} events - stopping", max_events);
+            println!(
+                "⚠️ Reached safety limit of {} events - stopping",
+                max_events
+            );
             break;
         }
-        
+
         match generator.resume(unit_value.clone()) {
             rune::runtime::VmResult::Ok(rune::runtime::GeneratorState::Yielded(value)) => {
                 event_count += 1;
-                
+
                 // Try to extract event information
                 if let Ok(obj) = rune::from_value::<rune::runtime::Object>(value.clone()) {
                     println!("Event {}: {:?}", event_count, obj);
@@ -270,7 +288,7 @@ pub mod pasta {
             }
         }
     }
-    
+
     assert!(event_count > 0, "Should generate at least one event");
     println!("✅ Execution test with call passed (stopped safely)!");
 }

@@ -31,8 +31,15 @@ fn test_global_and_local_labels() {
 
     // All in the same module
     let lines: Vec<&str> = result.lines().collect();
-    let module_start = lines.iter().position(|l| l.contains("pub mod メイン_1")).unwrap();
-    let module_end = lines[module_start..].iter().position(|l| l.trim() == "}").unwrap() + module_start;
+    let module_start = lines
+        .iter()
+        .position(|l| l.contains("pub mod メイン_1"))
+        .unwrap();
+    let module_end = lines[module_start..]
+        .iter()
+        .position(|l| l.trim() == "}")
+        .unwrap()
+        + module_start;
 
     let module_content = &lines[module_start..=module_end].join("\n");
     assert!(module_content.contains("pub fn 選択肢１_1(ctx)"));

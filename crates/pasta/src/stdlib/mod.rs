@@ -35,11 +35,13 @@ pub fn create_module() -> Result<Module, ContextError> {
     persistence::register_persistence_functions(&mut module)?;
 
     // Register label resolution functions (P0: stub implementation)
-    module.function("select_label_to_id", select_label_to_id).build()?;
-    
+    module
+        .function("select_label_to_id", select_label_to_id)
+        .build()?;
+
     // Register word expansion functions (P0: stub implementation)
     module.function("word", word_expansion).build()?;
-    
+
     // Register event constructor functions
     module.function("Actor", actor_event).build()?;
     module.function("Talk", talk_event).build()?;
@@ -80,7 +82,11 @@ fn select_label_to_id(_label: String, _filters: rune::runtime::Value) -> i64 {
 ///
 /// # Returns
 /// A Talk event with the word name
-fn word_expansion(_ctx: rune::runtime::Value, word: String, _args: rune::runtime::Value) -> ScriptEvent {
+fn word_expansion(
+    _ctx: rune::runtime::Value,
+    word: String,
+    _args: rune::runtime::Value,
+) -> ScriptEvent {
     // P0: Just return the word name as text
     // P1 will implement:
     // - Word dictionary lookup

@@ -7,14 +7,22 @@ use pasta::parser::parse_str;
 fn test_comment_line() {
     let input = "＃ 包括的なコントロールフロー参照実装\n";
     let result = parse_str(input, "test");
-    assert!(result.is_ok(), "コメント行のパースに失敗: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "コメント行のパースに失敗: {:?}",
+        result.err()
+    );
 }
 
 #[test]
 fn test_global_word_def() {
     let input = "＠挨拶：こんにちは　やあ　ハロー\n";
     let result = parse_str(input, "test");
-    assert!(result.is_ok(), "グローバル単語定義のパースに失敗: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "グローバル単語定義のパースに失敗: {:?}",
+        result.err()
+    );
     let file = result.unwrap();
     assert_eq!(file.global_words.len(), 1);
     assert_eq!(file.global_words[0].name, "挨拶");
@@ -24,7 +32,11 @@ fn test_global_word_def() {
 fn test_global_label() {
     let input = "＊メイン\n";
     let result = parse_str(input, "test");
-    assert!(result.is_ok(), "グローバルラベルのパースに失敗: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "グローバルラベルのパースに失敗: {:?}",
+        result.err()
+    );
     let file = result.unwrap();
     assert_eq!(file.labels.len(), 1);
     assert_eq!(file.labels[0].name, "メイン");
@@ -34,7 +46,11 @@ fn test_global_label() {
 fn test_local_word_def() {
     let input = "＊メイン\n　＠場所：東京　大阪　京都\n";
     let result = parse_str(input, "test");
-    assert!(result.is_ok(), "ローカル単語定義のパースに失敗: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "ローカル単語定義のパースに失敗: {:?}",
+        result.err()
+    );
     let file = result.unwrap();
     assert_eq!(file.labels[0].local_words.len(), 1);
     assert_eq!(file.labels[0].local_words[0].name, "場所");
@@ -51,21 +67,33 @@ fn test_var_assign() {
 fn test_speech_line_with_word() {
     let input = "＊メイン\n　さくら　：＠挨拶\n";
     let result = parse_str(input, "test");
-    assert!(result.is_ok(), "発話行（単語展開）のパースに失敗: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "発話行（単語展開）のパースに失敗: {:?}",
+        result.err()
+    );
 }
 
 #[test]
 fn test_call_no_args() {
     let input = "＊メイン\n　＞自己紹介\n";
     let result = parse_str(input, "test");
-    assert!(result.is_ok(), "Call文（引数なし）のパースに失敗: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Call文（引数なし）のパースに失敗: {:?}",
+        result.err()
+    );
 }
 
 #[test]
 fn test_call_with_args() {
     let input = "＊メイン\n　＞カウント表示（＄カウンタ）\n";
     let result = parse_str(input, "test");
-    assert!(result.is_ok(), "Call文（引数あり）のパースに失敗: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Call文（引数あり）のパースに失敗: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -79,7 +107,11 @@ fn test_jump_statement() {
 fn test_local_label_no_args() {
     let input = "＊メイン\n　ー自己紹介\n";
     let result = parse_str(input, "test");
-    assert!(result.is_ok(), "ローカルラベル（引数なし）のパースに失敗: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "ローカルラベル（引数なし）のパースに失敗: {:?}",
+        result.err()
+    );
     let file = result.unwrap();
     assert_eq!(file.labels[0].local_labels.len(), 1);
     assert_eq!(file.labels[0].local_labels[0].name, "自己紹介");
@@ -90,7 +122,11 @@ fn test_local_label_no_args() {
 fn test_local_label_with_args() {
     let input = "＊メイン\n　ーカウント表示　＄値\n";
     let result = parse_str(input, "test");
-    assert!(result.is_ok(), "ローカルラベル（引数あり）のパースに失敗: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "ローカルラベル（引数あり）のパースに失敗: {:?}",
+        result.err()
+    );
     let file = result.unwrap();
     assert_eq!(file.labels[0].local_labels.len(), 1);
     assert_eq!(file.labels[0].local_labels[0].name, "カウント表示");
@@ -108,12 +144,20 @@ fn test_rune_block() {
 　```
 "#;
     let result = parse_str(input, "test");
-    assert!(result.is_ok(), "Runeブロックのパースに失敗: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Runeブロックのパースに失敗: {:?}",
+        result.err()
+    );
 }
 
 #[test]
 fn test_comprehensive_control_flow_full() {
     let input = include_str!("fixtures/comprehensive_control_flow.pasta");
     let result = parse_str(input, "test");
-    assert!(result.is_ok(), "comprehensive_control_flow.pastaの全体パースに失敗: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "comprehensive_control_flow.pastaの全体パースに失敗: {:?}",
+        result.err()
+    );
 }

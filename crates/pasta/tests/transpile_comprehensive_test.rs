@@ -7,7 +7,7 @@ use std::path::Path;
 #[test]
 fn test_transpile_comprehensive_control_flow() {
     let pasta_path = Path::new("tests/fixtures/comprehensive_control_flow.pasta");
-    
+
     println!("Parsing {}...", pasta_path.display());
     let ast = match parse_file(pasta_path) {
         Ok(ast) => {
@@ -20,17 +20,20 @@ fn test_transpile_comprehensive_control_flow() {
             panic!("❌ Parse failed: {:?}", e);
         }
     };
-    
+
     println!("\nTranspiling...");
     match Transpiler::transpile_to_string(&ast) {
         Ok(rune_code) => {
             println!("✅ Transpile successful!");
             println!("\n=== Generated Rune Code ===\n");
             println!("{}", rune_code);
-            
+
             // Write output to file for inspection
-            std::fs::write("tests/fixtures/comprehensive_control_flow.transpiled.rn", &rune_code)
-                .expect("Failed to write transpiled output");
+            std::fs::write(
+                "tests/fixtures/comprehensive_control_flow.transpiled.rn",
+                &rune_code,
+            )
+            .expect("Failed to write transpiled output");
             println!("\n✅ Written to tests/fixtures/comprehensive_control_flow.transpiled.rn");
         }
         Err(e) => {

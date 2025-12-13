@@ -5,12 +5,12 @@ use pasta::parser::parse_str;
 #[test]
 fn test_parse_var_assign_in_label() {
     let pasta_code = "＊テスト\n　＄変数＝１０\n";
-    
+
     println!("=== Parsing variable assignment in label ===");
     println!("Input: {:?}", pasta_code);
-    
+
     let result = parse_str(pasta_code, "test.pasta");
-    
+
     match &result {
         Ok(ast) => {
             println!("✅ Parse successful!");
@@ -25,7 +25,7 @@ fn test_parse_var_assign_in_label() {
             println!("{}", e);
         }
     }
-    
+
     assert!(result.is_ok(), "Parse should succeed");
     let ast = result.unwrap();
     assert_eq!(ast.labels.len(), 1);

@@ -468,7 +468,9 @@ fn test_engine_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
 "#;
 
     {
-        let script_dir = create_test_script(script).expect("Failed to create script");        let persistence_dir = get_test_persistence_dir();        let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
+        let script_dir = create_test_script(script).expect("Failed to create script");
+        let persistence_dir = get_test_persistence_dir();
+        let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
         let _events = engine.execute_label("test")?;
         // Engine will be dropped here
     }
