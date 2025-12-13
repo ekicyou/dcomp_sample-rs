@@ -3,11 +3,15 @@
 //! This module converts the Pasta AST into Rune source code that can be executed
 //! by the Rune VM to generate ScriptEvent IR.
 
+mod label_registry;
+
+pub use label_registry::{LabelInfo, LabelRegistry};
+
 use crate::{
     Argument, BinOp, Expr, FunctionScope, JumpTarget, LabelDef, LabelScope, Literal, PastaError,
     PastaFile, SpeechPart, Statement, VarScope,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Transpile context that holds scope information during transpilation.
 #[derive(Clone)]
@@ -103,7 +107,370 @@ impl Default for TranspileContext {
 pub struct Transpiler;
 
 impl Transpiler {
-    /// Transpile a Pasta file AST to Rune source code.
+    /// Transpile a Pasta file AST to Rune source code (Pass 1).
+    ///
+    /// This performs Pass 1 of the two-pass transpilation strategy:
+    /// - Registers all labels in the LabelRegistry
+    /// - Generates Rune modules for each global label
+    /// - Generates function code for labels
+    ///
+    /// # Arguments
+    ///
+    /// * `file` - The parsed Pasta file AST
+    /// * `registry` - The label registry for tracking labels across files
+    /// * `writer` - Output destination implementing Write trait
+    ///
+    /// # Notes
+    ///
+    /// - This can be called multiple times for multiple Pasta files
+    /// - Each call accumulates labels in the registry
+    /// - The output does NOT include `mod pasta {}` (generated in Pass 2)
+    pub fn transpile_pass1<W: std::io::Write>(
+        file: &PastaFile,
+        registry: &mut LabelRegistry,
+        writer: &mut W,
+    ) -> Result<(), PastaError> {
+        #[allow(unused_imports)]
+        use std::io::Write;
+        
+        // Extract all unique actor names from the AST
+        let actors = Self::extract_actors(file);
+        
+        // Add imports for standard library functions
+        writeln!(writer, "use pasta_stdlib::*;\n").map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        // Register all labels and generate modules
+        for label in &file.labels {
+            Self::transpile_global_label(label, registry, writer, &actors)?;
+        }
+        
+        Ok(())
+    }
+    
+    /// Extract all unique actor names from the Pasta file.
+    fn extract_actors(file: &PastaFile) -> HashSet<String> {
+        let mut actors = HashSet::new();
+        
+        for label in &file.labels {
+            Self::extract_actors_from_label(label, &mut actors);
+        }
+        
+        actors
+    }
+    
+    /// Extract actor names from a label definition (recursive).
+    fn extract_actors_from_label(label: &LabelDef, actors: &mut HashSet<String>) {
+        // Extract from statements
+        for stmt in &label.statements {
+            Self::extract_actors_from_statement(stmt, actors);
+        }
+        
+        // Extract from local labels (recursive)
+        for local_label in &label.local_labels {
+            Self::extract_actors_from_label(local_label, actors);
+        }
+    }
+    
+    /// Extract actor names from a statement.
+    fn extract_actors_from_statement(stmt: &Statement, actors: &mut HashSet<String>) {
+        match stmt {
+            Statement::Speech { speaker, .. } => {
+                actors.insert(speaker.clone());
+            }
+            // Other statement types don't contain actor names
+            _ => {}
+        }
+    }
+    
+    /// Transpile Pass 2: Generate `mod pasta {}` with label selector.
+    ///
+    /// This performs Pass 2 of the two-pass transpilation strategy:
+    /// - Generates `mod pasta {}` with jump(), call(), and label_selector()
+    /// - Creates ID→function path mapping from the registry
+    ///
+    /// # Arguments
+    ///
+    /// * `registry` - The label registry containing all registered labels
+    /// * `writer` - Output destination implementing Write trait
+    ///
+    /// # Notes
+    ///
+    /// - This should be called ONCE after all Pass 1 calls are complete
+    /// - The output is appended to the Pass 1 output
+    pub fn transpile_pass2<W: std::io::Write>(
+        registry: &LabelRegistry,
+        writer: &mut W,
+    ) -> Result<(), PastaError> {
+        #[allow(unused_imports)]
+        use std::io::Write;
+        
+        writeln!(writer, "pub mod pasta {{").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer).map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        // Generate jump function with inline match
+        writeln!(writer, "    pub fn jump(ctx, label, filters, args) {{").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "        let id = pasta_stdlib::select_label_to_id(label, filters);").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "        match id {{").map_err(|e| PastaError::io_error(e.to_string()))?;
+        for label in registry.all_labels() {
+            writeln!(writer, "            {} => {{ for a in {}(ctx, args) {{ yield a; }} }},", label.id, label.fn_path).map_err(|e| PastaError::io_error(e.to_string()))?;
+        }
+        writeln!(writer, "            _ => {{ yield pasta_stdlib::Error(`ラベルID ${{id}} が見つかりませんでした。`); }},").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "        }}").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "    }}").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer).map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        // Generate call function with inline match
+        writeln!(writer, "    pub fn call(ctx, label, filters, args) {{").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "        let id = pasta_stdlib::select_label_to_id(label, filters);").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "        match id {{").map_err(|e| PastaError::io_error(e.to_string()))?;
+        for label in registry.all_labels() {
+            writeln!(writer, "            {} => {{ for a in {}(ctx, args) {{ yield a; }} }},", label.id, label.fn_path).map_err(|e| PastaError::io_error(e.to_string()))?;
+        }
+        writeln!(writer, "            _ => {{ yield pasta_stdlib::Error(`ラベルID ${{id}} が見つかりませんでした。`); }},").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "        }}").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "    }}").map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        writeln!(writer, "}}").map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        Ok(())
+    }
+    
+    /// Helper function for testing: transpile to string (single file only).
+    ///
+    /// # Warning
+    ///
+    /// This is a convenience function for testing only. Do NOT use in production code.
+    /// It only handles a single PastaFile and doesn't support multiple files.
+    #[doc(hidden)]
+    pub fn transpile_to_string(file: &PastaFile) -> Result<String, PastaError> {
+        let mut registry = LabelRegistry::new();
+        let mut output = Vec::new();
+        
+        Self::transpile_pass1(file, &mut registry, &mut output)?;
+        Self::transpile_pass2(&registry, &mut output)?;
+        
+        String::from_utf8(output).map_err(|e| PastaError::io_error(e.to_string()))
+    }
+    
+    /// Transpile a global label and register it.
+    fn transpile_global_label<W: std::io::Write>(
+        label: &LabelDef,
+        registry: &mut LabelRegistry,
+        writer: &mut W,
+        actors: &HashSet<String>,
+    ) -> Result<(), PastaError> {
+        #[allow(unused_imports)]
+        use std::io::Write;
+        
+        // Register the global label
+        let (_id, counter) = registry.register_global(&label.name, HashMap::new());
+        let module_name = format!("{}_{}", Self::sanitize_identifier(&label.name), counter);
+        
+        // Generate module
+        writeln!(writer, "pub mod {} {{", module_name).map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        // Import pasta_stdlib functions into module scope
+        writeln!(writer, "    use pasta_stdlib::*;").map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        // Import actor definitions from crate root (main.rn will be prepended)
+        // Dynamically generate the import list based on actors found in the file
+        if !actors.is_empty() {
+            let actor_list: Vec<String> = actors.iter().cloned().collect();
+            let actor_list = actor_list.join(", ");
+            writeln!(writer, "    use crate::{{{}}};", actor_list).map_err(|e| PastaError::io_error(e.to_string()))?;
+        }
+        writeln!(writer).map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        // Generate __start__ function
+        writeln!(writer, "    pub fn __start__(ctx, args) {{").map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        // Transpile statements before first local label
+        for stmt in &label.statements {
+            Self::transpile_statement_to_writer(writer, stmt)?;
+        }
+        
+        writeln!(writer, "    }}").map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        // Register and generate local labels
+        for local_label in &label.local_labels {
+            Self::transpile_local_label(local_label, &label.name, counter, registry, writer, actors)?;
+        }
+        
+        writeln!(writer, "}}").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer).map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        Ok(())
+    }
+    
+    /// Transpile a local label and register it.
+    fn transpile_local_label<W: std::io::Write>(
+        label: &LabelDef,
+        parent_name: &str,
+        parent_counter: usize,
+        registry: &mut LabelRegistry,
+        writer: &mut W,
+        _actors: &HashSet<String>,
+    ) -> Result<(), PastaError> {
+        #[allow(unused_imports)]
+        use std::io::Write;
+        
+        // Register the local label
+        let (_id, counter) = registry.register_local(&label.name, parent_name, parent_counter, HashMap::new());
+        let fn_name = format!("{}_{}", Self::sanitize_identifier(&label.name), counter);
+        
+        // Generate function
+        writeln!(writer, "    pub fn {}(ctx, args) {{", fn_name).map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        // Transpile statements
+        for stmt in &label.statements {
+            Self::transpile_statement_to_writer(writer, stmt)?;
+        }
+        
+        writeln!(writer, "    }}").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer).map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        Ok(())
+    }
+    
+    /// Transpile a statement to a writer.
+    fn transpile_statement_to_writer<W: std::io::Write>(
+        writer: &mut W,
+        stmt: &Statement,
+    ) -> Result<(), PastaError> {
+        #[allow(unused_imports)]
+        use std::io::Write;
+        
+        let context = TranspileContext::new();
+        
+        match stmt {
+            Statement::Speech { speaker, content, span: _ } => {
+                // Generate speaker change (use identifier from super scope)
+                writeln!(writer, "        ctx.actor = {};", speaker).map_err(|e| PastaError::io_error(e.to_string()))?;
+                writeln!(writer, "        yield Actor(\"{}\");", speaker).map_err(|e| PastaError::io_error(e.to_string()))?;
+                
+                // Generate talk content
+                for part in content {
+                    Self::transpile_speech_part_to_writer(writer, part, &context)?;
+                }
+            }
+            Statement::Call { target, filters, args, span: _ } => {
+                // Generate call statement: for a in crate::pasta::call(ctx, "label", #{}, [args]) { yield a; }
+                let search_key = Self::transpile_jump_target_to_search_key(target);
+                let args_str = Self::transpile_exprs_to_args(args, &context)?;
+                let filters_str = Self::transpile_attributes_to_map(filters);
+                writeln!(writer, "        for a in crate::pasta::call(ctx, \"{}\", {}, [{}]) {{ yield a; }}", 
+                    search_key, filters_str, args_str).map_err(|e| PastaError::io_error(e.to_string()))?;
+            }
+            Statement::Jump { target, filters, span: _ } => {
+                // Generate jump statement: for a in crate::pasta::jump(ctx, "label", #{}, []) { yield a; }
+                let search_key = Self::transpile_jump_target_to_search_key(target);
+                let filters_str = Self::transpile_attributes_to_map(filters);
+                writeln!(writer, "        for a in crate::pasta::jump(ctx, \"{}\", {}, []) {{ yield a; }}", 
+                    search_key, filters_str).map_err(|e| PastaError::io_error(e.to_string()))?;
+            }
+            Statement::VarAssign { name, scope, value, span: _ } => {
+                let value_expr = Self::transpile_expr(value, &context)?;
+                match scope {
+                    VarScope::Local => {
+                        writeln!(writer, "        let {} = {};", name, value_expr)
+                            .map_err(|e| PastaError::io_error(e.to_string()))?;
+                    }
+                    VarScope::Global => {
+                        writeln!(writer, "        ctx.var.{} = {};", name, value_expr)
+                            .map_err(|e| PastaError::io_error(e.to_string()))?;
+                    }
+                }
+            }
+            Statement::RuneBlock { content, span: _ } => {
+                // Output the Rune code inline with proper indentation
+                for line in content.lines() {
+                    if line.trim().is_empty() {
+                        writeln!(writer).map_err(|e| PastaError::io_error(e.to_string()))?;
+                    } else {
+                        writeln!(writer, "        {}", line.trim_start())
+                            .map_err(|e| PastaError::io_error(e.to_string()))?;
+                    }
+                }
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Transpile a speech part to writer.
+    fn transpile_speech_part_to_writer<W: std::io::Write>(
+        writer: &mut W,
+        part: &SpeechPart,
+        context: &TranspileContext,
+    ) -> Result<(), PastaError> {
+        #[allow(unused_imports)]
+        use std::io::Write;
+        
+        match part {
+            SpeechPart::Text(text) => {
+                writeln!(writer, "        yield Talk(\"{}\");", Self::escape_string(text))
+                    .map_err(|e| PastaError::io_error(e.to_string()))?;
+            }
+            SpeechPart::VarRef(var_name) => {
+                writeln!(writer, "        yield Talk(`${{ctx.var.{}}}`);", var_name)
+                    .map_err(|e| PastaError::io_error(e.to_string()))?;
+            }
+            SpeechPart::FuncCall { name, args, scope: _ } => {
+                // Word expansion: yield pasta_stdlib::word(ctx, "word", [])
+                let args_str = args
+                    .iter()
+                    .map(|arg| match arg {
+                        Argument::Positional(expr) => Self::transpile_expr(expr, context),
+                        Argument::Named { name, value } => {
+                            Ok(format!("{}={}", name, Self::transpile_expr(value, context)?))
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+                    .join(", ");
+                writeln!(writer, "        yield pasta_stdlib::word(ctx, \"{}\", [{}]);", name, args_str)
+                    .map_err(|e| PastaError::io_error(e.to_string()))?;
+            }
+            SpeechPart::SakuraScript(script) => {
+                writeln!(writer, "        yield SakuraScript(\"{}\");", Self::escape_string(script))
+                    .map_err(|e| PastaError::io_error(e.to_string()))?;
+            }
+        }
+        Ok(())
+    }
+    
+    /// Transpile jump target to search key.
+    fn transpile_jump_target_to_search_key(target: &JumpTarget) -> String {
+        match target {
+            JumpTarget::Local(name) => name.clone(),
+            JumpTarget::Global(name) => name.clone(),
+            JumpTarget::LongJump { global, local } => format!("{}::{}", global, local),
+            JumpTarget::Dynamic(var_name) => format!("@{}", var_name),
+        }
+    }
+    
+    /// Transpile expressions to argument list string.
+    fn transpile_exprs_to_args(
+        exprs: &[Expr],
+        context: &TranspileContext,
+    ) -> Result<String, PastaError> {
+        exprs
+            .iter()
+            .map(|expr| Self::transpile_expr(expr, context))
+            .collect::<Result<Vec<_>, _>>()
+            .map(|v| v.join(", "))
+    }
+    
+    /// Transpile attributes to Rune map syntax.
+    fn transpile_attributes_to_map(_attrs: &[crate::Attribute]) -> String {
+        // P0: filters are not used, always return empty map
+        "#{}".to_string()
+    }
+    
+    /// Transpile a Pasta file AST to Rune source code (Legacy single-pass).
+    ///
+    /// # Deprecated
+    ///
+    /// This is the old single-pass transpiler. Use `transpile_pass1` and `transpile_pass2` instead.
     pub fn transpile(file: &PastaFile) -> Result<String, PastaError> {
         let mut output = String::new();
 
@@ -443,10 +810,13 @@ mod tests {
     fn test_transpile_simple_label() {
         let file = PastaFile {
             path: "test.pasta".into(),
+            global_words: vec![],
             labels: vec![LabelDef {
                 name: "greeting".to_string(),
                 scope: LabelScope::Global,
+                params: vec![],
                 attributes: vec![],
+                local_words: vec![],
                 local_labels: vec![],
                 statements: vec![Statement::Speech {
                     speaker: "sakura".to_string(),

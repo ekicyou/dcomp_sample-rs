@@ -1,5 +1,8 @@
 //! Integration tests for persistence functionality.
 
+mod common;
+
+use common::{create_test_script, get_test_persistence_dir};
 use pasta::{PastaEngine, PastaError};
 use std::fs;
 use std::path::PathBuf;
@@ -57,7 +60,7 @@ fn test_new_without_persistence() {
             さくら：Hello
     "#;
 
-    let result = PastaEngine::new(script);
+    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     assert!(result.is_ok());
 }
 
@@ -130,7 +133,7 @@ fn test_rune_script_without_persistence_path() {
             ```
     "#;
 
-    let mut engine = PastaEngine::new(script).expect("Failed to create engine");
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
     let events = engine
         .execute_label("test")
         .expect("Failed to execute label");

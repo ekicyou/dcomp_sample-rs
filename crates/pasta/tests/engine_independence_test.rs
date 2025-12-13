@@ -3,6 +3,9 @@
 //! These tests verify that multiple PastaEngine instances are completely independent
 //! and do not share state with each other.
 
+mod common;
+
+use common::{create_test_script, get_test_persistence_dir};
 use pasta::{PastaEngine, ScriptEvent};
 use std::collections::HashMap;
 
@@ -18,8 +21,12 @@ fn test_independent_execution() {
     うにゅう：エンジン2
 "#;
 
-    let mut engine1 = PastaEngine::new(script1).expect("Failed to create engine1");
-    let mut engine2 = PastaEngine::new(script2).expect("Failed to create engine2");
+    let script_dir1 = create_test_script(script1).expect("Failed to create script1");
+    let script_dir2 = create_test_script(script2).expect("Failed to create script2");
+    let persistence_dir = get_test_persistence_dir();
+
+    let mut engine1 = PastaEngine::new(&script_dir1, &persistence_dir).expect("Failed to create engine1");
+    let mut engine2 = PastaEngine::new(&script_dir2, &persistence_dir).expect("Failed to create engine2");
 
     // Execute both engines
     let events1 = engine1
@@ -60,8 +67,11 @@ fn test_global_variable_isolation() {
     さくら：テスト
 "#;
 
-    let mut engine1 = PastaEngine::new(script).expect("Failed to create engine1");
-    let mut engine2 = PastaEngine::new(script).expect("Failed to create engine2");
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+
+    let mut engine1 = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine1");
+    let mut engine2 = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine2");
 
     // Both engines should execute independently
     let events1 = engine1.execute_label("test").expect("Failed on engine1");
@@ -80,10 +90,13 @@ fn test_independent_parsing() {
     さくら：こんにちは
 "#;
 
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+
     // Create three engines from the same script
-    let mut engine1 = PastaEngine::new(script).expect("Failed to create engine1");
-    let mut engine2 = PastaEngine::new(script).expect("Failed to create engine2");
-    let mut engine3 = PastaEngine::new(script).expect("Failed to create engine3");
+    let mut engine1 = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine1");
+    let mut engine2 = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine2");
+    let mut engine3 = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine3");
 
     // All should be able to execute independently
     let events1 = engine1.execute_label("greeting").unwrap();
@@ -110,8 +123,11 @@ fn test_random_selector_independence() {
     さくら：選択肢3
 "#;
 
-    let mut engine1 = PastaEngine::new(script).expect("Failed to create engine1");
-    let mut engine2 = PastaEngine::new(script).expect("Failed to create engine2");
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+
+    let mut engine1 = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine1");
+    let mut engine2 = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine2");
 
     // Execute multiple times - each engine should be able to select randomly
     for _ in 0..5 {
@@ -136,8 +152,12 @@ fn test_drop_independence() {
     うにゅう：エンジン2
 "#;
 
-    let mut engine1 = PastaEngine::new(script1).expect("Failed to create engine1");
-    let mut engine2 = PastaEngine::new(script2).expect("Failed to create engine2");
+    let script_dir1 = create_test_script(script1).expect("Failed to create script1");
+    let script_dir2 = create_test_script(script2).expect("Failed to create script2");
+    let persistence_dir = get_test_persistence_dir();
+
+    let mut engine1 = PastaEngine::new(&script_dir1, &persistence_dir).expect("Failed to create engine1");
+    let mut engine2 = PastaEngine::new(&script_dir2, &persistence_dir).expect("Failed to create engine2");
 
     // Verify both work
     assert!(engine1.execute_label("test1").is_ok());
@@ -162,9 +182,12 @@ fn test_concurrent_parsing() {
     うにゅう：やあ
 "#;
 
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+
     // Create multiple engines at the same time
     let engines: Vec<_> = (0..10)
-        .map(|_| PastaEngine::new(script).expect("Failed to create engine"))
+        .map(|_| PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine"))
         .collect();
 
     // All should be valid
@@ -185,8 +208,11 @@ fn test_independent_label_execution() {
     うにゅう：ラベルB
 "#;
 
-    let mut engine1 = PastaEngine::new(script).expect("Failed to create engine1");
-    let mut engine2 = PastaEngine::new(script).expect("Failed to create engine2");
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+
+    let mut engine1 = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine1");
+    let mut engine2 = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine2");
 
     // Execute different labels on each engine
     let events1_a = engine1.execute_label("label_a").unwrap();
@@ -220,8 +246,11 @@ fn test_event_handler_independence() {
     さくら：クリック！
 "#;
 
-    let mut engine1 = PastaEngine::new(script).expect("Failed to create engine1");
-    let mut engine2 = PastaEngine::new(script).expect("Failed to create engine2");
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+
+    let mut engine1 = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine1");
+    let mut engine2 = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine2");
 
     // Execute event on both engines
     let events1 = engine1.on_event("Click", HashMap::new()).unwrap();
@@ -249,10 +278,14 @@ fn test_engine_with_different_scripts() {
         さくら：ローカルラベル
 "#;
 
+    let simple_dir = create_test_script(simple_script).expect("Failed to create simple script");
+    let complex_dir = create_test_script(complex_script).expect("Failed to create complex script");
+    let persistence_dir = get_test_persistence_dir();
+
     let mut simple_engine =
-        PastaEngine::new(simple_script).expect("Failed to create simple engine");
+        PastaEngine::new(&simple_dir, &persistence_dir).expect("Failed to create simple engine");
     let mut complex_engine =
-        PastaEngine::new(complex_script).expect("Failed to create complex engine");
+        PastaEngine::new(&complex_dir, &persistence_dir).expect("Failed to create complex engine");
 
     // Both should work independently
     assert!(simple_engine.execute_label("simple").is_ok());

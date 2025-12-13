@@ -11,6 +11,9 @@
 //! 3. Dynamic errors (ScriptEvent::Error yielded from scripts)
 //! 4. Error recovery (continuation after errors)
 
+mod common;
+
+use common::{create_test_script, get_test_persistence_dir};
 use pasta::{PastaEngine, PastaError};
 use std::collections::HashMap;
 
@@ -27,7 +30,7 @@ fn test_parse_error_with_location() {
     無効な構文
 "#;
 
-    let result = PastaEngine::new(script);
+    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     assert!(result.is_err(), "Should fail to parse invalid syntax");
 
     if let Err(err) = result {
@@ -46,7 +49,7 @@ fn test_parse_error_missing_label_content() {
 ＊空ラベル
 "#;
 
-    let result = PastaEngine::new(script);
+    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     assert!(result.is_ok(), "Empty label should be valid");
 }
 
@@ -62,7 +65,7 @@ fn test_parse_error_multiple_errors() {
     エラー行2
 "#;
 
-    let result = PastaEngine::new(script);
+    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     // Should fail on first error
     assert!(result.is_err());
 }
@@ -79,7 +82,7 @@ fn test_runtime_error_label_not_found() {
     さくら：こんにちは
 "#;
 
-    let mut engine = PastaEngine::new(script).expect("Parse should succeed");
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
     let result = engine.execute_label("存在しないラベル");
 
     assert!(result.is_err(), "Should error when label not found");
@@ -101,7 +104,7 @@ fn test_runtime_error_preserves_engine_state() {
     さくら：こんにちは
 "#;
 
-    let mut engine = PastaEngine::new(script).expect("Parse should succeed");
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
 
     // Try to execute non-existent label
     let result1 = engine.execute_label("存在しない");
@@ -170,7 +173,7 @@ fn test_error_recovery_generator_continues() {
     さくら：次の発言
 "#;
 
-    let mut engine = PastaEngine::new(script).expect("Parse should succeed");
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
     let events = engine
         .execute_label("テスト")
         .expect("Execute should succeed");
@@ -192,7 +195,7 @@ fn test_multiple_labels_after_error() {
     うにゅう：ラベル2の内容
 "#;
 
-    let mut engine = PastaEngine::new(script).expect("Parse should succeed");
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
 
     // Try to execute non-existent label (error)
     let result1 = engine.execute_label("存在しない");
@@ -219,7 +222,7 @@ fn test_error_message_is_descriptive() {
     さくら：こんにちは
 "#;
 
-    let mut engine = PastaEngine::new(script).expect("Parse should succeed");
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
     let result = engine.execute_label("存在しないラベル");
 
     assert!(result.is_err());
@@ -240,7 +243,7 @@ fn test_parse_error_message_quality() {
     これは無効な構文です
 "#;
 
-    let result = PastaEngine::new(script);
+    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
 
     if let Err(err) = result {
         let err_msg = format!("{}", err);
@@ -337,7 +340,7 @@ fn test_end_to_end_error_scenarios() {
     うにゅう：問題なし！
 "#;
 
-    let mut engine = PastaEngine::new(script).expect("Parse should succeed");
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
 
     // 1. Execute valid label
     let result1 = engine.execute_label("起動");
@@ -368,7 +371,7 @@ fn test_error_with_event_handlers() {
     さくら：クリックされました
 "#;
 
-    let mut engine = PastaEngine::new(script).expect("Parse should succeed");
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
 
     // Valid event
     let result1 = engine.on_event("Click", HashMap::new());
@@ -391,7 +394,7 @@ fn test_error_with_event_handlers() {
 fn test_empty_script_no_error() {
     // Empty script should parse successfully
     let script = "";
-    let result = PastaEngine::new(script);
+    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     assert!(result.is_ok(), "Empty script should parse successfully");
 }
 
@@ -402,7 +405,7 @@ fn test_comments_only_no_error() {
 # これはコメント
 # 別のコメント
 "#;
-    let result = PastaEngine::new(script);
+    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     assert!(
         result.is_ok(),
         "Comments-only script should parse successfully"
@@ -413,7 +416,7 @@ fn test_comments_only_no_error() {
 fn test_whitespace_only_no_error() {
     // Script with only whitespace should parse successfully
     let script = "   \n  \n  \t  \n";
-    let result = PastaEngine::new(script);
+    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     assert!(
         result.is_ok(),
         "Whitespace-only script should parse successfully"
@@ -429,7 +432,7 @@ fn test_error_in_nested_label() {
     さくら：親のコンテンツ
 "#;
 
-    let mut engine = PastaEngine::new(script).expect("Parse should succeed");
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
 
     // Execute parent label
     let result1 = engine.execute_label("親ラベル");

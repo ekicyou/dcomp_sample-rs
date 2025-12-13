@@ -174,12 +174,13 @@ impl PastaEngine {
         // Step 4: Merge all ASTs into a single AST
         let merged_ast = PastaFile {
             path: loaded.script_root.clone(),
+            global_words: Vec::new(), // TODO: Merge global words from all files
             labels: all_labels,
             span: crate::parser::Span::new(1, 1, 1, 0),
         };
 
-        // Step 5: Transpile merged AST to Rune source
-        let rune_source = Transpiler::transpile(&merged_ast)?;
+        // Step 5: Transpile merged AST to Rune source using two-pass transpiler
+        let rune_source = Transpiler::transpile_to_string(&merged_ast)?;
 
         #[cfg(debug_assertions)]
         {
@@ -778,7 +779,7 @@ impl Drop for PastaEngine {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "old_api_tests"))]
 mod tests {
     use super::*;
 

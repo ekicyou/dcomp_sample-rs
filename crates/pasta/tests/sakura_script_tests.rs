@@ -12,6 +12,9 @@
 //! This is acceptable for Task 6.1-6.3. Future optimization (separate task) will
 //! combine them into single Talk events with multiple ContentParts.
 
+mod common;
+
+use common::{create_test_script, get_test_persistence_dir};
 use pasta::{
     ir::{ContentPart, ScriptEvent},
     PastaEngine,
@@ -37,7 +40,7 @@ fn test_basic_sakura_script_ascii() -> Result<(), Box<dyn std::error::Error>> {
     さくら：こんにちは\s[0]
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     // Verify we have a ChangeSpeaker event
@@ -64,7 +67,7 @@ fn test_basic_sakura_script_fullwidth() -> Result<(), Box<dyn std::error::Error>
     さくら：こんにちは＼ｓ［０］
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -84,7 +87,7 @@ fn test_surface_switching() -> Result<(), Box<dyn std::error::Error>> {
     さくら：怒った顔です\s[2]
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -112,7 +115,7 @@ fn test_wait_commands() -> Result<(), Box<dyn std::error::Error>> {
     さくら：こんにちは\w8お元気ですか
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -139,7 +142,7 @@ fn test_quick_wait() -> Result<(), Box<dyn std::error::Error>> {
     さくら：素早く\_w[50]表示します
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -159,7 +162,7 @@ fn test_speaker_switching_commands() -> Result<(), Box<dyn std::error::Error>> {
     さくら：\1次はうにゅうです
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -181,7 +184,7 @@ fn test_newline_commands() -> Result<(), Box<dyn std::error::Error>> {
     さくら：1行目\n[半分改行]\n[half]もっと半分
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -210,7 +213,7 @@ fn test_multiple_commands() -> Result<(), Box<dyn std::error::Error>> {
     さくら：\s[0]こんにちは\w8元気ですか\s[1]
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -237,7 +240,7 @@ fn test_custom_commands() -> Result<(), Box<dyn std::error::Error>> {
     さくら：カスタム\custom[arg1,arg2]コマンドです
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -257,7 +260,7 @@ fn test_sakura_script_multiple_lines() -> Result<(), Box<dyn std::error::Error>>
     さくら：2番目の行です\w5
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -279,7 +282,7 @@ fn test_sakura_script_at_start() -> Result<(), Box<dyn std::error::Error>> {
     さくら：\s[0]最初から表情変更
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -301,7 +304,7 @@ fn test_sakura_script_at_end() -> Result<(), Box<dyn std::error::Error>> {
     さくら：最後に表情変更\s[0]
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -323,7 +326,7 @@ fn test_only_sakura_script() -> Result<(), Box<dyn std::error::Error>> {
     さくら：\s[0]\w5\n
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -348,7 +351,7 @@ fn test_complex_sakura_commands() -> Result<(), Box<dyn std::error::Error>> {
     さくら：\s[10]複雑\![raise,OnTest,arg1,arg2]なコマンド
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -370,7 +373,7 @@ fn test_mixed_backslashes() -> Result<(), Box<dyn std::error::Error>> {
     さくら：ASCII\s[0]とfull-width＼ｓ［１］混在
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);
@@ -399,7 +402,7 @@ fn test_sakura_with_text() -> Result<(), Box<dyn std::error::Error>> {
     さくら：\s[0]こんにちはお元気ですか\w5
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     let parts = extract_content_parts(&events);

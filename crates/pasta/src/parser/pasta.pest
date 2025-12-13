@@ -6,31 +6,77 @@
 // Note: WHITESPACE defined without _ would make it explicit
 // Using _ makes it implicit (auto-inserted between tokens)
 // We keep it implicit for ease of parsing
-WHITESPACE = _{ " " | "\t" | "\u{3000}" }
+// Unicode空白文字: タブ、半角スペース、全角スペース、その他のUnicode空白
+// pestではUnicodeエスケープを文字クラス内で使えないため、|区切りで列挙
+WHITESPACE = _{ " " | "\t" | "\u{3000}" | "\u{00A0}" | "\u{1680}" | "\u{2000}" | "\u{2001}" | "\u{2002}" | "\u{2003}" | "\u{2004}" | "\u{2005}" | "\u{2006}" | "\u{2007}" | "\u{2008}" | "\u{2009}" | "\u{200A}" | "\u{202F}" | "\u{205F}" }
 COMMENT = _{ comment_line }
-comment_line = { "#" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
+comment_line = { WHITESPACE* ~ ("＃" | "#") ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
 
 // === File Structure ===
+// Top-level: Only lines starting with specific characters are allowed
 
 file = {
     SOI ~
-    (global_label | NEWLINE)*~
+    (top_level_line)*~
     EOI
 }
 
+top_level_line = {
+    comment_line |
+    global_word_def |
+    global_label |
+    empty_line
+}
+
+empty_line = _{ NEWLINE }
+indent_only_line = _{ indent ~ NEWLINE }
+
 // === Labels ===
+// Global label: starts with ＊ or *
+// Body can contain indented lines
 
 global_label = ${
     global_label_marker ~ label_name ~ NEWLINE ~
-    (attribute_line)* ~
-    (rune_block | local_label | statement)*
+    (label_body_line | indent_only_line | empty_line)*
 }
 
-local_label = ${
-    indent ~ local_label_marker ~ label_name ~ NEWLINE ~
-    (attribute_line)* ~
-    (rune_block | statement)*
+// Label body line: starts with indent, then dispatch by first character
+label_body_line = {
+    indent ~ (
+        comment_marker ~ comment_content ~ NEWLINE |
+        rune_start ~ rune_block_content |
+        at_marker ~ word_or_attr |
+        dollar_marker ~ var_assign_content |
+        local_label_marker ~ local_label_content |
+        call_marker ~ call_content |
+        jump_marker ~ jump_content |
+        speech_line_content
+    )
 }
+
+// Local label: indent + (ー or -), optionally followed by parameter declarations
+local_label_content = {
+    label_name ~ label_params? ~ NEWLINE ~
+    (local_label_body_line | indent_only_line | empty_line)*
+}
+
+// Label parameters: space-separated list of ＄param_name
+label_params = { (WHITESPACE+ ~ dollar_marker ~ var_name)+ }
+
+local_label_body_line = {
+    indent ~ (
+        comment_marker ~ comment_content ~ NEWLINE |
+        rune_start ~ rune_block_content |
+        at_marker ~ word_or_attr |
+        dollar_marker ~ var_assign_content |
+        call_marker ~ call_content |
+        jump_marker ~ jump_content |
+        speech_line_content
+    )
+}
+
+comment_marker = { "＃" | "#" }
+comment_content = @{ (!NEWLINE ~ ANY)* }
 
 global_label_marker = { "＊" | "*" }
 local_label_marker = { "ー" | "-" }
@@ -41,25 +87,38 @@ label_name_forbidden = { global_label_marker | local_label_marker | call_marker 
 // Examples: __start__, __word_test__, __reserved__
 reserved_label_pattern = @{ "__" ~ XID_START ~ XID_CONTINUE* ~ "__" }
 
-// === Attributes ===
+// Disambiguate ＠ lines: word def or attribute
+// - Word def: ＠word_name：value1　value2
+// - Attribute: ＠key：value (after checking if colon followed by non-separator)
+word_or_attr = {
+    // Try word definition first (has word_separator)
+    word_name ~ colon ~ word_value_list ~ NEWLINE |
+    // Then attribute (simple key:value)
+    attribute_key ~ colon ~ attribute_value ~ NEWLINE
+}
 
-attribute_line = {
-    indent ~ at_marker ~ attribute_key ~ colon ~ attribute_value ~ NEWLINE
+// Variable assignment: ＄var_name＝expr
+var_assign_content = {
+    var_name ~ equals ~ expr ~ NEWLINE
 }
 
 attribute_key = @{ ident }
 attribute_value = { var_ref | literal_value }
-literal_value = @{ (!NEWLINE ~ !colon ~ ANY)+ }
+literal_value = @{ (!(NEWLINE | colon | word_separator) ~ ANY)+ }
 
-// === Statements ===
-
-statement = {
-    (speech_line | call_stmt | jump_stmt | var_assign | NEWLINE)
+// Call statement content (after ＞)
+call_content = {
+    jump_target ~ filter_list? ~ arg_list? ~ NEWLINE
 }
 
-// Speech (dialogue)
-speech_line = {
-    indent ~ speaker ~ colon ~ speech_content ~ NEWLINE ~
+// Jump statement content (after ？)
+jump_content = {
+    jump_target ~ filter_list? ~ arg_list? ~ NEWLINE
+}
+
+// Speech line content (speaker：content)
+speech_line_content = {
+    speaker ~ colon ~ speech_content ~ NEWLINE ~
     (continuation_line)*
 }
 
@@ -103,16 +162,6 @@ sakura_command = @{
     sakura_digit+
 }
 
-// Call statement
-call_stmt = {
-    indent ~ call_marker ~ jump_target ~ filter_list? ~ arg_list? ~ NEWLINE
-}
-
-// Jump statement
-jump_stmt = {
-    indent ~ jump_marker ~ jump_target ~ filter_list? ~ arg_list? ~ NEWLINE
-}
-
 call_marker = { "＞" | ">" }
 jump_marker = { "？" | "?" }
 
@@ -147,11 +196,18 @@ arg_value = { string_literal | number_literal | var_ref | func_call }
 lparen = { "（" | "(" }
 rparen = { "）" | ")" }
 
-// === Variable Assignment ===
+// === Word Definition ===
+// Global: ＠word_name：value1　value2
+// Local: (indent) ＠word_name：value1　value2
 
-var_assign = {
-    indent ~ dollar_marker ~ var_scope? ~ var_name ~ equals ~ expr ~ NEWLINE
+global_word_def = {
+    at_marker ~ word_name ~ colon ~ word_value_list ~ NEWLINE
 }
+
+word_name = @{ ident }
+word_value_list = @{ word_value ~ (word_separator ~ word_value)* }
+word_value = { (!word_separator ~ !NEWLINE ~ ANY)+ }
+word_separator = { "　" | "\t" }
 
 dollar_marker = { "＄" | "$" }
 var_scope = { global_label_marker }
@@ -184,18 +240,22 @@ modulo = { "%" | "％" }
 
 // === Variables and Functions ===
 
-var_ref = { at_marker ~ var_name }
+var_ref = { (at_marker | dollar_marker) ~ var_scope? ~ var_name }
 
 func_call = {
-    at_marker ~ func_name ~ arg_list
+    at_marker ~ func_name ~ arg_list?
 }
 
 func_name = @{ ident }
 
 // === Rune Code Block ===
+// Only multi-line construct
+// (indent) ```rune
+// ... content ...
+// (indent) ```
 
-rune_block = ${
-    indent ~ rune_start ~ NEWLINE ~
+rune_block_content = ${
+    NEWLINE ~
     rune_content ~
     indent ~ rune_end ~ NEWLINE?
 }
@@ -220,8 +280,10 @@ en_string = { "\"" ~ en_string_content ~ "\"" }
 en_string_content = @{ (!("\"" | "\\") ~ ANY | "\\" ~ ANY)* }
 
 number_literal = @{
-    "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?
+    ("-" | "－")? ~ digit+ ~ (("." | "．") ~ digit+)?
 }
+
+digit = { ASCII_DIGIT | '０'..'９' }
 
 // === Common Elements ===
 

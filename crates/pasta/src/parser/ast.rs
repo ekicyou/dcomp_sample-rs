@@ -20,8 +20,21 @@ pub enum FunctionScope {
 pub struct PastaFile {
     /// Path to the source file (for error reporting)
     pub path: PathBuf,
+    /// Global word definitions
+    pub global_words: Vec<WordDef>,
     /// All global labels defined in the file
     pub labels: Vec<LabelDef>,
+    /// Source location span
+    pub span: Span,
+}
+
+/// Word definition (global or local)
+#[derive(Debug, Clone)]
+pub struct WordDef {
+    /// Word name
+    pub name: String,
+    /// Possible values for this word
+    pub values: Vec<String>,
     /// Source location span
     pub span: Span,
 }
@@ -33,8 +46,12 @@ pub struct LabelDef {
     pub name: String,
     /// Scope of the label (global or local)
     pub scope: LabelScope,
+    /// Parameters for this label (e.g., `＄値` in `ーカウント表示　＄値`)
+    pub params: Vec<String>,
     /// Attributes attached to this label
     pub attributes: Vec<Attribute>,
+    /// Local word definitions within this label
+    pub local_words: Vec<WordDef>,
     /// Local labels nested within this label (only for global labels)
     pub local_labels: Vec<LabelDef>,
     /// Statements in this label's body

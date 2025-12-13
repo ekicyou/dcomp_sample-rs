@@ -1,0 +1,17 @@
+// Main Rune entry point for persistence test
+// This file defines global actor constants and other shared definitions
+
+// Actor definitions - basic information as objects
+pub const さくら = #{
+    name: "さくら",
+    id: "sakura",
+};
+
+pub const うにゅう = #{
+    name: "うにゅう", 
+    id: "unyuu",
+};
+
+pub fn main() {
+    // Entry point for tests
+}

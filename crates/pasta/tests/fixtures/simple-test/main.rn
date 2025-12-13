@@ -1,0 +1,8 @@
+// Simple test main.rn
+
+pub const さくら = #{
+    name: "さくら",
+    id: "sakura",
+};
+
+pub fn main() {}

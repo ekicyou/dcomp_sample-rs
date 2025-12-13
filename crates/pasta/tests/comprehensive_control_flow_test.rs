@@ -104,10 +104,10 @@ fn verify_pasta_input_structure() -> Result<(), Box<dyn std::error::Error>> {
         pasta_code.contains("＠場所"),
         "ローカル単語定義が存在すること"
     );
-    assert!(pasta_code.contains("＄カウンター"), "変数が存在すること");
+    assert!(pasta_code.contains("＄カウンタ"), "変数が存在すること");
     assert!(pasta_code.contains("＞自己紹介"), "Call文が存在すること");
     assert!(pasta_code.contains("？会話分岐"), "Jump文が存在すること");
-    assert!(pasta_code.contains("さくら："), "会話文が存在すること");
+    assert!(pasta_code.contains("さくら　："), "会話文が存在すること");
 
     println!("✅ Pasta入力の構造検証成功");
     Ok(())

@@ -34,7 +34,98 @@ pub fn create_module() -> Result<Module, ContextError> {
     // Register persistence functions
     persistence::register_persistence_functions(&mut module)?;
 
+    // Register label resolution functions (P0: stub implementation)
+    module.function("select_label_to_id", select_label_to_id).build()?;
+    
+    // Register word expansion functions (P0: stub implementation)
+    module.function("word", word_expansion).build()?;
+    
+    // Register event constructor functions
+    module.function("Actor", actor_event).build()?;
+    module.function("Talk", talk_event).build()?;
+    module.function("Error", error_event).build()?;
+
     Ok(module)
+}
+
+/// P0 implementation: Stub label resolution that always returns 1.
+///
+/// This allows basic testing without implementing the full label resolution logic.
+/// P1 will implement proper label name -> ID mapping with forward matching and random selection.
+///
+/// # Arguments
+/// * `label` - Label name to resolve (unused in P0)
+/// * `filters` - Attribute filters (unused in P0)
+///
+/// # Returns
+/// Always returns 1 for P0 testing
+fn select_label_to_id(_label: String, _filters: rune::runtime::Value) -> i64 {
+    // P0: Always return 1 for basic testing
+    // P1 will implement:
+    // - Static HashMap lookup
+    // - Forward matching
+    // - Random selection for duplicate labels
+    1
+}
+
+/// P0 implementation: Stub word expansion that returns the word name as-is.
+///
+/// This allows basic testing without implementing the full word dictionary.
+/// P1 will implement proper word expansion with random selection.
+///
+/// # Arguments
+/// * `_ctx` - Context object (unused in P0)
+/// * `word` - Word name to expand
+/// * `_args` - Arguments (unused in P0)
+///
+/// # Returns
+/// A Talk event with the word name
+fn word_expansion(_ctx: rune::runtime::Value, word: String, _args: rune::runtime::Value) -> ScriptEvent {
+    // P0: Just return the word name as text
+    // P1 will implement:
+    // - Word dictionary lookup
+    // - Random selection from alternatives
+    // - Cache-based exhaustion
+    ScriptEvent::Talk {
+        speaker: String::new(),
+        content: vec![ContentPart::Text(word)],
+    }
+}
+
+/// Create an Actor event (speaker change).
+///
+/// # Arguments
+/// * `name` - Speaker name
+///
+/// # Returns
+/// A ChangeSpeaker event
+fn actor_event(name: String) -> ScriptEvent {
+    ScriptEvent::ChangeSpeaker { name }
+}
+
+/// Create a Talk event.
+///
+/// # Arguments
+/// * `text` - Text content
+///
+/// # Returns
+/// A Talk event
+fn talk_event(text: String) -> ScriptEvent {
+    ScriptEvent::Talk {
+        speaker: String::new(),
+        content: vec![ContentPart::Text(text)],
+    }
+}
+
+/// Create an Error event.
+///
+/// # Arguments
+/// * `message` - Error message
+///
+/// # Returns
+/// An Error event
+fn error_event(message: String) -> ScriptEvent {
+    ScriptEvent::Error { message }
 }
 
 /// Emit text content as a Talk event.

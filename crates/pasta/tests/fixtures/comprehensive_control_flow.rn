@@ -1,3 +1,13 @@
+pub const さくら = #{
+    name: "さくら",
+    id: 1,
+};
+
+pub const うにゅう = #{
+    name: "うにゅう",
+    id: 2,
+};
+
 pub mod メイン_1 {
     use super::{さくら, うにゅう};
     
@@ -32,9 +42,12 @@ pub mod メイン_1 {
     }
     
     fn __word_ローカル関数__(ctx, args) {
-        for value in ローカル関数(ctx, args) {
+        let saved_args = ctx.args;
+        ctx.args = args;
+        for value in ローカル関数(ctx) {
             yield value;
         }
+        ctx.args = saved_args;
     }
     
     fn __call_自己紹介__(ctx, args) {
@@ -44,9 +57,12 @@ pub mod メイン_1 {
     }
     
     fn __call_カウント表示__(ctx, args) {
-        for value in カウント表示(ctx, args) {
+        let saved_args = ctx.args;
+        ctx.args = args;
+        for value in カウント表示(ctx) {
             yield value;
         }
+        ctx.args = saved_args;
     }
     
     fn __jump_会話分岐__(ctx, args) {
@@ -103,8 +119,8 @@ pub mod メイン_1 {
         yield #{ type: "Talk", text: "僕はゲームが好き。" };
     }
     
-    pub fn カウント表示(ctx, args) {
-        let 値 = args[0];
+    pub fn カウント表示(ctx) {
+        let 値 = ctx.args[0];
         
         ctx.actor = さくら;
         yield #{ type: "Actor", actor: ctx.actor };
@@ -144,8 +160,8 @@ pub mod メイン_1 {
         yield #{ type: "Talk", text: "まだ決めてないなぁ。" };
     }
 
-    pub fn ローカル関数(ctx, args) {
-        let メッセージ = args[0];
+    pub fn ローカル関数(ctx) {
+        let メッセージ = ctx.args[0];
         ctx.actor = super::うにゅう;
         yield #{ type: "Actor", actor: ctx.actor };
         yield #{ type: "Talk", text: `ローカル関数が呼ばれました: ${メッセージ}` };

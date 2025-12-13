@@ -1,5 +1,8 @@
 //! Integration tests for PastaEngine (Tasks 5.1, 5.2, 5.3)
 
+mod common;
+
+use common::{create_test_script, get_test_persistence_dir};
 use pasta::{
     ir::{ContentPart, ScriptEvent},
     PastaEngine,
@@ -16,7 +19,9 @@ fn test_engine_execute_simple_label() -> Result<(), Box<dyn std::error::Error>> 
     うにゅう：やあ
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("挨拶")?;
 
     // Should have 4 events: ChangeSpeaker, Talk, ChangeSpeaker, Talk
@@ -69,7 +74,9 @@ fn test_engine_multiple_labels() -> Result<(), Box<dyn std::error::Error>> {
     さくら：さようなら
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
 
     // Execute first label
     let events1 = engine.execute_label("挨拶")?;
@@ -89,7 +96,9 @@ fn test_engine_executes_to_completion() -> Result<(), Box<dyn std::error::Error>
     さくら：hi
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     // Should have ChangeSpeaker + Talk
@@ -105,7 +114,9 @@ fn test_engine_with_sakura_script() -> Result<(), Box<dyn std::error::Error>> {
     さくら：こんにちは＼ｓ［０］
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     // Should have ChangeSpeaker + Talk (with text + sakura script parts)
@@ -125,7 +136,9 @@ fn test_engine_multiple_executions() -> Result<(), Box<dyn std::error::Error>> {
     うにゅう：message2
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
 
     let events1 = engine.execute_label("label1")?;
     assert!(events1.len() >= 2);
@@ -153,7 +166,9 @@ fn test_engine_label_with_call() -> Result<(), Box<dyn std::error::Error>> {
     うにゅう：in sub
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("main")?;
 
     // Should have events from main
@@ -172,7 +187,9 @@ fn test_engine_empty_label() -> Result<(), Box<dyn std::error::Error>> {
 ＊empty
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("empty")?;
 
     // Empty label should produce no events
@@ -196,7 +213,9 @@ fn test_chain_talk_manual() -> Result<(), Box<dyn std::error::Error>> {
     さくら：今日も元気だね！
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
 
     // Execute first label
     let mut all_events = engine.execute_label("挨拶")?;
@@ -226,7 +245,9 @@ fn test_chain_talk_with_api() -> Result<(), Box<dyn std::error::Error>> {
     さくら：おわり
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
 
     // Execute each label individually to simulate chain
     let events1 = engine.execute_label("start")?;
@@ -252,7 +273,9 @@ fn test_multiple_speakers_complex() -> Result<(), Box<dyn std::error::Error>> {
     さくら：それはよかった
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("会話")?;
 
     // Should have 10 events (5 ChangeSpeaker + 5 Talk)
@@ -283,7 +306,9 @@ fn test_sakura_script_content_parts() -> Result<(), Box<dyn std::error::Error>> 
     さくら：テキスト＼ｓ［０］続き
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
     let events = engine.execute_label("test")?;
 
     // Current implementation: ChangeSpeaker + Talk(Text) + Talk(SakuraScript) + Talk(Text)
@@ -315,7 +340,9 @@ fn test_error_handling_invalid_label() -> Result<(), Box<dyn std::error::Error>>
     さくら：こんにちは
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
 
     // Try to execute non-existent label
     let result = engine.execute_label("invalid");
@@ -328,7 +355,11 @@ fn test_error_handling_invalid_label() -> Result<(), Box<dyn std::error::Error>>
 fn test_empty_script() -> Result<(), Box<dyn std::error::Error>> {
     let script = "";
 
-    let engine = PastaEngine::new(script);
+    let script_dir = create_test_script(script).expect("Failed to create script");
+
+    let persistence_dir = get_test_persistence_dir();
+
+    let engine = PastaEngine::new(&script_dir, &persistence_dir);
     assert!(engine.is_ok(), "Empty script should be valid");
 
     Ok(())
@@ -345,7 +376,9 @@ fn test_label_isolation() -> Result<(), Box<dyn std::error::Error>> {
     うにゅう：two
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
 
     let events1 = engine.execute_label("label1")?;
     let events2 = engine.execute_label("label2")?;
@@ -373,7 +406,9 @@ fn test_repeated_label_execution() -> Result<(), Box<dyn std::error::Error>> {
     さくら：こんにちは
 "#;
 
-    let mut engine = PastaEngine::new(script)?;
+    let script_dir = create_test_script(script).expect("Failed to create script");
+    let persistence_dir = get_test_persistence_dir();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
 
     // Execute same label 10 times
     for _ in 0..10 {
@@ -433,7 +468,7 @@ fn test_engine_lifecycle() -> Result<(), Box<dyn std::error::Error>> {
 "#;
 
     {
-        let mut engine = PastaEngine::new(script)?;
+        let script_dir = create_test_script(script).expect("Failed to create script");        let persistence_dir = get_test_persistence_dir();        let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
         let _events = engine.execute_label("test")?;
         // Engine will be dropped here
     }

@@ -3,6 +3,9 @@
 //! These tests verify that PastaEngine instances can be safely moved across
 //! thread boundaries and executed concurrently without data races.
 
+mod common;
+
+use common::{create_test_script, get_test_persistence_dir};
 use pasta::{PastaEngine, ScriptEvent};
 use std::thread;
 
@@ -20,7 +23,7 @@ fn test_thread_safety() {
 
     // Spawn threads that create and execute engines
     let handle1 = thread::spawn(move || {
-        let mut engine = PastaEngine::new(script1).expect("Failed to create engine in thread 1");
+        let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir1, &persistence_dir).expect("Failed to create engine in thread 1");
         let events = engine
             .execute_label("test1")
             .expect("Failed to execute in thread 1");
@@ -34,7 +37,7 @@ fn test_thread_safety() {
     });
 
     let handle2 = thread::spawn(move || {
-        let mut engine = PastaEngine::new(script2).expect("Failed to create engine in thread 2");
+        let mut engine = PastaEngine::new(&script_dir2, &persistence_dir).expect("Failed to create engine in thread 2");
         let events = engine
             .execute_label("test2")
             .expect("Failed to execute in thread 2");
@@ -68,7 +71,7 @@ fn test_multiple_threads_same_script() {
         .map(|i| {
             let script_copy = script.to_string();
             thread::spawn(move || {
-                let mut engine = PastaEngine::new(&script_copy)
+                let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_copy)
                     .unwrap_or_else(|_| panic!("Failed to create engine in thread {}", i));
                 let events = engine
                     .execute_label("greeting")
@@ -95,7 +98,7 @@ fn test_send_trait() {
     さくら：Send テスト
 "#;
 
-    let engine = PastaEngine::new(script).expect("Failed to create engine");
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let engine = PastaEngine::new(script).expect("Failed to create engine");
 
     // Move engine to another thread
     let handle = thread::spawn(move || {
@@ -121,7 +124,7 @@ fn test_independent_execution_across_threads() {
     let script2 = script.to_string();
 
     let handle1 = thread::spawn(move || {
-        let mut engine = PastaEngine::new(&script1).expect("Failed to create engine in thread 1");
+        let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script1).expect("Failed to create engine in thread 1");
         engine
             .execute_label("label_a")
             .expect("Failed to execute label_a")
@@ -193,7 +196,7 @@ fn test_no_data_races() {
         .map(|_| {
             let script_copy = script.to_string();
             thread::spawn(move || {
-                let mut engine = PastaEngine::new(&script_copy).expect("Failed to create engine");
+                let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_copy).expect("Failed to create engine");
                 // Execute multiple times
                 for _ in 0..3 {
                     let events = engine.execute_label("counter").expect("Failed to execute");
@@ -222,7 +225,7 @@ fn test_thread_local_cache() {
             let script_copy = script.to_string();
             thread::spawn(move || {
                 // Create two engines in the same thread
-                let mut engine1 = PastaEngine::new(&script_copy)
+                let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine1 = PastaEngine::new(&script_copy)
                     .unwrap_or_else(|_| panic!("Failed to create engine1 in thread {}", i));
                 let mut engine2 = PastaEngine::new(&script_copy)
                     .unwrap_or_else(|_| panic!("Failed to create engine2 in thread {}", i));

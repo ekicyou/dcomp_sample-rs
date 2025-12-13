@@ -2,6 +2,9 @@
 //!
 //! Tests the complete pipeline: parsing → AST → transpiling → execution
 
+mod common;
+
+use common::{create_test_script, get_test_persistence_dir};
 use pasta::{ir::ScriptEvent, PastaEngine};
 
 #[test]
@@ -17,7 +20,7 @@ fn test_rune_block_parsing() {
   さくら：こんにちは
 "#;
 
-    let result = PastaEngine::new(script);
+    let result = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     assert!(
         result.is_ok(),
         "Failed to parse script with rune block: {:?}",
@@ -38,7 +41,7 @@ fn test_rune_block_transpilation() {
   さくら：計算します
 "#;
 
-    let mut engine = PastaEngine::new(script).expect("Failed to create engine");
+    let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); let mut engine = PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
 
     // The transpiled code should contain the rune function
     // We can't directly access the transpiled code, but we can verify execution works
@@ -69,7 +72,7 @@ fn test_rune_block_with_function_call() {
   さくら：@greet("World")
 "#;
 
-    let engine = PastaEngine::new(script);
+    let engine = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
 
     // This might fail at runtime if function scoping isn't implemented yet
     // For now, just verify it parses and transpiles
@@ -90,7 +93,7 @@ fn test_rune_block_empty() {
   さくら：こんにちは
 "#;
 
-    let engine = PastaEngine::new(script);
+    let engine = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     assert!(
         engine.is_ok(),
         "Failed to parse script with empty rune block: {:?}",
@@ -109,7 +112,7 @@ fn test_rune_block_in_local_label() {
     // Note: Using ASCII label names to avoid encoding issues in test
     let script = "＊Global\n  ーLocal\n    ```rune\n    fn local_func() {\n      return \"local\";\n    }\n    ```\n    さくら：ローカル関数定義\n";
 
-    let engine = PastaEngine::new(script);
+    let engine = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     assert!(
         engine.is_ok(),
         "Failed to parse script with rune block in local label: {:?}",
@@ -140,7 +143,7 @@ fn test_rune_block_with_complex_code() {
   さくら：複雑な関数を定義しました
 "#;
 
-    let engine = PastaEngine::new(script);
+    let engine = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     assert!(
         engine.is_ok(),
         "Failed to parse script with complex rune code: {:?}",
@@ -167,7 +170,7 @@ fn test_multiple_rune_blocks() {
   さくら：二つ目の関数
 "#;
 
-    let engine = PastaEngine::new(script);
+    let engine = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     assert!(
         engine.is_ok(),
         "Failed to parse script with multiple rune blocks: {:?}",
@@ -194,7 +197,7 @@ fn test_rune_block_indentation_preserved() {
   さくら：インデント確認
 "#;
 
-    let engine = PastaEngine::new(script);
+    let engine = let script_dir = create_test_script(script).expect("Failed to create script"); let persistence_dir = get_test_persistence_dir(); PastaEngine::new(&script_dir, &persistence_dir);
     assert!(
         engine.is_ok(),
         "Failed to parse script with nested indentation: {:?}",
