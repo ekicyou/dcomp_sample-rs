@@ -1,26 +1,36 @@
-# Feature Specification: pasta-label-resolution-runtime
+````markdown
+# Requirements Document: pasta-label-resolution-runtime
 
-## Metadata
-- **Feature Name**: pasta-label-resolution-runtime
-- **Priority**: P1 (pasta-declarative-control-flow の後続)
-- **Status**: Specification Only (未実装)
-- **Parent Feature**: pasta-declarative-control-flow
-- **Created**: 2025-12-12
+| 項目 | 内容 |
+|------|------|
+| **Document Title** | Pasta DSL ランタイムラベル解決システム 要件定義書 |
+| **Version** | 2.0 |
+| **Date** | 2025-12-14 |
+| **Parent Spec** | pasta-declarative-control-flow (completed) |
+| **Priority** | P1 |
+| **Status** | Requirements Refinement |
 
-## Overview
+---
 
-pasta-declarative-control-flow (P0) で生成される `pasta::label_selector()` 関数の実行時ラベル解決機能を実装する。
+## Introduction
 
-現在、P0実装では `label_selector()` は常に固定ID（`id = 1`）を返す仮実装となっており、実際のラベル名からIDへの動的解決は行われない。本仕様では、ランタイムでの前方一致検索、フィルタリング、ランダム選択を実装する。
+本要件定義書は、Pasta DSLにおける**実行時ラベル解決機能**を定義する。これは、トランスパイラーが生成する `pasta::label_selector()` 関数のRust実装であり、宣言的コントロールフロー（call/jump文）の実行時動作を実現する中核機能である。
 
-## Problem Statement
+### Background
 
-### 現状の仮実装（P0）
+親仕様 `pasta-declarative-control-flow` (P0) において、Pasta DSLからRuneコードへのトランスパイラーが実装され、以下の構造が確立された：
 
 ```rune
+// トランスパイラーが生成するコード
+pub mod 会話_1 {
+    pub fn __start__(ctx) { /* ... */ }
+    pub fn 選択肢_1(ctx) { /* ... */ }
+    pub fn 選択肢_2(ctx) { /* ... */ }
+}
+
 pub mod pasta {
     pub fn label_selector(label, filters) {
-        let id = 1; // 仮実装: 常に固定ID
+        let id = 1; // ⚠️ 仮実装: 常に固定値
         match id {
             1 => crate::会話_1::__start__,
             2 => crate::会話_1::選択肢_1,
@@ -31,121 +41,349 @@ pub mod pasta {
 }
 ```
 
-### 必要な機能
+現在の `label_selector()` は**仮実装**であり、常に `id = 1` を返すため、実際のラベル名解決が機能していない。本仕様では、この関数が呼び出す **Rust側のラベル解決エンジン** (`LabelTable::resolve_label_id()`) を実装する。
 
-1. **ラベル名→ID解決**: `label` 文字列から適切なIDを検索
-2. **前方一致検索**: `"会話"` → `"会話_1::__start__"` などの前方一致
-3. **フィルタリング**: `filters` パラメータによる属性絞り込み
-4. **ランダム選択**: 複数候補からの選択（RandomSelector使用）
-5. **キャッシュベース消化**: 同じ検索キーでの選択肢の順次消化
+### Problem Statement
 
-## Technical Context
+**課題1: 前方一致検索の未実装**
 
-### LabelTable とのインターフェース
+Pasta DSLの設計では、ラベル名は前方一致で解決される：
 
-P0で定義された `LabelTable` インターフェース:
-
-```rust
-pub struct LabelTable {
-    labels: HashMap<String, Vec<LabelInfo>>,
-    history: HashMap<String, Vec<usize>>,
-    random_selector: Box<dyn RandomSelector>,
-}
-
-impl LabelTable {
-    /// ラベル名→ID解決（P1実装対象）
-    pub fn resolve_label_id(
-        &mut self,
-        label: &str,
-        filters: &HashMap<String, String>,
-    ) -> Result<usize, PastaError>;
-}
+```pasta
+＊会話
+    ＞選択肢      # → "会話_1::選択肢_1" または "会話_1::選択肢_2" にマッチ
+    
+    ー選択肢
+        さくら：選択肢Aです
+    
+    ー選択肢
+        さくら：選択肢Bです
 ```
 
-### PastaApi モジュール登録
+検索キー `"会話_1::選択肢"` に対して、`"会話_1::選択肢_1"` と `"会話_1::選択肢_2"` が候補となるが、現在の `LabelTable` は**完全一致検索**（`HashMap::get()`）のみをサポートしており、前方一致が機能しない。
 
-P0で実装される Rust → Rune ブリッジ:
+**課題2: キャッシュベース消化の非効率性**
+
+現在の `LabelTable::find_label()` は `history` に**配列のインデックス**を記録するが、これは以下の問題を引き起こす：
+
+1. **前方一致候補が変動する**: フィルタの違いにより、同じ検索キーでも候補が異なる場合、履歴のインデックスが無効になる
+2. **削除・追加に脆弱**: ラベルの追加・削除によりインデックスがずれる
+
+正しい設計では、`history` にはラベルID（`usize`）を記録すべきであり、これにより候補の変動に対しても堅牢性が保たれる。
+
+**課題3: RustとRuneの型システム不整合**
+
+トランスパイラー設計では、`filters` は Rune の `HashMap` として渡されるが、現在の `resolve_label_id()` は Rust の `HashMap<String, String>` を期待している。Rune → Rust の型変換が明示的に定義されていない。
+
+### Scope
+
+**含まれるもの：**
+
+1. **ラベル解決エンジンの実装** (`LabelTable::resolve_label_id()`)
+   - 前方一致検索（検索キー → fn_path のプレフィックスマッチ）
+   - 属性フィルタリング（`＆time:morning` 等の属性による絞り込み）
+   - ランダム選択（`RandomSelector` 統合）
+   - キャッシュベース消化（履歴管理による選択肢の順次消化）
+
+2. **Rust ↔ Rune ブリッジの実装** (`PastaApi::create_module()`)
+   - `pasta_stdlib::select_label_to_id()` 関数の Rune モジュール登録
+   - Rune HashMap → Rust HashMap の型変換
+
+3. **LabelRegistry → LabelTable 変換の実装**
+   - トランスパイラーが生成する `LabelRegistry` をランタイム用 `LabelTable` に変換
+
+**含まれないもの：**
+
+- トランスパイラーの変更（P0で完了）
+- `pasta::call()` / `pasta::jump()` の実装（P0で完了）
+- 単語辞書解決 (`WordDictionary`, 別仕様で実装)
+
+---
+
+## Requirements
+
+### Requirement 1: 前方一致ラベル検索
+
+**Objective:** スクリプト作成者として、ラベル名の前方一致による動的解決を行い、ローカルラベルやバリエーション定義を柔軟に参照できるようにする。
+
+#### Context
+
+Pasta DSLでは、以下の検索キー生成規則が定義されている（親仕様より）：
+
+| DSL構文 | 検索キー生成 | 前方一致パターン |
+|---------|-------------|-----------------|
+| `＞選択肢` | `"親ラベル名_番号::選択肢"` | `"会話_1::選択肢_*"` |
+| `＞＊会話` | `"会話"` | `"会話_*::__start__"` |
+| `＞＊会話ー選択肢` | `"会話::選択肢"` | `"会話_*::選択肢_*"` |
+
+検索キーは**完全修飾名の一部**であり、fn_path（`"会話_1::__start__"`）との前方一致で候補を抽出する。
+
+#### Acceptance Criteria
+
+1. When ラベル解決エンジンが検索キー `"会話"` を受け取る, the LabelTable shall fn_path が `"会話_"` で始まり `"::__start__"` で終わるすべてのラベルを候補として抽出する
+2. When ラベル解決エンジンが検索キー `"会話_1::選択肢"` を受け取る, the LabelTable shall fn_path が `"会話_1::選択肢_"` で始まるすべてのラベルを候補として抽出する
+3. When 前方一致する候補が存在しない場合, the LabelTable shall `PastaError::LabelNotFound { label: <検索キー> }` エラーを返す
+4. When 検索キーが空文字列の場合, the LabelTable shall `PastaError::InvalidLabel` エラーを返す
+5. When fn_path に連番が含まれる（`"会話_1"`, `"会話_2"`）場合, the LabelTable shall 連番の違いを無視して前方一致検索を実行する（`"会話"` で `"会話_1"`, `"会話_2"` どちらもマッチ）
+
+### Requirement 2: 属性フィルタリング
+
+**Objective:** スクリプト作成者として、ラベル定義に付与した属性（`＆time:morning`）を使用して、実行時の状況に応じた会話分岐を実現する。
+
+#### Context
+
+Pasta DSLでは、ラベル定義に属性を付与できる：
+
+```pasta
+＊会話＆time:morning
+    さくら：おはよう！
+
+＊会話＆time:evening
+    さくら：こんばんは！
+```
+
+call/jump文で属性フィルタを指定すると、条件に合致するラベルのみが候補となる：
+
+```pasta
+＊メイン
+    ＞＊会話（＆time:morning）    # morning属性のみマッチ
+```
+
+属性は `HashMap<String, String>` として管理され、複数指定時はAND条件となる。
+
+#### Acceptance Criteria
+
+1. When ラベル解決エンジンが filters パラメータに `{"time": "morning"}` を受け取る, the LabelTable shall 前方一致候補のうち `attributes["time"] == "morning"` を持つラベルのみを残す
+2. When 複数のフィルタが指定される（例: `{"time": "morning", "weather": "sunny"}`）, the LabelTable shall すべてのフィルタ条件を満たすラベルのみを残す（AND条件）
+3. When フィルタ適用後の候補が0件になる場合, the LabelTable shall `PastaError::NoMatchingLabel { label: <検索キー>, filters: <適用フィルタ> }` エラーを返す
+4. When filters パラメータが空の HashMap の場合, the LabelTable shall フィルタリングをスキップし、前方一致候補をそのまま返す
+5. When ラベルが属性を持たず、filters が指定される場合, the LabelTable shall そのラベルを候補から除外する
+
+### Requirement 3: ランダム選択
+
+**Objective:** スクリプト作成者として、同名ラベルの複数定義からランダムに選択させることで、会話のバリエーションを自然に表現する。
+
+#### Context
+
+Pasta DSLでは、同名ラベルの複数定義が推奨される：
+
+```pasta
+＊挨拶
+    さくら：やあ！
+
+＊挨拶
+    さくら：こんにちは！
+
+＊挨拶
+    さくら：どうも！
+```
+
+実行時には、これら3つの候補からランダムに1つが選択される。選択ロジックは `RandomSelector` トレイトに委譲され、テスト時にはモック実装に差し替え可能である。
+
+#### Acceptance Criteria
+
+1. When 前方一致およびフィルタ適用後の候補が複数存在する, the LabelTable shall `RandomSelector::select_index()` を呼び出し、候補の中から1つを選択する
+2. When 候補が1つのみの場合, the LabelTable shall ランダム選択をスキップし、その候補を直接返す
+3. When `RandomSelector::select_index()` が `None` を返す（選択失敗）場合, the LabelTable shall `PastaError::RandomSelectionFailed` エラーを返す
+4. When 同一検索キー・同一フィルタで2回目の呼び出しが発生する, the LabelTable shall 異なる候補を返す（Requirement 4のキャッシュベース消化と連携）
+
+### Requirement 4: キャッシュベース消化
+
+**Objective:** スクリプト作成者として、同一の選択肢を繰り返し呼び出した際に、すべての選択肢を順次消化してからリセットされる挙動を実現する。
+
+#### Context
+
+里々（Satori）の仕様を踏襲し、同じ検索キーでラベルを呼び出す度に異なる候補が選ばれ、全候補が消化されるまでリセットされない。これにより、会話の自然なバリエーション展開が可能になる。
+
+**現在の実装の問題点：**
+
+現在の `LabelTable::find_label()` は `history` に**配列のインデックス**を記録する：
 
 ```rust
-pub struct PastaApi;
+// 現在の実装（問題あり）
+self.history
+    .entry(name.to_string())
+    .or_insert_with(Vec::new)
+    .push(
+        candidates
+            .iter()
+            .position(|l| l.fn_name == selected.fn_name)
+            .unwrap(),  // ← 配列のインデックスを記録
+    );
+```
 
-impl PastaApi {
-    pub fn create_module(
-        label_table: Arc<Mutex<LabelTable>>,
-    ) -> Result<Module, ContextError> {
-        let mut module = Module::with_item(["pasta"])?;
-        
-        // Rust関数をRuneから呼び出し可能に
-        let lt = Arc::clone(&label_table);
-        module.function("resolve_label_id", move |label: &str, filters: HashMap<String, String>| -> Result<usize, String> {
-            lt.lock().unwrap()
-                .resolve_label_id(label, &filters)
-                .map_err(|e| e.to_string())
-        })?;
-        
-        Ok(module)
+これは以下のケースで不具合を引き起こす：
+
+1. **フィルタが異なる場合**: 同じ検索キーでも、フィルタにより候補が変わるため、インデックスが無効化される
+2. **ラベル追加・削除**: スクリプト変更により候補の順序が変わると、履歴が矛盾する
+
+**正しい設計：**
+
+`history` には **ラベルID（`usize`）** を記録すべきである。これにより、候補リストの変動に対して堅牢性が保たれる。
+
+#### Acceptance Criteria
+
+1. When 同一の検索キーで2回目の呼び出しが発生する, the LabelTable shall `history` に記録されたラベルIDを除外し、未選択の候補から選択する
+2. When 未選択の候補が存在しない場合（全消化）, the LabelTable shall `history` をクリアし、再度すべての候補を選択対象とする
+3. When フィルタが異なる呼び出しが発生する, the LabelTable shall 検索キーとフィルタの組み合わせを別の履歴として管理する（例: `history` のキーを `format!("{}:{:?}", label, filters)` とする）
+4. When 履歴に記録されるのは選択されたラベルのID (`LabelInfo::id`)であり, the LabelTable shall 配列のインデックスではなくIDを使用して履歴管理を行う
+5. When 全候補が消化され履歴がクリアされる, the LabelTable shall ログまたはトレース出力を生成し、デバッグ時に動作を確認できるようにする
+
+### Requirement 5: Rust ↔ Rune ブリッジ実装
+
+**Objective:** 開発者として、Runeコードから呼び出される `pasta_stdlib::select_label_to_id()` 関数を実装し、`LabelTable::resolve_label_id()` をRune VMに公開する。
+
+#### Context
+
+トランスパイラーが生成するRuneコード：
+
+```rune
+pub mod pasta {
+    pub fn label_selector(label, filters) {
+        let id = pasta_stdlib::select_label_to_id(label, filters); // ← Rust関数呼び出し
+        match id {
+            1 => crate::会話_1::__start__,
+            _ => panic!("Unknown label id: {}", id),
+        }
     }
 }
 ```
 
-### データ構造
+この `pasta_stdlib::select_label_to_id()` は、Rune側からRust側の `LabelTable::resolve_label_id()` を呼び出すブリッジ関数である。
+
+**型変換の課題：**
+
+Runeの `HashMap` は、Rustの `HashMap<String, String>` とは異なる型システムを持つ。Runeの `Object` 型から Rust の `HashMap` への変換が必要である。
+
+#### Acceptance Criteria
+
+1. When `PastaApi::create_module()` が呼ばれる, the PastaApi shall `pasta_stdlib` モジュール配下に `select_label_to_id` 関数を登録する
+2. When Runeコードから `select_label_to_id(label, filters)` が呼ばれる, the PastaApi shall Runeの引数を Rust の `&str` および `HashMap<String, String>` に変換する
+3. When 型変換が失敗した場合（例: filters が Object 型でない）, the PastaApi shall Rune側で `panic!` を発生させ、スクリプト実行を中断する
+4. When `LabelTable::resolve_label_id()` がエラーを返す, the PastaApi shall エラーメッセージを Rune の String として返し、Rune側で `panic!` させる
+5. When `LabelTable` が `Arc<Mutex<LabelTable>>` として保持される, the PastaApi shall ロック取得失敗時に適切なエラーメッセージを返す
+
+### Requirement 6: LabelRegistry → LabelTable 変換
+
+**Objective:** 開発者として、トランスパイラーが生成する `LabelRegistry` をランタイム用の `LabelTable` に変換し、ID割り当てとデータ構造の最適化を行う。
+
+#### Context
+
+トランスパイラー（Pass 1）は `LabelRegistry` にラベル情報を蓄積する：
 
 ```rust
-pub struct LabelInfo {
-    pub id: usize,                              // match文で使うID
-    pub name: String,                           // 完全修飾名 ("会話" or "会話::選択肢")
-    pub attributes: HashMap<String, String>,    // フィルタ属性 (＆time:morning など)
-    pub fn_path: String,                        // 相対パス ("会話_1::__start__")
+pub struct LabelRegistry {
+    labels: Vec<TranspileLabelInfo>,
+    id_counter: usize,
+}
+
+pub struct TranspileLabelInfo {
+    pub id: usize,
+    pub name: String,                  // DSL上のラベル名
+    pub attributes: HashMap<String, String>,
+    pub fn_path: String,               // "会話_1::__start__"
+    pub parent: Option<String>,
 }
 ```
 
-### 検索キー生成規則
+この `LabelRegistry` は、トランスパイル完了後、ランタイムの `LabelTable` に変換される。`LabelTable` は前方一致検索に最適化されたデータ構造（例: Trie）を使用すべきである。
 
-- **グローバル検索**: `"会話"` → `"会話_1::__start__"` で前方一致
-- **ローカル検索**: `"会話_1::選択肢"` → `"会話_1::選択肢_*"` で前方一致
+#### Acceptance Criteria
 
-## Requirements
+1. When `LabelTable::from_label_registry()` が呼ばれる, the LabelTable shall `LabelRegistry` の全エントリを内部データ構造に変換する
+2. When 変換処理が行われる, the LabelTable shall fn_path をキーとした前方一致検索可能なデータ構造（HashMap または Trie）を構築する
+3. When 同一の fn_path を持つラベルが存在する場合（通常はありえない）, the LabelTable shall `PastaError::DuplicateLabelPath` エラーを返す
+4. When `RandomSelector` インスタンスが渡される, the LabelTable shall それを内部で保持し、ランダム選択時に使用する
+5. When 変換完了後の `LabelTable` が `Send` トレイトを実装している, the LabelTable shall マルチスレッド環境での使用を保証する（Rune VMは Send を要求）
+   - **注記:** `RandomSelector` トレイトは既に `Send + Sync` 境界を持つため、`LabelTable` は自動的に `Send` を実装する
 
-### Requirement 1: 前方一致検索
+---
 
-**Objective**: ラベル名（検索キー）から前方一致する全候補を抽出する
+## Technical Context
 
-**Acceptance Criteria**:
-1. When `resolve_label_id("会話", {})` が呼ばれる, the LabelTable shall `"会話"` で始まり `"::__start__"` で終わる fn_path を持つ全LabelInfoを返す
-2. When `resolve_label_id("会話_1::選択肢", {})` が呼ばれる, the LabelTable shall `"会話_1::選択肢"` で始まる fn_path を持つ全LabelInfoを返す
-3. When 候補が0件の場合, the LabelTable shall `PastaError::LabelNotFound` を返す
+### 現在の実装状況
 
-### Requirement 2: 属性フィルタリング
+**実装済み（P0完了）：**
 
-**Objective**: filters パラメータによる候補の絞り込み
+```rust
+// crates/pasta/src/runtime/labels.rs
+pub struct LabelTable {
+    labels: HashMap<String, Vec<LabelInfo>>,  // ⚠️ 完全一致検索のみ
+    history: HashMap<String, Vec<usize>>,     // ⚠️ 配列インデックスを記録（問題あり）
+    random_selector: Box<dyn RandomSelector>,
+}
 
-**Acceptance Criteria**:
-1. When `resolve_label_id("会話", {"time": "morning"})` が呼ばれる, the LabelTable shall 前方一致した候補のうち `attributes["time"] == "morning"` のもののみを返す
-2. When 複数のフィルタが指定される, the LabelTable shall すべてのフィルタ条件を満たす候補のみを返す
-3. When フィルタ適用後の候補が0件の場合, the LabelTable shall `PastaError::NoMatchingLabel` を返す
+impl LabelTable {
+    pub fn find_label(
+        &mut self,
+        name: &str,
+        filters: &HashMap<String, String>,
+    ) -> Result<String, PastaError> {
+        // ⚠️ HashMap::get() による完全一致検索
+        let candidates = self.labels.get(name)?;
+        
+        // フィルタリング
+        let matching: Vec<&LabelInfo> = candidates
+            .iter()
+            .filter(|label| /* ... */)
+            .collect();
+        
+        // ランダム選択（実装済み）
+        let selected_idx = self.random_selector.select_index(matching.len())?;
+        
+        // ⚠️ 配列インデックスを履歴に記録
+        self.history
+            .entry(name.to_string())
+            .or_insert_with(Vec::new)
+            .push(/* 配列のインデックス */);
+        
+        Ok(selected.fn_name.clone())
+    }
+}
+```
 
-### Requirement 3: ランダム選択
+**未実装（本仕様の対象）：**
 
-**Objective**: 複数候補から1つをランダムに選択
+1. `LabelTable::resolve_label_id()` メソッド
+2. 前方一致検索のためのデータ構造変更（Trie または fn_path のイテレーション）
+3. ラベルIDベースの履歴管理（現在はインデックス）
+4. `PastaApi::create_module()` と `select_label_to_id()` 関数
+5. `LabelTable::from_label_registry()` 実装
 
-**Acceptance Criteria**:
-1. When 前方一致候補が複数存在する, the LabelTable shall RandomSelector を使用して1つを選択する
-2. When 候補が1つのみの場合, the LabelTable shall その候補を直接返す
+### データ構造の設計選択
 
-### Requirement 4: キャッシュベース消化
+**選択肢1: HashMap + フルスキャン**
 
-**Objective**: 同じ検索キーでの選択肢の順次消化
+```rust
+pub struct LabelTable {
+    // fn_path → LabelInfo のマッピング
+    labels_by_path: HashMap<String, LabelInfo>,
+    history: HashMap<String, Vec<usize>>,  // 検索キー → ラベルIDリスト
+    random_selector: Box<dyn RandomSelector>,
+}
 
-**Acceptance Criteria**:
-1. When 同じ検索キーで2回目の呼び出しが発生する, the LabelTable shall 1回目とは異なる候補を返す
-2. When すべての候補が消化される, the LabelTable shall キャッシュをクリアし、次回は再選択する
-3. When history に記録された候補を除外する, the LabelTable shall 残りの候補から選択する
+impl LabelTable {
+    pub fn resolve_label_id(
+        &mut self,
+        search_key: &str,
+        filters: &HashMap<String, String>,
+    ) -> Result<usize, PastaError> {
+        // 全fn_pathを走査して前方一致を検索
+        let candidates: Vec<&LabelInfo> = self.labels_by_path
+            .iter()
+            .filter(|(path, _)| path.starts_with(search_key))
+            .map(|(_, info)| info)
+            .collect();
+        
+        // ... フィルタリング、ランダム選択
+    }
+}
+```
 
-## Implementation Notes
+**メリット：** シンプル、追加ライブラリ不要  
+**デメリット：** ラベル数が多い場合にO(N)の走査コスト
 
-### Prefix-Tree (Trie) 検索
-
-効率的な前方一致検索のため、`prefix-tree` クレートを使用:
+**選択肢2: Trie (Prefix Tree)**
 
 ```rust
 use prefix_tree::PrefixTree;
@@ -159,97 +397,138 @@ pub struct LabelTable {
 impl LabelTable {
     pub fn resolve_label_id(
         &mut self,
-        label: &str,
+        search_key: &str,
         filters: &HashMap<String, String>,
     ) -> Result<usize, PastaError> {
-        // 1. 前方一致検索
+        // Trieによる前方一致検索 O(M) (M = search_keyの長さ)
         let candidates: Vec<&LabelInfo> = self.trie
-            .search_by_prefix(label)
+            .search_by_prefix(search_key)
             .collect();
         
-        // 2. フィルタリング
-        let filtered: Vec<&LabelInfo> = candidates.iter()
-            .filter(|info| self.matches_filters(info, filters))
-            .copied()
-            .collect();
-        
-        // 3. 履歴除外
-        let history = self.history.entry(label.to_string()).or_default();
-        let available: Vec<&LabelInfo> = filtered.iter()
-            .filter(|info| !history.contains(&info.id))
-            .copied()
-            .collect();
-        
-        // 4. 全消化後のリセット
-        if available.is_empty() {
-            history.clear();
-            return self.resolve_label_id(label, filters); // 再帰
-        }
-        
-        // 5. ランダム選択
-        let selected = self.random_selector.select(&available)?;
-        history.push(selected.id);
-        
-        Ok(selected.id)
+        // ... フィルタリング、ランダム選択
     }
 }
 ```
 
-### LabelRegistry からの変換
+**メリット：** 前方一致検索がO(M)、ラベル数に依存しない  
+**デメリット：** 外部クレート依存（`prefix_tree` または `radix_trie`）
 
-P0で生成された LabelRegistry を LabelTable に変換:
+**Phase 1 決定：** HashMap + フルスキャン方式を採用。ラベル数100～500の想定でO(N)走査は許容範囲（推定1～2ms）。初期実装はHashMapで開始し、パフォーマンス問題が発生した場合（Phase 3）にTrieに移行する。
+
+### エラーハンドリング
+
+**新規エラー型の追加：**
 
 ```rust
-impl LabelRegistry {
-    pub fn into_label_table(self, random_selector: Box<dyn RandomSelector>) -> LabelTable {
-        let mut trie = PrefixTree::new();
-        
-        for info in self.labels {
-            let label_info = LabelInfo {
-                id: info.id,
-                name: info.name,
-                attributes: info.attributes,
-                fn_path: info.fn_path,
-            };
-            trie.insert(label_info.fn_path.clone(), label_info);
-        }
-        
-        LabelTable {
-            trie,
-            history: HashMap::new(),
-            random_selector,
-        }
-    }
+// crates/pasta/src/error.rs
+#[derive(Debug, thiserror::Error)]
+pub enum PastaError {
+    // 既存エラー（変更なし）
+    #[error("Label not found: {label}")]
+    LabelNotFound { label: String },  // ← 既存（前方一致検索前の基本エラー）
+    
+    // 新規エラー（本仕様で追加）
+    #[error("No matching label for '{label}' with filters {filters:?}")]
+    NoMatchingLabel {
+        label: String,
+        filters: HashMap<String, String>,
+    },  // ← フィルタ適用後に候補が0件
+    
+    #[error("Invalid label name: '{label}'")]
+    InvalidLabel { label: String },  // ← 空文字列など不正なラベル名
+    
+    #[error("Random selection failed")]
+    RandomSelectionFailed,  // ← RandomSelector::select_index() が None 返却
+    
+    #[error("Duplicate label path: {path}")]
+    DuplicateLabelPath { path: String },  // ← LabelRegistry変換時の重複検出
 }
 ```
+
+---
 
 ## Testing Strategy
 
 ### Unit Tests
 
-1. **前方一致テスト**: 様々な検索キーでの候補抽出確認
-2. **フィルタテスト**: 単一/複数フィルタでの絞り込み確認
-3. **ランダム選択テスト**: 複数候補からの選択動作確認
-4. **キャッシュテスト**: 履歴管理と自動リセット確認
+| テストケース | 入力 | 期待される出力 |
+|-------------|------|--------------|
+| **前方一致検索** | `search_key = "会話"` | `["会話_1::__start__", "会話_2::__start__"]` |
+| **ローカルラベル検索** | `search_key = "会話_1::選択肢"` | `["会話_1::選択肢_1", "会話_1::選択肢_2"]` |
+| **フィルタ適用** | `filters = {"time": "morning"}` | morning属性のみ残る |
+| **ランダム選択** | 複数候補 | `RandomSelector::select_index()` が呼ばれる |
+| **キャッシュ消化** | 同一検索キー2回 | 異なるIDが返る |
+| **全消化リセット** | 全候補を消化 | 履歴がクリアされる |
+| **エラー: 候補なし** | 存在しない検索キー | `PastaError::LabelNotFound` |
+| **エラー: フィルタ不一致** | 全候補がフィルタで除外 | `PastaError::NoMatchingLabel` |
 
 ### Integration Tests
 
-1. **エンドツーエンド**: DSL → Rune生成 → 実行時解決の全体フロー
-2. **エラーハンドリング**: 存在しないラベル、フィルタ不一致のケース
+1. **エンドツーエンド実行テスト:**
+   - Pasta DSL → トランスパイル → Rune実行 → ラベル解決 → 正しい関数が呼ばれる
+
+2. **ランダム選択の再現性テスト:**
+   - MockRandomSelector でシード固定 → 期待される順序でラベルが選ばれる
+
+3. **マルチスレッド安全性テスト:**
+   - `Arc<Mutex<LabelTable>>` を複数スレッドから呼び出し → デッドロックや不整合が発生しない
+
+---
+
+## Implementation Notes
+
+### 実装の優先順位
+
+1. **Phase 1: 基本機能** (必須)
+   - HashMap + フルスキャンによる前方一致検索
+   - 属性フィルタリング
+   - ラベルIDベースの履歴管理
+
+2. **Phase 2: Rune統合** (必須)
+   - `PastaApi::create_module()` 実装
+   - `select_label_to_id()` ブリッジ関数
+   - Rune ↔ Rust 型変換
+
+3. **Phase 3: 最適化** (オプショナル)
+   - Trie導入によるパフォーマンス改善
+   - 履歴管理のメモリ最適化
+
+### パフォーマンス考慮事項
+
+- **想定ラベル数**: 典型的なスクリプトで100～500ラベル（推定値）
+- **許容レイテンシ**: ラベル解決は10ms以下（ユーザー体感に影響しない、推定値）
+- **メモリ使用量**: LabelTableは数MB程度（問題なし、推定値）
+- **Phase 1 実装**: HashMap + フルスキャン方式を採用（O(N)走査、想定ラベル数で十分）
+- **Phase 3 最適化**: ラベル数が1000以上またはレイテンシ10ms超過時にTrie導入を検討
+
+---
 
 ## Dependencies
 
-- **Prerequisite**: pasta-declarative-control-flow (P0) の完了
-- **Crates**: `prefix-tree` または同等のTrie実装
+| 依存仕様/クレート | 理由 | 状態 |
+|------------------|------|------|
+| `pasta-declarative-control-flow` (P0) | トランスパイラー、LabelRegistry | ✅ Completed |
+| `rune` (0.14) | Rune VM、モジュール登録 | ✅ 既存依存 |
+| `thiserror` | エラー型定義 | ✅ 既存依存 |
+| `prefix_tree` または `radix_trie` | Trie実装（オプショナル） | ⚠️ Phase 3で検討 |
+
+---
 
 ## Future Work
 
-- **パフォーマンス最適化**: Trie検索の高速化
-- **拡張フィルタ構文**: 正規表現、範囲指定など
-- **デバッグ支援**: ラベル解決のトレースログ機能
+- **パフォーマンス最適化:** Trie導入、履歴のLRUキャッシュ化
+- **拡張フィルタ構文:** 正規表現（`＆name:/^さくら.*/`）、範囲指定（`＆score:>50`）
+- **デバッグ支援:** ラベル解決のトレースログ、呼び出しグラフの可視化
+- **エラーメッセージ改善:** 候補ラベルのサジェスト（Levenshtein距離による類似ラベル提示）
+
+---
 
 ## References
 
-- Parent Design: `.kiro/specs/pasta-declarative-control-flow/design.md`
-- GRAMMAR.md: `crates/pasta/GRAMMAR.md` (属性構文)
-- Current LabelTable: `crates/pasta/src/runtime/labels.rs`
+- **親仕様:** `.kiro/specs/completed/pasta-declarative-control-flow/`
+- **GRAMMAR.md:** `crates/pasta/GRAMMAR.md` (ラベル定義、属性構文)
+- **現在の実装:** `crates/pasta/src/runtime/labels.rs`
+- **トランスパイラー:** `crates/pasta/src/transpiler/mod.rs`
+- **エラー型:** `crates/pasta/src/error.rs`
+
+````
