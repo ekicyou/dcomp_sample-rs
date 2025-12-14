@@ -353,14 +353,31 @@ impl LabelTable {
 
 ### データ構造の設計選択
 
-**選択肢1: HashMap + フルスキャン**
+**設計決定: ID-based storage with Vec**
 
 ```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LabelId(usize);  // newtype wrapper for Vec index
+
+pub struct LabelInfo {
+    pub id: LabelId,  // ← 必須: ラベルの一意識別子
+    pub name: String,
+    pub attributes: HashMap<String, String>,
+    pub fn_path: String,
+    pub parent: Option<String>,
+}
+
 pub struct LabelTable {
-    // fn_path → LabelInfo のマッピング
-    labels_by_path: HashMap<String, LabelInfo>,
-    history: HashMap<String, Vec<usize>>,  // 検索キー → ラベルIDリスト
+    labels: Vec<LabelInfo>,  // ID-based storage (index = LabelId)
+    cache: HashMap<String, CachedSelection>,  // search_key → shuffled IDs + history
     random_selector: Box<dyn RandomSelector>,
+    shuffle_enabled: bool,  // Default: true (false for deterministic testing)
+}
+
+struct CachedSelection {
+    candidates: Vec<LabelId>,  // Shuffled on first access
+    next_index: usize,  // Sequential selection from candidates
+    history: Vec<LabelId>,  // Selection history for rollback
 }
 
 impl LabelTable {
@@ -368,64 +385,110 @@ impl LabelTable {
         &mut self,
         search_key: &str,
         filters: &HashMap<String, String>,
-    ) -> Result<usize, PastaError> {
-        // 全fn_pathを走査して前方一致を検索
-        let candidates: Vec<&LabelInfo> = self.labels_by_path
+    ) -> Result<LabelId, PastaError> {
+        // Phase 1: Enumerate matching labels (prefix-match)
+        let candidate_ids: Vec<LabelId> = self.labels
             .iter()
-            .filter(|(path, _)| path.starts_with(search_key))
-            .map(|(_, info)| info)
+            .filter(|label| label.fn_path.starts_with(search_key))
+            .map(|label| label.id)
             .collect();
         
-        // ... フィルタリング、ランダム選択
+        // Phase 2: Filter by secondary criteria
+        let filtered_ids: Vec<LabelId> = candidate_ids
+            .into_iter()
+            .filter(|&id| self.matches_filters(id, filters))
+            .collect();
+        
+        // Phase 3: Get or create cache entry
+        let cached = self.cache.entry(search_key.to_string())
+            .or_insert_with(|| {
+                let mut ids = filtered_ids.clone();
+                if self.shuffle_enabled {
+                    self.random_selector.shuffle(&mut ids);  // Shuffle once
+                }
+                CachedSelection {
+                    candidates: ids,
+                    next_index: 0,
+                    history: Vec::new(),
+                }
+            });
+        
+        // Phase 4: Sequential selection from cache
+        if cached.next_index >= cached.candidates.len() {
+            return Err(PastaError::NoMoreLabels { search_key: search_key.to_string() });
+        }
+        
+        let selected_id = cached.candidates[cached.next_index];
+        cached.next_index += 1;
+        cached.history.push(selected_id);
+        
+        Ok(selected_id)
+    }
+    
+    pub fn get_label(&self, id: LabelId) -> Option<&LabelInfo> {
+        self.labels.get(id.0)
     }
 }
 ```
 
-**メリット：** シンプル、追加ライブラリ不要  
-**デメリット：** ラベル数が多い場合にO(N)の走査コスト
+**設計根拠:**
 
-**選択肢2: Trie (Prefix Tree)**
+1. **Vec vs SlotMap:**
+   - ラベルは削除されない（スクリプトロード時に一度だけ構築）
+   - SlotMapのバージョニング機能は不要
+   - `Vec` index = `LabelId` で十分（メモリ効率最高、実装シンプル）
+   - イテレーション性能: Vec最速（prefix-match検索で頻繁に使用）
 
-```rust
-use prefix_tree::PrefixTree;
+2. **ID-based access:**
+   - `LabelInfo` をコピー/クローンせず、IDで参照
+   - キャッシュは `Vec<LabelId>` を保持（データ重複なし）
+   - ランダム選択の対象はIDのリスト（軽量）
 
-pub struct LabelTable {
-    trie: PrefixTree<String, LabelInfo>,  // fn_path → LabelInfo
-    history: HashMap<String, Vec<usize>>,
-    random_selector: Box<dyn RandomSelector>,
-}
+3. **Multi-phase search:**
+   - Phase 1: Enumerate matching labels (prefix-match)
+   - Phase 2: Filter by secondary criteria (e.g., "::選択肢")
+   - Phase 3: Cache manager shuffles (if enabled) and stores
+   - Phase 4: Sequential selection from cache with history tracking
 
-impl LabelTable {
-    pub fn resolve_label_id(
-        &mut self,
-        search_key: &str,
-        filters: &HashMap<String, String>,
-    ) -> Result<usize, PastaError> {
-        // Trieによる前方一致検索 O(M) (M = search_keyの長さ)
-        let candidates: Vec<&LabelInfo> = self.trie
-            .search_by_prefix(search_key)
-            .collect();
-        
-        // ... フィルタリング、ランダム選択
-    }
-}
-```
-
-**メリット：** 前方一致検索がO(M)、ラベル数に依存しない  
-**デメリット：** 外部クレート依存（`prefix_tree` または `radix_trie`）
-
-**Phase 1 決定：** HashMap + フルスキャン方式を採用。ラベル数100～500の想定でO(N)走査は許容範囲（推定1～2ms）。初期実装はHashMapで開始し、パフォーマンス問題が発生した場合（Phase 3）にTrieに移行する。
+4. **Shuffle strategy:**
+   - `shuffle_enabled = true` (デフォルト): 初回アクセス時にシャッフル、その後は順次選択
+   - `shuffle_enabled = false` (デバッグ): Vec順序そのまま、決定論的テスト可能
+   - キャッシュエントリごとに独立してシャッフル実行（search_keyが異なれば別管理）
 
 **実装アルゴリズム:**
 ```rust
-// 1. fn_pathをキーとしてHashMapに格納（前置辞 "crate::" は除去）
-// 2. 検索時に全fn_pathを走査
-let candidates: Vec<&LabelInfo> = labels_by_path
-    .iter()
-    .filter(|(path, _)| path.starts_with(search_key))  // 前方一致
-    .map(|(_, info)| info)
-    .collect();
+// 1. LabelRegistry → Vec<LabelInfo> 変換時にIDを割り当て
+impl LabelTable {
+    pub fn from_label_registry(
+        registry: &LabelRegistry,
+        random_selector: Box<dyn RandomSelector>,
+        shuffle_enabled: bool,
+    ) -> Result<Self, PastaError> {
+        let labels: Vec<LabelInfo> = registry
+            .labels
+            .iter()
+            .enumerate()
+            .map(|(idx, (name, trans_label))| {
+                LabelInfo {
+                    id: LabelId(idx),  // Vec index = ID
+                    name: name.clone(),
+                    fn_path: trans_label.fn_path.clone(),
+                    attributes: trans_label.attributes.clone(),
+                    parent: trans_label.parent.clone(),
+                }
+            })
+            .collect();
+        
+        Ok(LabelTable {
+            labels,
+            cache: HashMap::new(),
+            random_selector,
+            shuffle_enabled,
+        })
+    }
+}
 
+// 2. 検索時に全fn_pathを走査（O(N)）
 // 3. グローバルラベル検索時は "::__start__" で終わるものをフィルタ
 // 例: search_key="会話" → "会話_1::__start__", "会話_2::__start__" が候補
 ```

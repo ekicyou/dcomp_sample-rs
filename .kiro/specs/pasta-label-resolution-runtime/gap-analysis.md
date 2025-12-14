@@ -157,34 +157,106 @@ pub fn find_label(&mut self, name: &str, ...) -> Result<String, PastaError> {
 - 例: 検索キー `"会話"` → `"会話_1::__start__"`, `"会話_2::__start__"` にマッチ
 - グローバルラベル: `"::__start__"` で終わるものをフィルタ
 
-**採用決定: HashMap + フルスキャン (Option A)**
+**採用決定: Vec + ID-based storage with multi-phase search**
 ```rust
-let candidates: Vec<&LabelInfo> = labels_by_path
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LabelId(usize);  // Vec index
+
+pub struct LabelTable {
+    labels: Vec<LabelInfo>,  // ID-based storage
+    cache: HashMap<String, CachedSelection>,  // search_key → shuffled IDs
+    random_selector: Box<dyn RandomSelector>,
+    shuffle_enabled: bool,
+}
+
+struct CachedSelection {
+    candidates: Vec<LabelId>,  // Shuffled on first access
+    next_index: usize,
+    history: Vec<LabelId>,
+}
+
+// Multi-phase search:
+// Phase 1: Enumerate matching labels (prefix-match)
+let candidate_ids: Vec<LabelId> = self.labels
     .iter()
-    .filter(|(path, _)| path.starts_with(search_key))
-    .map(|(_, info)| info)
+    .filter(|label| label.fn_path.starts_with(search_key))
+    .map(|label| label.id)
     .collect();
+
+// Phase 2: Filter by secondary criteria
+let filtered_ids: Vec<LabelId> = candidate_ids
+    .into_iter()
+    .filter(|&id| self.matches_filters(id, filters))
+    .collect();
+
+// Phase 3: Get or create cache (shuffle once if enabled)
+let cached = self.cache.entry(search_key.to_string())
+    .or_insert_with(|| {
+        let mut ids = filtered_ids.clone();
+        if self.shuffle_enabled {
+            self.random_selector.shuffle(&mut ids);
+        }
+        CachedSelection {
+            candidates: ids,
+            next_index: 0,
+            history: Vec::new(),
+        }
+    });
+
+// Phase 4: Sequential selection from cache
+let selected_id = cached.candidates[cached.next_index];
+cached.next_index += 1;
+cached.history.push(selected_id);
 ```
 
-**代替案 (Phase 3):**
-- **Trie構造**: `prefix_tree` クレート使用（O(M)の検索、M = キー長）、ラベル数1000以上時に検討
+**設計根拠:**
+- **Vec vs SlotMap**: ラベル削除なし → Vec indexで十分、メモリ効率最高
+- **ID-based access**: LabelInfoをコピーせず、IDで参照
+- **Shuffle strategy**: キャッシュレイヤーでシャッフル（テスト容易性確保）
+- **Debug mode**: `shuffle_enabled = false` で決定論的テスト可能
 
-#### Gap 2: ラベルIDフィールドの欠落
+#### Gap 2: ラベルIDフィールドとデータ構造の再設計
 
 **現状:**
 - `LabelRegistry::LabelInfo` には `id: i64` フィールドあり
 - `LabelTable::LabelInfo` には `id` フィールドなし
+- `LabelTable` は `HashMap<String, Vec<LabelInfo>>` で管理（完全一致検索のみ）
 
 **影響:**
-- 履歴管理でIDを記録できない（現在はインデックスを記録）
+- 履歴管理でIDを記録できない（現在は配列インデックスを記録）
 - `resolve_label_id()` がIDを返す要件を満たせない
+- LabelInfoのコピー/クローンが頻繁に発生（パフォーマンス懸念）
 
-**解決策:**
-- `runtime/labels.rs` の `LabelInfo` に `pub id: usize` フィールドを追加（または `i64` で統一）
-- `from_label_registry()` で `registry_info.id` を `runtime_info.id` にコピー
-- **注記:** `LabelRegistry` は `i64` を使用しているが、ランタイムでは配列インデックスとの親和性を考慮して `usize` に変換することを推奨
+**解決策: ID-based storage with Vec**
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LabelId(usize);  // newtype wrapper
 
-#### Gap 3: 履歴管理の脆弱性
+pub struct LabelInfo {
+    pub id: LabelId,  // ← 追加必須
+    pub name: String,
+    pub attributes: HashMap<String, String>,
+    pub fn_path: String,
+    pub parent: Option<String>,
+}
+
+pub struct LabelTable {
+    labels: Vec<LabelInfo>,  // ID = Vec index
+    cache: HashMap<String, CachedSelection>,
+    random_selector: Box<dyn RandomSelector>,
+    shuffle_enabled: bool,
+}
+```
+
+**移行手順:**
+1. `runtime::LabelInfo` に `id: LabelId` フィールド追加
+2. `from_label_registry()` で `LabelRegistry` → `Vec<LabelInfo>` 変換時にIDを割り当て
+   - `id = LabelId(vec_index)` として連番で割り当て
+3. `HashMap<String, Vec<LabelInfo>>` → `Vec<LabelInfo>` に変更
+4. 検索ロジックを `Vec::iter().filter()` に変更（O(N)走査）
+5. キャッシュを `Vec<LabelId>` 型に変更（データ重複排除）
+
+#### Gap 3: キャッシュ管理とシャッフル戦略の未実装
 
 **現状:**
 ```rust
@@ -199,15 +271,35 @@ self.history
 ```
 
 **問題:**
-- フィルタが異なる呼び出しで候補順序が変わる → インデックスが無効化
-- ラベル追加・削除でインデックスがずれる
+- 配列インデックスベースの履歴管理（フィルタ変動に脆弱）
+- シャッフルのタイミングが未定義（毎回シャッフル vs 初回のみ）
+- デバッグモードでの決定論的テストが不可能
 
-**解決策:**
-- `history: HashMap<String, Vec<usize>>` の `Vec<usize>` をラベルIDのリストに変更
-- フィルタごとに履歴を分離: `history: HashMap<String, Vec<usize>>` → `history: HashMap<(String, HashMap<String, String>), Vec<usize>>`
-  - または履歴キーを `format!("{}:{:?}", label, filters)` に変更
+**解決策: CachedSelection 構造体の導入**
+```rust
+struct CachedSelection {
+    candidates: Vec<LabelId>,  // Shuffled on first access
+    next_index: usize,         // Sequential selection pointer
+    history: Vec<LabelId>,     // Selection history (IDs, not indices)
+}
 
-#### Gap 4: Rune ↔ Rust 型変換の未定義
+pub struct LabelTable {
+    cache: HashMap<String, CachedSelection>,  // search_key → cache entry
+    shuffle_enabled: bool,  // Default: true, false for testing
+    // ...
+}
+```
+
+**キャッシュ戦略:**
+1. **初回アクセス**: 検索キーに対して候補を列挙 → シャッフル（`shuffle_enabled = true`時） → キャッシュ作成
+2. **2回目以降**: キャッシュから順次選択 (`next_index` をインクリメント)
+3. **履歴記録**: `history.push(selected_id)` で選択済みIDを記録
+4. **デバッグモード**: `shuffle_enabled = false` でVec順序そのまま（決定論的）
+
+**TODOの残り:**
+- ~~TODO #3: 履歴キー生成の一貫性~~ → **解決**: search_key単位で CachedSelection を管理、フィルタは検索時に適用
+
+#### Gap 4: Rune ↔ Rust 型変換の未定義（Research Required in Design Phase）
 
 **現状:**
 ```rust
@@ -218,13 +310,35 @@ fn select_label_to_id(_label: String, _filters: rune::runtime::Value) -> i64 {
 
 **必要な機能:**
 - Runeの `Value` 型から Rust の `HashMap<String, String>` への変換
-- Rune側で空のHashMapが渡された場合の処理
+- Rune側で空のHashMapが渡された場合の処理（`Value::Unit` vs `Value::Object(empty)`）
 
-**調査項目 (Research Needed):**
-- Runeの `Value::into_object()` または `Value::into_any()` の使用方法
-- Rune Object → Rust HashMap の変換パターン（Rune公式ドキュメント）
+**設計フェーズでの調査項目:**
+1. Runeの `Value::into_object()` または `Value::as_object()` の使用方法
+2. Rune Object → Rust HashMap への反復変換（key/value型チェック）
+3. 既存の `persistence` モジュールでの型変換パターン参考
 
-#### Gap 5: LabelTableへの参照渡し
+**推奨実装パターン（仮案）:**
+```rust
+fn parse_rune_filters(value: rune::runtime::Value) -> Result<HashMap<String, String>, String> {
+    match value {
+        Value::Unit => Ok(HashMap::new()),  // Empty filters
+        Value::Object(obj) => {
+            let mut map = HashMap::new();
+            for (k, v) in obj.iter() {
+                let key = k.as_str().ok_or("Filter key must be string")?;
+                let val = v.as_str().ok_or("Filter value must be string")?;
+                map.insert(key.to_string(), val.to_string());
+            }
+            Ok(map)
+        }
+        _ => Err("Filters must be Object or Unit".to_string()),
+    }
+}
+```
+
+**TODO #4: Design Phaseで Rune API調査を実施、正確な変換コードを確定**
+
+#### Gap 5: LabelTableへの参照渡しとArc<Mutex>統合
 
 **現状:**
 - `select_label_to_id()` は引数として `label` と `filters` のみを受け取る
@@ -239,12 +353,48 @@ pub struct PastaEngine {
 }
 ```
 
-**実装オプション:**
-1. **グローバルスレッドローカル変数**: `thread_local!` で `LabelTable` を保持（推奨しない）
-2. **Runeモジュール生成時に注入**: `create_module()` で `Arc<Mutex<LabelTable>>` をキャプチャ
-3. **ctx経由で渡す**: Runeコードで `pasta_stdlib::select_label_to_id(ctx, label, filters)` とし、`ctx` から `LabelTable` を取得
+**実装決定: Arc<Mutex<LabelTable>> with closure capture**
+```rust
+// stdlib/mod.rs
+pub fn create_module(label_table: Arc<Mutex<LabelTable>>) -> Result<Module, ContextError> {
+    let mut module = Module::new();
+    
+    // Clone Arc for closure
+    let label_table_clone = Arc::clone(&label_table);
+    
+    module.function("select_label_to_id", move |label: String, filters: Value| {
+        let mut table = label_table_clone.lock().unwrap();
+        // ... resolve_label_id 呼び出し
+    })?;
+    
+    Ok(module)
+}
+```
 
-**推奨:** Option 2 - `create_module()` でクロージャーキャプチャ（既存の `persistence` モジュールと同じパターン）
+**PastaEngineの変更:**
+```rust
+pub struct PastaEngine {
+    label_table: Arc<Mutex<LabelTable>>,  // ← 変更
+    // ...
+}
+
+impl PastaEngine {
+    pub fn new(script: &str) -> Result<Self, PastaError> {
+        let label_table = Arc::new(Mutex::new(LabelTable::from_label_registry(
+            &registry,
+            Box::new(DefaultRandomSelector),
+            true,  // shuffle_enabled
+        )?));
+        
+        let mut context = Context::with_default_modules()?;
+        context.install(pasta_stdlib::create_module(Arc::clone(&label_table))?)?;
+        // ...
+    }
+}
+```
+
+**TODOの残り:**
+- ~~TODO #5: Arc<Mutex<LabelTable>> 統合~~ → **解決**: 上記パターンで実装
 
 ### 2.3 複雑性シグナル
 
@@ -386,41 +536,97 @@ impl LabelResolver {
 
 ## 4. Recommended Approach & Key Decisions
 
-### 推奨: Option A（Extend Existing LabelTable）
+### 推奨: Vec-based ID Storage with Multi-phase Search
 
 **理由:**
-1. **既存パターンとの整合性**: `LabelTable` は既にラベル解決の中核であり、拡張が自然
-2. **実装効率**: 既存の `RandomSelector`, `LabelInfo`, `attributes` を再利用
-3. **テストカバレッジ**: 既存の `MockRandomSelector` とテストユーティリティをそのまま使用可能
-4. **統合容易性**: `from_label_registry()` の変更のみで統合完了
+1. **最適なデータ構造**: ラベル削除なし → Vec indexで十分、メモリ効率最高
+2. **パフォーマンス**: Vec iterationは最速（prefix-match検索で頻繁に使用）
+3. **ID-based access**: LabelInfoのコピー/クローン排除、IDで参照
+4. **テスト容易性**: shuffle_enabled フラグで決定論的テスト可能
 
 ### 主要な設計決定
 
-#### Decision 1: 前方一致検索の実装方式
+#### Decision 1: データ構造 - Vec vs SlotMap
 
-**選択: HashMap + フルスキャン（Phase 1）**
+**選択: `Vec<LabelInfo>` with `LabelId(usize)` newtype**
 
 **理由:**
-- ラベル数が典型的に100～500程度でパフォーマンス問題なし
-- 外部クレート依存なし（シンプル）
-- O(N)の走査コストは許容範囲（10ms以下）
+- ラベル削除が発生しない → SlotMapのバージョニング機能不要
+- Vec index = LabelId で十分（シンプル、高速、メモリ効率最高）
+- イテレーション性能: `Vec::iter()` 最速（O(N) prefix-match検索）
+- 将来的に削除が必要になった場合のみSlotMap移行を検討
+
+**SlotMapを選ばない理由:**
+- メモリオーバーヘッド: `4 + max(sizeof(T), 4)` bytes per slot
+- バージョニング機能はこのユースケースで不要
+- 削除がない場合、Vecの方が単純かつ高速
+
+#### Decision 2: 検索アルゴリズム - Multi-phase Search
+
+**選択: 4フェーズ検索戦略**
+
+```rust
+// Phase 1: Enumerate matching labels (prefix-match)
+let candidate_ids: Vec<LabelId> = self.labels
+    .iter()
+    .filter(|label| label.fn_path.starts_with(search_key))
+    .map(|label| label.id)
+    .collect();
+
+// Phase 2: Filter by secondary criteria
+let filtered_ids: Vec<LabelId> = candidate_ids
+    .into_iter()
+    .filter(|&id| self.matches_filters(id, filters))
+    .collect();
+
+// Phase 3: Get or create cache (shuffle once if enabled)
+let cached = self.cache.entry(search_key.to_string())
+    .or_insert_with(|| {
+        let mut ids = filtered_ids.clone();
+        if self.shuffle_enabled {
+            self.random_selector.shuffle(&mut ids);
+        }
+        CachedSelection { candidates: ids, next_index: 0, history: Vec::new() }
+    });
+
+// Phase 4: Sequential selection from cache
+let selected_id = cached.candidates[cached.next_index];
+cached.next_index += 1;
+cached.history.push(selected_id);
+```
+
+**理由:**
+- **Phase 1**: 純粋なprefix-match（O(N)、ラベル数100-500で許容範囲）
+- **Phase 2**: フィルタリング（e.g., "::選択肢"を含む）
+- **Phase 3**: キャッシュ作成とシャッフル（初回のみ、決定論的テスト可能）
+- **Phase 4**: 順次選択（履歴管理、ロールバック対応）
 
 **将来の移行パス:**
-- Phase 2でパフォーマンス問題が発生した場合、Trie構造に移行
-- データ構造の変更は `LabelTable` 内部のみで完結
+- ラベル数1000以上でパフォーマンス問題が発生した場合、Phase 1をTrie構造に変更
 
-#### Decision 2: 履歴管理のキー生成
+#### Decision 3: キャッシュ管理 - CachedSelection構造体
 
-**選択: `format!("{}:{:?}", label, filters)` でキーを生成**
+**選択: search_key単位でキャッシュ、シャッフルは初回のみ**
+
+```rust
+struct CachedSelection {
+    candidates: Vec<LabelId>,  // Shuffled on first access
+    next_index: usize,         // Sequential selection pointer
+    history: Vec<LabelId>,     // Selection history (IDs, not indices)
+}
+```
 
 **理由:**
-- フィルタごとに履歴を分離（要件4のAcceptance Criteria 3）
-- シンプルな実装（HashMap<String, Vec<usize>>をそのまま使用）
+- **初回シャッフル**: ランダム性と決定論の両立（shuffle_enabledフラグで制御）
+- **順次選択**: next_indexで進行、全候補消化後にNoMoreLabelsエラー
+- **履歴記録**: LabelIdベースで安定（インデックスではない）
+- **デバッグモード**: shuffle_enabled = false でVec順序そのまま
 
-**代替案:**
-- `(String, HashMap<String, String>)` をキーとする → Hash実装が必要
+**代替案を選ばない理由:**
+- ~~毎回シャッフル~~: 決定論的テスト不可、パフォーマンス懸念
+- ~~インデックスベース履歴~~: フィルタ変動に脆弱、候補順序変更で無効化
 
-#### Decision 3: LabelTable参照の渡し方
+#### Decision 4: LabelTable参照の渡し方
 
 **選択: `create_module()` で `Arc<Mutex<LabelTable>>` をキャプチャ**
 
@@ -451,7 +657,7 @@ pub fn create_module(label_table: Arc<Mutex<LabelTable>>) -> Result<Module, Cont
 }
 ```
 
-#### Decision 4: エラーハンドリング戦略
+#### Decision 5: エラーハンドリング戦略
 
 **選択: 構造化エラー追加 + Rune側でpanic**
 
