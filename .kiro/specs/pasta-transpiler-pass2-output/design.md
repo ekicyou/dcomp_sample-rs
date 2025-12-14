@@ -347,7 +347,7 @@ writeln!(writer, "行内容").map_err(|e| PastaError::io_error(e.to_string()))?;
 
 ### Modification Checklist
 
-1. **`__pasta_trans2__` モジュール生成追加** (新規コード約25行)
+1. **`__pasta_trans2__` モジュール生成追加** (新規コード約30行)
    - モジュール開始: `pub mod __pasta_trans2__ {`
    - 関数定義: `pub fn label_selector(label, filters) {`
    - ID取得: `let id = pasta_stdlib::select_label_to_id(label, filters);`
@@ -359,11 +359,13 @@ writeln!(writer, "行内容").map_err(|e| PastaError::io_error(e.to_string()))?;
    - モジュール終了: `}`
    - 空行: `writeln!(writer)`
 
-2. **`pasta` モジュール簡素化** (既存コード削除、新規コード約15行)
+2. **`pasta` モジュール簡素化** (既存コード削除、新規コード約10行)
    - 既存の `jump()` 内 match ロジック削除（約20行）
    - 既存の `call()` 内 match ロジック削除（約20行）
-   - 新規 `jump()`: 2行（`label_selector` 呼び出し + for ループ）
-   - 新規 `call()`: 2行（`jump()` と同じ）
+   - 新規 `jump()`: 3行（`label_selector` 呼び出し + for ループ + 空行）
+   - 新規 `call()`: 3行（`jump()` と同じ）
+   
+   **結果**: 現在約50行 → 新規約70行（純増約20行、モジュール分割のオーバーヘッド含む）
 
 3. **テスト更新** (検証パターン変更のみ)
    - `test_two_pass_transpiler_to_vec()`: 検証パターン3-4箇所
