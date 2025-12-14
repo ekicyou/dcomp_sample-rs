@@ -180,8 +180,9 @@ struct CachedSelection {
 
 // Multi-phase search:
 // Phase 1: Trie prefix search O(M) - M is search_key length
+// Use iter_prefix() for forward matching: query="会話" matches key="会話_1::__start__"
 let candidate_ids: Vec<LabelId> = self.prefix_index
-    .common_prefixes(search_key.as_bytes())
+    .iter_prefix(search_key.as_bytes())
     .flat_map(|(_key, ids)| ids.iter().copied())
     .collect();
 
@@ -605,7 +606,7 @@ impl LabelResolver {
 **fast_radix_trieを選ぶ理由:**
 - **最新メンテナンス**: v1.1.0 (2025年12月3日push)、rust-version 1.85.0対応
 - **メモリ効率**: ベンチマークで他のTrie実装より高速&省メモリ
-- **API設計**: `common_prefixes()` メソッドが前方一致検索に最適
+- **API設計**: `iter_prefix()` メソッドが前方一致検索に最適（query="会話" → key="会話_1::__start__" の方向）
 - **ライセンス**: MIT (問題なし)
 
 **他の実装を選ばない理由:**
@@ -619,8 +620,9 @@ impl LabelResolver {
 
 ```rust
 // Phase 1: Trie prefix search O(M) - M is search_key length
+// Use iter_prefix() for forward matching: query="会話" matches key="会話_1::__start__"
 let candidate_ids: Vec<LabelId> = self.prefix_index
-    .common_prefixes(search_key.as_bytes())
+    .iter_prefix(search_key.as_bytes())
     .flat_map(|(_key, ids)| ids.iter().copied())
     .collect();
 

@@ -391,8 +391,9 @@ impl LabelTable {
         filters: &HashMap<String, String>,
     ) -> Result<LabelId, PastaError> {
         // Phase 1: Trie prefix search O(M) - M is search_key length
+        // Use iter_prefix() for forward matching: query="会話" matches key="会話_1::__start__"
         let candidate_ids: Vec<LabelId> = self.prefix_index
-            .common_prefixes(search_key.as_bytes())
+            .iter_prefix(search_key.as_bytes())
             .flat_map(|(_key, ids)| ids.iter().copied())
             .collect();
         
@@ -441,7 +442,7 @@ impl LabelTable {
    - **Trie value**: `Vec<LabelId>` - 同一プレフィックスの全IDを保持
    - **実装**: `fast_radix_trie` (v1.1.0) - メモリ効率最高、最新メンテナンス
    - **構築**: `from_label_registry()` 時に1回だけ構築（不変）
-   - **API**: `RadixMap::common_prefixes()` で前方一致検索
+   - **API**: `RadixMap::iter_prefix()` で前方一致検索（query="会話" → key="会話_1::__start__"）
 
 2. **Vec storage:**
    - ラベルは削除されない → `Vec<LabelInfo>` で十分
@@ -510,7 +511,7 @@ impl LabelTable {
 
 // 2. 検索時にTrie prefix search（O(M) - Mは検索キー長）
 // 3. グローバルラベル検索時は "::__start__" で終わるものをフィルタ
-// 例: search_key="会話" → RadixMap.common_prefixes("会話") → "会話_1::__start__", "会話_2::__start__" が候補
+// 例: search_key="会話" → RadixMap.iter_prefix("会話") → "会話_1::__start__", "会話_2::__start__" が候補
 ```
 
 ### エラーハンドリング
