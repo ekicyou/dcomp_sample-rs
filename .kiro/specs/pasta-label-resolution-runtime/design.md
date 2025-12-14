@@ -32,7 +32,6 @@
 ### Non-Goals
 
 - トランスパイラーの変更(P0で完了、検索キー生成ロジックは既に実装済み)
-- パフォーマンス最適化(Trie導入はPhase 1ではHashMap+フルスキャンで実装、最適化は後続フェーズ)
 - 拡張フィルタ構文(正規表現、範囲指定は将来機能)
 - 単語辞書解決(WordDictionaryは別仕様で実装)
 
@@ -756,7 +755,7 @@ table.set_shuffle_enabled(false);  // テスト・デバッグ用
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| fast_radix_trie APIの変更 | Low | Medium | Phase 1ではHashMap+フルスキャン実装、Phase 3でTrie導入時に検証 |
+| fast_radix_trie APIの変更 | Low | Medium | Phase 1実装時に実際APIを検証、差異があれば調整 |
 | shuffle_enabled導入による既存コード破壊 | Low | High | from_label_registry()のシグネチャ変更、コンパイルエラーで検出可能 |
 | キャッシュメモリ使用量増加 | Medium | Low | 現実的なスクリプトサイズでは数MB程度、監視とプロファイリングで確認 |
 | Rune Value変換の失敗 | Medium | Medium | parse_rune_filters()で型チェック、エラーメッセージを明確に |
@@ -766,7 +765,6 @@ table.set_shuffle_enabled(false);  // テスト・デバッグ用
 
 ## Future Work
 
-- **Trie最適化**: Phase 3でRadixMap導入、O(M)検索の性能検証
 - **拡張フィルタ構文**: 正規表現(`＆name:/^さくら.*/`)、範囲指定(`＆score:>50`)
 - **キャッシュ戦略**: LRUキャッシュ導入、メモリ使用量削減
 - **デバッグ支援**: ラベル解決のトレースログ、呼び出しグラフ可視化
