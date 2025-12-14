@@ -179,12 +179,22 @@
   - メモリ使用量の文書化
   - _Requirements: 1.1_
 
+- [ ] 7. 実装完了検証
+- [ ] 7.1 全テストの実行と成功確認
+  - `cargo test --all-targets`を実行し、全テストが成功することを確認
+  - 本仕様の実装により失敗したテストがある場合、本仕様のスコープとして修正
+  - テストのリグレッション（既存機能の破壊）がないことを保証
+  - 実装完了の必須条件として、全テスト成功状態を維持
+  - **注記**: 実装開始時点では全テスト成功状態を確認済み
+  - _Requirements: 1.1, 2.1, 3.1, 4.1, 5.1, 6.1_
+
 ## Task Summary
 
-- **Total**: 6 major tasks, 25 sub-tasks
+- **Total**: 7 major tasks, 26 sub-tasks
 - **Requirements Coverage**: All 30 requirements (1.1-1.5, 2.1-2.5, 3.1-3.4, 4.1-4.5, 5.1-5.5, 6.1-6.5) mapped to tasks
 - **Parallel Execution**: 11 tasks marked with (P) for parallel capability
 - **Average Task Size**: 1-3 hours per sub-task
+- **Completion Criteria**: All tests pass with `cargo test --all-targets`, no regressions
 
 ## Implementation Notes
 
