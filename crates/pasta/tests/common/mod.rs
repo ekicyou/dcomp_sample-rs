@@ -6,6 +6,7 @@ use tempfile::TempDir;
 
 /// Get a temporary directory for test script storage.
 /// This directory persists for the duration of the test suite.
+#[allow(dead_code)]
 pub fn get_test_script_dir() -> PathBuf {
     static TEMP_DIR: OnceLock<Mutex<TempDir>> = OnceLock::new();
 
@@ -35,6 +36,7 @@ pub fn get_test_persistence_dir() -> PathBuf {
 /// This creates a new temporary directory for each call, which is necessary
 /// for concurrent tests where each thread needs its own persistence directory.
 /// The directory is leaked to prevent cleanup during test execution.
+#[allow(dead_code)]
 pub fn create_unique_persistence_dir() -> std::io::Result<PathBuf> {
     use tempfile::TempDir;
 
@@ -71,9 +73,29 @@ pub fn create_test_script(script_content: &str) -> std::io::Result<PathBuf> {
     let script_file = dic_dir.join("main.pasta");
     fs::write(&script_file, script_content)?;
 
-    // Write main.rn (required by PastaEngine)
+    // Write main.rn (required by PastaEngine) with actor definitions
     let main_rune = script_dir.join("main.rn");
-    fs::write(&main_rune, "pub fn main() {}\n")?;
+    let main_rn_content = r#"// Actor definitions
+pub mod actors {
+    pub const さくら = #{
+        name: "さくら",
+        id: "sakura",
+    };
+
+    pub const うにゅう = #{
+        name: "うにゅう",
+        id: "unyuu",
+    };
+
+    pub const ななこ = #{
+        name: "ななこ",
+        id: "nanako",
+    };
+}
+
+pub fn main() {}
+"#;
+    fs::write(&main_rune, main_rn_content)?;
 
     // Leak the temp directory to prevent cleanup
     std::mem::forget(temp_dir);

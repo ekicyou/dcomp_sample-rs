@@ -186,21 +186,19 @@ impl PastaEngine {
 
         let mut sources = rune::Sources::new();
 
-        // Add transpiled pasta source
+        // Combine main.rn and transpiled code into a single source
+        // This is necessary because Rune's `use crate::actors::*;` needs to reference
+        // the actors module defined in the same compilation unit
+        let main_rn_content = std::fs::read_to_string(&loaded.main_rune)
+            .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to read main.rn: {}", e)))?;
+        let combined_source = format!("{}\n\n{}", main_rn_content, rune_source);
+
+        // Add combined source
         sources
-            .insert(rune::Source::new("entry", rune_source).map_err(|e| {
+            .insert(rune::Source::new("entry", &combined_source).map_err(|e| {
                 PastaError::RuneRuntimeError(format!("Failed to create source: {}", e))
             })?)
             .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to insert source: {}", e)))?;
-
-        // Add main.rn
-        sources
-            .insert(rune::Source::from_path(&loaded.main_rune).map_err(|e| {
-                PastaError::RuneRuntimeError(format!("Failed to load main.rn: {}", e))
-            })?)
-            .map_err(|e| {
-                PastaError::RuneRuntimeError(format!("Failed to insert main.rn: {}", e))
-            })?;
 
         // Step 7: Compile Rune code
         let unit = rune::prepare(&mut sources)

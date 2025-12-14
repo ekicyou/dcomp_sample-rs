@@ -15,7 +15,7 @@ use std::sync::Arc;
 #[should_panic(expected = "Compilation failed")]
 fn test_module_merge_in_multiple_sources() {
     // Create Rune context
-    let mut context = Context::with_default_modules().expect("Failed to create context");
+    let context = Context::with_default_modules().expect("Failed to create context");
     let runtime = Arc::new(context.runtime().expect("Failed to create runtime"));
 
     // Create two sources with the same module name but different functions
@@ -104,7 +104,7 @@ fn test_module_merge_in_multiple_sources() {
 #[test]
 fn test_module_function_overwrite() {
     // Test if same function name in same module gets overwritten
-    let mut context = Context::with_default_modules().expect("Failed to create context");
+    let context = Context::with_default_modules().expect("Failed to create context");
     let runtime = Arc::new(context.runtime().expect("Failed to create runtime"));
 
     let mut sources = Sources::new();

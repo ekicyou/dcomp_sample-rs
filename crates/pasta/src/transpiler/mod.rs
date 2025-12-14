@@ -133,9 +133,8 @@ impl Transpiler {
         #[allow(unused_imports)]
         use std::io::Write;
 
-        // Add imports for standard library functions
-        writeln!(writer, "use pasta_stdlib::*;\n")
-            .map_err(|e| PastaError::io_error(e.to_string()))?;
+        // Note: Top-level use statement is not needed
+        // Each module has its own use statements
 
         // Register all labels and generate modules
         for label in &file.labels {
@@ -171,6 +170,9 @@ impl Transpiler {
         // Generate __pasta_trans2__ module with label_selector function
         writeln!(writer, "pub mod __pasta_trans2__ {{")
             .map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "    use pasta_stdlib::*;")
+            .map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer).map_err(|e| PastaError::io_error(e.to_string()))?;
         writeln!(writer, "    pub fn label_selector(label, filters) {{")
             .map_err(|e| PastaError::io_error(e.to_string()))?;
         writeln!(
@@ -272,12 +274,11 @@ impl Transpiler {
         writeln!(writer, "pub mod {} {{", module_name)
             .map_err(|e| PastaError::io_error(e.to_string()))?;
 
-        // Import pasta_stdlib functions into module scope
+        // Import pasta_stdlib functions and actor definitions into module scope
         writeln!(writer, "    use pasta_stdlib::*;")
             .map_err(|e| PastaError::io_error(e.to_string()))?;
-
-        // Note: Actor definitions should be in main.rn, not auto-imported
-        // The actor names are stored in ctx.actor field as strings
+        writeln!(writer, "    use crate::actors::*;")
+            .map_err(|e| PastaError::io_error(e.to_string()))?;
         writeln!(writer).map_err(|e| PastaError::io_error(e.to_string()))?;
 
         // Generate __start__ function
@@ -349,10 +350,10 @@ impl Transpiler {
                 content,
                 span: _,
             } => {
-                // Generate speaker change (store as string)
-                writeln!(writer, "        ctx.actor = \"{}\";", speaker)
+                // Generate speaker change (use variable reference to actor object)
+                writeln!(writer, "        ctx.actor = {};", speaker)
                     .map_err(|e| PastaError::io_error(e.to_string()))?;
-                writeln!(writer, "        yield Actor(\"{}\");", speaker)
+                writeln!(writer, "        yield Actor(ctx.actor.name);")
                     .map_err(|e| PastaError::io_error(e.to_string()))?;
 
                 // Generate talk content

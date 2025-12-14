@@ -31,17 +31,24 @@ fn test_comprehensive_control_flow_rune_compile() {
         .install(pasta::stdlib::create_module().expect("Failed to create stdlib"))
         .expect("Failed to install stdlib");
 
-    // Add sources - main.rn first, then transpiled code
+    // Combine main.rn and transpiled code into a single source
+    // This is necessary because Rune's `use crate::actors::*;` needs to reference
+    // the actors module defined in the same compilation unit
+    let combined_code = format!("{}\n\n{}", main_rn, transpiled_code);
+
+    // Debug: save combined code to file
+    if let Err(e) = std::fs::write("test_combined_code.rn", &combined_code) {
+        eprintln!("Warning: Failed to write debug file: {}", e);
+    }
+
+    // Add combined source
     let mut sources = Sources::new();
     sources
-        .insert(rune::Source::new("main", &main_rn).expect("Failed to create main.rn source"))
-        .expect("Failed to add main.rn");
-    sources
         .insert(
-            rune::Source::new("transpiled", &transpiled_code)
-                .expect("Failed to create transpiled source"),
+            rune::Source::new("combined", &combined_code)
+                .expect("Failed to create combined source"),
         )
-        .expect("Failed to add transpiled code");
+        .expect("Failed to add combined code");
 
     // Compile
     let result = rune::prepare(&mut sources).with_context(&context).build();
@@ -57,7 +64,7 @@ fn test_comprehensive_control_flow_rune_compile() {
         }
         Err(e) => {
             println!("\n❌ Rune VM compilation FAILED!");
-            eprintln!("Error details: {:#?}", e);
+            eprintln!("Error: {}", e);
             panic!("Rune compilation failed for comprehensive_control_flow.pasta");
         }
     }

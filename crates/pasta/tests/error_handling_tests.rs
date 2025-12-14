@@ -15,7 +15,6 @@ mod common;
 
 use common::{create_test_script, get_test_persistence_dir};
 use pasta::{PastaEngine, PastaError};
-use std::collections::HashMap;
 
 // ============================================================================
 // Category 1: Parse-time Errors (Static Errors)
