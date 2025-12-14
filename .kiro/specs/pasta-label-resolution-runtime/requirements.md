@@ -369,10 +369,31 @@ pub struct LabelInfo {
     pub parent: Option<String>,
 }
 
+// キャッシュキー: (前方一致検索キー, フィルタ条件) のペア
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct CacheKey {
+    search_key: String,
+    filters: Vec<(String, String)>,  // Sorted for consistent hashing
+}
+
+impl CacheKey {
+    fn new(search_key: &str, filters: &HashMap<String, String>) -> Self {
+        let mut filter_vec: Vec<_> = filters.iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        filter_vec.sort();  // Ensure consistent ordering
+        Self {
+            search_key: search_key.to_string(),
+            filters: filter_vec,
+        }
+    }
+}
+
 pub struct LabelTable {
     labels: Vec<LabelInfo>,  // ID-based storage (index = LabelId)
-    prefix_index: RadixMap<Vec<LabelId>>,  // fn_path → [LabelId] for prefix search
-    cache: HashMap<String, CachedSelection>,  // search_key → shuffled IDs + history
+<<<<<<< HEAD
+    prefix_index: RadixMap<Vec<LabelId>>,  // fn_name → [LabelId] for prefix search
+    cache: HashMap<CacheKey, CachedSelection>,  // (search_key, filters) → shuffled IDs + history
     random_selector: Box<dyn RandomSelector>,
     shuffle_enabled: bool,  // Default: true (false for deterministic testing)
 }
@@ -401,8 +422,9 @@ impl LabelTable {
             .filter(|&id| self.matches_filters(id, filters))
             .collect();
         
-        // Phase 3: Get or create cache entry
-        let cached = self.cache.entry(search_key.to_string())
+        // Phase 3: Get or create cache entry with (search_key, filters) as key
+        let cache_key = CacheKey::new(search_key, filters);
+        let cached = self.cache.entry(cache_key)
             .or_insert_with(|| {
                 let mut ids = filtered_ids.clone();
                 if self.shuffle_enabled {
@@ -417,7 +439,10 @@ impl LabelTable {
         
         // Phase 4: Sequential selection from cache
         if cached.next_index >= cached.candidates.len() {
-            return Err(PastaError::NoMoreLabels { search_key: search_key.to_string() });
+            return Err(PastaError::NoMoreLabels { 
+                search_key: search_key.to_string(),
+                filters: filters.clone(),
+            });
         }
         
         let selected_id = cached.candidates[cached.next_index];
@@ -461,7 +486,7 @@ impl LabelTable {
 5. **Shuffle strategy:**
    - `shuffle_enabled = true` (デフォルト): 初回アクセス時にシャッフル、その後は順次選択
    - `shuffle_enabled = false` (デバッグ): Trie順序そのまま、決定論的テスト可能
-   - キャッシュエントリごとに独立してシャッフル実行（search_keyが異なれば別管理）
+   - キャッシュエントリごとに独立してシャッフル実行（(search_key, filters)が異なれば別管理）
 
 **実装アルゴリズム:**
 ```rust
@@ -537,8 +562,14 @@ pub enum PastaError {
     #[error("Random selection failed")]
     RandomSelectionFailed,  // ← RandomSelector::select_index() が None 返却
     
-    #[error("Duplicate label path: {path}")]
-    DuplicateLabelPath { path: String },  // ← LabelRegistry変換時の重複検出
+    #[error("Duplicate label name: {name}")]
+    DuplicateLabelName { name: String },  // ← LabelRegistry変換時のfn_name重複検出
+    
+    #[error("No more labels for '{search_key}' with filters {filters:?}")]
+    NoMoreLabels {
+        search_key: String,
+        filters: HashMap<String, String>,
+    },  // ← キャッシュの順次選択で全候補を使い果たした
 }
 ```
 

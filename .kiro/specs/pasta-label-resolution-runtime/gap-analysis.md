@@ -166,10 +166,18 @@ pub struct LabelId(usize);  // Vec index
 
 pub struct LabelTable {
     labels: Vec<LabelInfo>,  // ID-based storage
-    prefix_index: RadixMap<Vec<LabelId>>,  // fn_path → [LabelId]
-    cache: HashMap<String, CachedSelection>,  // search_key → shuffled IDs
+<<<<<<< HEAD
+    prefix_index: RadixMap<Vec<LabelId>>,  // fn_name → [LabelId]
+    cache: HashMap<CacheKey, CachedSelection>,  // (search_key, filters) → shuffled IDs
     random_selector: Box<dyn RandomSelector>,
     shuffle_enabled: bool,
+}
+
+// Cache key includes both search_key and filters
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct CacheKey {
+    search_key: String,
+    filters: Vec<(String, String)>,  // Sorted for consistent hashing
 }
 
 struct CachedSelection {
@@ -245,7 +253,7 @@ pub struct LabelInfo {
 
 pub struct LabelTable {
     labels: Vec<LabelInfo>,  // ID = Vec index
-    cache: HashMap<String, CachedSelection>,
+    cache: HashMap<CacheKey, CachedSelection>,  // (search_key, filters) pair
     random_selector: Box<dyn RandomSelector>,
     shuffle_enabled: bool,
 }
@@ -287,7 +295,7 @@ struct CachedSelection {
 }
 
 pub struct LabelTable {
-    cache: HashMap<String, CachedSelection>,  // search_key → cache entry
+    cache: HashMap<CacheKey, CachedSelection>,  // (search_key, filters) → cache entry
     shuffle_enabled: bool,  // Default: true, false for testing
     // ...
 }
@@ -475,7 +483,8 @@ impl PastaEngine {
      - `PastaError::NoMatchingLabel`
      - `PastaError::InvalidLabel`
      - `PastaError::RandomSelectionFailed`
-     - `PastaError::DuplicateLabelPath`
+     - `PastaError::DuplicateLabelName`
+     - `PastaError::NoMoreLabels`
 
 4. **`crates/pasta/src/engine.rs`**
    - `PastaEngine::new()` で `LabelTable` を `Arc<Mutex<>>` でラップ
@@ -713,24 +722,36 @@ pub fn create_module(label_table: Arc<Mutex<LabelTable>>) -> Result<Module, Cont
 
 **選択: 構造化エラー追加 + Rune側でpanic**
 
-**新規エラー型:**
+**エラー型追加:**
 ```rust
+// crates/pasta/src/error.rs
 #[derive(Error, Debug)]
 pub enum PastaError {
+    // 既存エラー（変更なし）
+    #[error("Label not found: {label}")]
+    LabelNotFound { label: String },  // ← 既存（前方一致検索前の基本エラー）
+    
+    // 新規エラー（本仕様で追加）
     #[error("No matching label for '{label}' with filters {filters:?}")]
     NoMatchingLabel {
         label: String,
         filters: HashMap<String, String>,
-    },
+    },  // ← フィルタ適用後に候補が0件
     
     #[error("Invalid label name: '{label}'")]
-    InvalidLabel { label: String },
+    InvalidLabel { label: String },  // ← 空文字列など不正なラベル名
     
     #[error("Random selection failed")]
-    RandomSelectionFailed,
+    RandomSelectionFailed,  // ← RandomSelector::select_index() が None 返却
     
-    #[error("Duplicate label path: {path}")]
-    DuplicateLabelPath { path: String },
+    #[error("Duplicate label name: {name}")]
+    DuplicateLabelName { name: String },  // ← LabelRegistry変換時のfn_name重複検出
+    
+    #[error("No more labels for '{search_key}' with filters {filters:?}")]
+    NoMoreLabels {
+        search_key: String,
+        filters: HashMap<String, String>,
+    },  // ← キャッシュの順次選択で全候補を使い果たした
 }
 ```
 
