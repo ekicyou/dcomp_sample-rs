@@ -209,13 +209,15 @@ pub mod pasta {
 }
 ```
 
-### Requirement 4: テストフィクスチャの最終整理
+### Requirement 4: テストフィクスチャの最終整理（実装タスクに含む）
 
-**Objective:** テスト担当者として、テストフィクスチャから説明用の誤った実装と注釈コメントをすべて削除し、正しい実装のみを残すことで、実際のトランスパイラー出力を正確に反映する。
+**Objective:** 開発者として、テストフィクスチャから説明用の誤った実装と注釈コメントをすべて削除し、正しい実装のみを残すことで、実際のトランスパイラー出力を正確に反映する。
 
 #### Context
 
-現在の `comprehensive_control_flow.transpiled.rn` は教育目的で誤った実装と正しい実装を並べて記載している。本仕様の実装完了時には、このファイルを実際のトランスパイラー出力（正しい実装のみ）に更新する必要がある。比較用の参照資料は `.kiro/specs/pasta-transpiler-pass2-output/reference_comparison.rn` に保存済み。
+現在の `comprehensive_control_flow.transpiled.rn` は教育目的で誤った実装と正しい実装を並べて記載している。本仕様の実装完了時には、このファイルを実際のトランスパイラー出力（正しい実装のみ）に更新する。比較用の参照資料は `.kiro/specs/pasta-transpiler-pass2-output/reference_comparison.rn` に保存済み。
+
+**実施タイミング:** トランスパイラー本体の修正（要件5）と同じ実装タスク内で自動実施。
 
 #### Acceptance Criteria
 
