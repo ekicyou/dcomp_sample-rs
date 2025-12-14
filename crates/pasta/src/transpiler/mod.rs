@@ -145,10 +145,11 @@ impl Transpiler {
         Ok(())
     }
 
-    /// Transpile Pass 2: Generate `mod pasta {}` with label selector.
+    /// Transpile Pass 2: Generate `mod __pasta_trans2__` and `mod pasta` modules.
     ///
     /// This performs Pass 2 of the two-pass transpilation strategy:
-    /// - Generates `mod pasta {}` with jump(), call(), and label_selector()
+    /// - Generates `mod __pasta_trans2__` with label_selector() function
+    /// - Generates `mod pasta` with jump() and call() wrapper functions
     /// - Creates ID→function path mapping from the registry
     ///
     /// # Arguments
@@ -167,52 +168,54 @@ impl Transpiler {
         #[allow(unused_imports)]
         use std::io::Write;
 
-        writeln!(writer, "pub mod pasta {{").map_err(|e| PastaError::io_error(e.to_string()))?;
+        // Generate __pasta_trans2__ module with label_selector function
+        writeln!(writer, "pub mod __pasta_trans2__ {{")
+            .map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "    pub fn label_selector(label, filters) {{")
+            .map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(
+            writer,
+            "        let id = pasta_stdlib::select_label_to_id(label, filters);"
+        )
+        .map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "        match id {{").map_err(|e| PastaError::io_error(e.to_string()))?;
+        
+        for label in registry.all_labels() {
+            writeln!(writer, "            {} => {},", label.id, label.fn_path)
+                .map_err(|e| PastaError::io_error(e.to_string()))?;
+        }
+        
+        writeln!(writer, "            _ => |_ctx, _args| {{ yield pasta_stdlib::Error(`ラベルID ${{id}} が見つかりませんでした。`); }},")
+            .map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "        }}").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "    }}").map_err(|e| PastaError::io_error(e.to_string()))?;
+        writeln!(writer, "}}").map_err(|e| PastaError::io_error(e.to_string()))?;
         writeln!(writer).map_err(|e| PastaError::io_error(e.to_string()))?;
 
-        // Generate jump function with inline match
+        // Generate pasta module with wrapper functions
+        writeln!(writer, "pub mod pasta {{").map_err(|e| PastaError::io_error(e.to_string()))?;
         writeln!(writer, "    pub fn jump(ctx, label, filters, args) {{")
             .map_err(|e| PastaError::io_error(e.to_string()))?;
         writeln!(
             writer,
-            "        let id = pasta_stdlib::select_label_to_id(label, filters);"
+            "        let func = crate::__pasta_trans2__::label_selector(label, filters);"
         )
         .map_err(|e| PastaError::io_error(e.to_string()))?;
-        writeln!(writer, "        match id {{").map_err(|e| PastaError::io_error(e.to_string()))?;
-        for label in registry.all_labels() {
-            writeln!(
-                writer,
-                "            {} => {{ for a in {}(ctx, args) {{ yield a; }} }},",
-                label.id, label.fn_path
-            )
+        writeln!(writer, "        for a in func(ctx, args) {{ yield a; }}")
             .map_err(|e| PastaError::io_error(e.to_string()))?;
-        }
-        writeln!(writer, "            _ => {{ yield pasta_stdlib::Error(`ラベルID ${{id}} が見つかりませんでした。`); }},").map_err(|e| PastaError::io_error(e.to_string()))?;
-        writeln!(writer, "        }}").map_err(|e| PastaError::io_error(e.to_string()))?;
         writeln!(writer, "    }}").map_err(|e| PastaError::io_error(e.to_string()))?;
         writeln!(writer).map_err(|e| PastaError::io_error(e.to_string()))?;
 
-        // Generate call function with inline match
         writeln!(writer, "    pub fn call(ctx, label, filters, args) {{")
             .map_err(|e| PastaError::io_error(e.to_string()))?;
         writeln!(
             writer,
-            "        let id = pasta_stdlib::select_label_to_id(label, filters);"
+            "        let func = crate::__pasta_trans2__::label_selector(label, filters);"
         )
         .map_err(|e| PastaError::io_error(e.to_string()))?;
-        writeln!(writer, "        match id {{").map_err(|e| PastaError::io_error(e.to_string()))?;
-        for label in registry.all_labels() {
-            writeln!(
-                writer,
-                "            {} => {{ for a in {}(ctx, args) {{ yield a; }} }},",
-                label.id, label.fn_path
-            )
+        writeln!(writer, "        for a in func(ctx, args) {{ yield a; }}")
             .map_err(|e| PastaError::io_error(e.to_string()))?;
-        }
-        writeln!(writer, "            _ => {{ yield pasta_stdlib::Error(`ラベルID ${{id}} が見つかりませんでした。`); }},").map_err(|e| PastaError::io_error(e.to_string()))?;
-        writeln!(writer, "        }}").map_err(|e| PastaError::io_error(e.to_string()))?;
         writeln!(writer, "    }}").map_err(|e| PastaError::io_error(e.to_string()))?;
-
         writeln!(writer, "}}").map_err(|e| PastaError::io_error(e.to_string()))?;
 
         Ok(())

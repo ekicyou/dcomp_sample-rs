@@ -34,13 +34,21 @@ fn test_two_pass_transpiler_to_vec() {
     let final_output = String::from_utf8(output).unwrap();
     println!("\nFinal output:\n{}", final_output);
 
-    // Verify final output contains mod pasta
+    // Verify final output contains __pasta_trans2__ module
+    assert!(final_output.contains("pub mod __pasta_trans2__"));
+    assert!(final_output.contains("pub fn label_selector(label, filters)"));
+    
+    // Verify pasta module calls label_selector
     assert!(final_output.contains("pub mod pasta"));
     assert!(
         final_output.contains("pub fn jump(ctx, label, filters, args)")
             || final_output.contains("pub fn call(ctx, label, filters, args)")
     );
-    assert!(final_output.contains("for a in crate::会話_1::__start__(ctx, args)"));
+    assert!(final_output.contains("let func = crate::__pasta_trans2__::label_selector(label, filters);"));
+    assert!(final_output.contains("for a in func(ctx, args) { yield a; }"));
+    
+    // Verify match expression is in __pasta_trans2__ module (function pointer, not call)
+    assert!(final_output.contains("1 => crate::会話_1::__start__,"));
 }
 
 #[test]
@@ -80,9 +88,13 @@ fn test_two_pass_transpiler_to_string() {
 
     println!("Full output:\n{}", output);
 
-    // Verify both labels in label_selector
-    assert!(output.contains("for a in crate::会話_1::__start__(ctx, args)"));
-    assert!(output.contains("for a in crate::別会話_1::__start__(ctx, args)"));
+    // Verify both labels in __pasta_trans2__ module (function pointers)
+    assert!(output.contains("1 => crate::会話_1::__start__,"));
+    assert!(output.contains("2 => crate::別会話_1::__start__,"));
+    
+    // Verify pasta module structure
+    assert!(output.contains("let func = crate::__pasta_trans2__::label_selector(label, filters);"));
+    assert!(output.contains("for a in func(ctx, args) { yield a; }"));
 }
 
 #[test]
@@ -101,8 +113,12 @@ fn test_transpile_to_string_helper() {
 
     // Should contain both Pass 1 and Pass 2 output
     assert!(output.contains("pub mod 会話_1"));
+    assert!(output.contains("pub mod __pasta_trans2__"));
     assert!(output.contains("pub mod pasta"));
-    assert!(output.contains("for a in crate::会話_1::__start__(ctx, args)"));
+    
+    // Verify correct structure (function pointer in __pasta_trans2__)
+    assert!(output.contains("1 => crate::会話_1::__start__,"));
+    assert!(output.contains("let func = crate::__pasta_trans2__::label_selector(label, filters);"));
 }
 
 #[test]
@@ -141,7 +157,10 @@ fn test_multiple_files_simulation() {
     assert!(final_output.contains("pub mod メイン_1"));
     assert!(final_output.contains("pub mod サブ_1"));
 
-    // label_selector should have both
-    assert!(final_output.contains("for a in crate::メイン_1::__start__(ctx, args)"));
-    assert!(final_output.contains("for a in crate::サブ_1::__start__(ctx, args)"));
+    // __pasta_trans2__ module should have both labels (function pointers)
+    assert!(final_output.contains("1 => crate::メイン_1::__start__,"));
+    assert!(final_output.contains("2 => crate::サブ_1::__start__,"));
+    
+    // Verify pasta module wrapper structure
+    assert!(final_output.contains("let func = crate::__pasta_trans2__::label_selector(label, filters);"));
 }
