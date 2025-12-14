@@ -1,0 +1,100 @@
+  5:     use pasta_stdlib::*;
+  6:     use crate::actors::*;
+  7: 
+  8:     pub fn __start__(ctx, args) {
+  9:         let 繧ｫ繧ｦ繝ｳ繧ｿ = 10;
+ 10:         ctx.actor = 縺輔￥繧・
+ 11:         yield Actor(ctx.actor.name);
+ 12:         yield pasta_stdlib::word(ctx, "謖ｨ諡ｶ", []);
+ 13:         yield Talk("・・);
+ 14:         ctx.actor = 縺・↓繧・≧;
+ 15:         yield Actor(ctx.actor.name);
+ 16:         yield Talk("繧・▲縺ｻ繝ｼ縲・);
+ 17:         for a in call(ctx, "閾ｪ蟾ｱ邏ｹ莉・, #{}, []) { yield a; }
+ 18:         let 繧ｫ繧ｦ繝ｳ繧ｿ = 1;
+ 19:         for a in call(ctx, "繧ｫ繧ｦ繝ｳ繝郁｡ｨ遉ｺ", #{}, [繧ｫ繧ｦ繝ｳ繧ｿ]) { yield a; }
+ 20:         for a in jump(ctx, "莨夊ｩｱ蛻・ｲ・, #{}, []) { yield a; }
+ 21:     }
+ 22:     pub fn 閾ｪ蟾ｱ邏ｹ莉祇1(ctx, args) {
+ 23:         ctx.actor = 縺輔￥繧・
+ 24:         yield Actor(ctx.actor.name);
+ 25:         yield Talk("遘√・縺輔￥繧峨〒縺吶・);
+ 26:         ctx.actor = 縺・↓繧・≧;
+ 27:         yield Actor(ctx.actor.name);
+ 28:         yield Talk("蜒輔・縺・↓繧・≧縺繧医・);
+ 29:         for a in call(ctx, "雜｣蜻ｳ邏ｹ莉・, #{}, []) { yield a; }
+ 30:     }
+ 31: 
+ 32:     pub fn 雜｣蜻ｳ邏ｹ莉祇1(ctx, args) {
+ 33:         ctx.actor = 縺輔￥繧・
+ 34:         yield Actor(ctx.actor.name);
+ 35:         yield Talk("遘√・雜｣蜻ｳ縺ｯ隱ｭ譖ｸ縺ｧ縺吶・);
+ 36:         ctx.actor = 縺・↓繧・≧;
+ 37:         yield Actor(ctx.actor.name);
+ 38:         yield Talk("蜒輔・繧ｲ繝ｼ繝縺悟･ｽ縺阪・);
+ 39:     }
+ 40: 
+ 41:     pub fn 繧ｫ繧ｦ繝ｳ繝郁｡ｨ遉ｺ_1(ctx, args) {
+ 42:         ctx.actor = 縺輔￥繧・
+ 43:         yield Actor(ctx.actor.name);
+ 44:         yield Talk("繧ｫ繧ｦ繝ｳ繧ｿ繝ｼ縺ｯ・・､縺ｧ縺吶・);
+ 45:     }
+ 46: 
+ 47:     pub fn 莨夊ｩｱ蛻・ｲ神1(ctx, args) {
+ 48:         ctx.actor = 縺輔￥繧・
+ 49:         yield Actor(ctx.actor.name);
+ 50:         yield pasta_stdlib::word(ctx, "蝣ｴ謇縺ｮ螟ｩ豌励・", []);
+ 51:         yield pasta_stdlib::word(ctx, "螟ｩ豌励□縺ｭ", []);
+ 52:         yield Talk("縲・);
+ 53:         ctx.actor = 縺・↓繧・≧;
+ 54:         yield Actor(ctx.actor.name);
+ 55:         yield Talk("縺昴≧縺縺ｭ縲・);
+ 56:         for a in jump(ctx, "蛻･縺ｮ隧ｱ鬘・, #{}, []) { yield a; }
+ 57:     }
+ 58: 
+ 59:     pub fn 蛻･縺ｮ隧ｱ鬘契1(ctx, args) {
+ 60:         ctx.actor = 縺輔￥繧・
+ 61:         yield Actor(ctx.actor.name);
+ 62:         yield Talk("縺ｨ縺薙ｍ縺ｧ縲∵・譌･縺ｯ菴輔☆繧具ｼ・);
+ 63:         ctx.actor = 縺・↓繧・≧;
+ 64:         yield Actor(ctx.actor.name);
+ 65:         yield Talk("縺ｾ縺豎ｺ繧√※縺ｪ縺・↑縺√・);
+ 66:     }
+ 67: 
+ 68: }
+ 69: 
+ 70: pub mod __pasta_trans2__ {
+ 71:     pub fn label_selector(label, filters) {
+ 72:         let id = pasta_stdlib::select_label_to_id(label, filters);
+ 73:         match id {
+ 74:             1 => crate::繝｡繧､繝ｳ_1::__start__,
+ 75:             2 => crate::繝｡繧､繝ｳ_1::閾ｪ蟾ｱ邏ｹ莉祇1,
+ 76:             3 => crate::繝｡繧､繝ｳ_1::雜｣蜻ｳ邏ｹ莉祇1,
+ 77:             4 => crate::繝｡繧､繝ｳ_1::繧ｫ繧ｦ繝ｳ繝郁｡ｨ遉ｺ_1,
+ 78:             5 => crate::繝｡繧､繝ｳ_1::莨夊ｩｱ蛻・ｲ神1,
+ 79:             6 => crate::繝｡繧､繝ｳ_1::蛻･縺ｮ隧ｱ鬘契1,
+ 80:             _ => |_ctx, _args| { yield pasta_stdlib::Error(`繝ｩ繝吶ΝID ${id} 縺瑚ｦ九▽縺九ｊ縺ｾ縺帙ｓ縺ｧ縺励◆縲Ａ); },
+ 81:         }
+ 82:     }
+ 83: }
+ 84: 
+ 85: pub mod pasta {
+ 86:     pub fn jump(ctx, label, filters, args) {
+ 87:         let func = crate::__pasta_trans2__::label_selector(label, filters);
+ 88:         for a in func(ctx, args) { yield a; }
+ 89:     }
+ 90: 
+ 91:     pub fn call(ctx, label, filters, args) {
+ 92:         let func = crate::__pasta_trans2__::label_selector(label, filters);
+ 93:         for a in func(ctx, args) { yield a; }
+ 94:     }
+ 95: }
+... (95 lines total)
+
+笶・Rune VM compilation FAILED!
+Error: Failed to build rune sources (see diagnostics for details)
+
+thread 'test_comprehensive_control_flow_rune_compile' (37816) panicked at crates\pasta\tests\comprehensive_rune_vm_test.rs:61:13:
+Rune compilation failed for comprehensive_control_flow.pasta
+stack backtrace:
+   0: std::panicking::panic_handler

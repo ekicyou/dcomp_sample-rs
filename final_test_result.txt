@@ -1,0 +1,40 @@
+   Compiling pasta v0.1.0 (C:\home\maz\git\dcomp_sample-rs-2\crates\pasta)
+error[E0384]: cannot assign twice to immutable variable `output`
+  --> crates\pasta\tests\two_pass_transpiler_test.rs:75:5
+   |
+70 |     let output = String::new();
+   |         ------ first assignment to `output`
+...
+75 |     output = String::from_utf8(buffer).unwrap();
+   |     ^^^^^^ cannot assign twice to immutable variable
+   |
+help: consider making this binding mutable
+   |
+70 |     let mut output = String::new();
+   |         +++
+
+error[E0596]: cannot borrow `output` as mutable, as it is not declared as mutable
+  --> crates\pasta\tests\two_pass_transpiler_test.rs:88:5
+   |
+88 |     output.push_str(&pass2_output);
+   |     ^^^^^^ cannot borrow as mutable
+   |
+help: consider changing this to be mutable
+   |
+70 |     let mut output = String::new();
+   |         +++
+
+warning: value assigned to `output` is never read
+  --> crates\pasta\tests\two_pass_transpiler_test.rs:70:18
+   |
+70 |     let output = String::new();
+   |                  ^^^^^^^^^^^^^
+   |
+   = help: maybe it is overwritten before being read?
+   = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+Some errors have detailed explanations: E0384, E0596.
+For more information about an error, try `rustc --explain E0384`.
+warning: `pasta` (test "two_pass_transpiler_test") generated 1 warning
+error: could not compile `pasta` (test "two_pass_transpiler_test") due to 2 previous errors; 1 warning emitted
+warning: build failed, waiting for other jobs to finish...
