@@ -80,7 +80,7 @@ Pasta DSLの設計では、ラベル名は前方一致で解決される：
 **含まれるもの：**
 
 1. **ラベル解決エンジンの実装** (`LabelTable::resolve_label_id()`)
-   - 前方一致検索（検索キー → fn_path のプレフィックスマッチ）
+   - 前方一致検索（検索キー → fn_name のプレフィックスマッチ）
    - 属性フィルタリング（`＆time:morning` 等の属性による絞り込み）
    - ランダム選択（`RandomSelector` 統合）
    - キャッシュベース消化（履歴管理による選択肢の順次消化）
@@ -116,15 +116,15 @@ Pasta DSLでは、以下の検索キー生成規則が定義されている（�
 | `＞＊会話` | `"会話"` | `"会話_*::__start__"` |
 | `＞＊会話・選択肢` | `"会話::選択肢"` | `"会話_*::選択肢_*"` |
 
-検索キーは**完全修飾名の一部**であり、fn_path（`"会話_1::__start__"`）との前方一致で候補を抽出する。
+検索キーは**関数名の一部**であり、fn_name（`"会話_1::__start__"`）との前方一致で候補を抽出する。
 
 #### Acceptance Criteria
 
-1. When ラベル解決エンジンが検索キー `"会話"` を受け取る, the LabelTable shall fn_path が `"会話"` で始まるすべてのラベルを前方一致検索で抽出し、`"::__start__"` で終わるラベルのみを候補とする（例: `"crate::会話_1::__start__"`, `"crate::会話_2::__start__"`）
-2. When ラベル解決エンジンが検索キー `"会話_1::選択肢"` を受け取る, the LabelTable shall fn_path が `"会話_1::選択肢"` で始まるすべてのラベルを前方一致検索で抽出する（例: `"crate::会話_1::選択肢_1"`, `"crate::会話_1::選択肢_2"`）
+1. When ラベル解決エンジンが検索キー `"会話"` を受け取る, the LabelTable shall fn_name が `"会話"` で始まるすべてのラベルを前方一致検索で抽出し、`"::__start__"` で終わるラベルのみを候補とする（例: `"会話_1::__start__"`, `"会話_2::__start__"`）
+2. When ラベル解決エンジンが検索キー `"会話_1::選択肢"` を受け取る, the LabelTable shall fn_name が `"会話_1::選択肢"` で始まるすべてのラベルを前方一致検索で抽出する（例: `"会話_1::選択肢_1"`, `"会話_1::選択肢_2"`）
 3. When 前方一致する候補が存在しない場合, the LabelTable shall `PastaError::LabelNotFound { label: <検索キー> }` エラーを返す
 4. When 検索キーが空文字列の場合, the LabelTable shall `PastaError::InvalidLabel` エラーを返す
-5. When fn_path に連番が含まれる（`"会話_1"`, `"会話_2"`）場合, the LabelTable shall 連番の違いを無視して前方一致検索を実行する（`"会話"` で `"会話_1"`, `"会話_2"` どちらもマッチ）
+5. When fn_name に連番が含まれる（`"会話_1"`, `"会話_2"`）場合, the LabelTable shall 連番の違いを無視して前方一致検索を実行する（`"会話"` で `"会話_1"`, `"会話_2"` どちらもマッチ）
    - **注記:** 検索キー生成はトランスパイラーが実施。`JumpTarget::Global("会話")` → `"会話"`, `JumpTarget::LongJump{"会話", "選択肢"}` → `"会話::選択肢"`
 
 ### Requirement 2: 属性フィルタリング
@@ -282,7 +282,8 @@ pub struct TranspileLabelInfo {
     pub id: usize,
     pub name: String,                  // DSL上のラベル名
     pub attributes: HashMap<String, String>,
-    pub fn_path: String,               // "会話_1::__start__"
+    pub fn_name: String,               // "会話_1::__start__" (crate:: なし)
+    pub fn_path: String,               // "crate::会話_1::__start__" (完全修飾パス)
     pub parent: Option<String>,
 }
 ```
@@ -292,8 +293,8 @@ pub struct TranspileLabelInfo {
 #### Acceptance Criteria
 
 1. When `LabelTable::from_label_registry()` が呼ばれる, the LabelTable shall `LabelRegistry` の全エントリを内部データ構造に変換する
-2. When 変換処理が行われる, the LabelTable shall fn_path をキーとした前方一致検索可能なデータ構造（HashMap または Trie）を構築する
-3. When 同一の fn_path を持つラベルが存在する場合（通常はありえない）, the LabelTable shall `PastaError::DuplicateLabelPath` エラーを返す
+2. When 変換処理が行われる, the LabelTable shall fn_name をキーとした前方一致検索可能なデータ構造（HashMap または Trie）を構築する
+3. When 同一の fn_name を持つラベルが存在する場合（通常はありえない）, the LabelTable shall `PastaError::DuplicateLabelName` エラーを返す
 4. When `RandomSelector` インスタンスが渡される, the LabelTable shall それを内部で保持し、ランダム選択時に使用する
 5. When 変換完了後の `LabelTable` が `Send` トレイトを実装している, the LabelTable shall マルチスレッド環境での使用を保証する（Rune VMは Send を要求）
    - **注記:** `RandomSelector` トレイトは既に `Send + Sync` 境界を持つため、`LabelTable` は自動的に `Send` を実装する
@@ -345,8 +346,8 @@ impl LabelTable {
 
 **未実装（本仕様の対象）：**
 
-1. `LabelTable::resolve_label_id()` メソッド
-2. 前方一致検索のためのデータ構造変更（Trie または fn_path のイテレーション）
+2. `LabelTable::resolve_label_id()` メソッド
+2. 前方一致検索のためのデータ構造変更（Trie または fn_name のイテレーション）
 3. ラベルIDベースの履歴管理（現在はインデックス）
 4. `PastaApi::create_module()` と `select_label_to_id()` 関数
 5. `LabelTable::from_label_registry()` 実装
@@ -365,13 +366,13 @@ pub struct LabelInfo {
     pub id: LabelId,  // ← 必須: ラベルの一意識別子
     pub name: String,
     pub attributes: HashMap<String, String>,
-    pub fn_path: String,
+    pub fn_name: String,  // 検索対象: "会話_1::__start__" (crate:: なし)
     pub parent: Option<String>,
 }
 
 pub struct LabelTable {
     labels: Vec<LabelInfo>,  // ID-based storage (index = LabelId)
-    prefix_index: RadixMap<Vec<LabelId>>,  // fn_path → [LabelId] for prefix search
+    prefix_index: RadixMap<Vec<LabelId>>,  // fn_name → [LabelId] for prefix search
     cache: HashMap<String, CachedSelection>,  // search_key → shuffled IDs + history
     random_selector: Box<dyn RandomSelector>,
     shuffle_enabled: bool,  // Default: true (false for deterministic testing)
@@ -481,7 +482,7 @@ impl LabelTable {
                 LabelInfo {
                     id: LabelId(idx),  // Vec index = ID
                     name: name.clone(),
-                    fn_path: trans_label.fn_path.clone(),
+                    fn_name: trans_label.fn_name.clone(),
                     attributes: trans_label.attributes.clone(),
                     parent: trans_label.parent.clone(),
                 }
@@ -492,7 +493,7 @@ impl LabelTable {
         let mut prefix_index = RadixMap::new();
         for label in &labels {
             prefix_index
-                .entry(label.fn_path.as_bytes())
+                .entry(label.fn_name.as_bytes())
                 .or_insert_with(Vec::new)
                 .push(label.id);
         }
