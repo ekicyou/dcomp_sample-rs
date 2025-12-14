@@ -251,8 +251,6 @@ fn test_independent_label_execution() {
     assert!(!events2_a.is_empty());
 }
 
-
-
 #[test]
 fn test_engine_with_different_scripts() {
     // Test engines with completely different script structures

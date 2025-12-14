@@ -417,8 +417,6 @@ impl PastaEngine {
     pub fn create_fire_event(event_name: String, params: Vec<(String, String)>) -> ScriptEvent {
         ScriptEvent::FireEvent { event_name, params }
     }
-
-
 }
 
 impl Drop for PastaEngine {
