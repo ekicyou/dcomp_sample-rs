@@ -299,10 +299,12 @@ pub struct LabelTable {
 3. **履歴記録**: `history.push(selected_id)` で選択済みIDを記録
 4. **デバッグモード**: `shuffle_enabled = false` でVec順序そのまま（決定論的）
 
-**TODOの残り:**
-- ~~TODO #3: 履歴キー生成の一貫性~~ → **解決**: search_key単位で CachedSelection を管理、フィルタは検索時に適用
+**解決済みTODO:**
+- ✅ **TODO #3**: 履歴キー生成の一貫性 → search_key単位で CachedSelection を管理、フィルタは検索時に適用
+- ✅ **TODO #4**: Rune Value → HashMap変換 → `rune::from_value<T>()` パターン確認済み（persistence.rs参考）
+- ✅ **TODO #5**: Arc<Mutex> 統合 → 既存パターンで実装可能
 
-#### Gap 4: Rune ↔ Rust 型変換の未定義（Research Required in Design Phase）
+#### Gap 4: Rune ↔ Rust 型変換の未定義 ✅ **解決済み**
 
 **現状:**
 ```rust
@@ -315,31 +317,73 @@ fn select_label_to_id(_label: String, _filters: rune::runtime::Value) -> i64 {
 - Runeの `Value` 型から Rust の `HashMap<String, String>` への変換
 - Rune側で空のHashMapが渡された場合の処理（`Value::Unit` vs `Value::Object(empty)`）
 
-**設計フェーズでの調査項目:**
-1. Runeの `Value::into_object()` または `Value::as_object()` の使用方法
-2. Rune Object → Rust HashMap への反復変換（key/value型チェック）
-3. 既存の `persistence` モジュールでの型変換パターン参考
+**解決策: `rune::from_value<T>()`パターン使用**
 
-**推奨実装パターン（仮案）:**
+既存の `persistence.rs` モジュールに完璧な参考実装が存在:
 ```rust
-fn parse_rune_filters(value: rune::runtime::Value) -> Result<HashMap<String, String>, String> {
-    match value {
-        Value::Unit => Ok(HashMap::new()),  // Empty filters
-        Value::Object(obj) => {
-            let mut map = HashMap::new();
-            for (k, v) in obj.iter() {
-                let key = k.as_str().ok_or("Filter key must be string")?;
-                let val = v.as_str().ok_or("Filter value must be string")?;
-                map.insert(key.to_string(), val.to_string());
-            }
-            Ok(map)
-        }
-        _ => Err("Filters must be Object or Unit".to_string()),
+// crates/pasta/src/stdlib/persistence.rs より
+fn toml_to_string(data: rune::Value) -> Result<String, String> {
+    // Convert Rune Value to HashMap
+    let map: std::collections::HashMap<String, rune::Value> = rune::from_value(data)
+        .map_err(|e| format!("Failed to convert Rune value to map: {}", e))?;
+    
+    for (key, value) in map {
+        // value もさらに from_value で変換可能
     }
+}
+
+// String型への変換例（rune_value_to_toml_value より）
+if let Ok(s) = rune::from_value::<String>(value.clone()) {
+    // String変換成功
 }
 ```
 
-**TODO #4: Design Phaseで Rune API調査を実施、正確な変換コードを確定**
+**確定実装パターン:**
+```rust
+fn parse_rune_filters(value: rune::Value) -> Result<HashMap<String, String>, String> {
+    // Step 1: Value → HashMap<String, rune::Value>
+    let rune_map: HashMap<String, rune::Value> = rune::from_value(value)
+        .map_err(|e| format!("Filters must be object: {}", e))?;
+    
+    // Step 2: 各 Value → String に変換
+    let mut filters = HashMap::new();
+    for (key, val) in rune_map {
+        let str_val = rune::from_value::<String>(val)
+            .map_err(|e| format!("Filter value for '{}' must be string: {}", key, e))?;
+        filters.insert(key, str_val);
+    }
+    
+    Ok(filters)
+}
+
+// 空のHashMapケース: rune::from_value() が自動的にエラーを返すため、
+// Unit→empty HashMap変換が必要な場合は明示的なmatch処理を追加
+```
+
+**空HashMap処理（必要な場合）:**
+```rust
+// Pastaスクリプト側で `{}` を渡せば自動的に空のHashMapになる
+let label_id = select_label_to_id("ch-happy", {});  // Empty filters
+
+// ただし `()` (Unit)を許容する必要がある場合:
+fn parse_rune_filters_with_unit(value: rune::Value) -> Result<HashMap<String, String>, String> {
+    // Check if it's Unit first
+    if rune::from_value::<()>(value.clone()).is_ok() {
+        return Ok(HashMap::new());  // Unit → empty HashMap
+    }
+    
+    // Otherwise, parse as HashMap
+    parse_rune_filters(value)
+}
+```
+
+**キー発見:**
+- ✅ **`rune::from_value<T>(value)`** が型変換の基本パターン
+- ✅ **2段階変換**: `Value` → `HashMap<String, Value>` → `HashMap<String, String>`
+- ✅ **エラー処理**: `map_err()` でRune変換エラーを `String` に変換
+- ✅ **既存コードベース**: `persistence.rs` に実装済み、`stdlib/mod.rs` にimport済み
+
+**Resolution:** `rune::from_value()` API確認完了。Design Phaseで詳細仕様を決定。
 
 #### Gap 5: LabelTableへの参照渡しとArc<Mutex>統合
 
@@ -396,8 +440,7 @@ impl PastaEngine {
 }
 ```
 
-**TODOの残り:**
-- ~~TODO #5: Arc<Mutex<LabelTable>> 統合~~ → **解決**: 上記パターンで実装
+**全TODO解決済み（Gap 3参照）**
 
 ### 2.3 複雑性シグナル
 

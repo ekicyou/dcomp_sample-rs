@@ -605,9 +605,33 @@ pub enum PastaError {
 | 依存仕様/クレート | 理由 | 状態 |
 |------------------|------|------|
 | `pasta-declarative-control-flow` (P0) | トランスパイラー、LabelRegistry | ✅ Completed |
-| `rune` (0.14) | Rune VM、モジュール登録 | ✅ 既存依存 |
+| `rune` (0.14) | Rune VM、モジュール登録、`rune::from_value<T>()` | ✅ 既存依存 |
 | `thiserror` | エラー型定義 | ✅ 既存依存 |
-| `prefix_tree` または `radix_trie` | Trie実装（オプショナル） | ⚠️ Phase 3で検討 |
+| `fast_radix_trie` (1.1.0) | Trie-based prefix index (O(M) search) | ✅ **Phase 1で決定** |
+
+**型変換パターン（`rune::from_value<T>()`）:**
+```rust
+// crates/pasta/src/stdlib/persistence.rs より（既存実装）
+use rune;
+
+// Rune Value → Rust HashMap変換
+let map: HashMap<String, rune::Value> = rune::from_value(data)
+    .map_err(|e| format!("Failed to convert: {}", e))?;
+
+// Rune Value → String変換
+let s: String = rune::from_value(value)
+    .map_err(|e| format!("Must be string: {}", e))?;
+
+// select_label_to_id() での使用例:
+fn parse_filters(value: rune::Value) -> Result<HashMap<String, String>, String> {
+    let rune_map: HashMap<String, rune::Value> = rune::from_value(value)?;
+    let mut filters = HashMap::new();
+    for (key, val) in rune_map {
+        filters.insert(key, rune::from_value::<String>(val)?);
+    }
+    Ok(filters)
+}
+```
 
 ---
 
