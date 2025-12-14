@@ -159,14 +159,14 @@ pub fn find_label(&mut self, name: &str, ...) -> Result<String, PastaError> {
 
 **採用決定: Trie prefix index + Vec storage with multi-phase search**
 ```rust
-use qp_trie::Trie;  // または radix_trie::Trie
+use fast_radix_trie::RadixMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LabelId(usize);  // Vec index
 
 pub struct LabelTable {
     labels: Vec<LabelInfo>,  // ID-based storage
-    prefix_index: Trie<Vec<u8>, Vec<LabelId>>,  // fn_path → [LabelId]
+    prefix_index: RadixMap<Vec<LabelId>>,  // fn_path → [LabelId]
     cache: HashMap<String, CachedSelection>,  // search_key → shuffled IDs
     random_selector: Box<dyn RandomSelector>,
     shuffle_enabled: bool,
@@ -181,7 +181,7 @@ struct CachedSelection {
 // Multi-phase search:
 // Phase 1: Trie prefix search O(M) - M is search_key length
 let candidate_ids: Vec<LabelId> = self.prefix_index
-    .iter_prefix(search_key.as_bytes())
+    .common_prefixes(search_key.as_bytes())
     .flat_map(|(_key, ids)| ids.iter().copied())
     .collect();
 
@@ -212,7 +212,7 @@ cached.history.push(selected_id);
 ```
 
 **設計根拠:**
-- **Trie prefix index**: O(M)検索性能、ラベル数に依存しない（外部クレート: qp_trie or radix_trie）
+- **Trie prefix index**: O(M)検索性能、ラベル数に依存しない（fast_radix_trie v1.1.0）
 - **Vec storage**: ラベル削除なし → Vec indexで十分、高速アクセス
 - **ID-based access**: LabelInfoをコピーせず、IDで参照
 - **Shuffle strategy**: キャッシュレイヤーでシャッフル（テスト容易性確保）
@@ -551,7 +551,7 @@ impl LabelResolver {
 
 #### Decision 1: データ構造 - Trie prefix index + Vec storage
 
-**選択: `Trie<Vec<u8>, Vec<LabelId>>` + `Vec<LabelInfo>` with `LabelId(usize)` newtype**
+**選択: `RadixMap<Vec<LabelId>>` (fast_radix_trie) + `Vec<LabelInfo>` with `LabelId(usize)` newtype**
 
 **理由:**
 - **Trie prefix index**: O(M)検索（Mは検索キー長）、ラベル数に依存しない
@@ -559,13 +559,16 @@ impl LabelResolver {
 - **分離設計**: Trieは検索インデックス、Vecがデータ本体（責務分離）
 - **Trie value**: `Vec<LabelId>` - 同一プレフィックスの全ID保持
 
-**実装選択:**
-- **qp_trie**: Query-parallel trie、高速、メモリ効率良い
-- **radix_trie**: Radix tree、汎用的、安定
+**fast_radix_trieを選ぶ理由:**
+- **最新メンテナンス**: v1.1.0 (2025年12月3日push)、rust-version 1.85.0対応
+- **メモリ効率**: ベンチマークで他のTrie実装より高速&省メモリ
+- **API設計**: `common_prefixes()` メソッドが前方一致検索に最適
+- **ライセンス**: MIT (問題なし)
 
-**Vec全件走査を選ばない理由:**
-- O(N)走査は非効率（ラベル数増加で線形劣化）
-- Trie O(M)は定数時間に近い（検索キー長のみ依存）
+**他の実装を選ばない理由:**
+- **qp_trie**: crates.ioに存在しない
+- **radix_trie**: v0.3.0 (2025年9月16日push)、古め、APIが複雑
+- **Vec全件走査**: O(N)は非効率（ラベル数増加で線形劣化）
 
 #### Decision 2: 検索アルゴリズム - Multi-phase Search with Trie
 
@@ -574,7 +577,7 @@ impl LabelResolver {
 ```rust
 // Phase 1: Trie prefix search O(M) - M is search_key length
 let candidate_ids: Vec<LabelId> = self.prefix_index
-    .iter_prefix(search_key.as_bytes())
+    .common_prefixes(search_key.as_bytes())
     .flat_map(|(_key, ids)| ids.iter().copied())
     .collect();
 

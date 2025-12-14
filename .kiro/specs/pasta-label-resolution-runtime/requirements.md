@@ -356,7 +356,7 @@ impl LabelTable {
 **設計決定: Trie-based prefix index with Vec storage**
 
 ```rust
-use qp_trie::Trie;  // または radix_trie::Trie
+use fast_radix_trie::RadixMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LabelId(usize);  // newtype wrapper for Vec index
@@ -371,7 +371,7 @@ pub struct LabelInfo {
 
 pub struct LabelTable {
     labels: Vec<LabelInfo>,  // ID-based storage (index = LabelId)
-    prefix_index: Trie<Vec<u8>, Vec<LabelId>>,  // fn_path → [LabelId] for prefix search
+    prefix_index: RadixMap<Vec<LabelId>>,  // fn_path → [LabelId] for prefix search
     cache: HashMap<String, CachedSelection>,  // search_key → shuffled IDs + history
     random_selector: Box<dyn RandomSelector>,
     shuffle_enabled: bool,  // Default: true (false for deterministic testing)
@@ -391,7 +391,7 @@ impl LabelTable {
     ) -> Result<LabelId, PastaError> {
         // Phase 1: Trie prefix search O(M) - M is search_key length
         let candidate_ids: Vec<LabelId> = self.prefix_index
-            .iter_prefix(search_key.as_bytes())
+            .common_prefixes(search_key.as_bytes())
             .flat_map(|(_key, ids)| ids.iter().copied())
             .collect();
         
@@ -438,8 +438,9 @@ impl LabelTable {
 1. **Trie prefix index:**
    - **検索性能**: O(M) - Mは検索キーの長さ（ラベル数に依存しない）
    - **Trie value**: `Vec<LabelId>` - 同一プレフィックスの全IDを保持
-   - **実装**: `qp_trie` または `radix_trie` クレート使用
+   - **実装**: `fast_radix_trie` (v1.1.0) - メモリ効率最高、最新メンテナンス
    - **構築**: `from_label_registry()` 時に1回だけ構築（不変）
+   - **API**: `RadixMap::common_prefixes()` で前方一致検索
 
 2. **Vec storage:**
    - ラベルは削除されない → `Vec<LabelInfo>` で十分
@@ -488,11 +489,10 @@ impl LabelTable {
             .collect();
         
         // Step 2: Build Trie prefix index
-        let mut prefix_index = Trie::new();
+        let mut prefix_index = RadixMap::new();
         for label in &labels {
-            let key = label.fn_path.as_bytes().to_vec();
             prefix_index
-                .entry(key)
+                .entry(label.fn_path.as_bytes())
                 .or_insert_with(Vec::new)
                 .push(label.id);
         }
@@ -509,7 +509,7 @@ impl LabelTable {
 
 // 2. 検索時にTrie prefix search（O(M) - Mは検索キー長）
 // 3. グローバルラベル検索時は "::__start__" で終わるものをフィルタ
-// 例: search_key="会話" → Trie.iter_prefix("会話") → "会話_1::__start__", "会話_2::__start__" が候補
+// 例: search_key="会話" → RadixMap.common_prefixes("会話") → "会話_1::__start__", "会話_2::__start__" が候補
 ```
 
 ### エラーハンドリング
