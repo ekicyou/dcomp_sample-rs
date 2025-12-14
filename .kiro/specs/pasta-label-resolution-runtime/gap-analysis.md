@@ -51,18 +51,18 @@ pub struct LabelTable {
 }
 ```
 
-**LabelInfo（既存）:**
+**LabelInfo（新設計 - requirements.mdに合わせる）:**
 ```rust
 pub struct LabelInfo {
+    pub id: LabelId,               // ラベルID (Vec index)
     pub name: String,              // DSL上のラベル名
-    pub scope: LabelScope,
     pub attributes: HashMap<String, String>,
     pub fn_name: String,           // Rune関数名（"会話_1::__start__"）
     pub parent: Option<String>,
 }
 ```
 
-**重要:** 現在の `LabelInfo` には `id` フィールドが存在しない。`LabelRegistry::LabelInfo` には `id: i64` フィールドがあるが、`runtime::LabelInfo` には欠落している。本実装では `runtime::LabelInfo` に `pub id: usize` フィールドを追加する。
+**重要:** 現在の `LabelInfo` には `id` フィールドが存在しない。`scope: LabelScope` フィールドは削除され、代わりに `id: LabelId` を追加する。ローカル/グローバルの判別は `parent` フィールドで行う。
 
 #### アーキテクチャパターン
 
@@ -83,7 +83,7 @@ Rune: pasta_stdlib::select_label_to_id(label, filters)  ← スタブ実装
   ↓
 Rust: LabelTable::resolve_label_id(label, filters)      ← 未実装
   ↓
-Rust: 前方一致検索 (fn_path.starts_with(search_key))
+Rust: 前方一致検索 (fn_name.starts_with(search_key))
   ↓
 Rust: フィルタリング (属性マッチ + "::__start__"サフィックスフィルタ)
   ↓
@@ -132,7 +132,7 @@ fn select_label_to_id(_label: String, _filters: rune::runtime::Value) -> i64 {
 
 | 要件 | 技術ニーズ | 既存実装 | Gap |
 |------|-----------|---------|-----|
-| **Req 1: 前方一致検索** | `fn_path` のプレフィックスマッチング | `HashMap::get()` 完全一致のみ | ❌ Missing |
+| **Req 1: 前方一致検索** | `fn_name` のプレフィックスマッチング | `HashMap::get()` 完全一致のみ | ❌ Missing |
 | **Req 2: 属性フィルタリング** | `LabelInfo::attributes` のANDフィルタ | ✅ `find_label()` で実装済み | ✅ Reuse |
 | **Req 3: ランダム選択** | `RandomSelector::select_index()` | ✅ 実装済み | ✅ Reuse |
 | **Req 4: キャッシュベース消化** | ラベルIDベース履歴管理 | ⚠️ インデックスベース履歴 | ⚠️ Constraint |
@@ -153,7 +153,7 @@ pub fn find_label(&mut self, name: &str, ...) -> Result<String, PastaError> {
 ```
 
 **必要な機能:**
-- `fn_path` が検索キーで始まるすべての `LabelInfo` を抽出
+- `fn_name` が検索キーで始まるすべての `LabelInfo` を抽出
 - 例: 検索キー `"会話"` → `"会話_1::__start__"`, `"会話_2::__start__"` にマッチ
 - グローバルラベル: `"::__start__"` で終わるものをフィルタ
 
@@ -166,7 +166,6 @@ pub struct LabelId(usize);  // Vec index
 
 pub struct LabelTable {
     labels: Vec<LabelInfo>,  // ID-based storage
-<<<<<<< HEAD
     prefix_index: RadixMap<Vec<LabelId>>,  // fn_name → [LabelId]
     cache: HashMap<CacheKey, CachedSelection>,  // (search_key, filters) → shuffled IDs
     random_selector: Box<dyn RandomSelector>,
@@ -188,8 +187,9 @@ struct CachedSelection {
 
 // Multi-phase search:
 // Phase 1: Trie prefix search O(M) - M is search_key length
+// Use iter_prefix() for forward matching: query="会話" matches key="会話_1::__start__"
 let candidate_ids: Vec<LabelId> = self.prefix_index
-    .common_prefixes(search_key.as_bytes())
+    .iter_prefix(search_key.as_bytes())
     .flat_map(|(_key, ids)| ids.iter().copied())
     .collect();
 
@@ -247,7 +247,7 @@ pub struct LabelInfo {
     pub id: LabelId,  // ← 追加必須
     pub name: String,
     pub attributes: HashMap<String, String>,
-    pub fn_path: String,
+    pub fn_name: String,  // 検索対象: "会話_1::__start__" (crate:: なし)
     pub parent: Option<String>,
 }
 
@@ -534,7 +534,7 @@ impl PastaEngine {
 ```rust
 // 新規ファイル: crates/pasta/src/runtime/label_resolver.rs
 pub struct LabelResolver {
-    labels_by_path: HashMap<String, LabelInfo>,  // fn_path → LabelInfo
+    labels_by_name: HashMap<String, LabelInfo>,  // fn_name → LabelInfo
     history: HashMap<String, Vec<usize>>,        // 検索キー → ラベルIDリスト
     random_selector: Box<dyn RandomSelector>,
 }
@@ -614,7 +614,7 @@ impl LabelResolver {
 **fast_radix_trieを選ぶ理由:**
 - **最新メンテナンス**: v1.1.0 (2025年12月3日push)、rust-version 1.85.0対応
 - **メモリ効率**: ベンチマークで他のTrie実装より高速&省メモリ
-- **API設計**: `common_prefixes()` メソッドが前方一致検索に最適
+- **API設計**: `iter_prefix()` メソッドが前方一致検索に最適（query="会話" → key="会話_1::__start__" の方向）
 - **ライセンス**: MIT (問題なし)
 
 **他の実装を選ばない理由:**
@@ -628,8 +628,9 @@ impl LabelResolver {
 
 ```rust
 // Phase 1: Trie prefix search O(M) - M is search_key length
+// Use iter_prefix() for forward matching: query="会話" matches key="会話_1::__start__"
 let candidate_ids: Vec<LabelId> = self.prefix_index
-    .common_prefixes(search_key.as_bytes())
+    .iter_prefix(search_key.as_bytes())
     .flat_map(|(_key, ids)| ids.iter().copied())
     .collect();
 
