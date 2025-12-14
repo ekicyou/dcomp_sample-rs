@@ -37,16 +37,17 @@ fn test_two_pass_transpiler_to_vec() {
     // Verify final output contains __pasta_trans2__ module
     assert!(final_output.contains("pub mod __pasta_trans2__"));
     assert!(final_output.contains("pub fn label_selector(label, filters)"));
-    
+
     // Verify pasta module calls label_selector
     assert!(final_output.contains("pub mod pasta"));
     assert!(
         final_output.contains("pub fn jump(ctx, label, filters, args)")
             || final_output.contains("pub fn call(ctx, label, filters, args)")
     );
-    assert!(final_output.contains("let func = crate::__pasta_trans2__::label_selector(label, filters);"));
+    assert!(final_output
+        .contains("let func = crate::__pasta_trans2__::label_selector(label, filters);"));
     assert!(final_output.contains("for a in func(ctx, args) { yield a; }"));
-    
+
     // Verify match expression is in __pasta_trans2__ module (function pointer, not call)
     assert!(final_output.contains("1 => crate::会話_1::__start__,"));
 }
@@ -91,7 +92,7 @@ fn test_two_pass_transpiler_to_string() {
     // Verify both labels in __pasta_trans2__ module (function pointers)
     assert!(output.contains("1 => crate::会話_1::__start__,"));
     assert!(output.contains("2 => crate::別会話_1::__start__,"));
-    
+
     // Verify pasta module structure
     assert!(output.contains("let func = crate::__pasta_trans2__::label_selector(label, filters);"));
     assert!(output.contains("for a in func(ctx, args) { yield a; }"));
@@ -115,7 +116,7 @@ fn test_transpile_to_string_helper() {
     assert!(output.contains("pub mod 会話_1"));
     assert!(output.contains("pub mod __pasta_trans2__"));
     assert!(output.contains("pub mod pasta"));
-    
+
     // Verify correct structure (function pointer in __pasta_trans2__)
     assert!(output.contains("1 => crate::会話_1::__start__,"));
     assert!(output.contains("let func = crate::__pasta_trans2__::label_selector(label, filters);"));
@@ -160,7 +161,8 @@ fn test_multiple_files_simulation() {
     // __pasta_trans2__ module should have both labels (function pointers)
     assert!(final_output.contains("1 => crate::メイン_1::__start__,"));
     assert!(final_output.contains("2 => crate::サブ_1::__start__,"));
-    
+
     // Verify pasta module wrapper structure
-    assert!(final_output.contains("let func = crate::__pasta_trans2__::label_selector(label, filters);"));
+    assert!(final_output
+        .contains("let func = crate::__pasta_trans2__::label_selector(label, filters);"));
 }

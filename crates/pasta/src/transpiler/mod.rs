@@ -179,12 +179,12 @@ impl Transpiler {
         )
         .map_err(|e| PastaError::io_error(e.to_string()))?;
         writeln!(writer, "        match id {{").map_err(|e| PastaError::io_error(e.to_string()))?;
-        
+
         for label in registry.all_labels() {
             writeln!(writer, "            {} => {},", label.id, label.fn_path)
                 .map_err(|e| PastaError::io_error(e.to_string()))?;
         }
-        
+
         writeln!(writer, "            _ => |_ctx, _args| {{ yield pasta_stdlib::Error(`ラベルID ${{id}} が見つかりませんでした。`); }},")
             .map_err(|e| PastaError::io_error(e.to_string()))?;
         writeln!(writer, "        }}").map_err(|e| PastaError::io_error(e.to_string()))?;
