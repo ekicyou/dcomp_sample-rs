@@ -30,10 +30,21 @@ fn test_rune_compile_simple() {
         .install(pasta::stdlib::create_module().expect("Failed to create stdlib"))
         .expect("Failed to install stdlib");
 
+    // Add actors module (required for use crate::actors::*)
+    let actors_def = r#"
+pub mod actors {
+    pub const さくら = #{
+        name: "さくら",
+        id: "sakura",
+    };
+}
+"#;
+    let combined_code = format!("{}\n\n{}", actors_def, rune_code);
+
     // Add sources
     let mut sources = Sources::new();
     sources
-        .insert(rune::Source::new("entry", &rune_code).expect("Failed to create source"))
+        .insert(rune::Source::new("entry", &combined_code).expect("Failed to create source"))
         .expect("Failed to add source");
 
     // Compile

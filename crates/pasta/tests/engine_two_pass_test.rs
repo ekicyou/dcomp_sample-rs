@@ -1,7 +1,6 @@
 // Test PastaEngine with two-pass transpiler
 
 use pasta::PastaEngine;
-use std::path::Path;
 use tempfile::TempDir;
 
 #[test]

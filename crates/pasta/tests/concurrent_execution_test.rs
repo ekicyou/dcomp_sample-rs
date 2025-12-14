@@ -80,7 +80,7 @@ fn test_multiple_threads_same_script() {
             let script_copy = script.to_string();
             thread::spawn(move || {
                 let script_dir = create_test_script(&script_copy).expect("Failed to create script");
-                let persistence_dir = get_test_persistence_dir();
+                let _persistence_dir = get_test_persistence_dir();
                 let persistence_dir =
                     create_unique_persistence_dir().expect("Failed to create persistence dir");
                 let mut engine = PastaEngine::new(&script_dir, &persistence_dir)
@@ -110,8 +110,8 @@ fn test_send_trait() {
     さくら：Send テスト
 "#;
 
-    let script_dir = create_test_script(script).expect("Failed to create script");
-    let persistence_dir =
+    let _script_dir = create_test_script(script).expect("Failed to create script");
+    let _persistence_dir =
         create_unique_persistence_dir().expect("Failed to create persistence dir");
     let script_dir = create_test_script(script).expect("Failed to create script");
     let persistence_dir =

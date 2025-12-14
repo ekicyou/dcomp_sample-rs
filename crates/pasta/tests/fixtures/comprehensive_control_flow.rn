@@ -1,15 +1,26 @@
-pub const さくら = #{
-    name: "さくら",
-    id: 1,
-};
+pub mod actors {
+    pub const さくら = #{
+        name: "さくら",
+        id: 1,
+    };
 
-pub const うにゅう = #{
-    name: "うにゅう",
-    id: 2,
-};
+    pub const うにゅう = #{
+        name: "うにゅう",
+        id: 2,
+    };
+}
 
 pub mod メイン_1 {
-    use super::{さくら, うにゅう};
+    use super::actors::{さくら, うにゅう};
+    
+    // Mock pasta_stdlib functions for testing
+    fn Actor(name) {
+        #{ type: "Actor", name: name }
+    }
+    
+    fn Talk(text) {
+        #{ type: "Talk", text: text }
+    }
     
     pub fn __start__(ctx) {
         ctx.pasta.add_words("場所", ["東京", "大阪"]);
@@ -18,12 +29,12 @@ pub mod メイン_1 {
         ctx.var.カウンタ = 10;
         
         ctx.actor = さくら;
-        yield #{ type: "Actor", actor: ctx.actor };
+        yield Actor(ctx.actor.name);
         for a in __word_挨拶__(ctx, []) { yield a; }
-        yield #{ type: "Talk", text: "！" };
+        yield Talk("！");
 
         ctx.actor = うにゅう;
-        yield #{ type: "Actor", actor: ctx.actor };
+        yield Actor(ctx.actor.name);
         for a in __word_ローカル関数__(ctx, ["はろー"]) { yield a; }
 
         for a in __call_自己紹介__(ctx, []) { yield a; }
@@ -97,12 +108,12 @@ pub mod メイン_1 {
     
     pub fn 自己紹介(ctx) {
         ctx.actor = さくら;
-        yield #{ type: "Actor", actor: ctx.actor };
-        yield #{ type: "Talk", text: "私はさくらです。" };
+        yield Actor(ctx.actor.name);
+        yield Talk("私はさくらです。");
         
         ctx.actor = うにゅう;
-        yield #{ type: "Actor", actor: ctx.actor };
-        yield #{ type: "Talk", text: "僕はうにゅうだよ。" };
+        yield Actor(ctx.actor.name);
+        yield Talk("僕はうにゅうだよ。");
         
         for a in __call_趣味紹介__(ctx, []) {
             yield a;
@@ -111,39 +122,39 @@ pub mod メイン_1 {
     
     pub fn 趣味紹介(ctx) {
         ctx.actor = さくら;
-        yield #{ type: "Actor", actor: ctx.actor };
-        yield #{ type: "Talk", text: "私の趣味は読書です。" };
+        yield Actor(ctx.actor.name);
+        yield Talk("私の趣味は読書です。");
         
         ctx.actor = うにゅう;
-        yield #{ type: "Actor", actor: ctx.actor };
-        yield #{ type: "Talk", text: "僕はゲームが好き。" };
+        yield Actor(ctx.actor.name);
+        yield Talk("僕はゲームが好き。");
     }
     
     pub fn カウント表示(ctx) {
         let 値 = ctx.args[0];
         
         ctx.actor = さくら;
-        yield #{ type: "Actor", actor: ctx.actor };
-        yield #{ type: "Talk", text: `カウンターは${値}です。` };
+        yield Actor(ctx.actor.name);
+        yield Talk(`カウンターは${値}です。`);
     }
     
     pub fn 会話分岐_1(ctx) {
         ctx.actor = さくら;
-        yield #{ type: "Actor", actor: ctx.actor };
+        yield Actor(ctx.actor.name);
         
         for a in __word_場所__(ctx, []) {
             yield a;
         }
-        yield #{ type: "Talk", text: "の天気は" };
+        yield Talk("の天気は");
         
         for a in __word_天気__(ctx, []) {
             yield a;
         }
-        yield #{ type: "Talk", text: "だね。" };
+        yield Talk("だね。");
         
         ctx.actor = うにゅう;
-        yield #{ type: "Actor", actor: ctx.actor };
-        yield #{ type: "Talk", text: "そうだね。" };
+        yield Actor(ctx.actor.name);
+        yield Talk("そうだね。");
         
         for a in __jump_別の話題__(ctx, []) {
             yield a;
@@ -152,18 +163,18 @@ pub mod メイン_1 {
     
     pub fn 別の話題_1(ctx) {
         ctx.actor = さくら;
-        yield #{ type: "Actor", actor: ctx.actor };
-        yield #{ type: "Talk", text: "ところで、明日は何する？" };
+        yield Actor(ctx.actor.name);
+        yield Talk("ところで、明日は何する？");
         
         ctx.actor = うにゅう;
-        yield #{ type: "Actor", actor: ctx.actor };
-        yield #{ type: "Talk", text: "まだ決めてないなぁ。" };
+        yield Actor(ctx.actor.name);
+        yield Talk("まだ決めてないなぁ。");
     }
 
     pub fn ローカル関数(ctx) {
         let メッセージ = ctx.args[0];
-        ctx.actor = super::うにゅう;
-        yield #{ type: "Actor", actor: ctx.actor };
-        yield #{ type: "Talk", text: `ローカル関数が呼ばれました: ${メッセージ}` };
+        ctx.actor = super::actors::うにゅう;
+        yield Actor(ctx.actor.name);
+        yield Talk(`ローカル関数が呼ばれました: ${メッセージ}`);
     }
 }

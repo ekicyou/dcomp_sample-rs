@@ -7,7 +7,6 @@ mod common;
 
 use common::{create_test_script, get_test_persistence_dir};
 use pasta::{PastaEngine, ScriptEvent};
-use std::collections::HashMap;
 
 #[test]
 fn test_independent_execution() {

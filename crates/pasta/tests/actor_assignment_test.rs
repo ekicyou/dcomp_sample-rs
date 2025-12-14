@@ -2,7 +2,7 @@ use rune::{Context, Sources};
 
 #[test]
 fn test_string_vs_variable_actor() {
-    let mut context = Context::with_default_modules().unwrap();
+    let context = Context::with_default_modules().unwrap();
 
     // Test 1: String assignment (current transpiler output)
     let code_string = r#"

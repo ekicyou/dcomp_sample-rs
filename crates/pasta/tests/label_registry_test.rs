@@ -1,4 +1,4 @@
-use pasta::transpiler::{LabelInfo, LabelRegistry};
+use pasta::transpiler::LabelRegistry;
 use std::collections::HashMap;
 
 #[test]
@@ -36,10 +36,10 @@ fn test_label_registry_with_local_labels() {
     let (parent_id, parent_counter) = registry.register_global("メイン", HashMap::new());
 
     // Register local labels
-    let (local1_id, local1_counter) =
+    let (local1_id, _local1_counter) =
         registry.register_local("自己紹介", "メイン", parent_counter, HashMap::new());
 
-    let (local2_id, local2_counter) =
+    let (local2_id, _local2_counter) =
         registry.register_local("趣味紹介", "メイン", parent_counter, HashMap::new());
 
     assert_eq!(parent_id, 1);

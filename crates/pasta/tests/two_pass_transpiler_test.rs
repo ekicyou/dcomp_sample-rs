@@ -67,12 +67,11 @@ fn test_two_pass_transpiler_to_string() {
 
     // Pass 1: Output to String (via Vec<u8>)
     let mut registry = LabelRegistry::new();
-    let mut output = String::new();
 
     // String doesn't impl Write, so use Vec<u8>
     let mut buffer = Vec::new();
     Transpiler::transpile_pass1(&ast, &mut registry, &mut buffer).unwrap();
-    output = String::from_utf8(buffer).unwrap();
+    let mut output = String::from_utf8(buffer).unwrap();
 
     // Verify labels are registered
     let labels = registry.all_labels();
