@@ -1,3 +1,9 @@
+// このファイルは pasta-transpiler-pass2-output 仕様の参照資料です
+// 誤った実装と正しい実装を比較するための教育目的ファイル
+// 
+// 元ファイル: crates/pasta/tests/fixtures/comprehensive_control_flow.transpiled.rn
+// コピー日時: 2025-12-14
+
 use pasta_stdlib::*;
 
 pub mod メイン_1 {
@@ -70,7 +76,11 @@ pub mod メイン_1 {
 
 }
 
-// ×間違ったpastaモジュール
+// ❌ 間違ったpastaモジュール（本仕様で修正する対象）
+// 問題点:
+// 1. jump() と call() が直接 match ロジックを持つ（コード重複）
+// 2. __pasta_trans2__::label_selector() を使用していない
+// 3. 関数呼び出しを直接実行（関数ポインタを返していない）
 pub mod pasta {
     pub fn jump(ctx, label, filters, args) {
         let func = crate::__pasta_trans2__::label_selector(label, filters);
@@ -99,16 +109,17 @@ pub mod pasta {
     }
 }
 
-// 〇正しいトランスパイル２パス出力
+// ✅ 正しいトランスパイル２パス出力（目標とする実装）
 pub mod __pasta_trans2__{
-    // 〇label_selectorはラベルに対応する関数を返す。
-    pub fn label_selector(ctx, label, filters, args) {
+    // ✅ label_selectorはラベルに対応する関数ポインタを返す
+    // 重要: 関数を実行するのではなく、関数そのものを返す
+    pub fn label_selector(label, filters) {
         let id = pasta_stdlib::select_label_to_id(label, filters);
         match id {
             1 => crate::メイン_1::__start__,
             2 => crate::メイン_1::自己紹介_1,
             3 => crate::メイン_1::趣味紹介_1,
-            4 => crate::メイン_1::カウント表示_1,,
+            4 => crate::メイン_1::カウント表示_1,
             5 => crate::メイン_1::会話分岐_1,
             6 => crate::メイン_1::別の話題_1,
             _ => |_ctx,_args|{ yield pasta_stdlib::Error(`ラベルID ${id} が見つかりませんでした。`); },
@@ -116,16 +127,19 @@ pub mod __pasta_trans2__{
     }
 }
 
-// 〇正しいpastaモジュール
+// ✅ 正しいpastaモジュール（シンプルなラッパー）
+// 利点:
+// 1. コード重複なし（DRY原則に準拠）
+// 2. label_selector() が一元管理
+// 3. jump() と call() の実装が簡潔
 pub mod pasta {
     pub fn jump(ctx, label, filters, args) {
         let func = crate::__pasta_trans2__::label_selector(label, filters);
-        for a in func(ctx, args) { yield a; } }:
+        for a in func(ctx, args) { yield a; }
     }
 
     pub fn call(ctx, label, filters, args) {
         let func = crate::__pasta_trans2__::label_selector(label, filters);
-        for a in func(ctx, args) { yield a; } }:
+        for a in func(ctx, args) { yield a; }
     }
-
 }

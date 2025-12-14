@@ -14,7 +14,7 @@
 
 ## Introduction
 
-本要件定義書は、Pasta DSLにおける**実行時ラベル解決機能**を定義する。これは、トランスパイラーが生成する `pasta::label_selector()` 関数のRust実装であり、宣言的コントロールフロー（call/jump文）の実行時動作を実現する中核機能である。
+本要件定義書は、Pasta DSLにおける**実行時ラベル解決機能**を定義する。これは、トランスパイラーが生成する `pasta_stdlib::select_label_to_id()` 関数のRust実装であり、宣言的コントロールフロー（call/jump文）の実行時動作を実現する中核機能である。
 
 ### Background
 
@@ -30,7 +30,7 @@ pub mod 会話_1 {
 
 pub mod pasta {
     pub fn label_selector(label, filters) {
-        let id = 1; // ⚠️ 仮実装: 常に固定値
+        let id = pasta_stdlib::select_label_to_id(label, filters);
         match id {
             1 => crate::会話_1::__start__,
             2 => crate::会話_1::選択肢_1,
@@ -52,11 +52,11 @@ Pasta DSLの設計では、ラベル名は前方一致で解決される：
 ```pasta
 ＊会話
     ＞選択肢      # → "会話_1::選択肢_1" または "会話_1::選択肢_2" にマッチ
-    
-    ー選択肢
+
+    ・選択肢
         さくら：選択肢Aです
-    
-    ー選択肢
+
+    ・選択肢
         さくら：選択肢Bです
 ```
 
