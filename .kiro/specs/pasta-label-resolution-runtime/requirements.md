@@ -353,9 +353,11 @@ impl LabelTable {
 
 ### データ構造の設計選択
 
-**設計決定: ID-based storage with Vec**
+**設計決定: Trie-based prefix index with Vec storage**
 
 ```rust
+use qp_trie::Trie;  // または radix_trie::Trie
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LabelId(usize);  // newtype wrapper for Vec index
 
@@ -369,6 +371,7 @@ pub struct LabelInfo {
 
 pub struct LabelTable {
     labels: Vec<LabelInfo>,  // ID-based storage (index = LabelId)
+    prefix_index: Trie<Vec<u8>, Vec<LabelId>>,  // fn_path → [LabelId] for prefix search
     cache: HashMap<String, CachedSelection>,  // search_key → shuffled IDs + history
     random_selector: Box<dyn RandomSelector>,
     shuffle_enabled: bool,  // Default: true (false for deterministic testing)
@@ -386,11 +389,10 @@ impl LabelTable {
         search_key: &str,
         filters: &HashMap<String, String>,
     ) -> Result<LabelId, PastaError> {
-        // Phase 1: Enumerate matching labels (prefix-match)
-        let candidate_ids: Vec<LabelId> = self.labels
-            .iter()
-            .filter(|label| label.fn_path.starts_with(search_key))
-            .map(|label| label.id)
+        // Phase 1: Trie prefix search O(M) - M is search_key length
+        let candidate_ids: Vec<LabelId> = self.prefix_index
+            .iter_prefix(search_key.as_bytes())
+            .flat_map(|(_key, ids)| ids.iter().copied())
             .collect();
         
         // Phase 2: Filter by secondary criteria
@@ -433,37 +435,43 @@ impl LabelTable {
 
 **設計根拠:**
 
-1. **Vec vs SlotMap:**
-   - ラベルは削除されない（スクリプトロード時に一度だけ構築）
-   - SlotMapのバージョニング機能は不要
-   - `Vec` index = `LabelId` で十分（メモリ効率最高、実装シンプル）
-   - イテレーション性能: Vec最速（prefix-match検索で頻繁に使用）
+1. **Trie prefix index:**
+   - **検索性能**: O(M) - Mは検索キーの長さ（ラベル数に依存しない）
+   - **Trie value**: `Vec<LabelId>` - 同一プレフィックスの全IDを保持
+   - **実装**: `qp_trie` または `radix_trie` クレート使用
+   - **構築**: `from_label_registry()` 時に1回だけ構築（不変）
 
-2. **ID-based access:**
+2. **Vec storage:**
+   - ラベルは削除されない → `Vec<LabelInfo>` で十分
+   - `Vec` index = `LabelId` （シンプル、高速アクセス）
+   - Trieは検索インデックスのみ、データ本体はVecに格納
+
+3. **ID-based access:**
    - `LabelInfo` をコピー/クローンせず、IDで参照
    - キャッシュは `Vec<LabelId>` を保持（データ重複なし）
    - ランダム選択の対象はIDのリスト（軽量）
 
-3. **Multi-phase search:**
-   - Phase 1: Enumerate matching labels (prefix-match)
+4. **Multi-phase search:**
+   - Phase 1: Trie prefix search O(M) → 候補ID列挙
    - Phase 2: Filter by secondary criteria (e.g., "::選択肢")
    - Phase 3: Cache manager shuffles (if enabled) and stores
    - Phase 4: Sequential selection from cache with history tracking
 
-4. **Shuffle strategy:**
+5. **Shuffle strategy:**
    - `shuffle_enabled = true` (デフォルト): 初回アクセス時にシャッフル、その後は順次選択
-   - `shuffle_enabled = false` (デバッグ): Vec順序そのまま、決定論的テスト可能
+   - `shuffle_enabled = false` (デバッグ): Trie順序そのまま、決定論的テスト可能
    - キャッシュエントリごとに独立してシャッフル実行（search_keyが異なれば別管理）
 
 **実装アルゴリズム:**
 ```rust
-// 1. LabelRegistry → Vec<LabelInfo> 変換時にIDを割り当て
+// 1. LabelRegistry → Vec<LabelInfo> + Trie index 構築
 impl LabelTable {
     pub fn from_label_registry(
         registry: &LabelRegistry,
         random_selector: Box<dyn RandomSelector>,
         shuffle_enabled: bool,
     ) -> Result<Self, PastaError> {
+        // Step 1: Build Vec storage
         let labels: Vec<LabelInfo> = registry
             .labels
             .iter()
@@ -479,8 +487,19 @@ impl LabelTable {
             })
             .collect();
         
+        // Step 2: Build Trie prefix index
+        let mut prefix_index = Trie::new();
+        for label in &labels {
+            let key = label.fn_path.as_bytes().to_vec();
+            prefix_index
+                .entry(key)
+                .or_insert_with(Vec::new)
+                .push(label.id);
+        }
+        
         Ok(LabelTable {
             labels,
+            prefix_index,
             cache: HashMap::new(),
             random_selector,
             shuffle_enabled,
@@ -488,9 +507,9 @@ impl LabelTable {
     }
 }
 
-// 2. 検索時に全fn_pathを走査（O(N)）
+// 2. 検索時にTrie prefix search（O(M) - Mは検索キー長）
 // 3. グローバルラベル検索時は "::__start__" で終わるものをフィルタ
-// 例: search_key="会話" → "会話_1::__start__", "会話_2::__start__" が候補
+// 例: search_key="会話" → Trie.iter_prefix("会話") → "会話_1::__start__", "会話_2::__start__" が候補
 ```
 
 ### エラーハンドリング

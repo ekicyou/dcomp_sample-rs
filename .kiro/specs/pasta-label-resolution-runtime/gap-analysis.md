@@ -157,13 +157,16 @@ pub fn find_label(&mut self, name: &str, ...) -> Result<String, PastaError> {
 - 例: 検索キー `"会話"` → `"会話_1::__start__"`, `"会話_2::__start__"` にマッチ
 - グローバルラベル: `"::__start__"` で終わるものをフィルタ
 
-**採用決定: Vec + ID-based storage with multi-phase search**
+**採用決定: Trie prefix index + Vec storage with multi-phase search**
 ```rust
+use qp_trie::Trie;  // または radix_trie::Trie
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LabelId(usize);  // Vec index
 
 pub struct LabelTable {
     labels: Vec<LabelInfo>,  // ID-based storage
+    prefix_index: Trie<Vec<u8>, Vec<LabelId>>,  // fn_path → [LabelId]
     cache: HashMap<String, CachedSelection>,  // search_key → shuffled IDs
     random_selector: Box<dyn RandomSelector>,
     shuffle_enabled: bool,
@@ -176,11 +179,10 @@ struct CachedSelection {
 }
 
 // Multi-phase search:
-// Phase 1: Enumerate matching labels (prefix-match)
-let candidate_ids: Vec<LabelId> = self.labels
-    .iter()
-    .filter(|label| label.fn_path.starts_with(search_key))
-    .map(|label| label.id)
+// Phase 1: Trie prefix search O(M) - M is search_key length
+let candidate_ids: Vec<LabelId> = self.prefix_index
+    .iter_prefix(search_key.as_bytes())
+    .flat_map(|(_key, ids)| ids.iter().copied())
     .collect();
 
 // Phase 2: Filter by secondary criteria
@@ -210,7 +212,8 @@ cached.history.push(selected_id);
 ```
 
 **設計根拠:**
-- **Vec vs SlotMap**: ラベル削除なし → Vec indexで十分、メモリ効率最高
+- **Trie prefix index**: O(M)検索性能、ラベル数に依存しない（外部クレート: qp_trie or radix_trie）
+- **Vec storage**: ラベル削除なし → Vec indexで十分、高速アクセス
 - **ID-based access**: LabelInfoをコピーせず、IDで参照
 - **Shuffle strategy**: キャッシュレイヤーでシャッフル（テスト容易性確保）
 - **Debug mode**: `shuffle_enabled = false` で決定論的テスト可能
@@ -546,31 +549,33 @@ impl LabelResolver {
 
 ### 主要な設計決定
 
-#### Decision 1: データ構造 - Vec vs SlotMap
+#### Decision 1: データ構造 - Trie prefix index + Vec storage
 
-**選択: `Vec<LabelInfo>` with `LabelId(usize)` newtype**
+**選択: `Trie<Vec<u8>, Vec<LabelId>>` + `Vec<LabelInfo>` with `LabelId(usize)` newtype**
 
 **理由:**
-- ラベル削除が発生しない → SlotMapのバージョニング機能不要
-- Vec index = LabelId で十分（シンプル、高速、メモリ効率最高）
-- イテレーション性能: `Vec::iter()` 最速（O(N) prefix-match検索）
-- 将来的に削除が必要になった場合のみSlotMap移行を検討
+- **Trie prefix index**: O(M)検索（Mは検索キー長）、ラベル数に依存しない
+- **Vec storage**: ラベル削除なし → Vec indexで十分（シンプル、高速）
+- **分離設計**: Trieは検索インデックス、Vecがデータ本体（責務分離）
+- **Trie value**: `Vec<LabelId>` - 同一プレフィックスの全ID保持
 
-**SlotMapを選ばない理由:**
-- メモリオーバーヘッド: `4 + max(sizeof(T), 4)` bytes per slot
-- バージョニング機能はこのユースケースで不要
-- 削除がない場合、Vecの方が単純かつ高速
+**実装選択:**
+- **qp_trie**: Query-parallel trie、高速、メモリ効率良い
+- **radix_trie**: Radix tree、汎用的、安定
 
-#### Decision 2: 検索アルゴリズム - Multi-phase Search
+**Vec全件走査を選ばない理由:**
+- O(N)走査は非効率（ラベル数増加で線形劣化）
+- Trie O(M)は定数時間に近い（検索キー長のみ依存）
+
+#### Decision 2: 検索アルゴリズム - Multi-phase Search with Trie
 
 **選択: 4フェーズ検索戦略**
 
 ```rust
-// Phase 1: Enumerate matching labels (prefix-match)
-let candidate_ids: Vec<LabelId> = self.labels
-    .iter()
-    .filter(|label| label.fn_path.starts_with(search_key))
-    .map(|label| label.id)
+// Phase 1: Trie prefix search O(M) - M is search_key length
+let candidate_ids: Vec<LabelId> = self.prefix_index
+    .iter_prefix(search_key.as_bytes())
+    .flat_map(|(_key, ids)| ids.iter().copied())
     .collect();
 
 // Phase 2: Filter by secondary criteria
@@ -596,13 +601,14 @@ cached.history.push(selected_id);
 ```
 
 **理由:**
-- **Phase 1**: 純粋なprefix-match（O(N)、ラベル数100-500で許容範囲）
+- **Phase 1**: Trie prefix search O(M) - 検索キー長のみ依存、ラベル数に依存しない
 - **Phase 2**: フィルタリング（e.g., "::選択肢"を含む）
 - **Phase 3**: キャッシュ作成とシャッフル（初回のみ、決定論的テスト可能）
 - **Phase 4**: 順次選択（履歴管理、ロールバック対応）
 
-**将来の移行パス:**
-- ラベル数1000以上でパフォーマンス問題が発生した場合、Phase 1をTrie構造に変更
+**パフォーマンス:**
+- ラベル数1000でも O(M) - 定数時間に近い
+- メモリトレードオフ: Trieインデックス分のオーバーヘッド（許容範囲）
 
 #### Decision 3: キャッシュ管理 - CachedSelection構造体
 
