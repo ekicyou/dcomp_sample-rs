@@ -167,9 +167,16 @@ pub struct LabelId(usize);  // Vec index
 pub struct LabelTable {
     labels: Vec<LabelInfo>,  // ID-based storage
     prefix_index: RadixMap<Vec<LabelId>>,  // fn_name → [LabelId]
-    cache: HashMap<String, CachedSelection>,  // search_key → shuffled IDs
+    cache: HashMap<CacheKey, CachedSelection>,  // (search_key, filters) → shuffled IDs
     random_selector: Box<dyn RandomSelector>,
     shuffle_enabled: bool,
+}
+
+// Cache key includes both search_key and filters
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct CacheKey {
+    search_key: String,
+    filters: Vec<(String, String)>,  // Sorted for consistent hashing
 }
 
 struct CachedSelection {
@@ -246,7 +253,7 @@ pub struct LabelInfo {
 
 pub struct LabelTable {
     labels: Vec<LabelInfo>,  // ID = Vec index
-    cache: HashMap<String, CachedSelection>,
+    cache: HashMap<CacheKey, CachedSelection>,  // (search_key, filters) pair
     random_selector: Box<dyn RandomSelector>,
     shuffle_enabled: bool,
 }
@@ -288,7 +295,7 @@ struct CachedSelection {
 }
 
 pub struct LabelTable {
-    cache: HashMap<String, CachedSelection>,  // search_key → cache entry
+    cache: HashMap<CacheKey, CachedSelection>,  // (search_key, filters) → cache entry
     shuffle_enabled: bool,  // Default: true, false for testing
     // ...
 }
