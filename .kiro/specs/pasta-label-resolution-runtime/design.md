@@ -452,10 +452,50 @@ pub fn create_module(label_table: Arc<Mutex<LabelTable>>) -> Result<Module, Cont
 }
 
 fn parse_rune_filters(value: rune::runtime::Value) -> Result<HashMap<String, String>, String> {
-    // Rune Object → Rust HashMap変換
-    // Value::Unit → 空HashMap
-    // Value::Object → rune::from_value<HashMap<String, rune::Value>>() → String変換
-    // その他 → エラー
+    use rune::runtime::Value;
+    
+    match value {
+        Value::Unit => {
+            // フィルタなし → 空HashMap
+            Ok(HashMap::new())
+        }
+        Value::Object(obj) => {
+            // Rune Object → Rust HashMap変換
+            let mut result = HashMap::new();
+            
+            for (key, value) in obj.iter() {
+                // キーの型チェック
+                let key_str = match key {
+                    Value::String(s) => s.borrow_ref()?.to_string(),
+                    _ => return Err(format!(
+                        "Filter key must be string, got: {:?}",
+                        key.type_info()
+                    )),
+                };
+                
+                // 値の型チェック
+                let value_str = match value {
+                    Value::String(s) => s.borrow_ref()?.to_string(),
+                    _ => return Err(format!(
+                        "Filter value must be string for key '{}', got: {:?}",
+                        key_str,
+                        value.type_info()
+                    )),
+                };
+                
+                result.insert(key_str, value_str);
+            }
+            
+            Ok(result)
+        }
+        _ => {
+            // Array, Tuple, その他の型 → エラー
+            Err(format!(
+                "Filters must be object or unit, got: {:?}",
+                value.type_info()
+            ))
+        }
+    }
 }
 ```
 
@@ -620,8 +660,12 @@ classDiagram
 | キャッシュベース消化 | 同一キー2回呼び出し | 異なるIDが返る | 4.1 |
 | 全消化リセット | 全候補消化後 | PastaError::NoMoreLabels | 4.2 |
 | フィルタ別履歴管理 | 同一search_key、異なるfilters | 独立したキャッシュエントリ | 4.3 |
-| Rune Value変換(Object) | rune::Object型 | HashMap<String, String> | 5.2 |
-| Rune Value変換(Unit) | rune::Value::Unit | 空HashMap | 5.2 |
+| Rune Value変換(Unit) | Value::Unit | Ok(空HashMap) | 5.2 |
+| Rune Value変換(Object有効) | Object{"time": "morning"} | Ok(HashMap{"time": "morning"}) | 5.2 |
+| Rune Value変換(非String key) | Object{123: "value"} | Err("Filter key must be string, got: Integer") | 5.2 |
+| Rune Value変換(非String value) | Object{"key": 456} | Err("Filter value must be string for key 'key', got: Integer") | 5.2 |
+| Rune Value変換(Array型) | Value::Array([...]) | Err("Filters must be object or unit, got: Array") | 5.2 |
+| Rune Value変換(複数フィルタ) | Object{"time": "morning", "weather": "sunny"} | Ok(HashMap with 2 entries) | 5.2 |
 | LabelRegistry変換 | 有効なLabelRegistry | LabelTable構築成功 | 6.1 |
 | 重複fn_nameエラー | 同一fn_nameが2つ | PastaError::DuplicateLabelName | 6.3 |
 
