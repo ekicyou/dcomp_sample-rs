@@ -251,30 +251,7 @@ fn test_independent_label_execution() {
     assert!(!events2_a.is_empty());
 }
 
-#[test]
-fn test_event_handler_independence() {
-    // Test that event handlers are independent between engines
-    let script = r#"
-＊OnClick
-    さくら：クリック！
-"#;
 
-    let script_dir = create_test_script(script).expect("Failed to create script");
-    let persistence_dir = get_test_persistence_dir();
-
-    let mut engine1 =
-        PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine1");
-    let mut engine2 =
-        PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine2");
-
-    // Execute event on both engines
-    let events1 = engine1.on_event("Click", HashMap::new()).unwrap();
-    let events2 = engine2.on_event("Click", HashMap::new()).unwrap();
-
-    // Both should execute successfully
-    assert!(!events1.is_empty());
-    assert!(!events2.is_empty());
-}
 
 #[test]
 fn test_engine_with_different_scripts() {

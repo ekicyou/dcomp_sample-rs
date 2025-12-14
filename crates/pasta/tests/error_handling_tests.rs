@@ -397,32 +397,6 @@ fn test_end_to_end_error_scenarios() {
     assert!(result4.is_err(), "Should still detect errors");
 }
 
-#[test]
-fn test_error_with_event_handlers() {
-    // Test error handling with event system
-    let script = r#"
-＊OnClick
-    さくら：クリックされました
-"#;
-
-    let script_dir = create_test_script(script).expect("Failed to create script");
-    let persistence_dir = get_test_persistence_dir();
-    let mut engine =
-        PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
-
-    // Valid event
-    let result1 = engine.on_event("Click", HashMap::new());
-    assert!(result1.is_ok(), "Valid event should work");
-
-    // Non-existent event (should not error, just return empty)
-    let result2 = engine.on_event("NonExistent", HashMap::new());
-    assert!(
-        result2.is_ok(),
-        "Non-existent event handler returns empty, not error"
-    );
-    assert_eq!(result2.unwrap().len(), 0);
-}
-
 // ============================================================================
 // Category 8: Edge Cases
 // ============================================================================

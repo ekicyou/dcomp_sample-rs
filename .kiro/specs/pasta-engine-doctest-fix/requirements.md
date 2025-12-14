@@ -2,361 +2,206 @@
 
 | 項目 | 内容 |
 |------|------|
-| **Document Title** | PastaEngine Doctest 修正 要件定義書 |
-| **Version** | 1.0 |
+| **Document Title** | PastaEngine 不要関数削除 要件定義書 |
+| **Version** | 2.0 |
 | **Date** | 2025-12-14 |
-| **Priority** | P2 (Documentation Quality) |
-| **Status** | Requirements Generated |
+| **Priority** | P2 (Code Quality) |
+| **Status** | Requirements Updated |
 
 ---
 
 ## Introduction
 
-本要件定義書は、`crates/pasta/src/engine.rs` に含まれる4つのdoctestが、古いAPI仕様（1引数の `new(script)`）を参照しており、現在のAPI（2引数の `new(script_root, persistence_root)`）と不一致のため失敗している問題を修正する。
+`crates/pasta/src/engine.rs` に要件定義が不十分なまま実装された関数群とdoctestを削除する。
 
 ### Background
 
-**pasta-transpiler-pass2-output** 仕様の実装中に発見された既知の問題。
-
-#### 現在のAPI（実装済み）
-```rust
-pub fn new(
-    script_root: impl AsRef<Path>,
-    persistence_root: impl AsRef<Path>
-) -> Result<Self>
-```
-
-#### Doctest内の古い呼び出し（4箇所）
-```rust
-let engine = PastaEngine::new(script)?;  // ❌ 1引数
-```
+**pasta-transpiler-pass2-output** 仕様の実装中に、以下の問題を発見：
+1. 要件定義不十分な関数が実装されている
+2. doctestが存在しないAPI（文字列ベースの`new(script)`）を前提としている
 
 ### Problem Statement
 
-**課題1: API仕様の不一致**
+**課題1: 要件定義不十分な実装**
 
-doctestが古いAPI仕様を参照しており、以下のコンパイルエラーが発生：
+以下の関数が要件定義不十分なまま実装されている：
+- `find_event_handlers(event_name)` - イベントハンドラ検索
+- `on_event(event_name, params)` - イベント実行
+- `execute_label_chain(initial_label, max_depth)` - ラベルチェーン実行
 
-```
-error[E0061]: this function takes 2 arguments but 1 argument was supplied
-```
+**課題2: 不適切なdoctest**
 
-**課題2: ドキュメントの信頼性低下**
-
-- ユーザーがdoctestを参考にした際、動作しないコードを提供してしまう
-- `cargo test --doc` が失敗するため、CIパイプラインで警告が出る
-
-**課題3: 該当箇所の特定**
-
-失敗しているdoctestは以下の4箇所：
-
+以下のdoctestが存在しないAPI（`new(script: &str)`）を前提としている：
 1. `crates/pasta/src/engine.rs:35` - `PastaEngine` 構造体のドキュメント
 2. `crates/pasta/src/engine.rs:435` - `find_event_handlers()` メソッド
 3. `crates/pasta/src/engine.rs:478` - `on_event()` メソッド
 4. `crates/pasta/src/engine.rs:550` - `execute_label_chain()` メソッド
 
+**課題3: テストの失敗**
+
+```
+error[E0061]: this function takes 2 arguments but 1 argument was supplied
+```
+
 ### Scope
 
 **含まれるもの：**
 
-1. **Doctest修正**
-   - 4箇所のdoctestを現在のAPI仕様に合わせて修正
-   - `no_run` 属性の適切な使用（ファイルシステムアクセスが必要なため）
+1. **関数の削除**
+   - `find_event_handlers()` - 要件定義不十分
+   - `on_event()` - 要件定義不十分
+   - `execute_label_chain()` - 要件定義不十分
 
-2. **テスト実行の確認**
-   - `cargo test --doc` が成功することを確認
+2. **Doctestの削除**
+   - `PastaEngine` 構造体のdoctest（存在しないAPIを前提）
+   - 上記3関数のdoctest
+
+3. **関連テストの削除**
+   - 削除する3関数のテストコード
 
 **含まれないもの：**
 
-- APIの変更（現在の2引数APIは正しい）
-- 実装コードの変更（doctestのみ修正）
-- 他のドキュメントの更新（READMEなど）
+- `execute_label()` - テスト用便利関数として残す（doctestは削除）
+- `execute_label_with_filters()` - 内部実装として残す
+- APIの変更
 
 ---
 
 ## Requirements
 
-### Requirement 1: PastaEngine構造体のdoctest修正
+### Requirement 1: 不要関数の削除
 
-**Objective:** ユーザーとして、`PastaEngine` 構造体のドキュメント例が現在のAPIに準拠し、正しい使用方法を理解できるようにする。
-
-**Location:** `crates/pasta/src/engine.rs:35-51`
+**Objective:** 要件定義が不十分なまま実装された関数を削除する。
 
 #### Acceptance Criteria
 
-1. When doctestをコンパイルする, the Doctest shall 2引数の `new(script_root, persistence_root)` を使用する
-2. When テストディレクトリを使用する, the Doctest shall 一時ディレクトリまたは適切なテストパスを `script_root` として指定する
-3. When 永続化ディレクトリを指定する, the Doctest shall 一時ディレクトリまたは適切なテストパスを `persistence_root` として指定する
-4. When `execute_label` を呼び出す, the Doctest shall 2引数の `execute_label(label_name, args)` を使用する（現在のAPI確認が必要）
-5. When doctestを実行する, the Doctest shall エラーなくコンパイルが通る
+1. When `find_event_handlers()` を削除する, the Code shall コンパイルエラーが発生しない
+2. When `on_event()` を削除する, the Code shall コンパイルエラーが発生しない
+3. When `execute_label_chain()` を削除する, the Code shall コンパイルエラーが発生しない
 
-#### 現在のコード
+#### 削除対象
 
-```rust
-/// ```no_run
-/// use pasta::PastaEngine;
-///
-/// let script = r#"
-/// ＊挨拶
-///     さくら：こんにちは！
-///     うにゅう：やあ！
-/// "#;
-///
-/// let mut engine = PastaEngine::new(script)?;  // ❌ 1引数
-/// let events = engine.execute_label("挨拶")?;  // ❌ 引数数不明
-///
-/// for event in events {
-///     println!("{:?}", event);
-/// }
-/// # Ok::<(), pasta::PastaError>(())
-/// ```
-```
-
-#### 修正方針
-
-- スクリプト文字列をファイルに書き出してディレクトリ構造を作成
-- または、既存のテストフィクスチャディレクトリを参照
-- `execute_label` の正しいシグネチャを確認して修正
-
----
-
-### Requirement 2: find_event_handlers() メソッドのdoctest修正
-
-**Objective:** 開発者として、`find_event_handlers()` メソッドの使用例が現在のAPIに準拠していることを確認する。
-
-**Location:** `crates/pasta/src/engine.rs:435-449`
-
-#### Acceptance Criteria
-
-1. When doctestをコンパイルする, the Doctest shall 2引数の `new(script_root, persistence_root)` を使用する
-2. When `find_event_handlers` を呼び出す, the Doctest shall 正しいメソッドシグネチャを使用する
-3. When doctestを実行する, the Doctest shall エラーなくコンパイルが通る
-
-#### 現在のコード
+**Location:** `crates/pasta/src/engine.rs`
 
 ```rust
-/// ```no_run
-/// # use pasta::PastaEngine;
-/// let script = r#"
-/// ＊OnClick
-///     さくら：クリックされました！
-///
-/// ＊OnDoubleClick
-///     さくら：ダブルクリック！
-/// "#;
-/// let engine = PastaEngine::new(script)?;  // ❌ 1引数
-///
-/// let handlers = engine.find_event_handlers("Click");
-/// assert!(handlers.contains(&"OnClick".to_string()));
-/// # Ok::<(), pasta::PastaError>(())
-/// ```
+// 削除: find_event_handlers()
+pub fn find_event_handlers(&self, event_name: &str) -> Vec<String> { ... }
+
+// 削除: on_event()
+pub fn on_event(&mut self, event_name: &str, params: HashMap<String, String>) -> Result<Vec<ScriptEvent>> { ... }
+
+// 削除: execute_label_chain()
+pub fn execute_label_chain(&mut self, initial_label: &str, max_chain_depth: usize) -> Result<Vec<ScriptEvent>> { ... }
 ```
 
 ---
 
-### Requirement 3: on_event() メソッドのdoctest修正
+### Requirement 2: 不適切なDoctestの削除
 
-**Objective:** 開発者として、`on_event()` メソッドの使用例が現在のAPIに準拠していることを確認する。
-
-**Location:** `crates/pasta/src/engine.rs:478-489`
+**Objective:** 存在しないAPI（`new(script: &str)`）を前提とするdoctestを削除する。
 
 #### Acceptance Criteria
 
-1. When doctestをコンパイルする, the Doctest shall 2引数の `new(script_root, persistence_root)` を使用する
-2. When `on_event` を呼び出す, the Doctest shall 正しいメソッドシグネチャを使用する
-3. When doctestを実行する, the Doctest shall エラーなくコンパイルが通る
+1. When `PastaEngine` 構造体のdoctestを削除する, the Doctest shall コンパイルエラーが発生しない
+2. When 削除した3関数のdoctestを削除する, the Doctest shall コンパイルエラーが発生しない
+3. When `cargo test --doc --package pasta` を実行する, the Test shall 全てパスする
 
-#### 現在のコード
+#### 削除対象
 
-```rust
-/// ```no_run
-/// # use pasta::PastaEngine;
-/// # use std::collections::HashMap;
-/// let script = r#"
-/// ＊OnClick
-///     さくら：クリックされました！
-/// "#;
-/// let mut engine = PastaEngine::new(script)?;  // ❌ 1引数
-///
-/// let events = engine.on_event("Click", HashMap::new())?;
-/// # Ok::<(), pasta::PastaError>(())
-/// ```
-```
+**Location:** `crates/pasta/src/engine.rs`
+
+1. Line 35-51: `PastaEngine` 構造体のdoctest
+2. Line 435-449: `find_event_handlers()` のdoctest
+3. Line 478-489: `on_event()` のdoctest
+4. Line 550-565: `execute_label_chain()` のdoctest
 
 ---
 
-### Requirement 4: execute_label_chain() メソッドのdoctest修正
+### Requirement 3: 関連テストの削除
 
-**Objective:** 開発者として、`execute_label_chain()` メソッドの使用例が現在のAPIに準拠していることを確認する。
-
-**Location:** `crates/pasta/src/engine.rs:550-565`
+**Objective:** 削除する関数の単体テストを削除する。
 
 #### Acceptance Criteria
 
-1. When doctestをコンパイルする, the Doctest shall 2引数の `new(script_root, persistence_root)` を使用する
-2. When `execute_label` を呼び出す, the Doctest shall 正しいメソッドシグネチャ（引数数を確認）を使用する
-3. When doctestを実行する, the Doctest shall エラーなくコンパイルが通る
+1. When 関連テストを削除する, the Test Suite shall コンパイルエラーが発生しない
+2. When `cargo test --package pasta` を実行する, the Test Suite shall 全テストがパスする
 
-#### 現在のコード
+#### 調査対象
 
-```rust
-/// ```no_run
-/// # use pasta::PastaEngine;
-/// let script = r#"
-/// ＊挨拶
-///     さくら：おはよう！
-///
-/// ＊挨拶_続き
-///     さくら：今日も元気だね！
-/// "#;
-/// let mut engine = PastaEngine::new(script)?;  // ❌ 1引数
-///
-/// // Execute chain manually
-/// let mut all_events = engine.execute_label("挨拶")?;  // ❌ 引数数不明
-/// all_events.extend(engine.execute_label("挨拶_続き")?);  // ❌ 引数数不明
-/// # Ok::<(), pasta::PastaError>(())
-/// ```
-```
-
----
-
-### Requirement 5: Doctest実行の検証
-
-**Objective:** 開発者として、全てのdoctestが正常にコンパイル・実行され、ドキュメント品質が保証されることを確認する。
-
-#### Acceptance Criteria
-
-1. When `cargo test --doc --package pasta` を実行する, the Test Suite shall 全6 doctestがパスする（現在2 passed, 4 failed）
-2. When doctestが失敗する, the Test Suite shall エラーメッセージを表示しない
-3. When CIパイプラインを実行する, the CI shall doctestの失敗によるビルドエラーを報告しない
+- `crates/pasta/tests/**/*.rs` 内の関連テスト
+- `find_event_handlers`, `on_event`, `execute_label_chain` を参照するテストコード
 
 ---
 
 ## Technical Context
 
-### 現在のAPI（実装済み）
+### 削除する関数の実装箇所
 
-#### PastaEngine::new()
+**Location:** `crates/pasta/src/engine.rs`
 
-```rust
-pub fn new(
-    script_root: impl AsRef<Path>,
-    persistence_root: impl AsRef<Path>
-) -> Result<Self>
-```
+1. **find_event_handlers()** - 約Line 450-459
+   - イベント名パターンマッチング
+   - ラベル名リストを返す
 
-**パラメータ:**
-- `script_root`: スクリプトルートディレクトリ（絶対パス）
-  - `dic/` ディレクトリを含む
-  - `main.rn` を含む
-- `persistence_root`: 永続化ルートディレクトリ（絶対または相対パス）
-  - `variables.toml` を保存
+2. **on_event()** - 約Line 490-509
+   - イベントハンドラを検索して実行
+   - `execute_label_with_filters()` を内部呼び出し
 
-#### execute_label() (要確認)
+3. **execute_label_chain()** - 約Line 566-600
+   - ラベルチェーン実行ロジック
+   - `execute_label()` を繰り返し呼び出し
 
-```rust
-pub fn execute_label(&mut self, label_name: &str, args: Vec<Value>) -> Result<Vec<ScriptEvent>>
-```
+### 残す関数
 
-**パラメータ確認が必要:**
-- 現在のシグネチャが `execute_label(label_name)` か `execute_label(label_name, args)` かを確認
-- doctestで正しい引数数を使用
-
-### テスト戦略
-
-#### Doctest修正パターン
-
-**Option A: テストフィクスチャディレクトリを使用**
-```rust
-/// ```no_run
-/// use pasta::PastaEngine;
-/// use std::path::PathBuf;
-///
-/// let script_root = PathBuf::from("tests/fixtures/test-project");
-/// let persistence_root = PathBuf::from("tests/fixtures/test-project/persistence");
-/// let mut engine = PastaEngine::new(&script_root, &persistence_root)?;
-/// # Ok::<(), pasta::PastaError>(())
-/// ```
-```
-
-**Option B: 一時ディレクトリを使用（推奨）**
-```rust
-/// ```no_run
-/// use pasta::PastaEngine;
-/// use std::fs;
-/// use std::path::PathBuf;
-///
-/// // Create temporary directories
-/// let temp_dir = std::env::temp_dir().join("pasta_doctest");
-/// let script_root = temp_dir.join("script");
-/// let persistence_root = temp_dir.join("persistence");
-/// fs::create_dir_all(&script_root)?;
-/// fs::create_dir_all(&persistence_root)?;
-///
-/// let mut engine = PastaEngine::new(&script_root, &persistence_root)?;
-/// # Ok::<(), pasta::PastaError>(())
-/// ```
-```
-
-**Option C: no_run属性を維持（簡潔）**
-```rust
-/// ```no_run
-/// use pasta::PastaEngine;
-/// use std::path::PathBuf;
-///
-/// let script_root = PathBuf::from("/path/to/script");
-/// let persistence_root = PathBuf::from("/path/to/persistence");
-/// let mut engine = PastaEngine::new(&script_root, &persistence_root)?;
-/// # Ok::<(), pasta::PastaError>(())
-/// ```
-```
-
-**推奨:** Option C（`no_run`属性付き）
-- doctestは構文例を示すことが目的
-- 実際の実行は単体テストで行う
-- 簡潔で読みやすい
+- `execute_label()` - テスト用便利関数
+- `execute_label_with_filters()` - 内部実装（フィルタ付きラベル実行）
 
 ---
 
 ## Implementation Notes
 
-### 修正優先順位
+### 作業手順
 
-1. **Phase 1: API仕様の調査**（必須）
-   - `execute_label()` の正しいシグネチャを確認
-   - 他のメソッドの引数も確認
+1. **Phase 1: 関数削除**
+   - `find_event_handlers()` を削除
+   - `on_event()` を削除
+   - `execute_label_chain()` を削除
 
-2. **Phase 2: Doctest修正**（必須）
-   - 4箇所のdoctestを修正
-   - `no_run` 属性を維持
+2. **Phase 2: Doctest削除**
+   - `PastaEngine` 構造体のdoctest（Line 35-51）を削除
+   - 削除した3関数のdoctestも自動的に削除される
 
-3. **Phase 3: テスト実行**（必須）
-   - `cargo test --doc --package pasta` で検証
+3. **Phase 3: 関連テスト調査・削除**
+   - `grep -r "find_event_handlers\|on_event\|execute_label_chain" tests/` で検索
+   - 該当テストを削除
+
+4. **Phase 4: ビルド確認**
+   - `cargo test --doc --package pasta`
+   - `cargo test --package pasta`
 
 ### 影響範囲
 
-- **変更ファイル**: `crates/pasta/src/engine.rs` のみ
-- **変更箇所**: docコメント4箇所（約20行）
-- **影響**: なし（ドキュメント修正のみ）
+- **変更ファイル**: `crates/pasta/src/engine.rs`, テストファイル複数
+- **削除行数**: 約150-200行（関数本体 + doctest + 単体テスト）
+- **影響**: 要件定義不十分な機能を削除
 
 ---
 
 ## Testing Strategy
 
-### Doctest検証
+### 検証項目
 
 | テストケース | 期待結果 |
 |-------------|---------|
-| `cargo test --doc --package pasta` | 全6 doctest pass |
-| `PastaEngine` 構造体のdoctest | コンパイル成功 |
-| `find_event_handlers()` のdoctest | コンパイル成功 |
-| `on_event()` のdoctest | コンパイル成功 |
-| `execute_label_chain()` のdoctest | コンパイル成功 |
+| `cargo build --package pasta` | ビルド成功 |
+| `cargo test --doc --package pasta` | 全doctest pass |
+| `cargo test --package pasta` | 全テストpass |
+| 削除した関数への参照 | コンパイルエラーなし |
 
 ---
 
 ## References
 
-- **関連仕様:** `.kiro/specs/pasta-transpiler-pass2-output/` (この仕様実装中に発見)
-- **Implementation Report:** `.kiro/specs/pasta-transpiler-pass2-output/implementation-report.md` (既知の問題セクション)
+- **発見元:** `.kiro/specs/pasta-transpiler-pass2-output/`
+- **関連タスク:** `.kiro/specs/completed/areka-P0-script-engine/tasks.md` Task 7（リジェクト対象）
 - **ソースコード:** `crates/pasta/src/engine.rs`
