@@ -648,26 +648,33 @@ classDiagram
 **Phase 1: Core Implementation** (必須、1週目)
 1. LabelInfo構造体にid: LabelIdフィールド追加
 2. CacheKey, CachedSelection構造体の実装
-3. LabelTable::from_label_registry()の拡張(shuffle_enabledパラメータ追加)
-4. LabelTable::resolve_label_id()の実装(HashMap+フルスキャンで前方一致検索)
+3. LabelTable::from_label_registry()の拡張(デフォルトshuffle_enabled=true)
+4. LabelTable::resolve_label_id()の実装(RadixMap+iter_prefix()で前方一致検索)
 5. PastaErrorに新規バリアント追加
+6. RadixMap<Vec<LabelId>>の構築ロジック実装
 
 **Phase 2: Rune Integration** (必須、1週目)
 1. pasta_stdlib::create_module()のシグネチャ変更(Arc<Mutex<LabelTable>>引数追加)
 2. parse_rune_filters()関数の実装(Rune Value → HashMap変換)
 3. select_label_to_id()スタブの置き換え(resolve_label_id()呼び出し)
 
-**Phase 3: Optimization** (オプショナル、2週目)
-1. fast_radix_trie導入(HashMap+フルスキャンからRadixMap+iter_prefix()へ)
-2. パフォーマンステスト(想定ラベル数100-500で10ms以下を確認)
-3. メモリ使用量測定(LabelTable全体で数MB以下を確認)
+**Phase 3: Performance Validation** (必須、1週目)
+1. パフォーマンステスト(criterion.rs、N=100/300/500/1000)
+2. メモリ使用量測定(LabelTable全体で数MB以下を確認)
+3. ベンチマーク結果をREADME.mdに文書化
 
 ### パフォーマンス考慮事項
 
 - **想定ラベル数**: 100～500ラベル(典型的なスクリプト)
-- **Phase 1実装**: HashMap+フルスキャンO(N)で十分(N=500でもミリ秒オーダー)
-- **Phase 3最適化**: ラベル数1000以上またはレイテンシ10ms超過時にTrie導入
+- **前方一致検索**: RadixMap+iter_prefix()でO(M)検索(Mは検索キー長、ラベル数に非依存)
+- **性能目標**: N=500で平均5ms以下、P95で10ms以下
 - **メモリ使用量**: LabelTable全体で数MB程度(問題なし)
+
+**ベンチマーク測定計画**:
+- criterion.rs使用、N=100/300/500/1000でのresolve_label_id()実行時間測定
+- 条件: 前方一致候補10%、フィルタ適用後5候補、キャッシュミス時の初回実行
+- 実装ファイル: `crates/pasta/benches/label_resolution.rs`
+- Phase 3完了直後に測定、結果をREADME.mdに文書化
 
 ### 後方互換性
 
