@@ -563,8 +563,14 @@ pub enum PastaError {
     #[error("Random selection failed")]
     RandomSelectionFailed,  // ← RandomSelector::select_index() が None 返却
     
-    #[error("Duplicate label path: {path}")]
-    DuplicateLabelPath { path: String },  // ← LabelRegistry変換時の重複検出
+    #[error("Duplicate label name: {name}")]
+    DuplicateLabelName { name: String },  // ← LabelRegistry変換時のfn_name重複検出
+    
+    #[error("No more labels for '{search_key}' with filters {filters:?}")]
+    NoMoreLabels {
+        search_key: String,
+        filters: HashMap<String, String>,
+    },  // ← キャッシュの順次選択で全候補を使い果たした
 }
 ```
 

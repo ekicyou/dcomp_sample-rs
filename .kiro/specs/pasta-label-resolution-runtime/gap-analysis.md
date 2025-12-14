@@ -483,7 +483,8 @@ impl PastaEngine {
      - `PastaError::NoMatchingLabel`
      - `PastaError::InvalidLabel`
      - `PastaError::RandomSelectionFailed`
-     - `PastaError::DuplicateLabelPath`
+     - `PastaError::DuplicateLabelName`
+     - `PastaError::NoMoreLabels`
 
 4. **`crates/pasta/src/engine.rs`**
    - `PastaEngine::new()` で `LabelTable` を `Arc<Mutex<>>` でラップ
@@ -722,24 +723,36 @@ pub fn create_module(label_table: Arc<Mutex<LabelTable>>) -> Result<Module, Cont
 
 **選択: 構造化エラー追加 + Rune側でpanic**
 
-**新規エラー型:**
+**エラー型追加:**
 ```rust
+// crates/pasta/src/error.rs
 #[derive(Error, Debug)]
 pub enum PastaError {
+    // 既存エラー（変更なし）
+    #[error("Label not found: {label}")]
+    LabelNotFound { label: String },  // ← 既存（前方一致検索前の基本エラー）
+    
+    // 新規エラー（本仕様で追加）
     #[error("No matching label for '{label}' with filters {filters:?}")]
     NoMatchingLabel {
         label: String,
         filters: HashMap<String, String>,
-    },
+    },  // ← フィルタ適用後に候補が0件
     
     #[error("Invalid label name: '{label}'")]
-    InvalidLabel { label: String },
+    InvalidLabel { label: String },  // ← 空文字列など不正なラベル名
     
     #[error("Random selection failed")]
-    RandomSelectionFailed,
+    RandomSelectionFailed,  // ← RandomSelector::select_index() が None 返却
     
-    #[error("Duplicate label path: {path}")]
-    DuplicateLabelPath { path: String },
+    #[error("Duplicate label name: {name}")]
+    DuplicateLabelName { name: String },  // ← LabelRegistry変換時のfn_name重複検出
+    
+    #[error("No more labels for '{search_key}' with filters {filters:?}")]
+    NoMoreLabels {
+        search_key: String,
+        filters: HashMap<String, String>,
+    },  // ← キャッシュの順次選択で全候補を使い果たした
 }
 ```
 
