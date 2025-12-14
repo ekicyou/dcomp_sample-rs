@@ -386,10 +386,14 @@ writeln!(writer, "行内容").map_err(|e| PastaError::io_error(e.to_string()))?;
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| Rune構文エラー | High | Low | 参照フィクスチャで動作確認済み |
-| テスト失敗 | Medium | Medium | 段階的にテスト更新、出力を目視確認 |
+| Rune構文エラー | High | Low | 既存パターン踏襲、Runeコンパイル検証テストで検出 |
+| テスト失敗 | Medium | Medium | 修正箇所は1関数だが、4テストケースが連鎖的に失敗する可能性。段階的にテスト更新、出力を目視確認 |
 | 後方互換性 | High | Very Low | Pass 1不変、LabelRegistry不変 |
 | コード重複の再導入 | Medium | Low | コードレビューで確認 |
+
+**注記**: 
+- Rune構文エラーのProbability=Lowは妥当。トランスパイラー本体は既存の `writeln!` パターンを踏襲し、コンパイル成功を要件とするため構文エラーは検出される
+- テスト失敗のリスクは中程度。修正箇所は `transpile_pass2()` 1関数に限定されるが、出力形式の変更により複数のテストケースが連鎖的に失敗に変わる可能性があり、検証パターンの修正作業が発生する
 
 ## Future Enhancements
 
