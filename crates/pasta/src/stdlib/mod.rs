@@ -7,10 +7,13 @@
 pub mod persistence;
 
 use crate::ir::{ContentPart, ScriptEvent};
+use crate::runtime::labels::LabelTable;
 use rune::{ContextError, Module};
+use std::collections::HashMap;
+use std::sync::Mutex;
 
 /// Create the Pasta standard library module for Rune.
-pub fn create_module() -> Result<Module, ContextError> {
+pub fn create_module(label_table: LabelTable) -> Result<Module, ContextError> {
     let mut module = Module::with_crate("pasta_stdlib")?;
 
     // Register emit functions
@@ -34,9 +37,13 @@ pub fn create_module() -> Result<Module, ContextError> {
     // Register persistence functions
     persistence::register_persistence_functions(&mut module)?;
 
-    // Register label resolution functions (P0: stub implementation)
+    // Register label resolution functions
+    // Wrap in Mutex for interior mutability (resolve_label_id needs &mut self)
+    let label_table_mutex = Mutex::new(label_table);
     module
-        .function("select_label_to_id", select_label_to_id)
+        .function("select_label_to_id", move |label: String, filters: rune::runtime::Value| {
+            select_label_to_id(label, filters, &label_table_mutex)
+        })
         .build()?;
 
     // Register word expansion functions (P0: stub implementation)
@@ -50,24 +57,68 @@ pub fn create_module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-/// P0 implementation: Stub label resolution that always returns 1.
-///
-/// This allows basic testing without implementing the full label resolution logic.
-/// P1 will implement proper label name -> ID mapping with forward matching and random selection.
+/// Label resolution with prefix matching and attribute filtering.
 ///
 /// # Arguments
-/// * `label` - Label name to resolve (unused in P0)
-/// * `filters` - Attribute filters (unused in P0)
+/// * `label` - Label name to resolve (search key)
+/// * `filters` - Attribute filters (Rune Object or Unit)
+/// * `label_table` - Shared reference to the label table
 ///
 /// # Returns
-/// Always returns 1 for P0 testing
-fn select_label_to_id(_label: String, _filters: rune::runtime::Value) -> i64 {
-    // P0: Always return 1 for basic testing
-    // P1 will implement:
-    // - Static HashMap lookup
-    // - Forward matching
-    // - Random selection for duplicate labels
-    1
+/// Label ID as i64
+///
+/// # Panics
+/// Panics if label resolution fails (no matching labels, lock error, etc.)
+fn select_label_to_id(
+    label: String,
+    filters: rune::runtime::Value,
+    label_table: &Mutex<LabelTable>,
+) -> Result<i64, String> {
+    // Phase 1: Parse Rune filters to HashMap
+    let filter_map = parse_rune_filters(filters)?;
+    
+    // Phase 2: Lock and resolve label ID
+    let mut table = label_table
+        .lock()
+        .map_err(|e| format!("Failed to lock label_table: {}", e))?;
+    
+    let label_id = table
+        .resolve_label_id(&label, &filter_map)
+        .map_err(|e| format!("Label resolution failed: {}", e))?;
+    
+    // Convert LabelId (0-based) to transpiler ID (1-based)
+    Ok((label_id.0 + 1) as i64)
+}
+
+/// Parse Rune Value filters to Rust HashMap.
+///
+/// # Arguments
+/// * `value` - Rune Value (Unit/(), Object/HashMap, or other)
+///
+/// # Returns
+/// HashMap<String, String> or error message
+fn parse_rune_filters(value: rune::Value) -> Result<HashMap<String, String>, String> {
+    // Try to convert to HashMap using rune::from_value
+    match rune::from_value::<HashMap<String, rune::Value>>(value.clone()) {
+        Ok(map) => {
+            // Convert HashMap<String, rune::Value> to HashMap<String, String>
+            let mut result = HashMap::new();
+            for (key, val) in map {
+                // Try to convert value to String
+                let val_str = rune::from_value::<String>(val)
+                    .map_err(|e| format!("Filter value must be string for key '{}': {}", key, e))?;
+                result.insert(key, val_str);
+            }
+            Ok(result)
+        }
+        Err(_) => {
+            // Try unit type (empty filters)
+            match rune::from_value::<()>(value.clone()) {
+                Ok(_) => Ok(HashMap::new()),
+                Err(_) => Err(format!("Filters must be object or unit")),
+            }
+        }
+    }
 }
 
 /// P0 implementation: Stub word expansion that returns the word name as-is.
@@ -288,8 +339,15 @@ mod tests {
 
     #[test]
     fn test_create_module() {
+        use crate::runtime::labels::LabelTable;
+        use crate::runtime::random::DefaultRandomSelector;
+        
+        // Create a test label table
+        let selector = Box::new(DefaultRandomSelector::new());
+        let table = LabelTable::new(selector);
+        
         // Test that module creation succeeds
-        let result = create_module();
+        let result = create_module(table);
         assert!(result.is_ok());
     }
 

@@ -27,8 +27,11 @@ fn test_comprehensive_control_flow_rune_compile() {
     let mut context = Context::with_default_modules().expect("Failed to create context");
 
     // Install pasta_stdlib
+    let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
+    let table = pasta::runtime::labels::LabelTable::new(selector);
+    
     context
-        .install(pasta::stdlib::create_module().expect("Failed to create stdlib"))
+        .install(pasta::stdlib::create_module(table).expect("Failed to create stdlib"))
         .expect("Failed to install stdlib");
 
     // Combine main.rn and transpiled code into a single source

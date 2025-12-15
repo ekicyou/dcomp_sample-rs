@@ -21,6 +21,32 @@ pub enum PastaError {
     #[error("Label not found: {label}")]
     LabelNotFound { label: String },
 
+    /// No matching label with filters.
+    #[error("No matching label for '{label}' with filters {filters:?}")]
+    NoMatchingLabel {
+        label: String,
+        filters: std::collections::HashMap<String, String>,
+    },
+
+    /// Invalid label name.
+    #[error("Invalid label name: '{label}'")]
+    InvalidLabel { label: String },
+
+    /// Random selection failed.
+    #[error("Random selection failed")]
+    RandomSelectionFailed,
+
+    /// Duplicate label name.
+    #[error("Duplicate label name: {name}")]
+    DuplicateLabelName { name: String },
+
+    /// No more labels available.
+    #[error("No more labels for '{search_key}' with filters {filters:?}")]
+    NoMoreLabels {
+        search_key: String,
+        filters: std::collections::HashMap<String, String>,
+    },
+
     /// Function not found error.
     #[error("Function not found: {name}")]
     FunctionNotFound { name: String },

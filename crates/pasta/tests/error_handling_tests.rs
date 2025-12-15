@@ -147,7 +147,10 @@ fn test_dynamic_error_from_rune_script() {
     // Since we can't easily embed Rune code in tests without the Rune block feature,
     // we'll test that the emit_error stdlib function exists and works
     // by checking the module can be created
-    let result = pasta::stdlib::create_module();
+    let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
+    let table = pasta::runtime::labels::LabelTable::new(selector);
+    
+    let result = pasta::stdlib::create_module(table);
     assert!(
         result.is_ok(),
         "Stdlib module with emit_error should be created"

@@ -14,11 +14,11 @@ fn test_engine_with_simple_project() {
     let result = PastaEngine::new(&script_root, temp_dir.path());
 
     match result {
-        Ok(engine) => {
+        Ok(mut engine) => {
             println!("Engine created successfully!");
 
-            // Test label existence
-            assert!(engine.has_label("会話"), "Label '会話' should exist");
+            // Test label existence by execution
+            assert!(engine.execute_label("会話").is_ok(), "Label '会話' should exist");
         }
         Err(e) => {
             panic!("Failed to create engine: {:?}", e);
@@ -37,11 +37,11 @@ fn test_engine_with_test_project() {
     let result = PastaEngine::new(&script_root, temp_dir.path());
 
     match result {
-        Ok(engine) => {
+        Ok(mut engine) => {
             println!("Engine created successfully!");
 
-            // Test label existence (use actual Japanese label name)
-            assert!(engine.has_label("挨拶"), "Label '挨拶' should exist");
+            // Test label existence by execution (use actual Japanese label name)
+            assert!(engine.execute_label("挨拶").is_ok(), "Label '挨拶' should exist");
         }
         Err(e) => {
             panic!("Failed to create engine: {:?}", e);

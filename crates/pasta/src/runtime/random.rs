@@ -13,6 +13,9 @@ use rand::prelude::*;
 pub trait RandomSelector: Send + Sync {
     /// Select a random index from 0..len.
     fn select_index(&mut self, len: usize) -> Option<usize>;
+    
+    /// Shuffle a vec of usize in-place (for label IDs).
+    fn shuffle_usize(&mut self, items: &mut [usize]);
 }
 
 /// Default random selector using system entropy.
@@ -60,6 +63,10 @@ impl RandomSelector for DefaultRandomSelector {
             Some(self.rng.random_range(0..len))
         }
     }
+    
+    fn shuffle_usize(&mut self, items: &mut [usize]) {
+        items.shuffle(&mut self.rng);
+    }
 }
 
 /// Mock random selector for deterministic testing.
@@ -86,6 +93,10 @@ impl RandomSelector for MockRandomSelector {
         let idx = self.sequence[self.index % self.sequence.len()] % len;
         self.index += 1;
         Some(idx)
+    }
+    
+    fn shuffle_usize(&mut self, _items: &mut [usize]) {
+        // Mock implementation does not shuffle
     }
 }
 

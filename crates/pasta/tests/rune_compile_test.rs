@@ -26,8 +26,11 @@ fn test_rune_compile_simple() {
     let mut context = Context::with_default_modules().expect("Failed to create context");
 
     // Install pasta_stdlib
+    let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
+    let table = pasta::runtime::labels::LabelTable::new(selector);
+    
     context
-        .install(pasta::stdlib::create_module().expect("Failed to create stdlib"))
+        .install(pasta::stdlib::create_module(table).expect("Failed to create stdlib"))
         .expect("Failed to install stdlib");
 
     // Add actors module (required for use crate::actors::*)

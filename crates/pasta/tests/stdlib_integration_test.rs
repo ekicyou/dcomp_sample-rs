@@ -6,7 +6,12 @@ use std::sync::Arc;
 
 #[test]
 fn test_stdlib_module_creation() {
-    let result = stdlib::create_module();
+    // Create dummy label table for testing
+    let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
+    let table = pasta::runtime::labels::LabelTable::new(selector);
+    
+
+    let result = stdlib::create_module(table);
     assert!(
         result.is_ok(),
         "Failed to create stdlib module: {:?}",
@@ -16,9 +21,14 @@ fn test_stdlib_module_creation() {
 
 #[test]
 fn test_emit_text_via_rune() -> Result<(), Box<dyn std::error::Error>> {
+    // Create dummy label table for testing
+    let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
+    let table = pasta::runtime::labels::LabelTable::new(selector);
+    
+
     // Create context with stdlib
     let mut context = Context::with_default_modules()?;
-    context.install(stdlib::create_module()?)?;
+    context.install(stdlib::create_module(table)?)?;
 
     // Compile a simple script that uses emit_text
     let mut sources = rune::sources! {
@@ -46,9 +56,14 @@ fn test_emit_text_via_rune() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_sync_functions_via_rune() -> Result<(), Box<dyn std::error::Error>> {
+    // Create dummy label table for testing
+    let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
+    let table = pasta::runtime::labels::LabelTable::new(selector);
+    
+
     // Create context with stdlib
     let mut context = Context::with_default_modules()?;
-    context.install(stdlib::create_module()?)?;
+    context.install(stdlib::create_module(table)?)?;
 
     // Compile a script that uses sync functions
     let mut sources = rune::sources! {

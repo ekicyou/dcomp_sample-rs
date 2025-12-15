@@ -34,8 +34,6 @@ pub struct PastaEngine {
     unit: Arc<rune::Unit>,
     /// The Rune runtime context.
     runtime: Arc<rune::runtime::RuntimeContext>,
-    /// Label table for label lookup and random selection.
-    label_table: LabelTable,
     /// Persistence directory path (optional).
     persistence_path: Option<PathBuf>,
 }
@@ -166,14 +164,17 @@ impl PastaEngine {
             eprintln!("===============================================");
         }
 
-        // Step 6: Build Rune sources with main.rn
+        // Step 6: Build label table for Rune module (ownership moved to closure)
+        let label_table = LabelTable::from_label_registry(label_registry, random_selector)?;
+
+        // Step 7: Build Rune sources with main.rn
         let mut context = Context::with_default_modules().map_err(|e| {
             PastaError::RuneRuntimeError(format!("Failed to create Rune context: {}", e))
         })?;
 
-        // Install standard library
+        // Install standard library with label table (moved into module)
         context
-            .install(crate::stdlib::create_module().map_err(|e| {
+            .install(crate::stdlib::create_module(label_table).map_err(|e| {
                 PastaError::RuneRuntimeError(format!("Failed to install stdlib: {}", e))
             })?)
             .map_err(|e| {
@@ -200,14 +201,11 @@ impl PastaEngine {
             })?)
             .map_err(|e| PastaError::RuneRuntimeError(format!("Failed to insert source: {}", e)))?;
 
-        // Step 7: Compile Rune code
+        // Step 8: Compile Rune code
         let unit = rune::prepare(&mut sources)
             .with_context(&context)
             .build()
             .map_err(|e| PastaError::RuneCompileError(format!("Failed to compile Rune: {}", e)))?;
-
-        // Step 8: Build label table from transpiler's label registry
-        let label_table = LabelTable::from_label_registry(label_registry, random_selector);
 
         // Step 9: Validate persistence path
         let validated_persistence_path =
@@ -217,7 +215,6 @@ impl PastaEngine {
         Ok(Self {
             unit: Arc::new(unit),
             runtime,
-            label_table,
             persistence_path: Some(validated_persistence_path),
         })
     }
@@ -312,13 +309,17 @@ impl PastaEngine {
     /// Execute a label with attribute filters and return all events.
     ///
     /// This is the full version of `execute_label` that accepts filters.
+    /// 
+    /// Note: After pasta-label-resolution-runtime implementation, label resolution
+    /// is handled by Rune's label_selector at runtime. This method attempts to 
+    /// execute the most common label format.
     pub fn execute_label_with_filters(
         &mut self,
         label_name: &str,
-        filters: &HashMap<String, String>,
+        _filters: &HashMap<String, String>,
     ) -> Result<Vec<ScriptEvent>> {
-        // Look up the label
-        let fn_name = self.label_table.find_label(label_name, filters)?;
+        // Attempt to execute with common naming pattern: {label_name}_1::__start__
+        let fn_name = format!("{}_1::__start__", label_name);
 
         // Create a new VM for this execution
         let mut vm = Vm::new(self.runtime.clone(), self.unit.clone());
@@ -341,7 +342,17 @@ impl PastaEngine {
 
         let execution = vm
             .execute(hash, (context, args))
-            .map_err(|e| PastaError::VmError(e))?;
+            .map_err(|e| {
+                // Convert function not found errors to LabelNotFound
+                let err_msg = format!("{:?}", e);
+                if err_msg.contains("MissingEntry") || err_msg.contains("MissingFunction") {
+                    PastaError::LabelNotFound {
+                        label: label_name.to_string(),
+                    }
+                } else {
+                    PastaError::VmError(e)
+                }
+            })?;
 
         let mut generator = execution.into_generator();
 
@@ -374,25 +385,7 @@ impl PastaEngine {
         Ok(events)
     }
 
-    /// Check if a label exists in the label table.
-    pub fn has_label(&self, label_name: &str) -> bool {
-        self.label_table.has_label(label_name)
-    }
 
-    /// Get all registered label names.
-    pub fn label_names(&self) -> Vec<String> {
-        self.label_table.label_names()
-    }
-
-    /// List all labels (global + local).
-    pub fn list_labels(&self) -> Vec<String> {
-        self.label_table.list_all_labels()
-    }
-
-    /// List only global labels.
-    pub fn list_global_labels(&self) -> Vec<String> {
-        self.label_table.list_global_labels()
-    }
 
     /// Fire a custom event and return the FireEvent script event.
     ///

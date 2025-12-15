@@ -420,7 +420,7 @@ fn test_repeated_label_execution() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn test_label_names_api() -> Result<(), Box<dyn std::error::Error>> {
+fn test_label_execution() -> Result<(), Box<dyn std::error::Error>> {
     let script = r#"
 ＊挨拶
     さくら：こんにちは
@@ -434,31 +434,12 @@ fn test_label_names_api() -> Result<(), Box<dyn std::error::Error>> {
 
     let script_dir = create_test_script(script).expect("Failed to create script");
     let persistence_dir = get_test_persistence_dir();
-    let engine = PastaEngine::new(&script_dir, &persistence_dir)?;
-    let names = engine.label_names();
+    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)?;
 
-    assert_eq!(names.len(), 3);
-    assert!(names.contains(&"挨拶".to_string()));
-    assert!(names.contains(&"別れ".to_string()));
-    assert!(names.contains(&"雑談".to_string()));
-
-    Ok(())
-}
-
-#[test]
-fn test_has_label_api() -> Result<(), Box<dyn std::error::Error>> {
-    let script = r#"
-＊exists
-    さくら：こんにちは
-"#;
-
-    let script_dir = create_test_script(script).expect("Failed to create script");
-    let persistence_dir = get_test_persistence_dir();
-    let engine = PastaEngine::new(&script_dir, &persistence_dir)?;
-
-    assert!(engine.has_label("exists"));
-    assert!(!engine.has_label("does_not_exist"));
-    assert!(!engine.has_label(""));
+    // Verify labels exist by executing them
+    assert!(engine.execute_label("挨拶").is_ok());
+    assert!(engine.execute_label("別れ").is_ok());
+    assert!(engine.execute_label("雑談").is_ok());
 
     Ok(())
 }
