@@ -149,7 +149,7 @@ fn test_dynamic_error_from_rune_script() {
     // by checking the module can be created
     let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
     let table = pasta::runtime::labels::LabelTable::new(selector);
-    
+
     let result = pasta::stdlib::create_module(table);
     assert!(
         result.is_ok(),

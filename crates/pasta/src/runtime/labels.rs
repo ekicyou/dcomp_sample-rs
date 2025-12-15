@@ -38,7 +38,8 @@ struct CacheKey {
 
 impl CacheKey {
     fn new(search_key: &str, filters: &HashMap<String, String>) -> Self {
-        let mut filter_vec: Vec<_> = filters.iter()
+        let mut filter_vec: Vec<_> = filters
+            .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         filter_vec.sort();
@@ -227,13 +228,13 @@ impl LabelTable {
     ) -> Result<String, PastaError> {
         // Use resolve_label_id for the lookup
         let label_id = self.resolve_label_id(name, filters)?;
-        let label = self.get_label(label_id)
+        let label = self
+            .get_label(label_id)
             .ok_or_else(|| PastaError::LabelNotFound {
                 label: name.to_string(),
             })?;
         Ok(label.fn_name.clone())
     }
-
 }
 
 #[cfg(test)]
@@ -256,9 +257,7 @@ mod tests {
     fn test_resolve_label_id_basic() {
         let selector = Box::new(MockRandomSelector::new(vec![0]));
         let mut table = LabelTable {
-            labels: vec![
-                create_test_label_info(0, "test", "test_1::__start__"),
-            ],
+            labels: vec![create_test_label_info(0, "test", "test_1::__start__")],
             prefix_index: {
                 let mut map = RadixMap::new();
                 map.insert(b"test_1::__start__", vec![LabelId(0)]);

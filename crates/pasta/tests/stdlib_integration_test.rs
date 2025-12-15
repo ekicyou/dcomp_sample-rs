@@ -9,7 +9,6 @@ fn test_stdlib_module_creation() {
     // Create dummy label table for testing
     let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
     let table = pasta::runtime::labels::LabelTable::new(selector);
-    
 
     let result = stdlib::create_module(table);
     assert!(
@@ -24,7 +23,6 @@ fn test_emit_text_via_rune() -> Result<(), Box<dyn std::error::Error>> {
     // Create dummy label table for testing
     let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
     let table = pasta::runtime::labels::LabelTable::new(selector);
-    
 
     // Create context with stdlib
     let mut context = Context::with_default_modules()?;
@@ -59,7 +57,6 @@ fn test_sync_functions_via_rune() -> Result<(), Box<dyn std::error::Error>> {
     // Create dummy label table for testing
     let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
     let table = pasta::runtime::labels::LabelTable::new(selector);
-    
 
     // Create context with stdlib
     let mut context = Context::with_default_modules()?;

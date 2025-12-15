@@ -28,7 +28,7 @@ fn test_rune_compile_simple() {
     // Install pasta_stdlib
     let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
     let table = pasta::runtime::labels::LabelTable::new(selector);
-    
+
     context
         .install(pasta::stdlib::create_module(table).expect("Failed to create stdlib"))
         .expect("Failed to install stdlib");

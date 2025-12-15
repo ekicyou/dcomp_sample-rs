@@ -29,7 +29,7 @@ fn test_comprehensive_control_flow_rune_compile() {
     // Install pasta_stdlib
     let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
     let table = pasta::runtime::labels::LabelTable::new(selector);
-    
+
     context
         .install(pasta::stdlib::create_module(table).expect("Failed to create stdlib"))
         .expect("Failed to install stdlib");

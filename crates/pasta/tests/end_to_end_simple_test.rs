@@ -36,7 +36,6 @@ pub mod actors {
     // Create dummy label table for testing
     let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
     let table = pasta::runtime::labels::LabelTable::new(selector);
-    
 
     let mut context = Context::with_default_modules().expect("Failed to create context");
     context
@@ -109,7 +108,6 @@ pub mod actors {
     // Create dummy label table for testing
     let selector = Box::new(pasta::runtime::random::DefaultRandomSelector::new());
     let table = pasta::runtime::labels::LabelTable::new(selector);
-    
 
     let mut context = Context::with_default_modules().expect("Failed to create context");
     context

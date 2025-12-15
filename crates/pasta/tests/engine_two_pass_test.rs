@@ -18,7 +18,10 @@ fn test_engine_with_simple_project() {
             println!("Engine created successfully!");
 
             // Test label existence by execution
-            assert!(engine.execute_label("会話").is_ok(), "Label '会話' should exist");
+            assert!(
+                engine.execute_label("会話").is_ok(),
+                "Label '会話' should exist"
+            );
         }
         Err(e) => {
             panic!("Failed to create engine: {:?}", e);
@@ -41,7 +44,10 @@ fn test_engine_with_test_project() {
             println!("Engine created successfully!");
 
             // Test label existence by execution (use actual Japanese label name)
-            assert!(engine.execute_label("挨拶").is_ok(), "Label '挨拶' should exist");
+            assert!(
+                engine.execute_label("挨拶").is_ok(),
+                "Label '挨拶' should exist"
+            );
         }
         Err(e) => {
             panic!("Failed to create engine: {:?}", e);

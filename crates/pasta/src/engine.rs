@@ -309,9 +309,9 @@ impl PastaEngine {
     /// Execute a label with attribute filters and return all events.
     ///
     /// This is the full version of `execute_label` that accepts filters.
-    /// 
+    ///
     /// Note: After pasta-label-resolution-runtime implementation, label resolution
-    /// is handled by Rune's label_selector at runtime. This method attempts to 
+    /// is handled by Rune's label_selector at runtime. This method attempts to
     /// execute the most common label format.
     pub fn execute_label_with_filters(
         &mut self,
@@ -340,19 +340,17 @@ impl PastaEngine {
             PastaError::RuneRuntimeError(format!("Failed to create args array: {}", e))
         })?;
 
-        let execution = vm
-            .execute(hash, (context, args))
-            .map_err(|e| {
-                // Convert function not found errors to LabelNotFound
-                let err_msg = format!("{:?}", e);
-                if err_msg.contains("MissingEntry") || err_msg.contains("MissingFunction") {
-                    PastaError::LabelNotFound {
-                        label: label_name.to_string(),
-                    }
-                } else {
-                    PastaError::VmError(e)
+        let execution = vm.execute(hash, (context, args)).map_err(|e| {
+            // Convert function not found errors to LabelNotFound
+            let err_msg = format!("{:?}", e);
+            if err_msg.contains("MissingEntry") || err_msg.contains("MissingFunction") {
+                PastaError::LabelNotFound {
+                    label: label_name.to_string(),
                 }
-            })?;
+            } else {
+                PastaError::VmError(e)
+            }
+        })?;
 
         let mut generator = execution.into_generator();
 
@@ -384,8 +382,6 @@ impl PastaEngine {
 
         Ok(events)
     }
-
-
 
     /// Fire a custom event and return the FireEvent script event.
     ///

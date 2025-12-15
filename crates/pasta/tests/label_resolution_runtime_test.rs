@@ -15,8 +15,8 @@ fn test_label_resolution_with_prefix_match() {
 
     let script_dir = create_test_script(script).expect("Failed to create script");
     let persistence_dir = get_test_persistence_dir();
-    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)
-        .expect("Failed to create engine");
+    let mut engine =
+        PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
 
     // This should execute via label_selector -> select_label_to_id -> resolve_label_id
     let result = engine.execute_label("会話");
@@ -26,7 +26,10 @@ fn test_label_resolution_with_prefix_match() {
     );
 
     let events = result.unwrap();
-    assert!(!events.is_empty(), "Should have events from label execution");
+    assert!(
+        !events.is_empty(),
+        "Should have events from label execution"
+    );
 }
 
 #[test]
@@ -45,8 +48,8 @@ fn test_label_resolution_with_multiple_labels() {
 
     let script_dir = create_test_script(script).expect("Failed to create script");
     let persistence_dir = get_test_persistence_dir();
-    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)
-        .expect("Failed to create engine");
+    let mut engine =
+        PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
 
     // Execute multiple times - should potentially get different labels
     for _ in 0..5 {
@@ -74,8 +77,8 @@ fn test_label_resolution_sequential_consumption() {
 
     let script_dir = create_test_script(script).expect("Failed to create script");
     let persistence_dir = get_test_persistence_dir();
-    let mut engine = PastaEngine::new(&script_dir, &persistence_dir)
-        .expect("Failed to create engine");
+    let mut engine =
+        PastaEngine::new(&script_dir, &persistence_dir).expect("Failed to create engine");
 
     // Note: Current execute_label implementation doesn't use the full resolution
     // This test documents the expected behavior for when full integration is complete
