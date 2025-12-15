@@ -41,9 +41,12 @@ pub fn create_module(label_table: LabelTable) -> Result<Module, ContextError> {
     // Wrap in Mutex for interior mutability (resolve_label_id needs &mut self)
     let label_table_mutex = Mutex::new(label_table);
     module
-        .function("select_label_to_id", move |label: String, filters: rune::runtime::Value| {
-            select_label_to_id(label, filters, &label_table_mutex)
-        })
+        .function(
+            "select_label_to_id",
+            move |label: String, filters: rune::runtime::Value| {
+                select_label_to_id(label, filters, &label_table_mutex)
+            },
+        )
         .build()?;
 
     // Register word expansion functions (P0: stub implementation)
@@ -76,16 +79,16 @@ fn select_label_to_id(
 ) -> Result<i64, String> {
     // Phase 1: Parse Rune filters to HashMap
     let filter_map = parse_rune_filters(filters)?;
-    
+
     // Phase 2: Lock and resolve label ID
     let mut table = label_table
         .lock()
         .map_err(|e| format!("Failed to lock label_table: {}", e))?;
-    
+
     let label_id = table
         .resolve_label_id(&label, &filter_map)
         .map_err(|e| format!("Label resolution failed: {}", e))?;
-    
+
     // Convert LabelId (0-based) to transpiler ID (1-based)
     Ok((label_id.0 + 1) as i64)
 }
@@ -341,11 +344,11 @@ mod tests {
     fn test_create_module() {
         use crate::runtime::labels::LabelTable;
         use crate::runtime::random::DefaultRandomSelector;
-        
+
         // Create a test label table
         let selector = Box::new(DefaultRandomSelector::new());
         let table = LabelTable::new(selector);
-        
+
         // Test that module creation succeeds
         let result = create_module(table);
         assert!(result.is_ok());
