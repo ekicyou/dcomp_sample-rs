@@ -220,12 +220,11 @@ Rune label_selector()
 | 5.5 | スレッドセーフ | ✅ | Mutex実装 |
 | 6.1 | Vec構築 | ✅ | from_label_registry実装 |
 | 6.2 | Trie構築 | ✅ | RadixMap実装 |
-| 6.3 | 重複検出 | N/A | トランスパイラで保証 |
+| 6.3 | 重複検出 | ✅ | DuplicateLabelPath実装 |
 | 6.4 | RandomSelector | ✅ | 引数で受け取り |
 | 6.5 | shuffle初期化 | ✅ | デフォルトtrue |
 
-**カバレッジ**: 29/30 (96.7%)
-- 6.3は本仕様のスコープ外（トランスパイラで保証）
+**カバレッジ**: 30/30 (100%)
 
 ---
 

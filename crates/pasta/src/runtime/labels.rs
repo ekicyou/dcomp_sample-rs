@@ -110,13 +110,21 @@ impl LabelTable {
             })
             .collect();
 
-        // Build RadixMap prefix index
+        // Build RadixMap prefix index with duplicate detection
         let mut prefix_index = RadixMap::new();
         for label in &labels {
-            prefix_index
+            let entry = prefix_index
                 .entry(label.fn_name.as_bytes())
-                .or_insert_with(Vec::new)
-                .push(label.id);
+                .or_insert_with(Vec::new);
+            
+            // Check for duplicates (defensive programming)
+            if !entry.is_empty() {
+                return Err(PastaError::DuplicateLabelPath {
+                    fn_name: label.fn_name.clone(),
+                });
+            }
+            
+            entry.push(label.id);
         }
 
         Ok(Self {

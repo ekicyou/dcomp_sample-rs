@@ -40,6 +40,10 @@ pub enum PastaError {
     #[error("Duplicate label name: {name}")]
     DuplicateLabelName { name: String },
 
+    /// Duplicate label path (fn_name).
+    #[error("Duplicate label path: {fn_name}")]
+    DuplicateLabelPath { fn_name: String },
+
     /// No more labels available.
     #[error("No more labels for '{search_key}' with filters {filters:?}")]
     NoMoreLabels {
