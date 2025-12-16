@@ -1,0 +1,3 @@
+[submodule "submodules/pasta"]
+	path = submodules/pasta
+	url = https://ekicyou:cf97cd965e748fecd8555b5c695938a58827a123@github.com/ekicyou/pasta.git
