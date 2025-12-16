@@ -1,5 +1,0 @@
-error: no example target named `transpile_file` in `pasta` package
-help: available example targets:
-    rune_module_test
-    test_while_let_yield
-    test_yield_behavior

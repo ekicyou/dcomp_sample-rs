@@ -53,8 +53,7 @@ fn test_from_directory_success() {
 fn test_ignored_files_skipped() {
     let script_path = get_test_project_path();
     let persistence_path = get_test_persistence_path();
-    let engine =
-        PastaEngine::new(&script_path, &persistence_path).expect("Engine should initialize");
+    _ = PastaEngine::new(&script_path, &persistence_path).expect("Engine should initialize");
 
     // _ignored.pasta should be skipped (verified by engine construction success)
 }

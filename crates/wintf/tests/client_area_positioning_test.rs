@@ -173,5 +173,5 @@ unsafe extern "system" fn test_window_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    DefWindowProcW(hwnd, msg, wparam, lparam)
+    unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }

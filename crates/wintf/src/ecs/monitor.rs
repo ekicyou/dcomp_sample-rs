@@ -173,30 +173,28 @@ impl std::error::Error for MonitorError {}
 pub fn enumerate_monitors() -> Vec<Monitor> {
     let mut monitors = Vec::new();
 
-    unsafe {
-        // EnumDisplayMonitorsのコールバック関数
-        unsafe extern "system" fn enum_proc(
-            hmonitor: HMONITOR,
-            _hdc: windows::Win32::Graphics::Gdi::HDC,
-            _rect: *mut RECT,
-            lparam: LPARAM,
-        ) -> BOOL {
-            let monitors = &mut *(lparam.0 as *mut Vec<Monitor>);
-            if let Ok(monitor) = Monitor::from_hmonitor(hmonitor) {
-                monitors.push(monitor);
-            } else {
-                warn!(hmonitor = ?hmonitor, "Failed to get monitor info");
-            }
-            BOOL(1)
+    // EnumDisplayMonitorsのコールバック関数
+    extern "system" fn enum_proc(
+        hmonitor: HMONITOR,
+        _hdc: windows::Win32::Graphics::Gdi::HDC,
+        _rect: *mut RECT,
+        lparam: LPARAM,
+    ) -> BOOL {
+        let monitors = unsafe { &mut *(lparam.0 as *mut Vec<Monitor>) };
+        if let Ok(monitor) = Monitor::from_hmonitor(hmonitor) {
+            monitors.push(monitor);
+        } else {
+            warn!(hmonitor = ?hmonitor, "Failed to get monitor info");
         }
+        BOOL(1)
+    }
 
-        let monitors_ptr = &mut monitors as *mut Vec<Monitor> as isize;
-        let result = EnumDisplayMonitors(None, None, Some(enum_proc), LPARAM(monitors_ptr));
+    let monitors_ptr = &mut monitors as *mut Vec<Monitor> as isize;
+    let result = unsafe { EnumDisplayMonitors(None, None, Some(enum_proc), LPARAM(monitors_ptr)) };
 
-        if !result.as_bool() {
-            warn!("EnumDisplayMonitors failed");
-            return Vec::new();
-        }
+    if !result.as_bool() {
+        warn!("EnumDisplayMonitors failed");
+        return Vec::new();
     }
 
     monitors

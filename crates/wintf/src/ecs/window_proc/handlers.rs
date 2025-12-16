@@ -23,7 +23,7 @@ type HandlerResult = Option<LRESULT>;
 ///
 /// Entity IDをGWLP_USERDATAに保存する
 #[inline]
-pub(super) unsafe fn WM_NCCREATE(
+pub(super) fn WM_NCCREATE(
     hwnd: HWND,
     _message: u32,
     _wparam: WPARAM,
@@ -31,9 +31,9 @@ pub(super) unsafe fn WM_NCCREATE(
 ) -> HandlerResult {
     let cs = lparam.0 as *const CREATESTRUCTW;
     if !cs.is_null() {
-        let entity_bits = (*cs).lpCreateParams as isize;
+        let entity_bits = unsafe { (*cs).lpCreateParams as isize };
         // Entity IDをGWLP_USERDATAに保存（ID 0も有効）
-        SetWindowLongPtrW(hwnd, GWLP_USERDATA, entity_bits);
+        unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, entity_bits) };
     }
     None // DefWindowProcWに委譲
 }
@@ -42,7 +42,7 @@ pub(super) unsafe fn WM_NCCREATE(
 ///
 /// Entity IDを取得してエンティティを削除し、GWLP_USERDATAをクリアする
 #[inline]
-pub(super) unsafe fn WM_NCDESTROY(
+pub(super) fn WM_NCDESTROY(
     hwnd: HWND,
     _message: u32,
     _wparam: WPARAM,
@@ -60,7 +60,7 @@ pub(super) unsafe fn WM_NCDESTROY(
     }
 
     // GWLP_USERDATAをクリア
-    SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+    unsafe { SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0) };
 
     None // DefWindowProcWに委譲
 }
@@ -69,7 +69,7 @@ pub(super) unsafe fn WM_NCDESTROY(
 ///
 /// DirectCompositionで描画するため、背景消去をスキップする
 #[inline]
-pub(super) unsafe fn WM_ERASEBKGND(
+pub(super) fn WM_ERASEBKGND(
     _hwnd: HWND,
     _message: u32,
     _wparam: WPARAM,
@@ -82,14 +82,14 @@ pub(super) unsafe fn WM_ERASEBKGND(
 ///
 /// DirectCompositionで描画するため、領域を無効化解除するだけ
 #[inline]
-pub(super) unsafe fn WM_PAINT(
+pub(super) fn WM_PAINT(
     hwnd: HWND,
     _message: u32,
     _wparam: WPARAM,
     _lparam: LPARAM,
 ) -> HandlerResult {
     use windows::Win32::Graphics::Gdi::ValidateRect;
-    let _ = ValidateRect(Some(hwnd), None);
+    let _ = unsafe { ValidateRect(Some(hwnd), None) };
     Some(LRESULT(0))
 }
 
@@ -97,13 +97,13 @@ pub(super) unsafe fn WM_PAINT(
 ///
 /// DestroyWindowを呼び出してウィンドウを破棄する
 #[inline]
-pub(super) unsafe fn WM_CLOSE(
+pub(super) fn WM_CLOSE(
     hwnd: HWND,
     _message: u32,
     _wparam: WPARAM,
     _lparam: LPARAM,
 ) -> HandlerResult {
-    let _ = DestroyWindow(hwnd);
+    let _ = unsafe { DestroyWindow(hwnd) };
     Some(LRESULT(0))
 }
 
@@ -115,7 +115,7 @@ pub(super) unsafe fn WM_CLOSE(
 /// ③ flush_window_pos_commands() (SetWindowPos実行)
 /// ④ World借用 → WindowPosChanged=false → 借用解放
 #[inline]
-pub(super) unsafe fn WM_WINDOWPOSCHANGED(
+pub(super) fn WM_WINDOWPOSCHANGED(
     hwnd: HWND,
     _message: u32,
     _wparam: WPARAM,
@@ -133,7 +133,7 @@ pub(super) unsafe fn WM_WINDOWPOSCHANGED(
             if let Ok(mut world_borrow) = world.try_borrow_mut() {
                 let windowpos = lparam.0 as *const WINDOWPOS;
                 if !windowpos.is_null() {
-                    let wp = &*windowpos;
+                    let wp = unsafe { &*windowpos };
 
                     if let Ok(mut entity_ref) = world_borrow.world_mut().get_entity_mut(entity) {
                         // DpiChangeContextが存在する場合、DPIコンポーネントを即時更新
@@ -309,7 +309,7 @@ pub(super) unsafe fn WM_WINDOWPOSCHANGED(
 ///
 /// Appリソースのmark_display_changeを呼び出す
 #[inline]
-pub(super) unsafe fn WM_DISPLAYCHANGE(
+pub(super) fn WM_DISPLAYCHANGE(
     _hwnd: HWND,
     _message: u32,
     _wparam: WPARAM,
@@ -333,7 +333,7 @@ pub(super) unsafe fn WM_DISPLAYCHANGE(
 /// Per-Monitor DPI Aware (v2)では、アプリケーションが明示的にSetWindowPosを呼ぶ必要がある
 /// DpiChangeContextを設定し、SetWindowPosを呼び出す
 #[inline]
-pub(super) unsafe fn WM_DPICHANGED(
+pub(super) fn WM_DPICHANGED(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -344,7 +344,7 @@ pub(super) unsafe fn WM_DPICHANGED(
     // lparam から suggested_rect を取得
     let suggested_rect_ptr = lparam.0 as *const RECT;
     let suggested_rect = if !suggested_rect_ptr.is_null() {
-        *suggested_rect_ptr
+        unsafe { *suggested_rect_ptr }
     } else {
         RECT::default()
     };
@@ -382,15 +382,18 @@ pub(super) unsafe fn WM_DPICHANGED(
         height,
         "Calling SetWindowPos with suggested_rect"
     );
-    let result = SetWindowPos(
-        hwnd,
-        None,
-        suggested_rect.left,
-        suggested_rect.top,
-        width,
-        height,
-        SWP_NOZORDER | SWP_NOACTIVATE,
-    );
+
+    let result = unsafe {
+        SetWindowPos(
+            hwnd,
+            None,
+            suggested_rect.left,
+            suggested_rect.top,
+            width,
+            height,
+            SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+    };
     if let Err(e) = result {
         warn!(hwnd = ?hwnd, error = ?e, "SetWindowPos failed in WM_DPICHANGED");
     }
@@ -407,7 +410,7 @@ pub(super) unsafe fn WM_DPICHANGED(
 /// クライアント領域判定を実装し、キャッシュ付きhit_testを呼び出す。
 /// HTCLIENT / HTTRANSPARENT を返す（クリックスルー対応）。
 #[inline]
-pub(super) unsafe fn WM_NCHITTEST(
+pub(super) fn WM_NCHITTEST(
     hwnd: HWND,
     _message: u32,
     _wparam: WPARAM,
@@ -420,7 +423,7 @@ pub(super) unsafe fn WM_NCHITTEST(
     let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
 
     // クライアント領域判定用に座標変換（クライアント領域外はDefWindowProcWに委譲）
-    {
+    unsafe {
         use windows::Win32::Graphics::Gdi::ScreenToClient;
         let mut pt = POINT { x, y };
         if !ScreenToClient(hwnd, &mut pt).as_bool() {
@@ -456,7 +459,7 @@ pub(super) unsafe fn WM_NCHITTEST(
 /// 位置をPointerBufferに蓄積し、hit_testでヒットしたエンティティにPointerStateを付与。
 /// 初回移動時にTrackMouseEventを設定。
 #[inline]
-pub(super) unsafe fn WM_MOUSEMOVE(
+pub(super) fn WM_MOUSEMOVE(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -502,7 +505,7 @@ pub(super) unsafe fn WM_MOUSEMOVE(
                         hwndTrack: hwnd,
                         dwHoverTime: 0,
                     };
-                    let _ = TrackMouseEvent(&mut tme);
+                    let _ = unsafe { TrackMouseEvent(&mut tme) };
 
                     if entity_ref.get::<WindowPointerTracking>().is_some() {
                         if let Some(mut tracking) = entity_ref.get_mut::<WindowPointerTracking>() {
@@ -758,7 +761,7 @@ pub(super) unsafe fn WM_MOUSEMOVE(
 ///
 /// 全エンティティのPointerStateを削除し、PointerLeaveマーカーを付与する。
 #[inline]
-pub(super) unsafe fn WM_MOUSELEAVE(
+pub(super) fn WM_MOUSELEAVE(
     hwnd: HWND,
     _message: u32,
     _wparam: WPARAM,
@@ -812,7 +815,7 @@ pub(super) unsafe fn WM_MOUSELEAVE(
 /// hit_test でヒット対象エンティティを特定し、ButtonBuffer に記録する。
 /// PointerState がない場合は付与する。
 #[inline]
-unsafe fn handle_button_message(
+fn handle_button_message(
     hwnd: HWND,
     wparam: WPARAM,
     lparam: LPARAM,
@@ -1046,7 +1049,7 @@ unsafe fn handle_button_message(
 
 /// WM_LBUTTONDOWN: 左ボタン押下
 #[inline]
-pub(super) unsafe fn WM_LBUTTONDOWN(
+pub(super) fn WM_LBUTTONDOWN(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1063,7 +1066,7 @@ pub(super) unsafe fn WM_LBUTTONDOWN(
 
 /// WM_LBUTTONUP: 左ボタン解放
 #[inline]
-pub(super) unsafe fn WM_LBUTTONUP(
+pub(super) fn WM_LBUTTONUP(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1080,7 +1083,7 @@ pub(super) unsafe fn WM_LBUTTONUP(
 
 /// WM_RBUTTONDOWN: 右ボタン押下
 #[inline]
-pub(super) unsafe fn WM_RBUTTONDOWN(
+pub(super) fn WM_RBUTTONDOWN(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1097,7 +1100,7 @@ pub(super) unsafe fn WM_RBUTTONDOWN(
 
 /// WM_RBUTTONUP: 右ボタン解放
 #[inline]
-pub(super) unsafe fn WM_RBUTTONUP(
+pub(super) fn WM_RBUTTONUP(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1114,7 +1117,7 @@ pub(super) unsafe fn WM_RBUTTONUP(
 
 /// WM_MBUTTONDOWN: 中ボタン押下
 #[inline]
-pub(super) unsafe fn WM_MBUTTONDOWN(
+pub(super) fn WM_MBUTTONDOWN(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1131,7 +1134,7 @@ pub(super) unsafe fn WM_MBUTTONDOWN(
 
 /// WM_MBUTTONUP: 中ボタン解放
 #[inline]
-pub(super) unsafe fn WM_MBUTTONUP(
+pub(super) fn WM_MBUTTONUP(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1148,7 +1151,7 @@ pub(super) unsafe fn WM_MBUTTONUP(
 
 /// WM_XBUTTONDOWN: 拡張ボタン押下
 #[inline]
-pub(super) unsafe fn WM_XBUTTONDOWN(
+pub(super) fn WM_XBUTTONDOWN(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1166,7 +1169,7 @@ pub(super) unsafe fn WM_XBUTTONDOWN(
 
 /// WM_XBUTTONUP: 拡張ボタン解放
 #[inline]
-pub(super) unsafe fn WM_XBUTTONUP(
+pub(super) fn WM_XBUTTONUP(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1194,7 +1197,7 @@ pub(super) unsafe fn WM_XBUTTONUP(
 /// - `wparam`: 修飾キー状態とXBUTTON情報
 /// - `lparam`: クリック座標（クライアント座標）
 /// - `double_click`: ダブルクリック種別
-unsafe fn handle_double_click_message(
+fn handle_double_click_message(
     hwnd: HWND,
     wparam: WPARAM,
     lparam: LPARAM,
@@ -1296,7 +1299,7 @@ unsafe fn handle_double_click_message(
 
 /// WM_LBUTTONDBLCLK: 左ボタンダブルクリック
 #[inline]
-pub(super) unsafe fn WM_LBUTTONDBLCLK(
+pub(super) fn WM_LBUTTONDBLCLK(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1307,7 +1310,7 @@ pub(super) unsafe fn WM_LBUTTONDBLCLK(
 
 /// WM_RBUTTONDBLCLK: 右ボタンダブルクリック
 #[inline]
-pub(super) unsafe fn WM_RBUTTONDBLCLK(
+pub(super) fn WM_RBUTTONDBLCLK(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1323,7 +1326,7 @@ pub(super) unsafe fn WM_RBUTTONDBLCLK(
 
 /// WM_MBUTTONDBLCLK: 中ボタンダブルクリック
 #[inline]
-pub(super) unsafe fn WM_MBUTTONDBLCLK(
+pub(super) fn WM_MBUTTONDBLCLK(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1339,7 +1342,7 @@ pub(super) unsafe fn WM_MBUTTONDBLCLK(
 
 /// WM_XBUTTONDBLCLK: 拡張ボタンダブルクリック
 #[inline]
-pub(super) unsafe fn WM_XBUTTONDBLCLK(
+pub(super) fn WM_XBUTTONDBLCLK(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1356,7 +1359,7 @@ pub(super) unsafe fn WM_XBUTTONDBLCLK(
 
 /// WM_MOUSEWHEEL: 垂直ホイール回転
 #[inline]
-pub(super) unsafe fn WM_MOUSEWHEEL(
+pub(super) fn WM_MOUSEWHEEL(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1375,7 +1378,7 @@ pub(super) unsafe fn WM_MOUSEWHEEL(
 
 /// WM_MOUSEHWHEEL: 水平ホイール回転
 #[inline]
-pub(super) unsafe fn WM_MOUSEHWHEEL(
+pub(super) fn WM_MOUSEHWHEEL(
     hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1393,7 +1396,7 @@ pub(super) unsafe fn WM_MOUSEHWHEEL(
 
 /// WM_KEYDOWN: キー押下
 #[inline]
-pub(super) unsafe fn WM_KEYDOWN(
+pub(super) fn WM_KEYDOWN(
     _hwnd: HWND,
     _message: u32,
     wparam: WPARAM,
@@ -1446,7 +1449,7 @@ pub(super) unsafe fn WM_KEYDOWN(
 
 /// WM_CANCELMODE: システムキャンセル
 #[inline]
-pub(super) unsafe fn WM_CANCELMODE(
+pub(super) fn WM_CANCELMODE(
     _hwnd: HWND,
     _message: u32,
     _wparam: WPARAM,
