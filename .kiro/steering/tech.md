@@ -6,7 +6,7 @@ ECSアーキテクチャ（Entity Component System）をベースとした、Win
 
 ## Core Technologies
 
-- **Language**: Rust 2021 Edition
+- **Language**: Rust 2024 Edition
 - **Graphics**: DirectComposition, Direct2D, Direct3D11
 - **Text**: DirectWrite (縦書き・横書き対応)
 - **Imaging**: WIC (Windows Imaging Component)
