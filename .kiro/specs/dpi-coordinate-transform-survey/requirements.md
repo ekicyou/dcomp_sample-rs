@@ -36,7 +36,7 @@ wintf フレームワークにおいて、DPI処理と座標変換の設計不�
 
 1. The survey shall ドラッグイベント発生（`DragEvent.delta`、物理ピクセル）から `SetWindowPos` 呼び出しまでの全変換ステップを追跡し、各ステップでの座標系と値を文書化する
 2. The survey shall `BoxStyle.inset`（物理ピクセル）→ Taffy レイアウト（DIP 計算）→ `Arrangement`（DIP オフセット）→ `GlobalArrangement`（scale 適用で物理に戻る）の変換チェーンにおいて、物理ピクセル値が DIP として二重にスケーリングされる経路がないか検証する
-3. The survey shall プログラム起動時の初回DPIスケール値（1.25）が固定化されている変数・関数を特定する。固定化が確認された場合、影響を受ける全コードパスを列挙する
+3. The survey shall DPI値がシステム内で不適切に固定化（キャッシュ）されている箇所がないかを調査する。固定化が確認された場合は影響を受ける全コードパスを列挙し、確認されなかった場合は排除した根拠と代替仮説を記載する
 4. If 1.25倍速バグの根本原因が座標系の混在に起因する場合, the survey shall `sync_window_arrangement_from_window_pos`（現在無効化中）の設計意図と、現行の代替パスとの整合性を評価する
 
 ### Requirement 4: あるべき座標変換アーキテクチャ（To-Be 設計指針）
@@ -69,6 +69,6 @@ wintf フレームワークにおいて、DPI処理と座標変換の設計不�
 
 1. The survey shall 最終成果物として `.kiro/specs/dpi-coordinate-transform-survey/report.md` に調査レポートを出力する
 2. The survey shall レポートに以下のセクションを含める: (a) エグゼクティブサマリー, (b) 座標系インベントリ, (c) DPI データフロー図, (d) 1.25倍速バグ根本原因分析, (e) To-Be アーキテクチャ設計指針, (f) ギャップ分析マトリクス, (g) 改善ロードマップ
-3. The survey shall レポート内の全図表に Mermaid 記法を使用し、コードベースの具体的なファイルパス・行番号への参照を含める
+3. The survey shall レポート内のフロー図・依存関係図に Mermaid 記法を使用し、一覧表には Markdown table を使用する。また、コードベースの具体的なファイルパス・行番号への参照を含める
 4. The survey shall レポートの各改善提案に対して、関連する既存仕様（`dpi-propagation`, `wintf-P1-dpi-scaling`, `event-drag-system`）へのクロスリファレンスを付与する
 

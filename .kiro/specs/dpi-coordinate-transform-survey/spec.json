@@ -1,0 +1,27 @@
+{
+    "feature_name": "dpi-coordinate-transform-survey",
+    "created_at": "2026-02-11T00:00:00+09:00",
+    "updated_at": "2026-02-11T00:00:00+09:00",
+    "language": "ja",
+    "phase": "requirements-draft",
+    "note": "DPI処理と座標変換の設計不整合を調査し、提言レポートを作成する調査仕様。コード修正はスコープ外。",
+    "approvals": {
+        "requirements": {
+            "generated": true,
+            "approved": false
+        },
+        "design": {
+            "generated": false,
+            "approved": false
+        },
+        "tasks": {
+            "generated": false,
+            "approved": false
+        }
+    },
+    "gap_analysis": {
+        "completed": true,
+        "completed_at": "2026-02-11T00:00:00+09:00"
+    },
+    "ready_for_implementation": false
+}
