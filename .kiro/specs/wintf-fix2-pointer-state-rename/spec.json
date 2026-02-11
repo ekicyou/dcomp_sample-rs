@@ -1,9 +1,9 @@
 {
     "feature_name": "wintf-fix2-pointer-state-rename",
     "created_at": "2026-02-11T18:00:00+09:00",
-    "updated_at": "2026-02-12T02:00:00+09:00",
+    "updated_at": "2026-02-12T02:15:00+09:00",
     "language": "ja",
-    "phase": "design-generated",
+    "phase": "tasks-generated",
     "parent_spec": "dpi-coordinate-transform-survey",
     "report_ref": "§1.2 項目2, §6.4.2, §8.2 Step 2",
     "approvals": {
@@ -13,12 +13,12 @@
         },
         "design": {
             "generated": true,
-            "approved": false
+            "approved": true
         },
         "tasks": {
-            "generated": false,
-            "approved": false
+            "generated": true,
+            "approved": true
         }
     },
-    "ready_for_implementation": false
+    "ready_for_implementation": true
 }
