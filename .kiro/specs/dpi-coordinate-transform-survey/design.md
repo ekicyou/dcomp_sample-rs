@@ -205,7 +205,7 @@ stateDiagram-v2
 
 ## Requirements Traceability
 
-| Requirement | Summary | Components | Interfaces | Flows |
+| Requirements | Summary | Sections | Interfaces | Flows |
 |-------------|---------|------------|------------|-------|
 | 1.1 | 座標値コンポーネント一覧表 | CoordinateInventorySection | — | — |
 | 1.2 | BoxStyle混在箇所の判定 | CoordinateInventorySection | — | — |
@@ -231,9 +231,9 @@ stateDiagram-v2
 | 6.3 | Mermaid/Markdown table 使用 | All Sections | DiagramContract | — |
 | 6.4 | クロスリファレンス付与 | GapMatrixSection, RoadmapSection | — | — |
 
-## Components and Interfaces
+## Report Sections and Contracts
 
-| Component | Domain/Layer | Intent | Req Coverage | Key Dependencies | Contracts |
+| Section | Domain/Layer | Intent | Req Coverage | Key Dependencies | Contracts |
 |-----------|-------------|--------|-------------|-----------------|-----------|
 | ReportGenerator | 成果物生成 | report.md の統合生成 | 6.1, 6.2, 6.3 | All Sections (P0) | File |
 | CoordinateInventorySection | As-Is 調査 | 座標系一覧表と混在箇所の特定 | 1.1, 1.2, 1.3, 1.4 | Codebase analysis (P0) | Content |
@@ -261,7 +261,7 @@ stateDiagram-v2
 - 各改善提案に `dpi-propagation`, `wintf-P1-dpi-scaling`, `event-drag-system` へのクロスリファレンスを付与
 
 **Dependencies**
-- Inbound: All Section components — レポート内容 (P0)
+- Inbound: All Sections — レポート内容 (P0)
 
 **Contracts**: File [x]
 
@@ -496,9 +496,9 @@ Language: Japanese (ja)
 
 ## Data Models
 
-本仕様は調査仕様のため、新規データモデルは定義しない。分析対象の既存データモデルは以下の通り:
+本仕様は調査仕様のため、新規データモデルは定義しない。分析対象の既存 ECS コンポーネントは以下の通り:
 
-### 分析対象コンポーネント（座標系インベントリのデータソース）
+### 分析対象 ECS コンポーネント（座標系インベントリのデータソース）
 
 | Component | Location | 座標系フィールド | 現在の単位 | To-Be 単位 |
 |-----------|----------|----------------|-----------|-----------|
