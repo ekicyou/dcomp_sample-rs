@@ -163,9 +163,10 @@ Option A と同様だが、`format_entity_name` を layout モジュールにも
 
 ### 設計フェーズでの確認事項
 
-1. **`Arrangement` コンポーネント参照の要否**: `sync_window_pos` のクエリは `&Arrangement` を取得しているが `_arrangement` として未使用。新システムで除去するかの判断
-2. **`Changed` フィルタの統合**: `sync_window_pos` は `Changed<GlobalArrangement> | Changed<Arrangement>` だが、`update_window_pos_system` は `Changed<GlobalArrangement>` のみ。`Arrangement` 未使用なら `Changed<GlobalArrangement>` のみで十分
-3. **テスト名の変更**: テスト関数名 `test_sync_window_pos` も `test_window_pos_sync_system` にリネームするか
+1. **`Arrangement` コンポーネント参照の要否（決定済み）**: クエリから除去する。`_arrangement` として未使用であり、`GlobalArrangement` が既に `Arrangement` の伝播結果を含む
+2. **`Changed` フィルタの統合（決定済み）**: `Changed<GlobalArrangement>` のみに簡素化。`Changed<Arrangement>` は `Arrangement` 除去に伴い不要
+3. **`format_entity_name` の依存方向（決定済み）**: `layout/systems.rs` は既に L14 で `use crate::ecs::graphics::format_entity_name` をインポートしている。既存パターンの踏襲であり追加コスト 0
+4. **テスト名の変更**: テスト関数名は実装時の判断。設計上の必須要件ではない
 
 ### リサーチ不要項目
 
