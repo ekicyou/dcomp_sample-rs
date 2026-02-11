@@ -8,9 +8,9 @@
 mod dispatch;
 
 pub use dispatch::{
-    build_bubble_path, dispatch_event_for_handler, dispatch_pointer_events, EventHandler,
-    OnPointerEntered, OnPointerExited, OnPointerMoved, OnPointerPressed, OnPointerReleased, Phase,
-    PointerEventHandler,
+    EventHandler, OnPointerEntered, OnPointerExited, OnPointerMoved, OnPointerPressed,
+    OnPointerReleased, Phase, PointerEventHandler, build_bubble_path, dispatch_event_for_handler,
+    dispatch_pointer_events,
 };
 
 use bevy_ecs::prelude::*;
@@ -114,8 +114,8 @@ pub type MouseButton = PointerButton;
 #[derive(Component, Debug, Clone)]
 #[component(storage = "SparseSet")]
 pub struct PointerState {
-    /// スクリーン座標（物理ピクセル）
-    pub screen_point: PhysicalPoint,
+    /// クライアント座標（物理ピクセル）
+    pub client_point: PhysicalPoint,
     /// エンティティローカル座標（物理ピクセル）
     pub local_point: PhysicalPoint,
 
@@ -155,7 +155,7 @@ pub struct PointerState {
 impl Default for PointerState {
     fn default() -> Self {
         Self {
-            screen_point: PhysicalPoint::default(),
+            client_point: PhysicalPoint::default(),
             local_point: PhysicalPoint::default(),
             left_down: false,
             right_down: false,
@@ -503,17 +503,17 @@ pub fn process_pointer_buffers(mut query: Query<(Entity, &mut PointerState)>) {
 
                 // 最新位置取得
                 if let Some(sample) = buffer.latest() {
-                    let old_x = pointer.screen_point.x;
-                    let old_y = pointer.screen_point.y;
-                    pointer.screen_point = PhysicalPoint::new(sample.x as i32, sample.y as i32);
-                    // Note: local_point は hit_test 結果から設定（Phase 1ではscreen_pointと同じ）
-                    pointer.local_point = pointer.screen_point;
+                    let old_x = pointer.client_point.x;
+                    let old_y = pointer.client_point.y;
+                    pointer.client_point = PhysicalPoint::new(sample.x as i32, sample.y as i32);
+                    // Note: local_point は hit_test 結果から設定（Phase 1ではclient_pointと同じ）
+                    pointer.local_point = pointer.client_point;
 
                     tracing::trace!(
                         entity = ?entity,
                         old_x, old_y,
-                        new_x = pointer.screen_point.x,
-                        new_y = pointer.screen_point.y,
+                        new_x = pointer.client_point.x,
+                        new_y = pointer.client_point.y,
                         "[process_pointer_buffers] Position updated"
                     );
                 }
@@ -615,8 +615,8 @@ pub fn debug_pointer_state_changes(
     for (entity, pointer) in added_query.iter() {
         debug!(
             entity = ?entity,
-            screen_x = pointer.screen_point.x,
-            screen_y = pointer.screen_point.y,
+            client_x = pointer.client_point.x,
+            client_y = pointer.client_point.y,
             left = pointer.left_down,
             right = pointer.right_down,
             middle = pointer.middle_down,
@@ -875,7 +875,7 @@ mod tests {
     #[test]
     fn test_pointer_state_default() {
         let state = PointerState::default();
-        assert_eq!(state.screen_point, PhysicalPoint::default());
+        assert_eq!(state.client_point, PhysicalPoint::default());
         assert_eq!(state.local_point, PhysicalPoint::default());
         assert!(!state.left_down);
         assert!(!state.right_down);
@@ -966,9 +966,9 @@ pub(crate) fn transfer_buffers_to_world(world: &mut World) {
                 // Worldから該当エンティティのPointerStateを取得または作成
                 if let Some(mut pointer_state) = world.get_mut::<PointerState>(*entity) {
                     // 既存のPointerStateを更新
-                    pointer_state.screen_point =
+                    pointer_state.client_point =
                         PhysicalPoint::new(sample.x as i32, sample.y as i32);
-                    pointer_state.local_point = pointer_state.screen_point;
+                    pointer_state.local_point = pointer_state.client_point;
                     pointer_state.velocity = CursorVelocity::new(vx, vy);
 
                     tracing::trace!(

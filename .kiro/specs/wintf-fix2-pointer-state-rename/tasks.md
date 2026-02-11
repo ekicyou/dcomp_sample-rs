@@ -8,7 +8,7 @@
 
 ### 1. PointerState 構造体定義の修正
 
-- [ ] 1.1 PointerState 構造体フィールド・doc コメント・Default 実装のリネーム
+- [x] 1.1 PointerState 構造体フィールド・doc コメント・Default 実装のリネーム
   - `crates/wintf/src/ecs/pointer/mod.rs` L116-118 の `screen_point: PhysicalPoint` フィールドを `client_point: PhysicalPoint` にリネーム
   - L117 の doc コメント「スクリーン座標（物理ピクセル）」を「クライアント座標（物理ピクセル）」に修正
   - L158 の Default 実装内の `screen_point: PhysicalPoint::default()` を `client_point: PhysicalPoint::default()` にリネーム
@@ -16,11 +16,11 @@
 
 ### 2. PointerState 参照箇所のリネーム
 
-- [ ] 2.1 (P) handlers.rs 内のポインター状態初期化のリネーム
+- [x] 2.1 (P) handlers.rs 内のポインター状態初期化のリネーム
   - `crates/wintf/src/ecs/window_proc/handlers.rs` L673, L736, L918, L1258 の 4箇所において、構造体リテラルのフィールド名 `screen_point:` を `client_point:` にリネーム
   - _Requirements: 2.1, 3.3_
 
-- [ ] 2.2 pointer/mod.rs 内のフィールドアクセス・コメント・tracing ログキーの修正
+- [x] 2.2 pointer/mod.rs 内のフィールドアクセス・コメント・tracing ログキーの修正
   - L506-510: `pointer.screen_point` → `pointer.client_point` のアクセス（5箇所）、L509 コメント「Phase 1ではscreen_pointと同じ」を「Phase 1ではclient_pointと同じ」に修正
   - L515-516: `new_x = pointer.screen_point.x` → `new_x = pointer.client_point.x`（ログ出力内、キー名は変更なし）
   - L618-619 tracing ログの構造化フィールド名 `screen_x = pointer.screen_point.x` → `client_x = pointer.client_point.x` に変更（座標キー名も更新）
@@ -28,19 +28,19 @@
   - L969-971: `pointer_state.screen_point` アクセスの 2箇所をリネーム
   - _Requirements: 2.3, 2.6, 4.2, 6.1, 6.2_
 
-- [ ] 2.3 (P) taffy_flex_demo.rs サンプルコード内のフィールドアクセスのリネーム
+- [x] 2.3 (P) taffy_flex_demo.rs サンプルコード内のフィールドアクセスのリネーム
   - `crates/wintf/examples/taffy_flex_demo.rs` の全行（L779, L808, L999, L1141, L1188, L1231, L1243, L1288-1289, L1322）において、`state.screen_point.x` / `state.screen_point.y` をそれぞれ `state.client_point.x` / `state.client_point.y` にリネーム
   - _Requirements: 2.4, 3.3_
 
 ### 3. 検証・ビルド・テスト実行
 
-- [ ] 3.1 ビルド・テスト検証
+- [x] 3.1 ビルド・テスト検証
   - `cargo build` を実行し、コンパイルがすべてのカスタマイズなしで成功（警告なし）することを確認
   - `cargo test` を実行し、既存テスト全てがパスすることを確認（pointer/mod.rs L878 のユニットテスト含む）
   - リネーム前後で `client_point` フィールド に格納される値（座標値）が変更されていないことを目視確認
   - _Requirements: 5.1, 5.2, 5.3_
 
-- [ ] 3.2 リネーム対象外の確認
+- [x] 3.2 リネーム対象外の確認
   - `nchittest_cache.rs` 内の `screen_point` (型 `(i32, i32)`、WM_NCHITTEST 用）が未変更であることを確認
   - `hit_test.rs` 内の `screen_point` パラメータ（関数引数）が未変更であることを確認
   - _Requirements: 3.1, 3.2, 3.3_

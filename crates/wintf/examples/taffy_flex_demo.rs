@@ -776,7 +776,7 @@ fn on_container_pressed(
                 info!(
                     "[Tunnel] FlexContainer: Event stopped at Container (Ctrl+Left), sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
                     sender, entity,
-                    state.screen_point.x, state.screen_point.y,
+                    state.client_point.x, state.client_point.y,
                     state.local_point.x, state.local_point.y,
                 );
 
@@ -805,7 +805,7 @@ fn on_container_pressed(
                 info!(
                     "[Bubble] FlexContainer: Right-click detected! sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
                     sender, entity,
-                    state.screen_point.x, state.screen_point.y,
+                    state.client_point.x, state.client_point.y,
                     state.local_point.x, state.local_point.y,
                 );
 
@@ -996,7 +996,7 @@ fn on_red_box_pressed(
         info!(
             "[Bubble] RedBox: Left-click, sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1}), L={}, R={}, Ctrl={}",
             sender, entity,
-            state.screen_point.x, state.screen_point.y,
+            state.client_point.x, state.client_point.y,
             state.local_point.x, state.local_point.y,
             state.left_down, state.right_down, state.ctrl_down,
         );
@@ -1138,7 +1138,7 @@ fn on_green_box_pressed(
                 info!(
                     "[Tunnel] GreenBox: Captured event, stopping propagation (Left), sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
                     sender, entity,
-                    state.screen_point.x, state.screen_point.y,
+                    state.client_point.x, state.client_point.y,
                     state.local_point.x, state.local_point.y,
                 );
 
@@ -1185,7 +1185,7 @@ fn on_green_box_pressed(
                 info!(
                     "[Bubble] GreenBox: Right-click, sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
                     sender, entity,
-                    state.screen_point.x, state.screen_point.y,
+                    state.client_point.x, state.client_point.y,
                     state.local_point.x, state.local_point.y,
                 );
 
@@ -1228,7 +1228,7 @@ fn on_green_child_pressed(
             info!(
                 "[Tunnel] GreenBoxChild: This should NOT be called if parent captured (Left), sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1}), L={}, R={}, Ctrl={}",
                 sender, entity,
-                state.screen_point.x, state.screen_point.y,
+                state.client_point.x, state.client_point.y,
                 state.local_point.x, state.local_point.y,
                 state.left_down, state.right_down, state.ctrl_down,
             );
@@ -1240,7 +1240,7 @@ fn on_green_child_pressed(
                 info!(
                     "[Bubble] GreenBoxChild: Right-click detected, changing to orange, sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
                     sender, entity,
-                    state.screen_point.x, state.screen_point.y,
+                    state.client_point.x, state.client_point.y,
                     state.local_point.x, state.local_point.y,
                 );
 
@@ -1285,8 +1285,8 @@ fn on_green_box_moved(
         info!(
             sender = ?sender,
             entity = ?entity,
-            x = state.screen_point.x,
-            y = state.screen_point.y,
+            x = state.client_point.x,
+            y = state.client_point.y,
             "[Bubble] GreenBox: Pointer moved"
         );
     }
@@ -1319,7 +1319,7 @@ fn on_blue_box_pressed(
         info!(
             "[Bubble] BlueBox: Left-click detected! Toggling size, sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1}), L={}, R={}, Ctrl={}",
             sender, entity,
-            state.screen_point.x, state.screen_point.y,
+            state.client_point.x, state.client_point.y,
             state.local_point.x, state.local_point.y,
             state.left_down, state.right_down, state.ctrl_down,
         );

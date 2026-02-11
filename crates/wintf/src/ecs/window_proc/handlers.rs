@@ -465,13 +465,13 @@ pub(super) fn WM_MOUSEMOVE(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> HandlerResult {
-    use crate::ecs::layout::hit_test::{hit_test_in_window, PhysicalPoint as HitTestPoint};
+    use crate::ecs::layout::hit_test::{PhysicalPoint as HitTestPoint, hit_test_in_window};
     use crate::ecs::pointer::{
-        push_pointer_sample, set_modifier_state, PointerLeave, PointerState, WindowPointerTracking,
+        PointerLeave, PointerState, WindowPointerTracking, push_pointer_sample, set_modifier_state,
     };
     use std::time::Instant;
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
+        TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent,
     };
 
     let Some(window_entity) = super::get_entity_from_hwnd(hwnd) else {
@@ -670,7 +670,7 @@ pub(super) fn WM_MOUSEMOVE(
                             .world_mut()
                             .entity_mut(target_entity)
                             .insert(PointerState {
-                                screen_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
+                                client_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
                                 local_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
                                 shift_down: shift,
                                 ctrl_down: ctrl,
@@ -733,7 +733,7 @@ pub(super) fn WM_MOUSEMOVE(
                             .world_mut()
                             .entity_mut(target_entity)
                             .insert(PointerState {
-                                screen_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
+                                client_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
                                 local_point: crate::ecs::pointer::PhysicalPoint::new(x, y),
                                 shift_down: shift,
                                 ctrl_down: ctrl,
@@ -822,7 +822,7 @@ fn handle_button_message(
     button: crate::ecs::pointer::PointerButton,
     is_down: bool,
 ) -> HandlerResult {
-    use crate::ecs::layout::hit_test::{hit_test_in_window, PhysicalPoint as HitTestPoint};
+    use crate::ecs::layout::hit_test::{PhysicalPoint as HitTestPoint, hit_test_in_window};
     use crate::ecs::pointer::{PhysicalPoint, PointerState};
 
     let Some(window_entity) = super::get_entity_from_hwnd(hwnd) else {
@@ -915,7 +915,7 @@ fn handle_button_message(
                         .world_mut()
                         .entity_mut(target_entity)
                         .insert(PointerState {
-                            screen_point: PhysicalPoint::new(x, y),
+                            client_point: PhysicalPoint::new(x, y),
                             local_point: PhysicalPoint::new(x, y),
                             left_down: button == crate::ecs::pointer::PointerButton::Left
                                 && is_down,
@@ -1203,7 +1203,7 @@ fn handle_double_click_message(
     lparam: LPARAM,
     double_click: crate::ecs::pointer::DoubleClick,
 ) -> HandlerResult {
-    use crate::ecs::layout::hit_test::{hit_test_in_window, PhysicalPoint as HitTestPoint};
+    use crate::ecs::layout::hit_test::{PhysicalPoint as HitTestPoint, hit_test_in_window};
     use crate::ecs::pointer::{PhysicalPoint, PointerState};
 
     let Some(window_entity) = super::get_entity_from_hwnd(hwnd) else {
@@ -1255,7 +1255,7 @@ fn handle_double_click_message(
                         .world_mut()
                         .entity_mut(target_entity)
                         .insert(PointerState {
-                            screen_point: PhysicalPoint::new(x, y),
+                            client_point: PhysicalPoint::new(x, y),
                             local_point: PhysicalPoint::new(x, y),
                             left_down: button == crate::ecs::pointer::PointerButton::Left,
                             right_down: button == crate::ecs::pointer::PointerButton::Right,
