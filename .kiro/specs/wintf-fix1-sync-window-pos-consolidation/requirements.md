@@ -68,8 +68,9 @@
 
 #### Acceptance Criteria
 1. The `window_pos_sync_system` shall execute after `propagate_global_arrangements` in the `PostLayout` schedule.
-2. The `window_pos_sync_system` shall execute before `apply_window_pos_changes`（`WindowPos` → `SetWindowPos` 変換システム）.
-3. While `PostLayout` schedule が実行中の場合, the `window_pos_sync_system` shall maintain the same execution position in the system chain as the former two systems occupied（`propagate_global_arrangements` の直後）.
+2. The `window_pos_sync_system` shall be the final system in the `PostLayout` schedule chain（`propagate_global_arrangements` の直後、かつ PostLayout の末尾）.
+
+> **Note:** `apply_window_pos_changes`（`WindowPos` → `SetWindowPos` 変換）は `UISetup` スケジュールに登録されている。フレーム実行順（`PostLayout` → `UISetup`）により、`window_pos_sync_system` → `apply_window_pos_changes` の順序はスケジュール間で暗黙的に保証される。
 
 ### Requirement 5: 構造化ログの維持
 **Objective:** 開発者として、統合後もデバッグに必要な tracing ログが維持されることを保証したい。これにより、ウィンドウ位置同期の問題診断能力を維持する。
