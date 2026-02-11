@@ -70,7 +70,7 @@ visual_property_sync   sync_window_pos        render_surface
 [offset*scale→Visual]  [bounds→WindowPos]     [scale→DC transform]
 ```
 
-### Requirement 3: ドラッグ1.25倍速バグ
+### Requirement 3: ドラッグ座標変換チェーン評価（As-Is / To-Be 対比）
 
 | 技術的ニーズ                 | 既存アセット              | ギャップ                                              |
 | ---------------------------- | ------------------------- | ----------------------------------------------------- |
@@ -97,6 +97,37 @@ Step10: AdjustWindowRectExForDpi(DPI=current) → SetWindowPos ← ✓ ???
 ```
 
 **静的解析の結論**: 数値上は正しい。「ログでは1px、実際には1.25px」の乖離はコード上に存在しない。
+
+> **※本仕様のスコープ注記**: 上記変換チェーンの分析は As-Is の現状記録として保持する。本仕様の目的はバグの原因特定ではなく、「あるべき姿」の座標系設計を固めること。現行チェーンと To-Be アーキテクチャのコンフリクト箇所を指摘することが report.md での役割。
+
+#### 📐 セッション内調査で判明した追加知見
+
+**ドラッグハンドラの座標系混在問題**:
+
+`taffy_flex_demo.rs` の `on_container_drag` 関数（L864-940）において、以下の座標系混在が確認された：
+
+```
+DragEvent.position (PhysicalPoint, 物理px) - DragEvent.start_position (PhysicalPoint, 物理px)
+    = delta (物理px)
+         ↓
+initial_inset (DIP, BoxStyle.insetの初期値) + delta (物理px)
+    = new_inset ← ❗ DIP + 物理pxの混在!
+         ↓
+BoxStyle.inset = Px(new_inset)  [単位非認識で保存]
+         ↓
+Taffy layout → Arrangement.offset = new_inset [そのまま使用]
+         ↓
+GlobalArrangement: bounds.left = parent_origin + offset * parent_scale(1.0)
+    = new_inset [数値上は正しいが、DIP/物理の境界が曖昧]
+```
+
+**この知見の意味**:
+- `BoxStyle.inset` が「統一された座標系」を持たないため、アプリケーション側のハンドラが座標系を意識する責務を負っている
+- To-Be アーキテクチャで `BoxStyle.inset` を DIP 統一すれば、ドラッグハンドラ側では `delta / dpi_scale` の変換が必要になる
+- または、フレームワーク側が入力座標（物理px）→ 内部座標（DIP）の変換を透過的に行う設計が望ましい
+- **Req 3 AC 1 と Req 4 AC 2-3 の両方に直結する知見**
+
+`DraggingState.initial_inset` の取得元: `drag/dispatch.rs` L98-107 で `BoxStyle.inset` から直接読み取り。この値は DIP 単位だが、ドラッグデルタは物理px。この不整合が、To-Be では解消されるべきコンフリクトの一つ。
 
 #### 🔴 有力な新仮説: `WM_WINDOWPOSCHANGED` エコーバック問題
 
@@ -297,3 +328,76 @@ Phase 4: 段階的に実装（`wintf-P1-dpi-scaling` のタスクとして）
 - 座標系統一は別仕様（P1）にスコープ分離で軽減
 
 **根拠**: 調査仕様のため新規コード実装は少ないが、ランタイムデバッグに不確実性があるため Medium
+
+---
+
+## 8. Requirements Review Log
+
+> レビュー実施日: 2026-02-11
+
+### レビュープロセス
+
+要件定義およびギャップ分析レポートを踏まえ、修正点・疑問点・不安点を以下の3カテゴリに分類して処理した。
+
+### カテゴリ A: 自明な修正（即修正・コミット済み）
+
+| # | 項目 | 修正内容 | コミット |
+|---|------|----------|--------|
+| A1 | spec.json 未作成 | 調査仕様として spec.json を作成 | 9366eb5 |
+| A2 | Req 3 AC 3 の前提バイアス | 「固定化されている変数を特定する」→「固定化の有無を調査する」に中立化 | 9366eb5 |
+| A3 | Req 6 AC 3 の Mermaid 強制 | 「全図表にMermaid」→「フロー図にMermaid、一覧表にMarkdown table」に緩和 | 9366eb5 |
+
+### カテゴリ B: 設計判断（設計フェーズで扱う）
+
+| # | 項目 |
+|---|------|
+| B1 | report.md の最終構造は Req 6 AC 2 のセクション構成に従う |
+| B2 | ギャップ分析の移行アプローチ比較を提言として report に含める |
+| B3 | G8 (transform/ モジュール) は解決済み。report では簡潔に言及のみ |
+
+### カテゴリ C: 開発者確認ディスカッション
+
+#### 議題 C1: Req 3「根本原因の特定」の完了条件 — ✅ クローズ
+
+**背景**: Req 3 の Objective が「1.25倍速バグの根本原因を特定したい」となっており、ギャップ分析では静的解析のみでは原因確定不可（ランタイムデバッグが必要）という結論だった。
+
+**開発者方針**: 「本仕様は『あるべき姿』を固めることが主目的。バグの原因特定はスコープ外。現行チェーンと To-Be のコンフリクト箇所の指摘は歓迎するが、ブロック要素の解決に固執する必要はない」
+
+**決定事項**:
+- 選択肢 A（仮説列挙に留める）を採用
+- Req 3 を「ドラッグ座標変換チェーン評価（As-Is / To-Be 対比）」にリフォーカス
+- Introduction をバグ起点 → 設計指針起点に修正
+- Req 5 AC 2 を Quick Fix vs Arch Fix → 段階的移行 vs 一括移行のロードマップ比較に修正
+- Req 6 AC 2 (d) セクション名を「ドラッグ座標変換チェーン評価」に変更
+- コミット: 65832b3
+
+---
+
+## 9. セッション再開ガイド
+
+### 現在のフェーズ状態
+
+| 成果物 | 状態 |
+|----------|------|
+| spec.json | ✅ 作成済み (`phase: requirements-draft`) |
+| requirements.md | ✅ 作成済み・レビュー済み（承認待ち） |
+| gap-analysis.md | ✅ 作成済み |
+| design.md | ❌ 未作成 |
+| tasks.md | ❌ 未作成 |
+| report.md | ❌ 未作成（最終成果物） |
+
+### 次のアクション
+
+1. 要件定義を承認し、`/kiro-spec-design dpi-coordinate-transform-survey` で設計フェーズに進む
+2. 設計フェーズでは以下を重点的に扱う:
+   - **Req 4 (To-Be)** が最重要: WPF/WinUI3 の DIP 統一モデル調査と wintf への適用設計
+   - **Req 3 (As-Is/To-Be 対比)**: 現行チェーンと理想チェーンの併記・コンフリクト指摘
+   - **Req 1, 2 (As-Is)**: インベントリとフロー図はギャップ分析で大部分完了済み、report.md に整形する
+
+### スコープ制約（確定済み）
+
+- ✅ コード修正はスコープ外
+- ✅ バグ原因特定はスコープ外
+- ✅ 「あるべき姿」の設計指針を固めることが主目的
+- ✅ As-Is と To-Be のコンフリクト箇所の指摘はスコープ内
+- ✅ 成果物は `report.md`（提言文書）
