@@ -60,6 +60,7 @@
 3. The wintf library shall `pointer/mod.rs` 内の `screen_point` フィールドアクセス箇所（約12箇所）を `client_point` に更新する
 4. The wintf library shall サンプルコード（`taffy_flex_demo.rs`）内の `screen_point` フィールドアクセス箇所（約10行）を `client_point` に更新する
 5. The wintf library shall `pointer/mod.rs` 内のユニットテスト（L878）の `screen_point` 参照を `client_point` に更新する
+6. The wintf library shall `pointer/mod.rs` 内の tracing ログの構造化フィールド名 `screen_x`/`screen_y` を `client_x`/`client_y` に更新する
 
 ### Requirement 3: リネーム対象外の明確化
 
@@ -90,3 +91,13 @@
 1. When リネーム完了後, the wintf library shall `cargo build` が警告なしで成功する
 2. When リネーム完了後, the wintf library shall `cargo test` が全テストパスする
 3. The wintf library shall リネーム前後で `client_point`（旧 `screen_point`）に格納される値を変更しない
+
+### Requirement 6: ログ・ドキュメント整合性（tracing）
+
+**Objective:** 開発者として、tracing ログが新しいフィールド名・座標系の名前と整合していることで、ログ分析時の混乱を防ぎたい。
+
+#### Acceptance Criteria
+
+1. The wintf library shall `pointer/mod.rs` L618-619 の tracing ログ出力における構造化フィールド名を `screen_x`/`screen_y` から `client_x`/`client_y` に更新する
+2. The wintf library shall ログキー名変更後、tracing ログの内容（ステアリング `logging.md` の座標フィールド規約 `x = pos.x, y = pos.y` に準拠）が正確に反映されること
+3. When tracing ログではない他の箇所の `screen_point` 変数・キー名の場合, the wintf library shall 変更しない

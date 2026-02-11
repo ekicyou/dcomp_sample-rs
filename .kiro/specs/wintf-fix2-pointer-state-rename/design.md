@@ -55,6 +55,9 @@
 | 5.1 | cargo build 成功 | 検証 | — |
 | 5.2 | cargo test 全パス | 検証 | — |
 | 5.3 | 値の不変性 | 検証 | — |
+| 6.1 | tracing ログキー名 `screen_x`/`screen_y` → `client_x`/`client_y` | PointerState アクセス・tracing | — |
+| 6.2 | ログ内容が座標フィールド規約に準拠 | tracing ログ | — |
+| 6.3 | 非 tracing 箇所は変更しない | — | — |
 
 ## Components and Interfaces
 
@@ -62,7 +65,7 @@
 |-----------|-------------|--------|--------------|-----------------|
 | PointerState 構造体 | ECS / pointer | フィールド定義・doc・Default | 1.1-1.3, 2.2, 4.1 | — |
 | handlers.rs 初期化 | ECS / window_proc | 構造体リテラルのフィールド名 | 2.1 | PointerState (P0) |
-| pointer/mod.rs システム関数 | ECS / pointer | フィールドアクセス・tracing ログ | 2.3, 4.2 | PointerState (P0) |
+| pointer/mod.rs システム関数 | ECS / pointer | フィールドアクセス・tracing ログ | 2.3, 2.6, 4.2 | PointerState (P0) |
 | taffy_flex_demo.rs | examples | サンプルコード内フィールドアクセス | 2.4 | PointerState (P0) |
 | ユニットテスト | ECS / pointer | テスト内フィールドアクセス | 2.5 | PointerState (P0) |
 
@@ -90,9 +93,9 @@
 | Field | Detail |
 |-------|--------|
 | Intent | フィールドアクセス・tracing ログ・コメントの更新 |
-| Requirements | 2.3, 4.2 |
+| Requirements | 2.3, 2.6, 4.2, 6.1 |
 
-**変更内容**
+**フィールドアクセスの変更内容**
 
 | 行番号 | 変更前 | 変更後 |
 |--------|--------|--------|
@@ -109,7 +112,13 @@
 | L969 | `pointer_state.screen_point = ...` | `pointer_state.client_point = ...` |
 | L971 | `pointer_state.local_point = pointer_state.screen_point` | `pointer_state.local_point = pointer_state.client_point` |
 
-**設計判断**: tracing ログのフィールド名 `screen_x`/`screen_y` → `client_x`/`client_y` に更新する。根拠と代替案は `research.md` に記録済み。
+**tracing ログ構造化フィールド名の更新 (Requirement 6)**
+
+L618-619 の tracing ログ出力において、構造化フィールド名が座標系の不正確さを反映していた：
+- 変更前: `screen_x = pointer.screen_point.x` → ログキー名が「スクリーン座標」を示唆
+- 変更後: `client_x = pointer.client_point.x` → ログキー名がクライアント座標に正確に対応
+
+この更新により、ログ解析時の混乱を防ぎ、ステアリング `logging.md` の座標フィールド規約（`x = pos.x, y = pos.y` パターン）に準拠する。詳細な設計判断の根拠は `research.md` に記録済み。
 
 ### ECS / window_proc
 

@@ -1,7 +1,7 @@
 {
     "feature_name": "wintf-fix2-pointer-state-rename",
     "created_at": "2026-02-11T18:00:00+09:00",
-    "updated_at": "2026-02-12T01:00:00+09:00",
+    "updated_at": "2026-02-12T02:00:00+09:00",
     "language": "ja",
     "phase": "design-generated",
     "parent_spec": "dpi-coordinate-transform-survey",
