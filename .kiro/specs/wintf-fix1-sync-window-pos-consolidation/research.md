@@ -25,9 +25,9 @@
 - `ceil`: 799.5 → 800
 - `as i32`: 799.5 → 799
 
-**影響**: 2つのシステムが連鎖実行（`sync_window_pos` → `update_window_pos_system`）されるため、現在は `update_window_pos_system` が `sync_window_pos` の結果を上書きしている。ただし `sync_window_pos` の差分検出により `WindowPos` の `Changed` フラグが立つタイミングが `update_window_pos_system` では検出されない可能性がある。
+**影響**: 2つのシステムが連鎖実行（`sync_window_pos` → `update_window_pos_system`）されるため、現在は `update_window_pos_system` が `sync_window_pos` の結果を上書きしている。実効動作は truncation だが、これは意図しない挙動である。
 
-**統合方針**: `sync_window_pos` の `ceil` を採用すべき。物理ピクセル座標への変換で切り上げが安全（描画領域不足を防止）。
+**統合方針（決定済み）**: `sync_window_pos` の `ceil` を採用する。理由: 論理サイズいっぱいまで描画される可能性があり、物理ピクセルは整数であるため、論理サイズを完全に内包する物理サイズを保証するには切り上げが必要。旧実装の truncation 上書きは `update_window_pos_system` の重複による副作用であり、本統合でこの不整合を解消する。
 
 ### 1.3 スケジューリング構造
 

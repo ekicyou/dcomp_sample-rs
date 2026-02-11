@@ -47,11 +47,13 @@
 3. The `window_pos_sync_system` shall be located in the `layout` module（`crates/wintf/src/ecs/layout/systems.rs`）as the canonical owner of this transformation.
 
 ### Requirement 2: 変換ロジックの正確性
-**Objective:** 開発者として、統合後のシステムが既存の動作と完全に等価であることを保証したい。これにより、統合による機能リグレッションを防止する。
+**Objective:** 開発者として、`GlobalArrangement.bounds` → `WindowPos` の変換が正しい丸めロジックで行われることを保証したい。これにより、論理サイズを完全に内包する物理ウィンドウサイズが保証される。
+
+> **Background:** 旧実装では `sync_window_pos`（ceil）の結果を `update_window_pos_system`（truncation）が上書きしていた。論理サイズいっぱいまで描画される可能性があり、物理ピクセルは整数であるため、切り上げ（ceil）が正しい変換である。本統合でこの不整合を解消する。
 
 #### Acceptance Criteria
 1. The `window_pos_sync_system` shall convert `GlobalArrangement.bounds.left` and `GlobalArrangement.bounds.top` to `WindowPos.position`（`POINT { x, y }`）by truncating to `i32`.
-2. The `window_pos_sync_system` shall convert `GlobalArrangement.bounds` の幅と高さ to `WindowPos.size`（`SIZE { cx, cy }`）by ceiling to `i32`（`width.ceil() as i32`, `height.ceil() as i32`）.
+2. The `window_pos_sync_system` shall convert `GlobalArrangement.bounds` の幅と高さ to `WindowPos.size`（`SIZE { cx, cy }`）by ceiling to `i32`（`width.ceil() as i32`, `height.ceil() as i32`）。これにより論理サイズを完全に内包する物理サイズが保証される。
 3. If `GlobalArrangement.bounds` の幅または高さが 0 以下である場合, the `window_pos_sync_system` shall skip the `WindowPos` update for that entity.
 4. The `window_pos_sync_system` shall only update `WindowPos` when the computed position or size differs from the current values（差分検出による不要な変更通知の防止）.
 
@@ -86,6 +88,6 @@
 **Objective:** 開発者として、統合後にすべての既存テストがパスすることを保証したい。これにより、リファクタリングの安全性を確認する。
 
 #### Acceptance Criteria
-1. The wintf framework shall pass all existing tests（`cargo test`）without modification to test expectations after consolidation.
+1. The wintf framework shall pass all existing tests（`cargo test`）after consolidation. 既存テストは `sync_window_pos`（ceil ベース）の動作を前提として書かれているため、テスト期待値の変更は不要。
 2. The wintf framework shall maintain correct window positioning across all DPI settings（100%/125%/150%）after consolidation.
 3. If 既存テストが旧システム名（`sync_window_pos` or `update_window_pos_system`）を直接参照している場合, the wintf framework shall update those references to `window_pos_sync_system`.
