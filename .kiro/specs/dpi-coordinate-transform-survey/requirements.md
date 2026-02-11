@@ -2,7 +2,7 @@
 
 ## Introduction
 
-wintf フレームワークにおいて、DPI処理と座標変換の設計不整合がシステム全体の障害となっている。event-drag-system の「1.25倍速バグ」を筆頭に、物理ピクセルと論理座標（DIP）の混在が複数のブロッカーを生んでいる。本仕様は、座標変換システム全体を包括的に調査し、現状（As-Is）と理想像（To-Be）のギャップを明確にしたレポートを成果物として作成する調査仕様である。
+wintf フレームワークにおいて、DPI処理と座標変換の「あるべき姿」が定義されていないため、物理ピクセルと論理座標（DIP）の混在が構造的な設計課題となっている。本仕様は、成熟したUIフレームワーク（WPF/WinUI3）の座標系モデルを参考に wintf が採用すべき座標変換アーキテクチャを定義し、現状（As-Is）との対比によりギャップと改善ロードマップを明確にしたレポートを成果物として作成する調査仕様である。コード修正は本仕様のスコープ外とし、後続仕様の設計判断材料を提供することを目的とする。
 
 ## Requirements
 
@@ -28,16 +28,15 @@ wintf フレームワークにおいて、DPI処理と座標変換の設計不�
 3. The survey shall `DPI` コンポーネントが `Arrangement.scale` に反映されるまでの変換チェーン（`update_arrangements_system` → `propagate_global_arrangements` → `GlobalArrangement`）の各段階でのスケール値を追跡し、二重スケーリングの有無を特定する
 4. The survey shall Monitor の DPI (`Monitor.dpi`) が ECS ツリーの `Arrangement.scale` に反映されていない現状について、影響範囲を評価する
 
-### Requirement 3: ドラッグ座標変換チェーン分析（1.25倍速バグ調査）
+### Requirement 3: ドラッグ座標変換チェーン評価（As-Is / To-Be 対比）
 
-**Objective:** 開発者として、event-drag-system の1.25倍速バグの根本原因を特定したい。ドラッグ操作における座標変換チェーン全体を追跡し、DPI値の固定化や二重スケーリング箇所を発見するため。
+**Objective:** 開発者として、ドラッグ操作時の座標変換チェーンを「あるべき姿」と対比して評価したい。現行の変換チェーンが To-Be アーキテクチャとどこでコンフリクトするかを明らかにし、改善の優先箇所を特定するため。
 
 #### Acceptance Criteria
 
-1. The survey shall ドラッグイベント発生（`DragEvent.delta`、物理ピクセル）から `SetWindowPos` 呼び出しまでの全変換ステップを追跡し、各ステップでの座標系と値を文書化する
-2. The survey shall `BoxStyle.inset`（物理ピクセル）→ Taffy レイアウト（DIP 計算）→ `Arrangement`（DIP オフセット）→ `GlobalArrangement`（scale 適用で物理に戻る）の変換チェーンにおいて、物理ピクセル値が DIP として二重にスケーリングされる経路がないか検証する
-3. The survey shall DPI値がシステム内で不適切に固定化（キャッシュ）されている箇所がないかを調査する。固定化が確認された場合は影響を受ける全コードパスを列挙し、確認されなかった場合は排除した根拠と代替仮説を記載する
-4. If 1.25倍速バグの根本原因が座標系の混在に起因する場合, the survey shall `sync_window_arrangement_from_window_pos`（現在無効化中）の設計意図と、現行の代替パスとの整合性を評価する
+1. The survey shall ドラッグイベント発生（`DragEvent.delta`）から `SetWindowPos` 呼び出しまでの現行変換チェーンを追跡し、各ステップでの座標系を文書化する。その上で、To-Be アーキテクチャ（Req 4）に基づく理想的な変換チェーンを併記し、コンフリクト箇所を指摘する
+2. The survey shall 現行の `BoxStyle.inset`（物理ピクセル）→ Taffy → `Arrangement` → `GlobalArrangement` の変換チェーンについて、To-Be（DIP統一）に移行した場合の変換チェーンとの差異を評価する
+3. The survey shall `sync_window_arrangement_from_window_pos`（現在無効化中）の設計意図を文書化し、To-Be アーキテクチャにおいて有効化すべきか・不要かを評価する
 
 ### Requirement 4: あるべき座標変換アーキテクチャ（To-Be 設計指針）
 
@@ -58,7 +57,7 @@ wintf フレームワークにおいて、DPI処理と座標変換の設計不�
 #### Acceptance Criteria
 
 1. The survey shall 各ギャップ項目に対して「影響度（High/Medium/Low）」「修正コスト（High/Medium/Low）」「ブロックしている仕様」を評価し、優先度マトリクスを作成する
-2. The survey shall 1.25倍速バグを解消するための最小限の修正（Quick Fix）と、座標系アーキテクチャの根本的な改善（Architectural Fix）の2つのアプローチを提示し、それぞれのリスクとコストを比較する
+2. The survey shall 現状（As-Is）から To-Be アーキテクチャへの移行ロードマップを提示する。段階的移行（既存機能を壊さず漸進的に改善）と一括移行のアプローチを比較し、それぞれのリスクとコストを評価する
 3. The survey shall `dpi-propagation`（完了済み）で実装された基盤と、`wintf-P1-dpi-scaling`（バックログ）の要件との差分を明確にし、P1 仕様の要件が現実的かを再評価する
 
 ### Requirement 6: 成果物としてのレポート
@@ -68,7 +67,7 @@ wintf フレームワークにおいて、DPI処理と座標変換の設計不�
 #### Acceptance Criteria
 
 1. The survey shall 最終成果物として `.kiro/specs/dpi-coordinate-transform-survey/report.md` に調査レポートを出力する
-2. The survey shall レポートに以下のセクションを含める: (a) エグゼクティブサマリー, (b) 座標系インベントリ, (c) DPI データフロー図, (d) 1.25倍速バグ根本原因分析, (e) To-Be アーキテクチャ設計指針, (f) ギャップ分析マトリクス, (g) 改善ロードマップ
+2. The survey shall レポートに以下のセクションを含める: (a) エグゼクティブサマリー, (b) 座標系インベントリ, (c) DPI データフロー図, (d) ドラッグ座標変換チェーン評価（As-Is / To-Be 対比）, (e) To-Be アーキテクチャ設計指針, (f) ギャップ分析マトリクス, (g) 改善ロードマップ
 3. The survey shall レポート内のフロー図・依存関係図に Mermaid 記法を使用し、一覧表には Markdown table を使用する。また、コードベースの具体的なファイルパス・行番号への参照を含める
 4. The survey shall レポートの各改善提案に対して、関連する既存仕様（`dpi-propagation`, `wintf-P1-dpi-scaling`, `event-drag-system`）へのクロスリファレンスを付与する
 
