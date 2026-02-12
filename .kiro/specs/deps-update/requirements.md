@@ -1,16 +1,17 @@
 # Requirements Document
 
 ## Introduction
-wintf プロジェクトおよびワークスペース全体の依存パッケージを更新し、ビルドおよびテストが正常に通る状態にする。対象はワークスペースルートの `Cargo.toml` で管理される `[workspace.dependencies]` と、各クレートの `Cargo.toml` に記載されたクレート固有の依存関係の両方を含む。更新範囲（互換最新 vs 最新安定）は設計フェーズで決定する。
+wintf プロジェクトおよびワークスペース全体の依存パッケージを最新安定バージョンに更新し、ビルドおよびテストが正常に通る状態にする。非互換更新（bevy 0.18, ambassador 0.5, rand 0.10 等）を含む全面更新を実施し、API変更に伴うコード修正も本仕様の範囲とする。対象はワークスペースルートの `Cargo.toml` で管理される `[workspace.dependencies]` と、各クレートの `Cargo.toml` に記載されたクレート固有の依存関係の両方を含む。
 
 ## Requirements
 
-### Requirement 1: ワークスペース依存の更新
-**Objective:** 開発者として、ワークスペースの依存パッケージを更新したい。これにより、セキュリティ修正・バグ修正・パフォーマンス改善の恩恵を受けられるようにする。
+### Requirement 1: ワークスペース依存の最新化
+**Objective:** 開発者として、ワークスペースの全依存パッケージを最新安定バージョンに更新したい。これにより、セキュリティ修正・バグ修正・パフォーマンス改善・最新機能の恩恵を受けられるようにする。
 
 #### Acceptance Criteria
-1. When 依存パッケージの更新を実行した場合, the wintf workspace shall ワークスペースルート `Cargo.toml` の `[workspace.dependencies]` に記載されたパッケージを設計で定めた範囲で更新する
-2. When 依存パッケージの更新を実行した場合, the wintf workspace shall 各クレート固有の `Cargo.toml` に記載された非ワークスペース依存（例: `async-io`, `image`）も設計で定めた範囲で更新する
+1. When 依存パッケージの更新を実行した場合, the wintf workspace shall ワークスペースルート `Cargo.toml` の `[workspace.dependencies]` に記載された全パッケージを最新安定バージョンに更新する
+2. When 依存パッケージの更新を実行した場合, the wintf workspace shall 各クレート固有の `Cargo.toml` に記載された非ワークスペース依存（例: `async-io`, `image`）も最新安定バージョンに更新する
+3. When 非互換更新（メジャーバージョンアップ）が含まれる場合, the wintf workspace shall bevy 0.18.0, ambassador 0.5.0, rand 0.10.0 等の最新メジャーバージョンに更新する
 
 ### Requirement 2: ビルド成功の保証
 **Objective:** 開発者として、依存更新後にプロジェクト全体のビルドが成功することを保証したい。これにより、更新に起因する破壊的変更がないことを確認できる。
