@@ -1,0 +1,22 @@
+{
+    "feature_name": "deps-update",
+    "created_at": "2026-02-12T00:00:00Z",
+    "updated_at": "2026-02-12T15:00:00Z",
+    "language": "ja",
+    "phase": "design-generated",
+    "approvals": {
+        "requirements": {
+            "generated": true,
+            "approved": true
+        },
+        "design": {
+            "generated": true,
+            "approved": false
+        },
+        "tasks": {
+            "generated": false,
+            "approved": false
+        }
+    },
+    "ready_for_implementation": false
+}
