@@ -446,14 +446,26 @@ pub fn window_pos_sync_system(
 /// これにより GlobalArrangement.bounds が正しいスクリーン座標を持つようになり、
 /// hit_test が正しく動作する。
 ///
-/// 毎フレーム Window の WindowPos と Arrangement.offset を同期する。
+/// `Changed<WindowPos>` フィルタにより、WindowPos が変更されたエンティティのみ処理する。
 /// 変更がない場合は何もしない。
+///
+/// # 座標系
+/// Window エンティティは LayoutRoot (scale=1.0) の子であり、
+/// `GlobalArrangement.bounds.left = parent.bounds.left + offset × parent_scale = offset` となる。
+/// したがって `Arrangement.offset` は物理ピクセル単位であり、
+/// `WindowPos.position`（物理px）をそのまま offset に設定する（DPI除算不要）。
+///
+/// ルートエンティティ（親なし）の場合は `bounds.left = offset × DPI_scale` となるが、
+/// 実アプリでは Window は常に LayoutRoot の子である。
 pub fn sync_window_arrangement_from_window_pos(
-    mut query: Query<(Entity, &WindowPos, &DPI, &mut Arrangement, Option<&Name>), With<Window>>,
+    mut query: Query<
+        (Entity, &WindowPos, &mut Arrangement, Option<&Name>),
+        (With<Window>, Changed<WindowPos>),
+    >,
 ) {
     use crate::ecs::graphics::format_entity_name;
 
-    for (entity, window_pos, dpi, mut arrangement, name) in query.iter_mut() {
+    for (entity, window_pos, mut arrangement, name) in query.iter_mut() {
         let Some(position) = window_pos.position else {
             continue;
         };
@@ -464,18 +476,10 @@ pub fn sync_window_arrangement_from_window_pos(
         }
 
         // WindowPos.position は物理ピクセル座標
-        // Arrangement.offset は DIP 座標なので、DPI スケールで割る
-        let scale_x = dpi.scale_x();
-        let scale_y = dpi.scale_y();
-
-        // ゼロ除算防止
-        if scale_x <= 0.0 || scale_y <= 0.0 {
-            continue;
-        }
-
+        // Window は LayoutRoot (scale=1.0) の子なので offset = position（DPI除算不要）
         let new_offset = Offset {
-            x: position.x as f32 / scale_x,
-            y: position.y as f32 / scale_y,
+            x: position.x as f32,
+            y: position.y as f32,
         };
 
         // 変更があった場合のみ更新
@@ -489,8 +493,6 @@ pub fn sync_window_arrangement_from_window_pos(
                 new_y = new_offset.y,
                 position_x = position.x,
                 position_y = position.y,
-                scale_x,
-                scale_y,
                 "[sync_window_arrangement_from_window_pos] Updating Arrangement.offset"
             );
             arrangement.offset = new_offset;

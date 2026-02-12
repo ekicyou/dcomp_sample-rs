@@ -357,10 +357,7 @@ impl EcsWorld {
             schedules.add_systems(
                 PostLayout,
                 (
-                    // Note: sync_window_arrangement_from_window_pos は一旦無効化
-                    // Window の Arrangement.offset は DIP 座標であり、scale をかけて物理ピクセルになる
-                    // WindowPos.position を DIP に変換して offset に設定すると二重になる
-                    // crate::ecs::layout::sync_window_arrangement_from_window_pos,
+                    crate::ecs::layout::sync_window_arrangement_from_window_pos,
                     crate::ecs::layout::sync_simple_arrangements,
                     crate::ecs::layout::mark_dirty_arrangement_trees
                         .after(crate::ecs::layout::sync_simple_arrangements),

@@ -8,6 +8,7 @@
 
 #![allow(non_snake_case)]
 
+use bevy_ecs::change_detection::DetectChangesMut;
 use tracing::{debug, info, trace, warn};
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -189,30 +190,52 @@ pub(super) fn WM_WINDOWPOSCHANGED(
                             if let Some(mut window_pos) =
                                 entity_ref.get_mut::<crate::ecs::window::WindowPos>()
                             {
-                                // WindowPosを更新
-                                window_pos.position = Some(client_pos);
-                                window_pos.size = Some(client_size);
-                                // last_sentに現在値を設定（エコーバック判定用）
-                                window_pos.last_sent_position = Some((client_pos.x, client_pos.y));
-                                window_pos.last_sent_size = Some((client_size.cx, client_size.cy));
+                                // set_if_neq パターン: position/size が実際に変更された場合のみ
+                                // DerefMut（Changed フラグ発火）を発生させる。
+                                // エコーバック等で同一値の場合は bypass_change_detection() で
+                                // last_sent のみ更新し、Changed<WindowPos> の発火を抑制する。
+                                let position_changed = window_pos.position != Some(client_pos);
+                                let size_changed = window_pos.size != Some(client_size);
 
-                                trace!(
-                                    entity = ?entity,
-                                    window_x = wp.x,
-                                    window_y = wp.y,
-                                    window_cx = wp.cx,
-                                    window_cy = wp.cy,
-                                    client_x = client_pos.x,
-                                    client_y = client_pos.y,
-                                    client_cx = client_size.cx,
-                                    client_cy = client_size.cy,
-                                    "WindowPos updated"
-                                );
+                                if position_changed || size_changed {
+                                    // 値が変更された → 通常代入（DerefMut → Changed 発火）
+                                    window_pos.position = Some(client_pos);
+                                    window_pos.size = Some(client_size);
+                                    window_pos.last_sent_position =
+                                        Some((client_pos.x, client_pos.y));
+                                    window_pos.last_sent_size =
+                                        Some((client_size.cx, client_size.cy));
 
-                                info!(
-                                    "[WM_WINDOWPOSCHANGED] client_x={}, client_y={}",
-                                    client_pos.x, client_pos.y
-                                );
+                                    trace!(
+                                        entity = ?entity,
+                                        window_x = wp.x,
+                                        window_y = wp.y,
+                                        window_cx = wp.cx,
+                                        window_cy = wp.cy,
+                                        client_x = client_pos.x,
+                                        client_y = client_pos.y,
+                                        client_cx = client_size.cx,
+                                        client_cy = client_size.cy,
+                                        "WindowPos updated (changed)"
+                                    );
+
+                                    info!(
+                                        "[WM_WINDOWPOSCHANGED] client_x={}, client_y={}",
+                                        client_pos.x, client_pos.y
+                                    );
+                                } else {
+                                    // 同一値（エコーバック等）→ bypass で last_sent のみ更新
+                                    let bypass = window_pos.bypass_change_detection();
+                                    bypass.last_sent_position = Some((client_pos.x, client_pos.y));
+                                    bypass.last_sent_size = Some((client_size.cx, client_size.cy));
+
+                                    trace!(
+                                        entity = ?entity,
+                                        client_x = client_pos.x,
+                                        client_y = client_pos.y,
+                                        "WindowPos unchanged (echo-back suppressed)"
+                                    );
+                                }
                             }
 
                             // BoxStyleがあれば更新（なければスキップ）
