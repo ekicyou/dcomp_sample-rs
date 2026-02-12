@@ -2,15 +2,15 @@ use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::prelude::*;
 use bevy_ecs::world::DeferredWorld;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use tracing::{debug, trace, warn};
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow};
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 use crate::api::*;
-use crate::ecs::layout::LayoutRoot;
 use crate::ecs::Visual;
+use crate::ecs::layout::LayoutRoot;
 
 // ============================================================================
 // DpiChangeContext - WM_DPICHANGED → WM_WINDOWPOSCHANGED 間の DPI 同期伝達
@@ -81,6 +81,86 @@ impl DpiChangeContext {
 }
 
 // ============================================================================
+// IS_SELF_INITIATED - SetWindowPos ラッパーフラグ (TLS)
+// ============================================================================
+
+thread_local! {
+    /// `SetWindowPos` ラッパーが呼び出し中であることを示すフラグ。
+    ///
+    /// `guarded_set_window_pos()` のスコープ内でのみ `true` となる。
+    /// `true` の間に発火する `WM_WINDOWPOSCHANGED` は自アプリ由来の echo と判定し、
+    /// `apply_window_pos_changes` での再送信をスキップする。
+    ///
+    /// ## ライフサイクル
+    /// 1. `guarded_set_window_pos()` 呼び出し → `true` に設定
+    /// 2. `SetWindowPos` Win32 API 呼び出し（同期的に `WM_WINDOWPOSCHANGED` が発火）
+    /// 3. ハンドラ内で `is_self_initiated()` を参照 → `true` なら echo
+    /// 4. `SetWindowPosGuard` の Drop で `false` にリセット（RAII 保証）
+    static IS_SELF_INITIATED: Cell<bool> = const { Cell::new(false) };
+}
+
+/// 現在の `SetWindowPos` 呼び出しスコープ内かどうかを返す。
+///
+/// `WM_WINDOWPOSCHANGED` ハンドラ内で echo 判定に使用する。
+/// `true` の場合、自アプリの `guarded_set_window_pos()` 経由の呼び出しであり、
+/// `apply_window_pos_changes` での再送信は不要。
+pub fn is_self_initiated() -> bool {
+    IS_SELF_INITIATED.get()
+}
+
+/// RAII ガード: スコープ終了時に `IS_SELF_INITIATED` を `false` にリセット。
+///
+/// `guarded_set_window_pos()` 内で使用され、正常終了・`?` early return・
+/// パニック時のいずれでもフラグが確実にリセットされることを保証する。
+struct SetWindowPosGuard;
+
+impl Drop for SetWindowPosGuard {
+    fn drop(&mut self) {
+        IS_SELF_INITIATED.set(false);
+        trace!(is_initiated = false, "IS_SELF_INITIATED reset by guard");
+    }
+}
+
+/// `SetWindowPos` をラッパー付きで呼び出す。
+///
+/// RAII Drop guard により、正常終了・`?` early return・パニック時も
+/// `IS_SELF_INITIATED` が確実に `false` にリセットされる。
+/// `SetWindowPos` → `WM_WINDOWPOSCHANGED` は同期発火のため、
+/// ハンドラ内で `is_self_initiated()` を参照して echo を判定できる。
+///
+/// # Safety
+/// `SetWindowPos` Win32 API の unsafe 呼び出しを内包する。
+///
+/// # Arguments
+/// * `hwnd` - 対象ウィンドウハンドル
+/// * `hwnd_insert_after` - Z-order 挿入位置（`None` で変更なし）
+/// * `x`, `y` - ウィンドウ左上座標
+/// * `cx`, `cy` - ウィンドウ幅・高さ
+/// * `flags` - `SET_WINDOW_POS_FLAGS`
+pub unsafe fn guarded_set_window_pos(
+    hwnd: HWND,
+    hwnd_insert_after: Option<HWND>,
+    x: i32,
+    y: i32,
+    cx: i32,
+    cy: i32,
+    flags: SET_WINDOW_POS_FLAGS,
+) -> windows::core::Result<()> {
+    IS_SELF_INITIATED.set(true);
+    let _guard = SetWindowPosGuard; // Drop でリセット保証
+
+    trace!(
+        hwnd = format!("0x{:X}", hwnd.0 as usize),
+        x = x, y = y, cx = cx, cy = cy,
+        flags = ?flags,
+        "[guarded_set_window_pos] Calling SetWindowPos"
+    );
+
+    unsafe { SetWindowPos(hwnd, hwnd_insert_after, x, y, cx, cy, flags) }?;
+    Ok(())
+}
+
+// ============================================================================
 // SetWindowPosCommand - SetWindowPos 遅延実行キュー
 // ============================================================================
 
@@ -144,6 +224,7 @@ impl SetWindowPosCommand {
     /// キュー内の全コマンドを実行し、キューをクリア
     ///
     /// World借用解放後に呼び出すこと。
+    /// 内部で `guarded_set_window_pos()` を使用し、TLS フラグによるフィードバック防止を適用する。
     pub fn flush() {
         WINDOW_POS_COMMANDS.with(|cell| {
             let commands: Vec<_> = cell.borrow_mut().drain(..).collect();
@@ -155,18 +236,8 @@ impl SetWindowPosCommand {
                 "SetWindowPosCommand::flush processing"
             );
             for cmd in commands {
-                trace!(
-                    hwnd = ?cmd.hwnd,
-                    hwnd_insert_after = ?cmd.hwnd_insert_after,
-                    x = cmd.x,
-                    y = cmd.y,
-                    width = cmd.width,
-                    height = cmd.height,
-                    flags = ?cmd.flags,
-                    "Executing SetWindowPos"
-                );
                 let result = unsafe {
-                    SetWindowPos(
+                    guarded_set_window_pos(
                         cmd.hwnd,
                         cmd.hwnd_insert_after,
                         cmd.x,
@@ -194,21 +265,6 @@ impl SetWindowPosCommand {
 pub fn flush_window_pos_commands() {
     SetWindowPosCommand::flush();
 }
-
-// ============================================================================
-// WindowPosChanged - WM_WINDOWPOSCHANGED 由来の SetWindowPos 抑制フラグ
-// ============================================================================
-
-/// WM_WINDOWPOSCHANGED発生フラグ
-///
-/// `WM_WINDOWPOSCHANGED`由来の`BoxStyle`変更に対して`SetWindowPos`を
-/// 発行しないよう制御するためのマーカーコンポーネント。
-///
-/// - `true`: `WM_WINDOWPOSCHANGED`処理中（SetWindowPos抑制）
-/// - `false`: 通常状態
-#[derive(Component, Default, Debug, Clone, Copy)]
-#[component(storage = "SparseSet")]
-pub struct WindowPosChanged(pub bool);
 
 /// Windowコンポーネント - ウィンドウ作成に必要な基本パラメータを保持
 /// スタイルや位置・サイズは WindowStyle, WindowPos コンポーネントで指定
@@ -437,16 +493,6 @@ fn on_window_handle_add(
             "DPI component inserted"
         );
         world.commands().entity(entity).insert(dpi_component);
-
-        // WindowPosChangedコンポーネントを挿入（フィードバックループ抑制用）
-        world
-            .commands()
-            .entity(entity)
-            .insert(WindowPosChanged::default());
-        debug!(
-            entity = ?entity,
-            "WindowPosChanged component inserted"
-        );
 
         // Note: WindowPosは on_window_add で挿入済み（CreateWindow前に必要なため）
 
@@ -682,10 +728,6 @@ pub struct WindowPos {
     pub no_send_changing: bool, // SWP_NOSENDCHANGING: WM_WINDOWPOSCHANGINGを送信しない
     pub defer_erase: bool,      // SWP_DEFERERASE: WM_SYNCPAINTを送信しない
     pub async_window_pos: bool, // SWP_ASYNCWINDOWPOS: 非同期で処理
-
-    // エコーバック検知用フィールド
-    pub last_sent_position: Option<(i32, i32)>,
-    pub last_sent_size: Option<(i32, i32)>,
 }
 
 impl Default for WindowPos {
@@ -710,8 +752,6 @@ impl Default for WindowPos {
             no_send_changing: false,
             defer_erase: false,
             async_window_pos: false,
-            last_sent_position: None,
-            last_sent_size: None,
         }
     }
 }
@@ -929,13 +969,6 @@ impl WindowPos {
         let hwnd_insert_after = self.get_hwnd_insert_after();
 
         unsafe { SetWindowPos(hwnd, hwnd_insert_after, x, y, width, height, flags) }
-    }
-
-    /// エコーバック判定メソッド
-    /// SetWindowPosで送信した値とWM_WINDOWPOSCHANGEDで受信した値が一致するかチェック
-    pub fn is_echo(&self, position: POINT, size: SIZE) -> bool {
-        self.last_sent_position == Some((position.x, position.y))
-            && self.last_sent_size == Some((size.cx, size.cy))
     }
 
     /// クライアント領域の座標・サイズをウィンドウ全体の座標・サイズに変換する。

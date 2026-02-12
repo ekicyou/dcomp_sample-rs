@@ -61,18 +61,24 @@ fn test_sync_window_pos() {
 }
 
 #[test]
-fn test_echo_detection() {
-    let mut window_pos = WindowPos::default();
+fn test_is_self_initiated_default_false() {
+    // TLS フラグの初期値は false であること
+    assert!(
+        !wintf::ecs::is_self_initiated(),
+        "is_self_initiated() の初期値は false であるべき"
+    );
+}
 
-    // last_sentを設定
-    window_pos.last_sent_position = Some((100, 50));
-    window_pos.last_sent_size = Some((800, 600));
+#[test]
+fn test_is_self_initiated_flag_lifecycle() {
+    // guarded_set_window_pos 呼び出し外では false
+    assert!(!wintf::ecs::is_self_initiated());
 
-    // 同じ値を受信した場合、エコーバックと判定されるべき
-    assert!(window_pos.is_echo(POINT { x: 100, y: 50 }, SIZE { cx: 800, cy: 600 }));
-
-    // 異なる値を受信した場合、エコーバックではない
-    assert!(!window_pos.is_echo(POINT { x: 200, y: 100 }, SIZE { cx: 1024, cy: 768 }));
+    // 注: 実際の guarded_set_window_pos は有効な HWND が必要なため、
+    // ここでは TLS フラグの直接操作はテストできない。
+    // ラッパー関数は E2E テスト（taffy_flex_demo）で検証する。
+    // ここでは初期状態の確認のみ行う。
+    assert!(!wintf::ecs::is_self_initiated());
 }
 
 #[test]
@@ -164,21 +170,21 @@ fn test_echo_back_flow() {
     assert_eq!(window_pos.position, Some(POINT { x: 100, y: 50 }));
     assert_eq!(window_pos.size, Some(SIZE { cx: 800, cy: 600 }));
 
-    // apply_window_pos_changesをシミュレート（last_sentを記録）
+    // TLS フラグ方式: echo 時は bypass_change_detection で値を更新する（Changed 非発火）
+    // これは WM_WINDOWPOSCHANGED ハンドラが is_self_initiated() == true の場合に行う処理
     {
         let mut entity_mut = world.entity_mut(entity);
         let mut window_pos = entity_mut.get_mut::<WindowPos>().unwrap();
+        // echo シミュレーション: bypass で同一値を書き込み（Changed 非発火）
         let bypass = window_pos.bypass_change_detection();
-        bypass.last_sent_position = Some((100, 50));
-        bypass.last_sent_size = Some((800, 600));
+        bypass.position = Some(POINT { x: 100, y: 50 });
+        bypass.size = Some(SIZE { cx: 800, cy: 600 });
     }
 
-    // エコーバック：同じ値を受信した場合、is_echoがtrueを返すべき
+    // WindowPos が変わっていないことを確認
     let window_pos = world.entity(entity).get::<WindowPos>().unwrap();
-    assert!(window_pos.is_echo(POINT { x: 100, y: 50 }, SIZE { cx: 800, cy: 600 }));
-
-    // 外部変更：異なる値を受信した場合、is_echoがfalseを返すべき
-    assert!(!window_pos.is_echo(POINT { x: 150, y: 100 }, SIZE { cx: 1024, cy: 768 }));
+    assert_eq!(window_pos.position, Some(POINT { x: 100, y: 50 }));
+    assert_eq!(window_pos.size, Some(SIZE { cx: 800, cy: 600 }));
 }
 
 #[test]
@@ -193,8 +199,6 @@ fn test_reverse_flow_simulation() {
             WindowPos {
                 position: Some(POINT { x: 100, y: 50 }),
                 size: Some(SIZE { cx: 800, cy: 600 }),
-                last_sent_position: Some((100, 50)),
-                last_sent_size: Some((800, 600)),
                 ..Default::default()
             },
         ))
@@ -202,32 +206,22 @@ fn test_reverse_flow_simulation() {
 
     // ユーザーがウィンドウをリサイズ（WM_WINDOWPOSCHANGEDシミュレーション）
     // 新しい値（外部変更）を受信
+    // TLS フラグ方式: is_self_initiated() == false の場合、DerefMut で更新
     let new_position = POINT { x: 150, y: 100 };
     let new_size = SIZE { cx: 1024, cy: 768 };
 
     {
-        let window_pos = world.entity(entity).get::<WindowPos>().unwrap();
-
-        // エコーバックではないことを確認
-        assert!(!window_pos.is_echo(new_position, new_size));
-
-        // 外部変更時の処理：WindowPosを更新（bypass_change_detectionで）
+        // 外部変更時の処理：WindowPosを通常代入で更新（Changed 発火）
         let mut entity_mut = world.entity_mut(entity);
         let mut window_pos = entity_mut.get_mut::<WindowPos>().unwrap();
-        let bypass = window_pos.bypass_change_detection();
-        bypass.position = Some(new_position);
-        bypass.size = Some(new_size);
-        // last_sentをクリア
-        bypass.last_sent_position = None;
-        bypass.last_sent_size = None;
+        window_pos.position = Some(new_position);
+        window_pos.size = Some(new_size);
     }
 
     // WindowPosが更新されたことを確認
     let window_pos = world.entity(entity).get::<WindowPos>().unwrap();
     assert_eq!(window_pos.position, Some(new_position));
     assert_eq!(window_pos.size, Some(new_size));
-    assert_eq!(window_pos.last_sent_position, None);
-    assert_eq!(window_pos.last_sent_size, None);
 }
 
 #[test]

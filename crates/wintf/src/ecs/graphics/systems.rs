@@ -697,15 +697,14 @@ pub fn sync_surface_from_arrangement(
 /// WindowPos変更時にSetWindowPosコマンドをキューに追加
 ///
 /// クライアント領域座標をウィンドウ全体座標に変換してからコマンドを生成する。
-/// `WindowPosChanged.0 == true` の場合は、WM_WINDOWPOSCHANGED由来の変更なので
-/// SetWindowPosコマンドを生成しない（フィードバックループ防止）。
+/// echo 時は `WM_WINDOWPOSCHANGED` ハンドラが `bypass_change_detection()` で更新するため
+/// `Changed<WindowPos>` が発火せず、本システムのトリガー自体が発火しない。
 pub fn apply_window_pos_changes(
     mut query: Query<
         (
             Entity,
             &crate::ecs::window::WindowHandle,
-            &mut crate::ecs::window::WindowPos,
-            &crate::ecs::window::WindowPosChanged,
+            &crate::ecs::window::WindowPos,
             Option<&Name>,
         ),
         (
@@ -714,34 +713,12 @@ pub fn apply_window_pos_changes(
         ),
     >,
 ) {
-    for (entity, window_handle, mut window_pos, wpc, name) in query.iter_mut() {
+    for (entity, window_handle, window_pos, name) in query.iter_mut() {
         let entity_name = format_entity_name(entity, name);
-
-        // WindowPosChangedフラグがtrueの場合、WM_WINDOWPOSCHANGED由来の変更なのでスキップ
-        // これにより、フィードバックループを防止する
-        if wpc.0 {
-            trace!(
-                entity = %entity_name,
-                "[apply_window_pos_changes] WindowPosChanged=true, suppressing SetWindowPos"
-            );
-            continue;
-        }
 
         // エコーバックチェック
         let position = window_pos.position.unwrap_or_default();
         let size = window_pos.size.unwrap_or_default();
-
-        if window_pos.is_echo(position, size) {
-            trace!(
-                entity = %entity_name,
-                x = position.x,
-                y = position.y,
-                cx = size.cx,
-                cy = size.cy,
-                "[apply_window_pos_changes] Echo-back detected, skipping"
-            );
-            continue;
-        }
 
         // CW_USEDEFAULTが設定されている場合はスキップ（ウィンドウ作成時の初期値）
         // 座標変換をスキップし、ウィンドウ作成時の初期配置を優先
@@ -802,18 +779,13 @@ pub fn apply_window_pos_changes(
         );
         crate::ecs::window::SetWindowPosCommand::enqueue(cmd);
 
-        // last_sent値を記録（クライアント座標で記録）
-        // WM_WINDOWPOSCHANGEDでの比較時に逆変換して一致するため
-        let bypass = window_pos.bypass_change_detection();
-        bypass.last_sent_position = Some((position.x, position.y));
-        bypass.last_sent_size = Some((size.cx, size.cy));
         debug!(
             entity = %entity_name,
             x = position.x,
             y = position.y,
             cx = size.cx,
             cy = size.cy,
-            "[apply_window_pos_changes] Command enqueued, recorded client coords"
+            "[apply_window_pos_changes] Command enqueued"
         );
     }
 }

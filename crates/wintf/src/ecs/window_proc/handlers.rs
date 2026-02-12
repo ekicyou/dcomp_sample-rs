@@ -110,11 +110,14 @@ pub(super) fn WM_CLOSE(
 
 /// WM_WINDOWPOSCHANGED: ウィンドウ位置/サイズ変更通知
 ///
-/// World借用区切り方式による処理:
-/// ① World借用 → DPI更新, WindowPosChanged=true, WindowPos更新, BoxStyle更新 → 借用解放
+/// World借用区切り方式による処理（3ステッププロトコル）:
+/// ① World借用 → DPI更新, echo判定に基づきWindowPos更新, BoxStyle更新 → 借用解放
 /// ② try_tick_on_vsync() (内部で借用→解放)
-/// ③ flush_window_pos_commands() (SetWindowPos実行)
-/// ④ World借用 → WindowPosChanged=false → 借用解放
+/// ③ flush_window_pos_commands() (SetWindowPos実行、ラッパー経由)
+///
+/// echo判定: `is_self_initiated()` TLS フラグが `true` の場合、
+/// 自アプリの `guarded_set_window_pos()` 経由の呼び出しであり、
+/// `bypass_change_detection()` で `Changed<WindowPos>` の発火を抑制する。
 #[inline]
 pub(super) fn WM_WINDOWPOSCHANGED(
     hwnd: HWND,
@@ -122,12 +125,16 @@ pub(super) fn WM_WINDOWPOSCHANGED(
     _wparam: WPARAM,
     lparam: LPARAM,
 ) -> HandlerResult {
+    // echo 判定: TLS フラグを参照（ステップ①冒頭で1回のみ）
+    let is_echo = crate::ecs::window::is_self_initiated();
+
     // ------------------------------------------------------------------
-    // ① 第1借用セクション: DPI更新, WindowPosChanged=true, WindowPos/BoxStyle更新
+    // ① 第1借用セクション: DPI更新, echo判定に基づきWindowPos更新, BoxStyle更新
     // ------------------------------------------------------------------
     if let Some(entity) = super::get_entity_from_hwnd(hwnd) {
         if let Some(world) = super::try_get_ecs_world() {
             // DpiChangeContextを先に取得（try_tick_on_vsync前に消費する必要がある）
+            // is_echo にかかわらず常に実行
             let dpi_context = crate::ecs::window::DpiChangeContext::take();
 
             // RefCellが既に借用されている場合はスキップ（再入時）
@@ -164,18 +171,6 @@ pub(super) fn WM_WINDOWPOSCHANGED(
                                 .unwrap_or_default()
                         };
 
-                        // WindowPosChangedフラグをtrueに設定
-                        // apply_window_pos_changesでのSetWindowPos生成を抑制する
-                        if let Some(mut wpc) =
-                            entity_ref.get_mut::<crate::ecs::window::WindowPosChanged>()
-                        {
-                            wpc.0 = true;
-                            trace!(
-                                entity = ?entity,
-                                "WindowPosChanged set to true"
-                            );
-                        }
-
                         // WindowHandleを取得してウィンドウ座標→クライアント座標に変換
                         let client_coords = entity_ref
                             .get::<crate::ecs::window::WindowHandle>()
@@ -187,24 +182,36 @@ pub(super) fn WM_WINDOWPOSCHANGED(
 
                         // クライアント座標が取得できた場合のみ処理
                         if let Some((client_pos, client_size)) = client_coords {
+                            debug!(
+                                is_echo = is_echo,
+                                entity = ?entity,
+                                x = client_pos.x,
+                                y = client_pos.y,
+                                cx = client_size.cx,
+                                cy = client_size.cy,
+                                "[WM_WINDOWPOSCHANGED] Processing"
+                            );
+
                             if let Some(mut window_pos) =
                                 entity_ref.get_mut::<crate::ecs::window::WindowPos>()
                             {
-                                // set_if_neq パターン: position/size が実際に変更された場合のみ
-                                // DerefMut（Changed フラグ発火）を発生させる。
-                                // エコーバック等で同一値の場合は bypass_change_detection() で
-                                // last_sent のみ更新し、Changed<WindowPos> の発火を抑制する。
-                                let position_changed = window_pos.position != Some(client_pos);
-                                let size_changed = window_pos.size != Some(client_size);
+                                if is_echo {
+                                    // echo（自アプリ由来）→ bypass_change_detection で更新
+                                    // Changed<WindowPos> を発火させない → apply_window_pos_changes 非トリガー
+                                    let bypass = window_pos.bypass_change_detection();
+                                    bypass.position = Some(client_pos);
+                                    bypass.size = Some(client_size);
 
-                                if position_changed || size_changed {
-                                    // 値が変更された → 通常代入（DerefMut → Changed 発火）
+                                    trace!(
+                                        entity = ?entity,
+                                        client_x = client_pos.x,
+                                        client_y = client_pos.y,
+                                        "WindowPos updated via bypass (echo)"
+                                    );
+                                } else {
+                                    // 外部由来 → DerefMut で更新（Changed 発火 → apply_window_pos_changes トリガー）
                                     window_pos.position = Some(client_pos);
                                     window_pos.size = Some(client_size);
-                                    window_pos.last_sent_position =
-                                        Some((client_pos.x, client_pos.y));
-                                    window_pos.last_sent_size =
-                                        Some((client_size.cx, client_size.cy));
 
                                     trace!(
                                         entity = ?entity,
@@ -216,24 +223,7 @@ pub(super) fn WM_WINDOWPOSCHANGED(
                                         client_y = client_pos.y,
                                         client_cx = client_size.cx,
                                         client_cy = client_size.cy,
-                                        "WindowPos updated (changed)"
-                                    );
-
-                                    info!(
-                                        "[WM_WINDOWPOSCHANGED] client_x={}, client_y={}",
-                                        client_pos.x, client_pos.y
-                                    );
-                                } else {
-                                    // 同一値（エコーバック等）→ bypass で last_sent のみ更新
-                                    let bypass = window_pos.bypass_change_detection();
-                                    bypass.last_sent_position = Some((client_pos.x, client_pos.y));
-                                    bypass.last_sent_size = Some((client_size.cx, client_size.cy));
-
-                                    trace!(
-                                        entity = ?entity,
-                                        client_x = client_pos.x,
-                                        client_y = client_pos.y,
-                                        "WindowPos unchanged (echo-back suppressed)"
+                                        "WindowPos updated (external change)"
                                     );
                                 }
                             }
@@ -302,27 +292,10 @@ pub(super) fn WM_WINDOWPOSCHANGED(
             }
 
             // ------------------------------------------------------------------
-            // ③ flush_window_pos_commands() (SetWindowPos実行)
+            // ③ flush_window_pos_commands() (SetWindowPos実行、ラッパー経由)
             // World借用解放後なので安全
             // ------------------------------------------------------------------
             crate::ecs::window::flush_window_pos_commands();
-
-            // ------------------------------------------------------------------
-            // ④ 第2借用セクション: WindowPosChanged=false
-            // ------------------------------------------------------------------
-            if let Ok(mut world_borrow) = world.try_borrow_mut() {
-                if let Ok(mut entity_ref) = world_borrow.world_mut().get_entity_mut(entity) {
-                    if let Some(mut wpc) =
-                        entity_ref.get_mut::<crate::ecs::window::WindowPosChanged>()
-                    {
-                        wpc.0 = false;
-                        trace!(
-                            entity = ?entity,
-                            "WindowPosChanged reset to false"
-                        );
-                    }
-                }
-            }
         }
     }
     None // DefWindowProcWに委譲
@@ -394,6 +367,7 @@ pub(super) fn WM_DPICHANGED(
     ));
 
     // 明示的にSetWindowPosを呼び出してsuggested_rectを適用
+    // guarded_set_window_pos ラッパー経由でフィードバック防止TLSフラグを管理
     // これによりWM_WINDOWPOSCHANGEDが同期的に発火し、DpiChangeContextを消費する
     let width = suggested_rect.right - suggested_rect.left;
     let height = suggested_rect.bottom - suggested_rect.top;
@@ -403,11 +377,11 @@ pub(super) fn WM_DPICHANGED(
         y = suggested_rect.top,
         width,
         height,
-        "Calling SetWindowPos with suggested_rect"
+        "Calling guarded_set_window_pos with suggested_rect"
     );
 
     let result = unsafe {
-        SetWindowPos(
+        crate::ecs::window::guarded_set_window_pos(
             hwnd,
             None,
             suggested_rect.left,
