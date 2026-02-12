@@ -1,22 +1,26 @@
 {
     "feature_name": "wintf-fix3-sync-arrangement-enable",
     "created_at": "2026-02-11T18:00:00+09:00",
-    "updated_at": "2026-02-11T18:00:00+09:00",
+    "updated_at": "2026-02-12T15:00:00+09:00",
     "language": "ja",
-    "phase": "initialized",
+    "phase": "tasks-generated",
     "parent_spec": "dpi-coordinate-transform-survey",
     "report_ref": "§1.2 項目3, §5.5, §6.4.3, §8.2 Step 3",
     "approvals": {
         "requirements": {
-            "generated": false,
-            "approved": false
+            "generated": true,
+            "approved": true,
+            "approved_at": "2026-02-12T14:00:00+09:00",
+            "note": "-y フラグによる自動承認"
         },
         "design": {
-            "generated": false,
-            "approved": false
+            "generated": true,
+            "approved": true,
+            "approved_at": "2026-02-12T14:30:00+09:00",
+            "note": "-y フラグによる自動承認"
         },
         "tasks": {
-            "generated": false,
+            "generated": true,
             "approved": false
         }
     },
