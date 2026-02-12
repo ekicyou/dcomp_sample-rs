@@ -209,6 +209,20 @@ sequenceDiagram
 - 全ての `SetWindowPos` 呼び出し（flush 内、WM_DPICHANGED 内）がこのラッパー経由で実行される
 - ラッパー外での `SetWindowPos` 直接呼び出しは禁止（doc comment で明記）
 
+**Logging Strategy**
+- Level: `trace!` — 高頻度呼び出しのため（flush 毎、DPI 変更時）
+- Structured fields: `hwnd` (16進数), `x`, `y`, `cx`, `cy`, `flags`
+- Message format: `"[guarded_set_window_pos] Calling SetWindowPos"`
+- Example:
+  ```rust
+  trace!(
+      hwnd = format!("0x{:X}", hwnd.0),
+      x = x, y = y, cx = cx, cy = cy,
+      flags = ?flags,
+      "[guarded_set_window_pos] Calling SetWindowPos"
+  );
+  ```
+
 **Dependencies**
 - External: `SetWindowPos` Win32 API — ウィンドウ位置・サイズ変更 (P0)
 - Outbound: `IS_SELF_INITIATED` TLS — フラグ ON/OFF 操作 (P0)
@@ -285,6 +299,21 @@ pub fn is_self_initiated() -> bool
 - echo 時は `bypass_change_detection()` で `WindowPos` を更新（`Changed` 抑制）
 - 非 echo 時は `DerefMut` で `WindowPos` を更新（`Changed` 発火 → `apply_window_pos_changes` トリガー）
 - `DpiChangeContext::take()` は echo/非 echo にかかわらず常に実行
+
+**Logging Strategy**
+- Level: `debug!` — ウィンドウ位置変更の重要なライフサイクルイベント
+- Structured fields: `is_echo` (bool), `entity` (EntityName), `x`, `y`, `cx`, `cy`
+- Message format: `"[WM_WINDOWPOSCHANGED] Processing"`
+- Example:
+  ```rust
+  debug!(
+      is_echo = is_echo,
+      entity = %entity_name,
+      x = window_pos_param.x, y = window_pos_param.y,
+      cx = window_pos_param.cx, cy = window_pos_param.cy,
+      "[WM_WINDOWPOSCHANGED] Processing"
+  );
+  ```
 
 **Dependencies**
 - Inbound: `IS_SELF_INITIATED` TLS — echo 判定 (P0)
