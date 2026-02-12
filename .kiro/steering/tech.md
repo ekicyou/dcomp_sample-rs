@@ -14,9 +14,9 @@ ECSアーキテクチャ（Entity Component System）をベースとした、Win
 
 ## Key Libraries
 
-- **bevy_ecs** (0.17.2): ECSアーキテクチャの実装基盤
+- **bevy_ecs** (0.18.0): ECSアーキテクチャの実装基盤
 - **windows** (0.62.1): Windows API バインディング
-- **taffy** (0.9.1): レイアウトエンジン
+- **taffy** (0.9.2): レイアウトエンジン
 - **euclid** (0.22.11): 2D/3D幾何計算
 - **async-executor** (1.13.3): 非同期タスク実行
 - **windows-numerics** (0.3.1): Windows数値型サポート
