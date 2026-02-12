@@ -239,4 +239,4 @@ fn guarded_set_window_pos(hwnd, ...) {
 | # | 調査項目 | 目的 |
 |---|---------|------|
 | RI-1 | `SetWindowPos` 呼び出し → `WM_WINDOWPOSCHANGED` の同期発火タイミング詳細 | 同期保証の MSDN 裏取り。非同期になるケースがあるか |
-| RI-2 | マルチウィンドウでの `WM_WINDOWPOSCHANGED` 発火順序 | 1つの `SetWindowPos` で複数ウィンドウに連鎖通知が来るケースの調査 |
+| RI-2 | ~~マルチウィンドウでの `WM_WINDOWPOSCHANGED` 発火順序~~ | ラッパー方式では TLS フラグがウィンドウ非依存で全 `SetWindowPos` 呼び出しを保護するため、マルチウィンドウ連鎖は原理的に発生しない。**調査不要** |

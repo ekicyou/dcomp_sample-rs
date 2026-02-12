@@ -58,7 +58,6 @@
 1. When ユーザーが Win32 経由でウィンドウを移動・リサイズした場合, the wintf system shall 1フレーム以内にフィードバックを収束させ、無限ループを発生させない
 2. When ECS 側からプログラム的にウィンドウ位置を変更した場合, the wintf system shall `SetWindowPos` → `WM_WINDOWPOSCHANGED` → ECS 更新の経路で1往復のみで収束する
 3. When DPI 変更（モニタ間移動）が発生した場合, the wintf system shall `WM_DPICHANGED` → `SetWindowPos` → `WM_WINDOWPOSCHANGED` チェーンを正しく処理し、フィードバックループを発生させない
-4. While 複数ウィンドウが同時に存在する状態で, when いずれかのウィンドウが移動・リサイズされた場合, the wintf system shall 他のウィンドウに不要なフィードバック連鎖を波及させない
 
 ### Requirement 4: コード簡素化と保守性向上
 
