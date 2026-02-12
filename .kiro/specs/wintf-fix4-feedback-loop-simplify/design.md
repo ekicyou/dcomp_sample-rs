@@ -232,12 +232,22 @@ sequenceDiagram
 ##### Service Interface
 ```rust
 /// SetWindowPos をラッパー付きで呼び出す。
-/// 呼び出し前に IS_SELF_INITIATED=true、完了後に false を設定する。
+/// RAII Drop guard により、正常終了・? early return・パニック時も
+/// IS_SELF_INITIATED が確実に false にリセットされる。
 /// `SetWindowPos` → `WM_WINDOWPOSCHANGED` は同期発火のため、
 /// ハンドラ内で IS_SELF_INITIATED を参照して echo を判定できる。
 ///
 /// # Safety
 /// SetWindowPos Win32 API の unsafe 呼び出しを内包する。
+///
+/// # Implementation
+/// 内部で SetWindowPosGuard（Drop trait 実装）を使用:
+/// ```
+/// IS_SELF_INITIATED.set(true);
+/// let _guard = SetWindowPosGuard;  // Drop でリセット保証
+/// SetWindowPos(...)?;  // ? 使用可能
+/// Ok(())
+/// ```
 pub unsafe fn guarded_set_window_pos(
     hwnd: HWND,
     hwnd_insert_after: HWND,
@@ -249,8 +259,8 @@ pub unsafe fn guarded_set_window_pos(
 ) -> windows::core::Result<()>
 ```
 - Preconditions: `hwnd` は有効なウィンドウハンドル
-- Postconditions: `IS_SELF_INITIATED` は呼び出し前の値に復帰（false）
-- Invariants: `IS_SELF_INITIATED` は同一呼び出しスコープ内でのみ true
+- Postconditions: `IS_SELF_INITIATED` は呼び出し前の値に復帰（false）、RAII により保証
+- Invariants: `IS_SELF_INITIATED` は同一呼び出しスコープ内でのみ true、スコープ終了時に必ず false
 
 #### IS_SELF_INITIATED
 
@@ -432,12 +442,28 @@ pub struct WindowPos {
 
 ### Error Strategy
 - `guarded_set_window_pos()` は `SetWindowPos` の `windows::core::Result<()>` をそのまま返す
-- TLS フラグの ON/OFF は `SetWindowPos` の成功/失敗にかかわらず確実に実行
-- パニック安全性: `SetWindowPos` は Win32 API であり Rust パニックを引き起こさないため、`set(false)` は確実に実行される
+- TLS フラグの ON/OFF は RAII Drop guard により確実に実行される
+- **RAII パターン**: `SetWindowPosGuard` 構造体が Drop trait を実装し、スコープ終了時（正常終了・`?` early return・パニック時）に必ず `IS_SELF_INITIATED.set(false)` を実行
+  ```rust
+  struct SetWindowPosGuard;
+  impl Drop for SetWindowPosGuard {
+      fn drop(&mut self) {
+          IS_SELF_INITIATED.set(false);
+      }
+  }
+  
+  pub unsafe fn guarded_set_window_pos(...) -> windows::core::Result<()> {
+      IS_SELF_INITIATED.set(true);
+      let _guard = SetWindowPosGuard;  // スコープ終了時に必ず Drop
+      SetWindowPos(...)?;  // ? 使用可能、失敗時も Drop で set(false) 実行
+      Ok(())
+  }
+  ```
 
 ### Error Categories and Responses
-- **SetWindowPos 失敗**: 既存の `HRESULT` エラーハンドリング維持。フラグは正常にリセット
-- **TLS フラグ不整合**: 構造的に不可能（ラッパースコープで自動管理）
+- **SetWindowPos 失敗**: `?` で early return、Drop guard により TLS フラグは自動リセット
+- **パニック**: Drop trait によりスタック巻き戻し時も TLS フラグ自動リセット
+- **TLS フラグ不整合**: 構造的に不可能（RAII でスコープ管理）
 
 ## Testing Strategy
 

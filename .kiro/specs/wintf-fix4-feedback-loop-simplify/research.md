@@ -85,10 +85,10 @@
 - **Alternatives Considered**:
   1. 単純 TLS bool — `set(true)` → `SetWindowPos()` → `set(false)`
   2. RAII Drop guard — `let _guard = SetWindowPosGuard::new()` でスコープ管理
-- **Selected Approach**: **単純 TLS bool**（設計フェーズで最終決定）
-- **Rationale**: `SetWindowPos` は同一スコープ内で完結する同期呼び出しであり、Drop guard の安全性メリット（パニック時リセット）は `SetWindowPos` がパニックしない Win32 API であるため実質的に不要。シンプルさを優先。
-- **Trade-offs**: パニック安全性は劣るが、Win32 API 呼び出しは Rust パニックを引き起こさない
-- **Follow-up**: 実装時にパニック安全性の必要性を最終判断
+- **Selected Approach**: **RAII Drop guard**（設計レビュー後の最終決定）
+- **Rationale**: `SetWindowPos` が `Err` を返す場合、`?` による early return で `set(false)` が実行されず TLS フラグが `true` のまま残留する危険性がある。RAII Drop guard により、`?` 使用時もパニック時も確実にフラグをリセットできる。Rust の慣用的なパターンであり、実装コストも軽微。
+- **Trade-offs**: わずかな複雑性の増加（Drop trait 実装）、ただし Rust では標準的パターン
+- **Follow-up**: `SetWindowPosGuard` 構造体を `ecs/window.rs` に追加、Drop trait で `IS_SELF_INITIATED.set(false)` を実装
 
 ### Decision: echo 判定時の `WM_WINDOWPOSCHANGED` ハンドラ動作 — スキップ vs bypass 更新
 
