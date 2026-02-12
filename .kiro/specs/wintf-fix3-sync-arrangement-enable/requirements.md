@@ -98,7 +98,6 @@
 #### Acceptance Criteria
 1. The wintf system shall 有効化後に `cargo test` の全テストがパスすること
 2. The wintf system shall 有効化後に `cargo run --example taffy_flex_demo` が正常に動作し、ウィンドウの表示・移動・リサイズが正しく機能すること
-3. The wintf system shall 有効化後に `cargo run --example areka` が正常に動作すること
 
 ### Requirement 6: ログ出力
 
