@@ -28,7 +28,7 @@
 - **後続仕様**: `wintf-fix4-feedback-loop-simplify`（本仕様の完了が前提）
 
 ### コスト見積もり
-- Small（1日以内）— gap analysis により Medium から下方修正
+- Medium（2日程度）— Option B' 採用により handlers.rs の変更を含むため、当初見積もり Medium に回帰
 
 ### 検証基準（調査レポートより）
 - ユーザーがウィンドウを移動した際に ECS 側の `Arrangement` が更新されること
@@ -49,9 +49,12 @@
 **Objective:** 開発者として、`sync_window_arrangement_from_window_pos` システムが ECS スケジュールに登録され、正しい順序で実行されるようにしたい。これにより Win32 側で発生したウィンドウ位置変更が ECS の `Arrangement` に反映される。
 
 #### Acceptance Criteria
-1. The wintf system shall `sync_window_arrangement_from_window_pos` を PostLayout スケジュールに登録し、毎フレーム実行すること
+1. The wintf system shall `sync_window_arrangement_from_window_pos` を PostLayout スケジュールに登録し、`Changed<WindowPos>` フィルタにより `WindowPos` が変更された Window のみを処理すること
 2. The wintf system shall PostLayout スケジュール内の実行順序を以下のとおり保証すること: `sync_window_arrangement_from_window_pos` → `sync_simple_arrangements` → `mark_dirty_arrangement_trees` → `propagate_global_arrangements` → `window_pos_sync_system`
 3. The wintf system shall `world.rs` のコメントアウトを解除し、有効化後のレガシーコメントを削除すること
+4. The wintf system shall `WM_WINDOWPOSCHANGED` ハンドラで `WindowPos` を更新する際に、`set_if_neq` パターンを使用して同一値への上書き時に変更フラグが立たないようにすること
+
+> **Note**: AC1 と AC4 の組み合わせにより、エコーバック時の無駄な処理を削減する。AC4 により handlers.rs での同一値上書き時にフラグが立たず、AC1 の `Changed<WindowPos>` フィルタで不要な走査を抑制できる。
 
 ### Requirement 2: 座標変換の正確性
 

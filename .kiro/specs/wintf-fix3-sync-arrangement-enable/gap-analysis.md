@@ -159,8 +159,25 @@ Query<(Entity, &WindowPos, &DPI, &mut Arrangement, Option<&Name>), With<Window>>
 **トレードオフ**:
 - ✅ Option A のメリットに加え、不要な走査を削減
 - ✅ bevy_ecs の変更検知と整合的なパターン
-- ❌ `WM_WINDOWPOSCHANGED` → `WindowPos` 更新のタイミングが WndProc 内（非 ECS tick）なため、`Changed` フィルタが次の tick で正しく反応するか確認が必要
-- ❌ 仕様スコープが若干拡大
+- ✅ `apply_window_pos_changes` で既に `Changed<WindowPos>` の使用実績あり
+- ❌ handlers.rs が普通の代入を使用しているため、エコーバック時に同一値でもフラグが立ち無駄反応する
+- ❌ 効率化が不完全
+
+### Option B': コメントアウト解除 + `Changed` フィルタ + `set_if_neq` パターン
+
+**変更内容**:
+1. Option B の内容すべて
+2. `WM_WINDOWPOSCHANGED` ハンドラで `WindowPos` 更新時に `set_if_neq` パターンを使用
+3. `WindowPos` に `set_if_neq` メソッドを実装（または `bypass_change_detection()` + 条件分岐）
+
+**変更行数**: 約15-20行
+
+**トレードオフ**:
+- ✅ 最も効率的 — エコーバック時の無駄反応を完全に抑制
+- ✅ `update_arrangements` (L349) で既に `set_if_neq` パターンの使用実績あり
+- ✅ bevy_ecs の推奨パターンに準拠
+- ❌ handlers.rs の変更が必要（fix3 のスコープ拡大）
+- ❌ `WindowPos` への `set_if_neq` メソッド実装またはボイラープレート増
 
 ### Option C: コメントアウト解除 + エコーバック耐性強化
 
@@ -178,9 +195,9 @@ Query<(Entity, &WindowPos, &DPI, &mut Arrangement, Option<&Name>), With<Window>>
 
 ## 4. 複雑性とリスク評価
 
-### 工数見積もり: **S（1日以内）**
+### 工数見積もり: **M（2日程度）**
 
-**根拠**: 既存実装が完成しており、コメントアウト解除 + スケジュール順序指定のみ。テスト実行による回帰確認が主作業。
+**根拠**: Option B' 採用により handlers.rs の変更が追加。`set_if_neq` パターンの実装方法（メソッド追加 or 条件分岐）の検討と、エコーバック時の動作確認テストが必要。
 
 ### リスク: **Low**
 
@@ -193,13 +210,15 @@ Query<(Entity, &WindowPos, &DPI, &mut Arrangement, Option<&Name>), With<Window>>
 
 ## 5. 設計フェーズへの推奨事項
 
-### 推奨アプローチ: **Option A（最小変更）**
+### 推奨アプローチ: **Option B'（Changed フィルタ + set_if_neq パターン）**
 
 **理由**:
 1. 既存実装が要件 R2-R3-R6 を既に満たしている
 2. フィードバックループは数値的に安全であることが証明済み
-3. `Changed` フィルタ追加や明示的エコーバックチェックは後続仕様（wintf-fix4）で対応可能
-4. コスト見積もりを Medium → Small に下方修正可能
+3. `Changed<WindowPos>` フィルタは `apply_window_pos_changes` で使用実績あり
+4. `set_if_neq` パターンは `update_arrangements` (L349) で使用実績あり
+5. エコーバック時の無駄な処理を完全に抑制でき、効率的
+6. handlers.rs の変更は限定的（`WindowPos` 更新箇所のみ）
 
 ### 設計フェーズでの確認事項
 
@@ -210,4 +229,4 @@ Query<(Entity, &WindowPos, &DPI, &mut Arrangement, Option<&Name>), With<Window>>
 ### Research Needed（設計フェーズで調査）
 
 - **R-1**: DPI 125%（scale=1.25）での座標変換往復精度テスト — `position / 1.25 * 1.25` で元の整数値に戻るか
-- **R-2**: `set_if_neq` vs 直接代入のトレードオフ — bevy_ecs の推奨パターン確認
+- ~~**R-2**: `set_if_neq` vs 直接代入のトレードオフ — bevy_ecs の推奨パターン確認~~ → Option B' 採用により `set_if_neq` パターン使用に決定
