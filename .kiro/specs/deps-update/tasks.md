@@ -5,28 +5,28 @@
 
 ## Tasks
 
-- [ ] 1. 互換パッケージ更新と検証
-- [ ] 1.1 互換パッケージのバージョンを更新
+- [x] 1. 互換パッケージ更新と検証
+- [x] 1.1 互換パッケージのバージョンを更新
   - ワークスペースルート Cargo.toml で taffy を 0.9.2 に更新
   - ワークスペースルート Cargo.toml で human-panic を 2.0.6 に更新
   - クレート固有 Cargo.toml で async-io を 2.6 に更新
   - _Requirements: 1.1, 1.2_
 
-- [ ] 1.2 互換更新のビルド・テスト検証
+- [x] 1.2 互換更新のビルド・テスト検証
   - cargo build でビルドが成功することを確認
   - cargo test で全テストがパスすることを確認
   - _Requirements: 2.1, 3.1_
 
-- [ ] 2. bevy 0.18 Cargo.toml 更新
-- [ ] 2.1 bevy 系パッケージのバージョンを 0.18.0 に更新
+- [x] 2. bevy 0.18 Cargo.toml 更新
+- [x] 2.1 bevy 系パッケージのバージョンを 0.18.0 に更新
   - ワークスペースルート Cargo.toml で bevy_ecs を 0.18.0 に更新
   - ワークスペースルート Cargo.toml で bevy_app を 0.18.0 に更新
   - ワークスペースルート Cargo.toml で bevy_tasks を 0.18.0 に更新
   - ワークスペースルート Cargo.toml で bevy_utils を 0.18.0 に更新
   - _Requirements: 1.3_
 
-- [ ] 3. bevy 0.18 API修正とビルド検証
-- [ ] 3.1 bevy 0.18 コンパイルエラーの修正
+- [x] 3. bevy 0.18 API修正とビルド検証
+- [x] 3.1 bevy 0.18 コンパイルエラーの修正
   - cargo build を実行してコンパイルエラーを特定
   - import パス変更に対応（必要な場合）
   - DetectChangesMut のインポートパスを調整（必要な場合）
@@ -38,48 +38,48 @@
   - コンパイルエラーがなくなるまで修正を反復
   - _Requirements: 2.3_
 
-- [ ] 3.2 bevy 0.18 ビルド・テスト検証
+- [x] 3.2 bevy 0.18 ビルド・テスト検証
   - cargo build でビルドが成功することを確認
   - cargo build --release でリリースビルドが成功することを確認
   - cargo test で全テストがパスすることを確認
   - _Requirements: 2.1, 2.2, 3.1_
 
-- [ ] 4. ambassador 0.5 更新と検証
-- [ ] 4.1 ambassador のバージョンを 0.5.0 に更新
+- [x] 4. ambassador 0.5 更新と検証
+- [x] 4.1 ambassador のバージョンを 0.5.0 に更新
   - ワークスペースルート Cargo.toml で ambassador を 0.5.0 に更新
   - _Requirements: 1.3_
 
-- [ ] 4.2 ambassador 0.5 ビルド検証とコード修正
+- [x] 4.2 ambassador 0.5 ビルド検証とコード修正
   - cargo build でコンパイルエラーの有無を確認
   - エラーがある場合は delegatable_trait, Delegate マクロ使用箇所を修正
   - コンパイルエラーがなくなるまで修正を反復
   - _Requirements: 2.3_
 
-- [ ] 5. rand 0.10 更新と検証
-- [ ] 5.1 rand のバージョンを 0.10.0 に更新
+- [x] 5. rand 0.10 更新と検証
+- [x] 5.1 rand のバージョンを 0.10.0 に更新
   - クレート固有 Cargo.toml で rand を 0.10.0 に更新（dev-dependency）
   - _Requirements: 1.3_
 
-- [ ] 5.2 rand 0.10 サンプルコード修正
+- [x] 5.2 rand 0.10 サンプルコード修正
   - examples/dcomp_demo.rs で cargo build --examples を実行しエラーを確認
   - RngExt トレイトのインポート問題に対応（必要な場合 use rand::RngExt を追加）
   - random_range(), shuffle() の呼び出しを修正（必要な場合）
   - コンパイルエラーがなくなるまで修正を反復
   - _Requirements: 2.3, 3.3_
 
-- [ ] 5.3 rand 0.10 サンプルビルド検証
+- [x] 5.3 rand 0.10 サンプルビルド検証
   - cargo build --examples で全サンプルがビルドできることを確認
   - _Requirements: 3.2_
 
-- [ ] 6. ステアリングドキュメント更新
-- [ ] 6.1 tech.md のバージョン情報を更新
+- [x] 6. ステアリングドキュメント更新
+- [x] 6.1 tech.md のバージョン情報を更新
   - tech.md の Key Libraries セクションで bevy_ecs を 0.18.0 に更新
   - tech.md の Key Libraries セクションで taffy を 0.9.2 に更新
   - tech.md の Key Libraries セクションで human-panic を 2.0.6 に更新（記載がある場合）
   - _Requirements: 4.1_
 
-- [ ] 7. 最終検証
-- [ ] 7.1 全体ビルド・テスト・サンプル検証
+- [x] 7. 最終検証
+- [x] 7.1 全体ビルド・テスト・サンプル検証
   - cargo build でビルドが成功することを確認
   - cargo build --release でリリースビルドが成功することを確認
   - cargo test で全テストがパスすることを確認
