@@ -77,10 +77,16 @@
 **Objective:** 開発者として、逆方向同期（Win32 → ECS）と順方向同期（ECS → Win32）が互いに無限にトリガーし合うフィードバックループが発生しないことを保証したい。
 
 #### Acceptance Criteria
-1. When ユーザーがウィンドウをドラッグ移動した場合, the system shall `WindowPos` → `Arrangement` → `GlobalArrangement` → `WindowPos` の更新連鎖が 1 フレーム内で収束し、次フレームで同一値の再更新が発生しないこと
+1. When ユーザーがウィンドウをドラッグ移動した場合, the system shall `WindowPos` → `Arrangement` → `GlobalArrangement` → `WindowPos` の更新連鎖が 1 フレーム内で収束し、次フレーム（次 VSync tick）で同一値の再更新が発生しないこと
 2. The `window_pos_sync_system` shall `GlobalArrangement` が `Changed` フィルタにより変更検知された場合のみ `WindowPos` を更新すること（既存動作の確認）
 3. The `sync_window_arrangement_from_window_pos` shall 変換後の値が `Arrangement.offset` の現在値と一致する場合は更新をスキップすること（既存実装の確認）
-4. While エコーバック検知（`last_sent_position` / `last_sent_size`）機構が存在する場合, the system shall 当該機構と協調して動作し、ECS 発の `SetWindowPos` による `WM_WINDOWPOSCHANGED` エコーバックを逆方向同期の入力としないこと
+
+> **Note（C1 議論結果）**: 旧 AC4「エコーバック検知機構との協調」は AC1 に吸収して削除した。
+> 根拠: `try_tick_world()` は `WM_WINDOWPOSCHANGED` ハンドラ内（`WindowPosChanged=true`）と
+> `WM_VSYNC` メッセージループ（`WindowPosChanged=false`）の 2 箇所から呼ばれる。
+> ハンドラ return 後の次 VSync tick では L1 フラグは無効だが、AC3 の等値チェック +
+> AC2 の `Changed` フィルタ + `is_echo()` 判定により収束する。
+> L2 `is_echo()` の丸め誤差リスク（report.md §3.4）の根本対策は後続仕様 fix4 の責務。
 
 ### Requirement 5: 既存テストとの整合性
 
