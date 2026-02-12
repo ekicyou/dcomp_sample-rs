@@ -52,7 +52,7 @@
 
 `WM_DPICHANGED` ハンドラは `SetWindowPosCommand::enqueue()` を**使用せず**、**直接** `SetWindowPos()` を呼ぶ（`handlers.rs` L408–L420）。これは `DefWindowProcW` の代わりに明示的に `suggested_rect` を適用するためである。この呼び出しにより `WM_WINDOWPOSCHANGED` が**同期的に**発火し、TLS 経由の `DpiChangeContext` を消費する。
 
-→ このため `WM_DPICHANGED` 経路は統合ゲートのキュー機構の対象外であり、`DpiChangeContext` TLS + `try_borrow_mut()` 再入保護が本質的に必要。
+→ このため `WM_DPICHANGED` 経路はコマンドキュー機構の対象外だが、ラッパー方式では同じ `guarded_set_window_pos()` を使用することで統一的に保護される。`DpiChangeContext` TLS は独立して維持される（R2）。
 
 ### 1.3 依存方向・制約
 
@@ -74,31 +74,69 @@ COM Layer → ECS Layer → Message Handling Layer
 ### 2.1 要件-アセットマッピング
 
 | 要件 | 関連アセット | ギャップ |
-|------|-------------|---------|
-| R1: 単一ゲート統合 | `SetWindowPosCommand`, `WindowPosChanged`, `apply_window_pos_changes`, `WM_WINDOWPOSCHANGED` ハンドラ | **設計必要**: 統合方法の詳細設計（TLS vs ECS Resource）|
+|------|-------------|--------|
+| R1: SetWindowPos ラッパー | `SetWindowPosCommand`, `WindowPosChanged`, `is_echo()`, `last_sent_*`, `apply_window_pos_changes`, `WM_WINDOWPOSCHANGED` ハンドラ, `WM_DPICHANGED` ハンドラ | **設計必要**: ラッパー関数の API 設計、TLS フラグ構造 |
 | R2: DpiChangeContext 維持 | `DpiChangeContext` | **ギャップなし**: 現行維持 |
-| R3: エコーバック統合 | `is_echo()`, `last_sent_*`, `bypass_change_detection()` | **軽微**: モジュール/ドキュメント整理のみ |
-| R4: 正確性保証 | 全メカニズム | **テスト不足**: UISetup パイプライン（`apply_window_pos_changes`）のテストが存在しない |
-| R5: コード簡素化 | 4ステッププロトコル、3箇所 flush | **設計必要**: ステップ削減方法 |
-| R6: 後方互換・テスト | `feedback_loop_convergence_test.rs` | **テスト拡張必要**: 統合ゲートの状態遷移テスト |
+| R3: 正確性保証 | 全メカニズム | **テスト不足**: UISetup パイプラインのテストが存在しない |
+| R4: コード簡素化 | 4ステッププロトコル、3箇所 flush | **設計必要**: ステップ削減、削除対象の特定 |
+| R5: 後方互換・テスト | `feedback_loop_convergence_test.rs` | **テスト拡張必要**: ラッパー TLS フラグの単体テスト |
 
 ### 2.2 技術的課題
 
-#### 課題1: TLS キューと ECS コンポーネントの統合先
+#### 課題1: ラッパー方式の核心設計
 
-`SetWindowPosCommand` は TLS（WndProc コールスタックで安全にアクセス可能）、`WindowPosChanged` は ECS コンポーネント（スケジュール内で Query 可能）。統合先の選択が設計上の最大決定ポイント。
+`SetWindowPos` → `WM_WINDOWPOSCHANGED` は同期呼び出し（同一コールスタック内で発火）であるため、ラッパー関数のスコープで TLS フラグを管理するだけで、`WM_WINDOWPOSCHANGED` ハンドラ内で「自アプリ由来か外部由来か」を直接判定できる。
 
-- **TLS に統合**: ゲート状態を TLS に置き、`apply_window_pos_changes` 内で TLS を参照してスキップ判定。`WindowPosChanged` ECS コンポーネントは削除可能。
-- **ECS Resource に統合**: ゲート状態を ECS `Resource` に置く。ただしWndProc ハンドラからのアクセスには World 借用が必要。
-- **ハイブリッド**: TLS にキュー + ゲートフラグを置き、ECS コンポーネントは削除。
+```rust
+// 概念的なラッパー
+fn guarded_set_window_pos(hwnd, ...) {
+    IS_OUR_CALL.set(true);
+    SetWindowPos(hwnd, ...);  // ← WM_WINDOWPOSCHANGED が同期発火
+    IS_OUR_CALL.set(false);
+}
+```
 
-#### 課題2: 4ステッププロトコルの簡素化限界
+これにより以下が不要になる：
+- `WindowPosChanged` ECS コンポーネント（WndProc ハンドラでの設定/リセット）
+- `last_sent_position` / `last_sent_size` フィールド（値比較による間接的エコーバック検知）
+- `is_echo()` メソッド
+- 4ステッププロトコルの④（World 第2借用での `WindowPosChanged=false` リセット）
 
-①②③④のうち、①と④は別々の World 借用が必要（②の tick 中は World が借用済み）。この制約は `RefCell` アーキテクチャに起因し、統合ゲートを導入しても借用境界自体は変わらない。
+ラッパー方式の適用範囲：
 
-→ 簡素化の範囲は「④を不要にできるか」（＝フラグリセットのステップ削除）が鍵。TLS ゲートなら ③ の flush 時に自動リセット可能。
+| 呼び出し元 | 現行 | ラッパー後 |
+|------------|--------|----------|
+| `flush()` 内の `SetWindowPos` | 直接呼び出し | ラッパー経由 |
+| `WM_DPICHANGED` ハンドラの `SetWindowPos` | 直接呼び出し（キュー未使用） | ラッパー経由（統一） |
 
-#### 課題3: flush 呼び出しの集約
+#### 課題2: `WM_WINDOWPOSCHANGED` ハンドラの簡素化
+
+現行の4ステッププロトコル：
+```
+① World 第1借用 → DPI更新, WindowPosChanged=true, WindowPos更新, BoxStyle更新 → 借用解放
+② try_tick_on_vsync() (内部で借用→解放→flush)
+③ flush_window_pos_commands()
+④ World 第2借用 → WindowPosChanged=false → 借用解放
+```
+
+ラッパー方式後：
+```
+① World 第1借用 → DPI更新, WindowPos更新, BoxStyle更新 → 借用解放
+② try_tick_on_vsync() (内部で借用→解放→flush)
+③ flush_window_pos_commands()
+```
+
+① で `WindowPosChanged=true` の設定が不要、④ が丸ごと削除。ハンドラが TLS フラグをチェックするだけで「自アプリ由来か」を判定。
+
+#### 課題3: `apply_window_pos_changes` のガード変更
+
+現行では `apply_window_pos_changes` 内に2つのガードがある：
+1. `WindowPosChanged` コンポーネントチェック（ECS Query）
+2. `is_echo()` 値比較
+
+ラッパー方式ではこれらが不要になるが、ガードの完全削除が可能かどうかは設計時に検証が必要。ラッパーで TLS フラグが ON の間に発火した `WM_WINDOWPOSCHANGED` は `Changed<WindowPos>` を発火させないため、`apply_window_pos_changes` のトリガー自体が発火しないはず。
+
+#### 課題4: flush 呼び出しの集約
 
 3箇所の flush のうち:
 - `VsyncTick` トレイト内（#1）と `WM_VSYNC` メッセージループ内（#2）は**冗長**。#1 が実行されれば #2 は空の flush になる。
@@ -106,138 +144,99 @@ COM Layer → ECS Layer → Message Handling Layer
 
 → ただし各呼び出し元の安全保証（flush が確実に呼ばれること）のために冗等呼び出しが存在。削減は可能だが慎重な検討が必要。
 
-#### 課題4: テストカバレッジの不整合
+#### 課題5: テストカバレッジの不整合
 
 現在のテストは PostLayout パイプラインのみ検証。以下が未テスト:
-- `apply_window_pos_changes` の `WindowPosChanged` ガード動作
-- `apply_window_pos_changes` の `is_echo()` ガード動作
-- 統合ゲートの状態遷移（設定→スキップ→リセット）
-- `WM_DPICHANGED` → `WM_WINDOWPOSCHANGED` チェーンの end-to-end
+- ラッパー関数の TLS フラグの ON/OFF 動作
+- `WM_WINDOWPOSCHANGED` ハンドラでのフラグ参照動作
+- `WM_DPICHANGED` 経路のラッパー統一
 
 ---
 
-## 3. 実装アプローチ選択肢
+## 3. 実装アプローチ: SetWindowPos ラッパー方式
 
-### Option A: TLS ゲート統合（WindowPosChanged 削除）
+### 核心アイデア
 
-**概要**: `WINDOW_POS_COMMANDS` TLS を拡張し、キューだけでなくゲートフラグも管理する `WindowPosGate` TLS に統合。`WindowPosChanged` ECS コンポーネントは削除。
+`SetWindowPos` → `WM_WINDOWPOSCHANGED` は同期呼び出し（同一コールスタック内で発火）であるため、`SetWindowPos` をラッパー関数で囲み TLS フラグを管理するだけで、「自アプリ由来の `WM_WINDOWPOSCHANGED` か」を直接判定できる。
 
-**変更箇所**:
+これにより `WindowPosChanged` ECS コンポーネント（ハンドラでの設定/リセット）と `is_echo()` 値比較検知の**両方を代替**できる。
+
+### 変更箇所
+
 | ファイル | 変更内容 |
-|---------|---------|
-| `ecs/window.rs` | `WindowPosGate` TLS 構造体を新設（キュー + `suppressing: bool`）。`WindowPosChanged` 削除 |
-| `ecs/graphics/systems.rs` | `apply_window_pos_changes` の Query から `WindowPosChanged` を除去、TLS `is_suppressing()` に変更 |
-| `ecs/window_proc/handlers.rs` | ①④ の `WindowPosChanged` 操作を TLS `WindowPosGate::begin_external_sync()` / `end_external_sync()` に置換 |
-| `ecs/world.rs` | スケジュール変更なし。`VsyncTick` 内の flush 呼び出しは維持 |
+|---------|----------|
+| `ecs/window.rs` | ラッパー関数 `guarded_set_window_pos()` 新設、TLS フラグ `IS_SELF_INITIATED` 新設。`WindowPosChanged` 削除。`WindowPos` から `last_sent_position` / `last_sent_size` / `is_echo()` 削除 |
+| `ecs/graphics/systems.rs` | `apply_window_pos_changes` から `WindowPosChanged` Query 除去、`is_echo()` ガード除去、`last_sent_*` 記録除去。`enqueue()` は維持 |
+| `ecs/window_proc/handlers.rs` | `WM_WINDOWPOSCHANGED` ハンドラ: ①から `WindowPosChanged=true` 削除、TLS フラグ参照で echo 判定追加、④（World 第2借用）削除。`WM_DPICHANGED` ハンドラ: 直接 `SetWindowPos` → ラッパー経由に変更 |
+| `ecs/window.rs` (flush) | `flush()` 内の `SetWindowPos` 呼び出しをラッパー経由に変更 |
+| テスト | ラッパー TLS フラグの単体テスト追加。既存 `feedback_loop_convergence_test.rs` は `is_echo`/`last_sent` 使用箇所のみ修正 |
 
-**4ステッププロトコルの変化**:
-```
-① World 第1借用 → DPI更新, [TLS] gate.begin_suppression(), WindowPos更新, BoxStyle更新 → 借用解放
-② try_tick_on_vsync() → apply_window_pos_changes が TLS gate.is_suppressing() で skip
-③ flush_window_pos_commands() + gate.end_suppression()  ← ③と④を統合
-④ 削除
-```
+### 削除対象一覧
 
-**トレードオフ**:
-- ✅ World 第2借用（④）が不要になり、ステップが3に削減
-- ✅ ECS コンポーネント1つ削除（SparseSet ストレージ解放）
-- ✅ TLS に情報が集約され、1箇所で全状態を確認可能
-- ❌ ECS システム内から TLS を参照するのは bevy_ecs のイディオムから外れる
-- ❌ テストで TLS 状態のモック/制御が ECS Query より難しい
+| 削除対象 | ファイル | 理由 |
+|----------|----------|------|
+| `WindowPosChanged` コンポーネント | `ecs/window.rs` | TLS ラッパーフラグで代替 |
+| `WindowPos.last_sent_position` | `ecs/window.rs` | ラッパー方式で値比較不要 |
+| `WindowPos.last_sent_size` | `ecs/window.rs` | 同上 |
+| `WindowPos.is_echo()` | `ecs/window.rs` | 同上 |
+| `apply_window_pos_changes` 内 `WindowPosChanged` ガード | `ecs/graphics/systems.rs` | TLS フラグ or ガード自体不要 |
+| `apply_window_pos_changes` 内 `is_echo()` ガード | `ecs/graphics/systems.rs` | 同上 |
+| `apply_window_pos_changes` 内 `last_sent_*` 記録 | `ecs/graphics/systems.rs` | 同上 |
+| `WM_WINDOWPOSCHANGED` ④（World 第2借用） | `handlers.rs` | フラグリセット不要 |
 
-### Option B: ECS Resource ゲート統合（TLS キューは維持、WindowPosChanged を Resource 化）
+### トレードオフ
 
-**概要**: `WindowPosChanged` をエンティティコンポーネントから `Resource` に変更し、`HashMap<Entity, bool>` で全ウィンドウの抑制状態を管理。TLS キューは物理的制約（World 借用外 flush）のため維持。
-
-**変更箇所**:
-| ファイル | 変更内容 |
-|---------|---------|
-| `ecs/window.rs` | `WindowPosSuppression` Resource（`HashMap<Entity, bool>`）新設。`WindowPosChanged` コンポーネント削除 |
-| `ecs/graphics/systems.rs` | `apply_window_pos_changes` の Query 変更、`Res<WindowPosSuppression>` 参照 |
-| `ecs/window_proc/handlers.rs` | ① で Resource の entity キーを設定、④ でリセット |
-
-**トレードオフ**:
-- ✅ bevy_ecs の Resource パターンに準拠
-- ✅ テスト容易性が高い（World に Resource を挿入してテスト可能）
-- ❌ 4ステッププロトコルは維持（④が必要）
-- ❌ HashMap 管理のオーバーヘッド（軽微だがエンティティ削除時のクリーンアップ必要）
-- ❌ TLS キューとの二重管理は残る
-
-### Option C: TLS ゲート統合 + flush 集約（推奨ハイブリッド）
-
-**概要**: Option A の TLS ゲート統合に加え、flush 呼び出しポイントを整理。`flush()` 自体にゲートリセットを組み込み、③と④を完全統合。
-
-**変更箇所**:
-| ファイル | 変更内容 |
-|---------|---------|
-| `ecs/window.rs` | `WindowPosGate` TLS 構造体（キュー + 抑制フラグ + エコーバック記録）。`WindowPosChanged` 削除 |
-| `ecs/graphics/systems.rs` | `WindowPosChanged` Query 除去、TLS ゲートチェックに変更。エコーバック記録も TLS 経由 |
-| `ecs/window_proc/handlers.rs` | ① で `WindowPosGate::begin_wm_sync(entity)` 呼び出し、③④ を `WindowPosGate::flush_and_reset()` に統合 |
-| `ecs/world.rs` | flush 呼び出しは主要2箇所に集約（VsyncTick + WM_VSYNC） |
-| `win_thread_mgr.rs` | flush 呼び出し維持（安全保証） |
-
-**4ステッププロトコルの変化**:
-```
-① World 第1借用 → DPI更新, [TLS] gate.begin_wm_sync(entity), WindowPos更新, BoxStyle更新 → 借用解放
-② try_tick_on_vsync() → apply_window_pos_changes が TLS gate.is_suppressed(entity) で skip
-③ flush_and_reset() ← flush + 抑制解除を一体化。④は不要
-```
-
-**トレードオフ**:
-- ✅ 最大の簡素化（4ステップ→3ステップ、World 第2借用削除）
-- ✅ ゲート状態 + キュー + エコーバック記録が単一 TLS に集約
-- ✅ `flush_and_reset()` により状態リセット忘れのリスク排除
-- ❌ TLS 構造体がやや複雑化（3つの責務を持つ）
-- ❌ ECS システム内の TLS アクセスは bevy_ecs イディオム外
+- ✅ 根本的な簡素化（値比較検知 + ECS コンポーネントフラグ → コールスタックスコープの TLS フラグ）
+- ✅ 4ステップ → 3ステップ（World 第2借用削除）
+- ✅ `WM_DPICHANGED` 経路も統一的にラッパーで保護
+- ✅ TLS は既に `DpiChangeContext` で使用済みの確立パターン
+- ❌ ECS システム内からの TLS アクセスは bevy_ecs イディオム外（ガードが不要になるためこのデメリットは実質的に解消）
 - ❌ 単体テストで TLS 状態の制御が必要
 
 ---
 
 ## 4. 複雑度とリスク
 
-### 工数見積もり: **M（3–5日）**
+### 工数見積もり: **S（1–3日）**
 
-- TLS ゲート構造体の設計・実装: 1日
-- `apply_window_pos_changes` のガード変更: 0.5日
-- `WM_WINDOWPOSCHANGED` ハンドラの 4→3 ステップ化: 1日
-- エコーバック検知の再配置: 0.5日
-- テスト拡張（統合ゲートのユニットテスト + 既存テスト適合）: 1日
-- 手動検証（taffy_flex_demo 等でのスムーズ動作確認）: 1日
+ラッパー方式は旧 Option A/B/C より大幅にシンプル：
+- ラッパー関数 + TLS フラグ実装: 0.5日
+- `apply_window_pos_changes` のガード削除 + `WindowPos` フィールド削除: 0.5日
+- `WM_WINDOWPOSCHANGED` ハンドラ 4→3ステップ化 + `WM_DPICHANGED` ラッパー統一: 0.5日
+- テスト拡張 + 手動検証: 1日
 
-### リスク: **Medium**
+### リスク: **Low**
 
 | リスク | 影響度 | 緩和策 |
 |--------|--------|--------|
-| TLS ゲートフラグのリセット漏れ | 高（フィードバックループ永続化） | `flush_and_reset()` で flush と同時にリセット。Drop guard 検討 |
-| `WM_DPICHANGED` 経路との干渉 | 高（DPI 変更時の不具合） | `DpiChangeContext` は独立維持。`WM_DPICHANGED` は直接 SetWindowPos なのでゲート対象外 |
-| bevy_ecs イディオム逸脱 | 低（保守性） | doc comment で TLS 使用理由を明記 |
-| 複数ウィンドウでのゲート競合 | 中（マルチウィンドウ不具合） | TLS ゲートをウィンドウ(hwnd/entity)単位で管理、または全ウィンドウ共通フラグで十分かを設計時に評価 |
+| `SetWindowPos` が非同期に `WM_WINDOWPOSCHANGED` を発火するケース | 高 | MSDN では同期と明記。RI-2 で裏取り。万が一の保険として `RefCell` 再入保護（L3）が存在 |
+| `WM_DPICHANGED` 経路でのラッパー適用忘れ | 中 | ラッパーを唯一の `SetWindowPos` 呼び出し口とし、`unsafe SetWindowPos` の直接呼び出しを禁止する doc comment で保護 |
+| TLS フラグのリセット漏れ | 低 | ラッパー関数のスコープで自動管理されるためリセット漏れは構造的に不可能 |
 
 ---
 
 ## 5. 推奨アプローチと設計フェーズへの引継ぎ
 
-### 推奨: Option C（TLS ゲート統合 + flush 集約）
+### 推奨: SetWindowPos ラッパー方式
 
 **理由**:
-- 最大のコード簡素化効果（要件R5に最も合致）
-- World 第2借用（④）の削除は実質的な複雑度低減
-- TLS はシングルスレッド UI アーキテクチャで既に `DpiChangeContext` で使用済みの確立パターン
-- エコーバック記録を TLS に移すことで `WindowPos` 構造体の責務が純粋化
+- 「`SetWindowPos` → `WM_WINDOWPOSCHANGED` は同期」という Win32 の性質を直接活用する最も自然な設計
+- `WindowPosChanged` + `is_echo()` + `last_sent_*` の3つを一挙に削除できる
+- 4ステップ → 3ステップ（World 第2借用削除）
+- `WM_DPICHANGED` 経路も同じラッパーで統一
+- 工数が旧アプローチ（M: 3-5日）より削減（S: 1-3日）
 
 ### 設計フェーズで決定すべき事項
 
 | # | 決定事項 | 選択肢 | 判断材料 |
 |---|---------|--------|----------|
-| D1 | TLS ゲートの粒度 | (a) 全ウィンドウ共通フラグ / (b) Per-entity フラグ | 複数ウィンドウの同時 `WM_WINDOWPOSCHANGED` 処理が現実的に発生するか |
-| D2 | `last_sent_*` の配置 | (a) TLS ゲート内に移動 / (b) `WindowPos` に残留 | テスト容易性 vs 一貫性 |
-| D3 | flush 呼び出しポイント | (a) 2箇所に削減 / (b) 3箇所維持（冪等保証） | 安全性 vs 簡潔性 |
-| D4 | `WindowPosChanged` の完全削除 vs マーカー残留 | (a) 完全削除 / (b) デバッグ用に残す | 外部から観測可能なフラグが必要か |
+| D1 | ラッパー関数の API 設計 | (a) 単純 TLS bool (b) RAII Drop guard | 安全性 vs シンプルさ。同期呼び出し保証があるので bool で十分か |
+| D2 | flush 呼び出しポイント | (a) 2箇所に削減 / (b) 3箇所維持（冪等保証） | 安全性 vs 簡潔性 |
+| D3 | `WM_WINDOWPOSCHANGED` ハンドラでの echo 判定時の動作 | (a) 値更新を完全スキップ / (b) `bypass_change_detection()` で更新しつつ Changed 抑制 | データ整合性 vs パフォーマンス |
 
 ### Research Items（設計フェーズ向け）
 
 | # | 調査項目 | 目的 |
 |---|---------|------|
-| RI-1 | bevy_ecs での TLS アクセスのベストプラクティス | ECS システム内の TLS 参照が他プロジェクトでどう扱われているか |
-| RI-2 | `WM_WINDOWPOSCHANGED` の同期発火タイミング詳細 | `SetWindowPos` 呼び出し→ `WM_WINDOWPOSCHANGED` が**必ず**同期的か、非同期になるケースはあるか |
-| RI-3 | マルチウィンドウでの `WM_WINDOWPOSCHANGED` 発火順序 | 1つの `SetWindowPos` で複数ウィンドウに連鎖的に通知が来るケースの調査 |
+| RI-1 | `SetWindowPos` 呼び出し → `WM_WINDOWPOSCHANGED` の同期発火タイミング詳細 | 同期保証の MSDN 裏取り。非同期になるケースがあるか |
+| RI-2 | マルチウィンドウでの `WM_WINDOWPOSCHANGED` 発火順序 | 1つの `SetWindowPos` で複数ウィンドウに連鎖通知が来るケースの調査 |

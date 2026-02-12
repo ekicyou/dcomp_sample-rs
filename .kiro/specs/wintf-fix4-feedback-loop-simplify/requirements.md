@@ -7,27 +7,36 @@
 | 層 | 実装名 | 役割 |
 |----|--------|------|
 | L1 | `WindowPosChanged` (ECS Component) | `WM_WINDOWPOSCHANGED` 処理中の `apply_window_pos_changes` スキップ |
-| L2 | エコーバック検知 (`is_echo()`) | ECS→Win32 で送信した値が戻ってきた場合のスキップ |
+| L2 | エコーバック検知 (`is_echo()`) | `last_sent_*` 値比較による間接的エコーバック検知 |
 | L3 | `RefCell` 再入保護 | `try_borrow_mut()` 失敗時スキップ |
 | 遅延実行 | `SetWindowPosCommand` (TLS キュー) | World 借用中の `SetWindowPos` 再入防止 |
 
-この構造は堅牢だが冗長であり、`SetWindowPosCommand`（遅延実行キュー）と `WindowPosChanged`（抑制フラグ）を **単一ゲートシステム** に統合する。`DpiChangeContext`（TLS）は `WndProc` コールスタック固有の性質を持つため維持する。
+この構造は堅牢だが冗長である。核心的な洞察として、`SetWindowPos` → `WM_WINDOWPOSCHANGED` は**同期呼び出し**（同一コールスタック内で発火）であるため、`SetWindowPos` をラッパー関数で囲み TLS フラグを管理するだけで、L1（`WindowPosChanged`）と L2（エコーバック検知）の両方を代替できる。
+
+本仕様では以下を行う：
+- `SetWindowPos` ラッパー関数を導入し、呼び出しスコープで TLS フラグを自動管理する
+- `WindowPosChanged` ECS コンポーネントを削除する
+- `last_sent_*` / `is_echo()` エコーバック検知を削除する
+- `SetWindowPosCommand` 遅延実行キューは維持し、`flush()` 内でラッパーを使用する
+- `DpiChangeContext`（TLS）は `WndProc` コールスタック固有の性質を持つため維持する
+- L3（`RefCell` 再入保護）は `Rc<RefCell<EcsWorld>>` アーキテクチャ固有のため維持する
 
 **親仕様**: `dpi-coordinate-transform-survey` (report.md §1.2 項目4, §6.4.4, §8.2 Step 4)
 **前提条件**: `wintf-fix3-sync-arrangement-enable` 完了（逆同期が有効化済み）
 
 ## Requirements
 
-### Requirement 1: 単一ゲートシステムへの統合
+### Requirement 1: SetWindowPos ラッパーによるフィードバック防止
 
-**Objective:** As a wintf 開発者, I want `SetWindowPosCommand`（遅延実行キュー）と `WindowPosChanged`（抑制フラグ）を単一の統合ゲート機構に統合する, so that フィードバックループ防止のコード経路が削減され、保守性が向上する
+**Objective:** As a wintf 開発者, I want `SetWindowPos` をラッパー関数で囲み TLS フラグでフィードバックを制御する, so that `WindowPosChanged` コンポーネントと `is_echo()` エコーバック検知の両方が不要になり、防止メカニズムが根本的に簡素化される
 
 #### Acceptance Criteria
 
-1. The wintf system shall `SetWindowPosCommand`（TLS キュー）と `WindowPosChanged`（ECS コンポーネント）の責務を単一のゲート機構で管理する
-2. When ECS 側で `WindowPos` または `BoxStyle` が変更された場合, the wintf system shall 統合ゲート経由で `SetWindowPos` コマンドを蓄積し、World 借用解放後に一括実行する
-3. While 統合ゲートの抑制フラグが有効（`WM_WINDOWPOSCHANGED` 処理中に設定）な場合, the wintf system shall ECS → Win32 再同期（`apply_window_pos_changes` での `SetWindowPos` 発行）をスキップする
-4. When VSync tick、WndProc ハンドラ、メッセージループのいずれかのタイミングで flush が呼ばれた場合, the wintf system shall 蓄積された全コマンドを実行し、ゲート状態をリセットする
+1. The wintf system shall `SetWindowPos` Win32 API 呼び出しをラッパー関数で囲み、呼び出し前に TLS フラグを ON、完了後に OFF とする
+2. While ラッパーの TLS フラグが ON の状態（＝`SetWindowPos` のコールスタック内）で `WM_WINDOWPOSCHANGED` が発火した場合, the wintf system shall これを自アプリ由来の echo と判定し、`apply_window_pos_changes` での再送信をスキップする
+3. The wintf system shall `SetWindowPosCommand` 遅延実行キューを維持し、`flush()` 内でラッパー関数経由で `SetWindowPos` を実行する
+4. The wintf system shall `WindowPosChanged` ECS コンポーネント、`last_sent_position` / `last_sent_size` フィールド、`is_echo()` メソッドを削除する
+5. When `WM_DPICHANGED` ハンドラが `SetWindowPos` を呼び出す場合, the wintf system shall 同じラッパー関数を使用し、フィードバック防止を統一する
 
 ### Requirement 2: DpiChangeContext の維持
 
@@ -40,17 +49,7 @@
 3. When `WM_WINDOWPOSCHANGED` ハンドラが実行された場合, the wintf system shall `DpiChangeContext::take()` で DPI 値を取得し、DPI コンポーネントを即時更新する
 4. The wintf system shall 統合ゲートシステムと `DpiChangeContext` の責務を明確に分離する（ゲートは位置・サイズ同期、DpiChangeContext は DPI 値伝達）
 
-### Requirement 3: エコーバック検知の統合
-
-**Objective:** As a wintf 開発者, I want エコーバック検知（`last_sent_position` / `last_sent_size` / `is_echo()`）を統合ゲートの一部として明確に位置づける, so that フィードバック防止の全経路が単一概念で理解できる
-
-#### Acceptance Criteria
-
-1. When `apply_window_pos_changes` が `SetWindowPos` コマンドを生成する際, the wintf system shall 送信値（position, size）を記録する
-2. When `WM_WINDOWPOSCHANGED` で受信した値が送信記録と一致する場合, the wintf system shall `bypass_change_detection()` を使用して `Changed<WindowPos>` の発火を抑制する
-3. The wintf system shall エコーバック検知を統合ゲートの補助メカニズムとして明確にドキュメントまたはモジュール構造で位置づける
-
-### Requirement 4: フィードバックループ防止の正確性
+### Requirement 3: フィードバックループ防止の正確性
 
 **Objective:** As a wintf ユーザー, I want ウィンドウ操作時にフィードバックループが発生しない, so that ウィンドウの移動・リサイズ・DPI 変更がスムーズに動作する
 
@@ -61,24 +60,23 @@
 3. When DPI 変更（モニタ間移動）が発生した場合, the wintf system shall `WM_DPICHANGED` → `SetWindowPos` → `WM_WINDOWPOSCHANGED` チェーンを正しく処理し、フィードバックループを発生させない
 4. While 複数ウィンドウが同時に存在する状態で, when いずれかのウィンドウが移動・リサイズされた場合, the wintf system shall 他のウィンドウに不要なフィードバック連鎖を波及させない
 
-### Requirement 5: コード簡素化と保守性向上
+### Requirement 4: コード簡素化と保守性向上
 
-**Objective:** As a wintf 開発者, I want 統合によりフィードバック防止の関連コードが削減される, so that 将来の機能追加やバグ修正が容易になる
+**Objective:** As a wintf 開発者, I want ラッパー方式の導入によりフィードバック防止の関連コードが削減される, so that 将来の機能追加やバグ修正が容易になる
 
 #### Acceptance Criteria
 
-1. The wintf system shall フィードバック防止の状態管理ポイント数を削減する（現在: `WindowPosChanged` コンポーネント + `WINDOW_POS_COMMANDS` TLS + エコーバックフィールド の3箇所 → 統合ゲートに集約）
-2. The wintf system shall 統合ゲートの状態遷移を明確に文書化（コード内コメントまたは doc comment）する
-3. The wintf system shall `WM_WINDOWPOSCHANGED` ハンドラ内の4ステップ（①設定→②tick→③flush→④リセット）を簡素化する
-4. If 統合により不要になったコンポーネントまたは関数が存在する場合, the wintf system shall それらを削除する
+1. The wintf system shall フィードバック防止の状態管理を TLS ラッパーフラグ + 遅延実行キューの2点に集約する（現在: `WindowPosChanged` コンポーネント + `WINDOW_POS_COMMANDS` TLS + `last_sent_*` エコーバックフィールド の3箇所）
+2. The wintf system shall ラッパー関数の動作原理と TLS フラグのライフサイクルを doc comment で文書化する
+3. The wintf system shall `WM_WINDOWPOSCHANGED` ハンドラ内の4ステップ（①設定→②tick→③flush→④リセット）からステップ④（第2World借用によるフラグリセット）を削除し簡素化する
 
-### Requirement 6: 後方互換性とテスト
+### Requirement 5: 後方互換性とテスト
 
-**Objective:** As a wintf 開発者, I want 統合後も既存テストが全てパスし、動作が維持される, so that リファクタリングによる退行が発生しない
+**Objective:** As a wintf 開発者, I want リファクタリング後も既存テストが全てパスし、動作が維持される, so that リファクタリングによる退行が発生しない
 
 #### Acceptance Criteria
 
 1. The wintf system shall 既存の `feedback_loop_convergence_test.rs` の全テストケースをパスする
 2. The wintf system shall `cargo test` の全テストを退行なくパスする
 3. When `taffy_flex_demo` サンプルを実行した場合, the wintf system shall ウィンドウの移動・リサイズが従来と同等にスムーズに動作する
-4. The wintf system shall 統合ゲートの単体テストを追加し、ゲート状態遷移の正確性を検証する
+4. The wintf system shall ラッパー関数の TLS フラグ動作を検証する単体テストを追加する
