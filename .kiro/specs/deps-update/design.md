@@ -82,34 +82,47 @@ graph LR
 
 | Requirement | Summary | Components | Interfaces | Flows |
 |-------------|---------|------------|------------|-------|
-| R1 (1.1-1.3) | ワークスペース依存の最新化 | Phase 1: Cargo.toml 更新 | `[workspace.dependencies]`, crate-level `Cargo.toml` | Phase 1 → Phase 2 → Phase 3 |
-| R2 (2.1-2.3) | ビルド成功の保証 | Phase 2: bevy API修正, Phase 3: ambassador/rand修正 | src/, tests/, examples/ のRustコード | コンパイル駆動修正ループ |
-| R3 (3.1-3.3) | テスト・サンプル通過の保証 | Phase 2-3: テスト・サンプル修正 | tests/*.rs, examples/*.rs | 各Phase末のテスト検証 |
+| R1 (1.1-1.3) | ワークスペース依存の最新化 | Phase 1a, 1b, 3a, 3b: Cargo.toml 段階的更新 | `[workspace.dependencies]`, crate-level `Cargo.toml` | 1a → 1b → 2 → 3a → 3b |
+| R2 (2.1-2.3) | ビルド成功の保証 | Phase 2: bevy API修正, Phase 3b: rand修正 | src/, tests/, examples/ のRustコード | コンパイル駆動修正ループ |
+| R3 (3.1-3.3) | テスト・サンプル通過の保証 | Phase 1a, 2, 3b: テスト・サンプル検証 | tests/*.rs, examples/*.rs | 各Phase末のテスト検証 |
 | R4 (4.1) | ステアリング情報の整合性維持 | Phase 4: tech.md更新 | `.kiro/steering/tech.md` | 最終Phase |
 
 ## Components and Interfaces
 
 | Component | Domain/Layer | Intent | Req Coverage | Key Dependencies | Contracts |
 |-----------|--------------|--------|--------------|------------------|-----------|
-| Phase 1: Cargo.toml 更新 | Build Config | 全パッケージバージョンを最新に変更 | R1 | なし | Cargo.toml |
-| Phase 2: bevy 0.18 コード修正 | ECS/Core | bevy API変更に対応するコード修正 | R2, R3 | Phase 1 (P0) | src/, tests/ |
-| Phase 3: ambassador/rand 修正 | Macro/Dev | ambassador 0.5, rand 0.10 対応コード修正 | R2, R3 | Phase 1 (P0) | src/, examples/ |
-| Phase 4: ドキュメント更新 | Docs | ステアリング tech.md のバージョン同期 | R4 | Phase 1-3 (P0) | tech.md |
+| Phase 1a: 互換更新 | Build Config | 互換パッケージ（taffy, human-panic, async-io）を先行更新 | R1 | なし | Cargo.toml |
+| Phase 1b: bevy更新 | Build Config | bevy 系パッケージを更新 | R1 | Phase 1a (P0) | Cargo.toml |
+| Phase 2: bevy 0.18 コード修正 | ECS/Core | bevy API変更に対応するコード修正 | R2, R3 | Phase 1b (P0) | src/, tests/ |
+| Phase 3a: ambassador更新 | Build Config | ambassador 0.5 に更新 | R1 | Phase 2 (P0) | Cargo.toml |
+| Phase 3b: rand更新 | Build Config | rand 0.10 に更新 | R1 | Phase 3a (P0) | Cargo.toml |
+| Phase 4: ドキュメント更新 | Docs | ステアリング tech.md のバージョン同期 | R4 | Phase 3b (P0) | tech.md |
 
-### Phase 1: Cargo.toml 更新（Build Config）
+### Phase 1a: 互換更新（Build Config）
 
 | Field | Detail |
 |-------|--------|
-| Intent | 全依存パッケージのバージョン指定を最新安定バージョンに変更 |
-| Requirements | R1 (1.1, 1.2, 1.3) |
+| Intent | 破壊的変更のない互換パッケージを先行更新し、安全な基盤を確保 |
+| Requirements | R1 (1.1, 1.2) |
 
-**Responsibilities & Constraints**
-- ワークスペースルート `Cargo.toml` の `[workspace.dependencies]` セクションを更新
-- クレート固有 `Cargo.toml` のバージョン指定を更新
-- bevy 系クレート（bevy_ecs, bevy_app, bevy_tasks, bevy_utils）は同一バージョンで統一
-- `already_latest` パッケージ（windows, windows-core, tracing 等）は変更不要
+**更新対象パッケージ**
 
-**更新対象マトリクス**
+| パッケージ | 現行 | 更新先 | 分類 | 更新箇所 |
+|---|---|---|---|---|
+| taffy | 0.9.1 | 0.9.2 | パッチ | workspace deps |
+| human-panic | 2.0.3 | 2.0.6 | パッチ | workspace deps |
+| async-io | 2.3 | 2.6 | マイナー | crate deps |
+
+**検証**: `cargo build` および `cargo test` が成功することを確認
+
+### Phase 1b: bevy更新（Build Config）
+
+| Field | Detail |
+|-------|--------|
+| Intent | bevy 系パッケージを 0.18.0 に更新 |
+| Requirements | R1 (1.3) |
+
+**更新対象パッケージ**
 
 | パッケージ | 現行 | 更新先 | 分類 | 更新箇所 |
 |---|---|---|---|---|
@@ -117,11 +130,10 @@ graph LR
 | bevy_app | 0.17.2 | 0.18.0 | 破壊的 | workspace deps |
 | bevy_tasks | 0.17.2 | 0.18.0 | 破壊的 | workspace deps |
 | bevy_utils | 0.17.2 | 0.18.0 | 破壊的 | workspace deps |
-| ambassador | 0.4.2 | 0.5.0 | 破壊的（互換見込み） | workspace deps |
-| taffy | 0.9.1 | 0.9.2 | パッチ | workspace deps |
-| human-panic | 2.0.3 | 2.0.6 | パッチ | workspace deps |
-| async-io | 2.3 | 2.6 | マイナー | crate deps |
-| rand | 0.9.2 | 0.10.0 | 破壊的 | crate deps (dev) |
+
+**注意**: bevy 系クレートは全て同一バージョンで統一（0.18.0）
+
+**検証**: `cargo build` でコンパイルエラーを確認（Phase 2 で修正）
 
 ### Phase 2: bevy 0.18 コード修正（ECS/Core）
 
@@ -154,20 +166,35 @@ graph LR
 - `Event` / `EntityEvent` derive — 未使用
 - States API — 未使用
 
-### Phase 3: ambassador/rand コード修正
+### Phase 3a: ambassador更新（Build Config）
 
 | Field | Detail |
 |-------|--------|
-| Intent | ambassador 0.5 と rand 0.10 のAPI変更に対応するコード修正 |
-| Requirements | R2 (2.3), R3 (3.2, 3.3) |
+| Intent | ambassador を 0.5.0 に更新 |
+| Requirements | R1 (1.3) |
 
-#### ambassador 0.5
+**更新対象パッケージ**
+
+| パッケージ | 現行 | 更新先 | 分類 | 更新箇所 |
+|---|---|---|---|---|
+| ambassador | 0.4.2 | 0.5.0 | 破壊的（互換見込み） | workspace deps |
 
 **影響ファイル**: 5箇所の `#[delegatable_trait]` + 1箇所の `#[derive(Delegate)]` + 4ファイルの `use ambassador::*`
 
-**修正見込み**: API互換のため修正不要と推定。コンパイルで確認し、エラーがあれば対応。
+**検証**: `cargo build` でコンパイルエラーの有無を確認。API互換のため修正不要と推定されるが、エラーがあれば対応。
 
-#### rand 0.10
+### Phase 3b: rand更新（Build Config + Code Fix）
+
+| Field | Detail |
+|-------|--------|
+| Intent | rand を 0.10.0 に更新し、必要に応じてコード修正 |
+| Requirements | R1 (1.3), R2 (2.3), R3 (3.2, 3.3) |
+
+**更新対象パッケージ**
+
+| パッケージ | 現行 | 更新先 | 分類 | 更新箇所 |
+|---|---|---|---|---|
+| rand | 0.9.2 | 0.10.0 | 破壊的 | crate deps (dev) |
 
 **影響ファイル**: `examples/dcomp_demo.rs`（1ファイルのみ）
 
@@ -182,6 +209,8 @@ graph LR
 
 **修正方針**: glob import（`use rand::*`）で `RngExt` が自動インポートされるため、そのままコンパイルが通る可能性が高い。通らない場合は `use rand::RngExt;` を明示追加。
 
+**検証**: `cargo build --examples` でサンプルのビルド成功を確認
+
 ### Phase 4: ドキュメント更新
 
 | Field | Detail |
@@ -191,7 +220,7 @@ graph LR
 
 **対象**: `.kiro/steering/tech.md` の `Key Libraries` セクション
 
-**更新内容**: Phase 1 で更新した全パッケージのバージョン番号を反映
+**更新内容**: Phase 1a-3b で更新した全パッケージのバージョン番号を反映
 
 ## Error Handling
 
@@ -235,22 +264,32 @@ graph LR
 
 ```mermaid
 flowchart TD
-    P1["Phase 1: Cargo.toml バージョン更新"] --> C1{"cargo build?"}
-    C1 -- "エラー" --> P2["Phase 2: bevy 0.18 コード修正"]
-    C1 -- "成功" --> P3
-    P2 --> C2{"cargo build?"}
+    P1a["Phase 1a: 互換更新<br/>(taffy, human-panic, async-io)"] --> C1a{"cargo build + test?"}
+    C1a -- "成功" --> P1b["Phase 1b: bevy 0.18 更新<br/>(Cargo.toml)"] 
+    C1a -- "エラー" --> P1a
+    P1b --> C1b{"cargo build?"}
+    C1b -- "エラー" --> P2["Phase 2: bevy 0.18 コード修正"]
+    C1b -- "成功（稀）" --> P3a
+    P2 --> C2{"cargo build + test?"}
     C2 -- "エラー" --> P2
-    C2 -- "成功" --> P3["Phase 3: ambassador/rand 修正"]
-    P3 --> C3{"cargo build + test?"}
-    C3 -- "エラー" --> P3
-    C3 -- "成功" --> P4["Phase 4: tech.md 更新"]
-    P4 --> V["最終検証: build + test + examples"]
+    C2 -- "成功" --> P3a["Phase 3a: ambassador 0.5 更新"]
+    P3a --> C3a{"cargo build?"}
+    C3a -- "エラー（稀）" --> FIX3a["ambassador コード修正"]
+    C3a -- "成功" --> P3b
+    FIX3a --> C3a
+    P3b["Phase 3b: rand 0.10 更新"] --> C3b{"cargo build --examples?"}
+    C3b -- "エラー" --> FIX3b["rand コード修正"]
+    C3b -- "成功" --> P4
+    FIX3b --> C3b
+    P4["Phase 4: tech.md 更新"] --> V["最終検証: build + test + examples"]
     V --> DONE["完了"]
 ```
 
-**Phase 1**: Cargo.toml の全バージョン指定を一括更新（5分）
-**Phase 2**: bevy 0.18 のコンパイルエラーを反復修正（1-3時間 ※影響限定的と判明）
-**Phase 3**: ambassador 0.5 / rand 0.10 のコンパイルエラーを修正（30分）
-**Phase 4**: tech.md のバージョン情報を更新（5分）
+**Phase 1a**: 互換パッケージ更新とビルド・テスト確認（10分）
+**Phase 1b**: bevy 0.18 Cargo.toml 更新（2分）
+**Phase 2**: bevy 0.18 コンパイルエラー反復修正（1-3時間 ※影響限定的と判明）
+**Phase 3a**: ambassador 0.5 更新とビルド確認（5分）
+**Phase 3b**: rand 0.10 更新とコード修正（20分）
+**Phase 4**: tech.md バージョン情報更新（5分）
 
 **Rollback Triggers**: 各Phase で修正不可能なAPIの根本的非互換が発見された場合、該当パッケージのみ前バージョンに戻す。ただし、research.md の調査結果から全パッケージ更新可能と判断。
