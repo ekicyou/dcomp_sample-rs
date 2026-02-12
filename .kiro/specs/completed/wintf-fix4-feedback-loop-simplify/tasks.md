@@ -6,8 +6,8 @@
 
 ## Tasks
 
-- [ ] 1. SetWindowPos ラッパーと TLS フラグの実装
-- [ ] 1.1 (P) IS_SELF_INITIATED TLS フラグと is_self_initiated() ヘルパーを追加
+- [x] 1. SetWindowPos ラッパーと TLS フラグの実装
+- [x] 1.1 (P) IS_SELF_INITIATED TLS フラグと is_self_initiated() ヘルパーを追加
   - `ecs/window.rs` に `IS_SELF_INITIATED: Cell<bool>` を `thread_local!` で宣言
   - 初期値は `false`、TLS のため `Cell` を使用
   - `pub fn is_self_initiated() -> bool` ヘルパー関数を実装し、TLS フラグの現在値を返す
@@ -15,7 +15,7 @@
   - ロギング: `trace!` レベルでフラグ状態変更を記録（構造化フィールド: `is_initiated` bool）
   - _Requirements: 1.1, 1.2, 4.1_
 
-- [ ] 1.2 (P) SetWindowPosGuard 構造体と guarded_set_window_pos() 関数を実装
+- [x] 1.2 (P) SetWindowPosGuard 構造体と guarded_set_window_pos() 関数を実装
   - `SetWindowPosGuard` 構造体を定義し、Drop trait で `IS_SELF_INITIATED.set(false)` を実装
   - `pub unsafe fn guarded_set_window_pos(...)` を実装、関数冒頭で `IS_SELF_INITIATED.set(true)` 実行
   - `let _guard = SetWindowPosGuard;` で RAII ガード作成、スコープ終了時に自動リセット保証
@@ -24,14 +24,14 @@
   - ロギング: `trace!` レベル、構造化フィールド（hwnd 16進数、x, y, cx, cy, flags）
   - _Requirements: 1.1, 1.2, 4.2_
 
-- [ ] 1.3 SetWindowPosCommand の flush() をラッパー経由に変更
+- [x] 1.3 SetWindowPosCommand の flush() をラッパー経由に変更
   - `ecs/window.rs` の `flush_window_pos_commands()` 内の `SetWindowPos` 直接呼び出しを `guarded_set_window_pos()` に置換
   - エラーハンドリングは既存の `warn!` ログ出力を維持
   - flush() の呼び出し箇所（3箇所: VsyncTick, WM_VSYNC, WM_WINDOWPOSCHANGED）は変更不要
   - _Requirements: 1.3_
 
-- [ ] 2. WM_WINDOWPOSCHANGED ハンドラの簡素化
-- [ ] 2.1 4ステップ→3ステップへの変更と echo 判定追加
+- [x] 2. WM_WINDOWPOSCHANGED ハンドラの簡素化
+- [x] 2.1 4ステップ→3ステップへの変更と echo 判定追加
   - `ecs/window_proc/handlers.rs` の `WM_WINDOWPOSCHANGED` ハンドラを変更
   - ステップ① 冒頭で `is_self_initiated()` を呼び出し、ローカル変数 `is_echo` に保存
   - ステップ① から `WindowPosChanged` コンポーネントへの `true` 設定を削除
@@ -42,16 +42,16 @@
   - ロギング: `debug!` レベル、構造化フィールド（is_echo, entity, x, y, cx, cy）
   - _Requirements: 1.2, 1.4, 3.1, 3.2, 4.3_
 
-- [ ] 3. WM_DPICHANGED ハンドラのラッパー統一
-- [ ] 3.1 (P) SetWindowPos 直接呼び出しをラッパー経由に変更
+- [x] 3. WM_DPICHANGED ハンドラのラッパー統一
+- [x] 3.1 (P) SetWindowPos 直接呼び出しをラッパー経由に変更
   - `ecs/window_proc/handlers.rs` の `WM_DPICHANGED` ハンドラ内（L410 付近）の `SetWindowPos` 呼び出しを `guarded_set_window_pos()` に置換
   - `suggested_rect` パラメータ展開は既存ロジックを維持
   - `DpiChangeContext::set()` のライフサイクルは変更なし
   - エラーハンドリング（`warn!` ログ）は既存実装を維持
   - _Requirements: 1.5, 2.1, 2.2, 2.3, 2.4, 3.3_
 
-- [ ] 4. apply_window_pos_changes システムのガード削除
-- [ ] 4.1 (P) WindowPosChanged ガードと is_echo() ガード削除、last_sent_* bypass 削除
+- [x] 4. apply_window_pos_changes システムのガード削除
+- [x] 4.1 (P) WindowPosChanged ガードと is_echo() ガード削除、last_sent_* bypass 削除
   - `ecs/graphics/systems.rs` の `apply_window_pos_changes` システムから以下を削除:
     - Query パラメータの `&WindowPosChanged` 削除
     - G1 ガード: `wpc.0 == true` チェック削除
@@ -61,8 +61,8 @@
   - `SetWindowPosCommand::enqueue()` 呼び出しは維持
   - _Requirements: 1.4, 3.2, 4.1_
 
-- [ ] 5. WindowPos コンポーネントのクリーンアップ
-- [ ] 5.1 (P) last_sent_* フィールドと is_echo() メソッドを削除
+- [x] 5. WindowPos コンポーネントのクリーンアップ
+- [x] 5.1 (P) last_sent_* フィールドと is_echo() メソッドを削除
   - `ecs/window.rs` の `WindowPos` 構造体から以下を削除:
     - `pub last_sent_position: Option<(i32, i32)>` フィールド
     - `pub last_sent_size: Option<(i32, i32)>` フィールド
@@ -72,15 +72,15 @@
   - `ecs/world.rs` の `WindowPosChanged` 参照コメントを更新（該当する場合）
   - _Requirements: 1.4, 4.1_
 
-- [ ] 6. テスト更新と検証
-- [ ] 6.1 layout_graphics_sync_test.rs の修正
+- [x] 6. テスト更新と検証
+- [x] 6.1 layout_graphics_sync_test.rs の修正
   - `tests/layout_graphics_sync_test.rs` で `is_echo()` / `last_sent_*` / `bypass_change_detection` を使用している箇所を特定
   - 削除されたフィールド・メソッドへの参照を削除または代替実装に置換
   - テストロジックが TLS フラグ方式でも正しく動作するよう調整
   - テストが引き続き意図した検証を行うことを確認
   - _Requirements: 5.1, 5.2_
 
-- [ ] 6.2 (P) TLS フラグ動作検証の単体テストを追加
+- [x] 6.2 (P) TLS フラグ動作検証の単体テストを追加
   - `tests/` または `ecs/window.rs` 内の `#[cfg(test)]` モジュールに単体テストを追加
   - テストケース: `is_self_initiated()` の初期値が `false` であること
   - テストケース: `guarded_set_window_pos()` 呼び出し中に `is_self_initiated()` が `true` になること
@@ -88,7 +88,7 @@
   - テストケース: `SetWindowPos` 失敗時（`Err` 返却）も TLS フラグが確実にリセットされること（モック可能な場合）
   - _Requirements: 5.4_
 
-- [ ] 6.3 全テストスイートの実行と機能検証
+- [x] 6.3 全テストスイートの実行と機能検証
   - `cargo test` を実行し、全テストがパスすることを確認
   - `cargo test --test feedback_loop_convergence_test` が全8テストをパスすることを確認
   - `cargo run --example taffy_flex_demo` でウィンドウ移動・リサイズのスムーズな動作を確認
