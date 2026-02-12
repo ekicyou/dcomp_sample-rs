@@ -307,7 +307,7 @@ fn test_lazy_reinit_system_integration() {
         for (entity, mut wg) in query.iter_mut() {
             if !wg.is_valid() {
                 eprintln!("[System] Entity {:?} を自動再初期化", entity);
-                wg.get_or_init(entity.index(), &core);
+                wg.get_or_init(entity.index().index(), &core);
             }
         }
     }
