@@ -366,10 +366,8 @@ impl EcsWorld {
                         .after(crate::ecs::layout::sync_simple_arrangements),
                     crate::ecs::layout::propagate_global_arrangements
                         .after(crate::ecs::layout::mark_dirty_arrangement_trees),
-                    crate::ecs::graphics::sync_window_pos
+                    crate::ecs::layout::window_pos_sync_system
                         .after(crate::ecs::layout::propagate_global_arrangements),
-                    crate::ecs::layout::update_window_pos_system
-                        .after(crate::ecs::graphics::sync_window_pos),
                 )
                     .chain(),
             );

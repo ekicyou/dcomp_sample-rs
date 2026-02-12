@@ -16,9 +16,9 @@ fn test_sync_window_pos() {
 
     // WorldとScheduleを準備
     let mut world = World::new();
-    world.insert_resource(wintf::ecs::world::FrameCount(1)); // sync_window_posに必要
+    world.insert_resource(wintf::ecs::world::FrameCount(1)); // window_pos_sync_systemに必要
     let mut schedule = Schedule::default();
-    schedule.add_systems(wintf::ecs::sync_window_pos);
+    schedule.add_systems(wintf::ecs::window_pos_sync_system);
 
     // Window、Visual、WindowPosを持つエンティティを作成
     // Note: Visual::on_addがArrangement::default()を自動挿入し、
@@ -103,8 +103,8 @@ fn test_skip_invalid_bounds() {
         ))
         .id();
 
-    // sync_window_posシステムを実行
-    let mut system = IntoSystem::into_system(wintf::ecs::sync_window_pos);
+    // window_pos_sync_systemシステムを実行
+    let mut system = IntoSystem::into_system(wintf::ecs::window_pos_sync_system);
     system.initialize(&mut world);
     let _ = system.run((), &mut world);
     system.apply_deferred(&mut world);
@@ -121,9 +121,9 @@ fn test_echo_back_flow() {
 
     // WorldとScheduleを準備
     let mut world = World::new();
-    world.insert_resource(wintf::ecs::world::FrameCount(1)); // sync_window_posに必要
+    world.insert_resource(wintf::ecs::world::FrameCount(1)); // window_pos_sync_systemに必要
     let mut schedule = Schedule::default();
-    schedule.add_systems(wintf::ecs::sync_window_pos);
+    schedule.add_systems(wintf::ecs::window_pos_sync_system);
 
     // Window、Visual、WindowPosを持つエンティティを作成
     // Note: Visual::on_addがArrangement::default()を自動挿入し、

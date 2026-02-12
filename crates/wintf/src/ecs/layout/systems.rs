@@ -1,5 +1,5 @@
 use crate::ecs::common::tree_system::{
-    mark_dirty_trees, propagate_parent_transforms, sync_simple_transforms, NodeQuery, WorkQueue,
+    NodeQuery, WorkQueue, mark_dirty_trees, propagate_parent_transforms, sync_simple_transforms,
 };
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::name::Name;
@@ -8,11 +8,9 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::metrics::{LayoutScale, Offset, Size};
 use super::taffy::{TaffyComputedLayout, TaffyLayoutResource, TaffyStyle};
-use super::{
-    Arrangement, ArrangementTreeChanged, D2DRectExt, Dimension, GlobalArrangement, LayoutRoot,
-};
+use super::{Arrangement, ArrangementTreeChanged, Dimension, GlobalArrangement, LayoutRoot};
 use crate::ecs::graphics::format_entity_name;
-use crate::ecs::window::{Window, WindowPos, DPI};
+use crate::ecs::window::{DPI, Window, WindowPos};
 use taffy::prelude::*;
 
 /// 階層に属していないEntity（ルートWindow）のGlobalArrangementを更新
@@ -365,30 +363,78 @@ pub fn cleanup_removed_entities_system(
     }
 }
 
-/// GlobalArrangementの変更をWindowPosに反映
-pub fn update_window_pos_system(
+/// GlobalArrangement の変更を WindowPos に反映する ECS システム。
+///
+/// bounds.left/top → WindowPos.position（truncate to i32）
+/// bounds の幅/高さ → WindowPos.size（ceil to i32）
+pub fn window_pos_sync_system(
     mut query: Query<
-        (&GlobalArrangement, &mut WindowPos),
+        (Entity, &GlobalArrangement, &mut WindowPos, Option<&Name>),
         (With<Window>, Changed<GlobalArrangement>),
     >,
+    frame_count: Res<crate::ecs::world::FrameCount>,
 ) {
     use windows::Win32::Foundation::{POINT, SIZE};
 
-    for (global_arrangement, mut window_pos) in query.iter_mut() {
-        // GlobalArrangementのboundsからWindowPosに変換
-        let bounds = &global_arrangement.bounds;
+    for (entity, global_arr, mut window_pos, name) in query.iter_mut() {
+        let entity_name = format_entity_name(entity, name);
+        let width = global_arr.bounds.right - global_arr.bounds.left;
+        let height = global_arr.bounds.bottom - global_arr.bounds.top;
 
-        // boundsの位置とサイズをWindowPosに反映
-        // Windowは LayoutRoot の子であり、Taffy が BoxInset を考慮した
-        // location を計算済み
-        window_pos.position = Some(POINT {
-            x: bounds.left as i32,
-            y: bounds.top as i32,
-        });
-        window_pos.size = Some(SIZE {
-            cx: bounds.width() as i32,
-            cy: bounds.height() as i32,
-        });
+        debug!(
+            frame = frame_count.0,
+            entity = %entity_name,
+            bounds_left = global_arr.bounds.left,
+            bounds_top = global_arr.bounds.top,
+            bounds_right = global_arr.bounds.right,
+            bounds_bottom = global_arr.bounds.bottom,
+            width = width,
+            height = height,
+            "[window_pos_sync_system] Processing entity"
+        );
+
+        if width <= 0.0 || height <= 0.0 {
+            debug!(
+                frame = frame_count.0,
+                entity = %entity_name,
+                "[window_pos_sync_system] Skipping: invalid bounds"
+            );
+            continue;
+        }
+
+        let new_position = POINT {
+            x: global_arr.bounds.left as i32,
+            y: global_arr.bounds.top as i32,
+        };
+        let new_size = SIZE {
+            cx: width.ceil() as i32,
+            cy: height.ceil() as i32,
+        };
+
+        let position_changed = window_pos.position != Some(new_position);
+        let size_changed = window_pos.size != Some(new_size);
+
+        if position_changed || size_changed {
+            debug!(
+                frame = frame_count.0,
+                entity = %entity_name,
+                old_pos = ?window_pos.position,
+                old_size = ?window_pos.size,
+                new_x = new_position.x,
+                new_y = new_position.y,
+                new_cx = new_size.cx,
+                new_cy = new_size.cy,
+                "[window_pos_sync_system] Updating WindowPos"
+            );
+            window_pos.position = Some(new_position);
+            window_pos.size = Some(new_size);
+        } else {
+            trace!(
+                frame = frame_count.0,
+                entity = %entity_name,
+                "[window_pos_sync_system] No change needed"
+            );
+        }
     }
 }
 
