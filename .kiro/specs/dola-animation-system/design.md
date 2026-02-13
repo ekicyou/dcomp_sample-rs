@@ -267,7 +267,7 @@ impl Validate for DolaDocument {
 | V3 | ユーザー定義キーフレーム名に "start" を使用不可 | 3.4 |
 | V4 | エントリの variable 参照が document.variable に存在する | cross |
 | V5 | エントリの transition 名前参照が document.transition に存在する | 2.8 |
-| V6 | エントリの at/between キーフレーム参照が同一 SB 内に存在する | cross |
+| V6 | エントリの at/between キーフレーム参照が同一 SB 内に存在する（**前方参照許可**: 第1パスで全keyframe名収集、第2パスで参照検証） | cross |
 | V7 | transition あり → variable 必須 | 4.5 |
 | V8 | at と between は排他 | 4.5 |
 | V9 | 純粋 KF エントリは keyframe 必須 | 4.6 |
