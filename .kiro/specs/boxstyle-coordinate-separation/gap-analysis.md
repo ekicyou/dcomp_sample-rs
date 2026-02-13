@@ -78,17 +78,21 @@ PostLayout スケジュール:
 
 **技術的ポイント**: `get_mut::<BoxStyle>()` を呼ぶと `DerefMut` で `Changed` が発火する。サイズ不変のウィンドウ移動で `Changed<BoxStyle>` を抑制するには、サイズ変更有無を事前判定し、不変なら `get_mut` を呼ばないようにする必要がある。
 
-### Requirement 2: ドラッグシステムのBoxStyle.inset依存除去
+### Requirement 2: ドラッグによるウィンドウ移動のWndProcレベル化
 
 | 受入基準 | 実現性 | 既存資産 | ギャップ |
-|---------|--------|---------|---------|
-| AC1: BoxStyle.inset を使わずにウィンドウ位置更新 | ⚠️ 設計判断要 | ドラッグは現在 BoxStyle.inset → taffy パイプライン経由 | 代替パイプラインの設計が必要 |
-| AC2: 初期位置を WindowPos/Arrangement から取得 | ✅ 容易 | WindowPos.position が同等情報を持つ | DraggingState.initial_inset の型変更 |
-| AC3: ドラッグ中に Changed<BoxStyle> 不発火 | ⚠️ 設計判断要 | 現在は BoxStyle.inset 経由でパイプライン駆動 | ドラッグの位置更新先を変更する必要あり |
+|---------|--------|---------|--------|
+| AC1: WM_MOUSEMOVE内で直接SetWindowPos | ⚠️ 設計判断要 | WM_MOUSEMOVEハンドラ既存、guarded_set_window_pos()既存 | DragState::Dragging参照→SetWindowPos呼び出しロジックの追加 |
+| AC2: ECSパイプライン非経由 | ✅ WndProcレベル処理で自動達成 | — | apply_window_drag_movementのBoxStyle.inset書き込み廃止 |
+| AC3: HWND+初期位置をDragStateにキャッシュ | ⚠️ 要拡張 | DragState::Dragging に entity/start_pos/current_pos/prev_pos あり | HWNDフィールドなし、初期ウィンドウ位置フィールドなし → DragState enum拡張が必要 |
+| AC4: ドラッグ終了時のECS同期 | ⚠️ 設計判断要 | DragState::JustEnded + sync_window_arrangement_from_window_pos 既存 | 最終位置→WindowPos書き戻しタイミングの設計が必要 |
+| AC5: DragConfig.move_windowフラグ条件 | ⚠️ 要検討 | ECS側で参照中（systems.rs L36）| WndProcレベルではECSコンポーネント直接参照不可 → DragState遷移時にキャッシュ必要 |
+| AC6: ドラッグ中Changed<BoxStyle>不発火 | ✅ Req 1が前提 | Req 1でBoxStyle.inset書き込み除去済みなら自動達成 | **依存: Req 1 が前提条件** |
 
-**技術的ポイント**: ドラッグの代替パイプラインとして2つの候補がある：
-- **案A**: `WindowPos` に直接書き込み → PostLayout の `sync_window_arrangement_from_window_pos` が `Arrangement.offset` に反映 → `GlobalArrangement` → `window_pos_sync` → `SetWindowPos`
-- **案B**: `Arrangement.offset` に直接書き込み → PostLayout の `propagate_global_arrangements` → `window_pos_sync` → `WindowPos` → `SetWindowPos`
+**技術的ポイント**:
+- AC6 は Req 1（BoxStyle.inset書き込み除去）の達成を前提とする。WndProcレベルドラッグ単体では、WM_WINDOWPOSCHANGED echo 時の BoxStyle.inset 書き込みが残る限り Changed<BoxStyle> は発火し続ける。
+- AC3/AC5: 現在の `DragState` enum には HWND フィールドも `move_window` フラグもない。Dragging 状態遷移時に ECS から必要情報を取得し thread_local にキャッシュする設計が必要。
+- AC4: ドラッグ終了（WM_LBUTTONUP等）→ DragState::JustEnded → ECS側で WindowPos 書き戻し。既存の `sync_window_arrangement_from_window_pos`（Changed<WindowPos> トリガー）で Arrangement 整合性を回復可能。
 
 ### Requirement 3: 代替伝搬経路の保証
 
@@ -100,6 +104,12 @@ PostLayout スケジュール:
 | AC4: WindowPos→Arrangement→GlobalArrangement 伝搬 | ✅ 既存 | 全パイプライン実装済み | なし |
 
 **結論**: 代替伝搬経路は完全に実装済み。追加実装不要。
+
+### 要件間の依存関係
+
+| 依存元 | 依存先 | 関係 |
+|--------|--------|------|
+| Req 2 AC6 | Req 1 | Req 1（BoxStyle.inset書き込み除去）が達成されていることが前提。WndProcレベルドラッグ単体ではWM_WINDOWPOSCHANGED echo経由のBoxStyle.inset書き込みが残り、Changed<BoxStyle>は抑制されない |
 
 ### Requirement 4: BoxStyle.inset のウィンドウ以外の用途保全
 
