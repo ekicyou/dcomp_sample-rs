@@ -581,9 +581,9 @@ enum DolaError {
     /// 予約キーフレーム名使用
     ReservedKeyframeName { name: String },
     /// 未定義変数参照
-    UndefinedVariable { entry_index: usize, name: String },
+    UndefinedVariable { storyboard: String, entry_index: usize, name: String },
     /// 未定義トランジション参照
-    UndefinedTransition { entry_index: usize, name: String },
+    UndefinedTransition { storyboard: String, entry_index: usize, name: String },
     /// 未定義キーフレーム参照
     UndefinedKeyframe { storyboard: String, name: String },
     /// 無効なエントリ構成
