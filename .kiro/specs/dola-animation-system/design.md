@@ -538,7 +538,7 @@ struct StoryboardEntry {
 | KF 間 | variable + transition + between | 2つのKF間に配置。duration はKF間時間差で上書き | AddTransitionBetweenKeyframes |
 | 純粋 KF | keyframe のみ | トランジションなしのキーフレーム定義 | — |
 
-**暗黙的キーフレーム生成（Req 3.6）**: `keyframe` フィールド省略時、各エントリ終了時点に内部でユニークな暗黙的キーフレーム名（`__implicit_{index}` 形式）が自動付与される。これにより「前エントリ連結」パターンで次エントリのデフォルト配置基準が確保される。
+**暗黙的キーフレーム生成（Req 3.6）**: `keyframe` フィールド省略時、各エントリ終了時点に内部でユニークな暗黙的キーフレーム名（`__implicit_{index}` 形式）が自動付与される。これにより「前エントリ連結」パターンで次エントリのデフォルト配置基準が確保される。`{index}` は entry 配列内の 0-based インデックス（例: 配列 0 番目のエントリ → `__implicit_0`、2番目 → `__implicit_2`）。
 
 #### KeyframeRef / KeyframeNames
 
