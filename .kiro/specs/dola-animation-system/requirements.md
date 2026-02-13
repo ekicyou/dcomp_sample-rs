@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | Dola アニメーション宣言フォーマット 要件定義書 |
-| **Version** | 1.1 |
+| **Version** | 1.2 |
 | **Date** | 2026-02-13 |
 | **Status** | Draft |
 
@@ -38,7 +38,7 @@ Windows Animation Manager が COM インターフェースを通じて提供す�
 
 **含まれるもの:**
 - ストーリーボード・キーフレーム・トランジションのデータモデル定義
-- アニメーション変数（f64値・文字列・再生位置など）の型定義
+- アニメーション変数（f64連続値・i64離散値・Object切り替え）の型定義
 - json/toml/yaml へのシリアライズ・デシリアライズ
 - イージング関数の列挙型定義（`interpolation` クレートの `EaseFunction` 命名準拠）
 - 再生制御に必要なデータ型（状態列挙型・タイムスケール等）の定義
@@ -56,15 +56,17 @@ Windows Animation Manager が COM インターフェースを通じて提供す�
 
 ### Requirement 1: アニメーション変数（AnimationVariable）
 
-**Objective:** プラグイン開発者として、異なる型の値をアニメーション可能な変数として定義したい。それにより数値・文字列・離散状態など多彩な値変化を統一的に扱える。
+**Objective:** プラグイン開発者として、異なる型の値をアニメーション可能な変数として定義したい。それにより連続値・離散値・任意オブジェクトなど多彩な値変化を統一的に扱える。
 
 #### Acceptance Criteria
 
-1. **The** Dola **shall** f64 型の連続値アニメーション変数をサポートする
-2. **The** Dola **shall** 文字列型のアニメーション変数（離散切り替え）をサポートする
-3. **The** Dola **shall** 再生位置型（タイムコード／フレーム番号）のアニメーション変数をサポートする
-4. **The** Dola **shall** 各アニメーション変数に一意な名前を付与できる
-5. **The** Dola **shall** 各アニメーション変数の初期値と値域（上限・下限）を定義できる
+1. **The** Dola **shall** f64 型の連続値アニメーション変数をサポートする（座標・透明度・角度等の連続的な値変化）
+2. **The** Dola **shall** i64 型の離散値アニメーション変数をサポートする（イージング対応。f64 で補間後 i64 に丸める）
+3. **The** Dola **shall** Object 型のアニメーション変数をサポートする（文字列・ファイルパス・状態オブジェクト等の JSON 的要素。補間なし、キーフレームで値が切り替わる）
+4. **Where** i64 型変数にタイプライター文字列属性が付与されている場合, **the** Dola **shall** 初期値 0・終了値=文字列長としてアニメーションを定義できる（プラグイン側が i64 値を表示文字数として解釈しタイプライター効果を実現）
+5. **The** Dola **shall** 各アニメーション変数に一意な名前を付与できる
+6. **The** Dola **shall** f64/i64 型アニメーション変数の初期値と値域（上限・下限）を定義できる
+7. **The** Dola **shall** Object 型アニメーション変数の初期値を定義できる
 
 ---
 
@@ -75,13 +77,14 @@ Windows Animation Manager が COM インターフェースを通じて提供す�
 #### Acceptance Criteria
 
 1. **The** Dola **shall** 各トランジションに対象のアニメーション変数・終了値・持続時間を指定できる
-2. **The** Dola **shall** 線形（linear）トランジションをサポートする
-3. **The** Dola **shall** `interpolation` クレートの `EaseFunction` 列挙型と同一名称の組み込みイージング関数（全30種: QuadraticIn/Out/InOut, CubicIn/Out/InOut, QuarticIn/Out/InOut, QuinticIn/Out/InOut, SineIn/Out/InOut, CircularIn/Out/InOut, ExponentialIn/Out/InOut, ElasticIn/Out/InOut, BackIn/Out/InOut, BounceIn/Out/InOut）をサポートする
-4. **The** Dola **shall** 即時（instantaneous）トランジションをサポートする
-5. **The** Dola **shall** 離散（discrete）トランジションをサポートする（指定遅延後に値を切り替え）
-6. **The** Dola **shall** 定数（constant）トランジション（値を維持して時間を消費する）をサポートする
-7. **Where** 組み込みイージング以外が必要な場合, **the** Dola **shall** キュービックベジェ制御点（4パラメータ）によるカスタムイージングをシリアライズ可能な形式で定義できる
-8. **The** Dola **shall** イージング関数の列挙型を `interpolation::EaseFunction` の命名規則に準拠して自前定義し、`serde` によるシリアライズ・デシリアライズを実装する
+2. **The** Dola **shall** 線形（linear）トランジションをサポートする（f64/i64 型に適用可能）
+3. **The** Dola **shall** `interpolation` クレートの `EaseFunction` 列挙型と同一名称の組み込みイージング関数（全30種: QuadraticIn/Out/InOut, CubicIn/Out/InOut, QuarticIn/Out/InOut, QuinticIn/Out/InOut, SineIn/Out/InOut, CircularIn/Out/InOut, ExponentialIn/Out/InOut, ElasticIn/Out/InOut, BackIn/Out/InOut, BounceIn/Out/InOut）をサポートする（f64/i64 型に適用可能）
+4. **The** Dola **shall** 即時（instantaneous）トランジションをサポートする（全型に適用可能）
+5. **The** Dola **shall** 定数（constant）トランジション（値を維持して時間を消費する）をサポートする（全型に適用可能）
+6. **The** Dola **shall** 二次ベジェ補間（`quad_bez`: 3制御点 x0,x1,x2）をトランジションの値パスとして定義できる（f64/i64 型に適用可能。`interpolation::quad_bez` 準拠）
+7. **The** Dola **shall** 三次ベジェ補間（`cub_bez`: 4制御点 x0,x1,x2,x3）をトランジションの値パスとして定義できる（f64/i64 型に適用可能。`interpolation::cub_bez` 準拠）
+8. **The** Dola **shall** Object 型にはキーフレーム時点での値切り替え（即時または定数）のみ適用できる
+9. **The** Dola **shall** イージング関数・ベジェ補間の列挙型を `interpolation` クレートの命名規則に準拠して自前定義し、`serde` によるシリアライズ・デシリアライズを実装する
 
 ---
 
