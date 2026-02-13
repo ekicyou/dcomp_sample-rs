@@ -51,6 +51,7 @@
 4. When ドラッグ終了時、the drag system shall 最終ウィンドウ位置をECSの `WindowPos` に反映し、`sync_window_arrangement_from_window_pos` を通じて `Arrangement` との整合性を回復すること
 5. The drag system shall `DragConfig.move_window` フラグが `true` の場合のみWndProcレベル移動を実施すること
 6. While ドラッグ中、the drag system shall `Changed<BoxStyle>` を発火させないこと
+7. When ドラッグ開始時、the drag system shall Window エンティティに `WindowDragging` マーカーコンポーネントを insert し、ドラッグ終了時に remove すること（`Added<WindowDragging>` / `RemovedComponents<WindowDragging>` による状態検知用）
 
 ### Requirement 3: ウィンドウ位置の代替伝搬経路の保証
 

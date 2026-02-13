@@ -89,6 +89,7 @@ PostLayout スケジュール:
 | AC4: ドラッグ終了時のECS同期 | ⚠️ 設計判断要 | DragState::JustEnded + sync_window_arrangement_from_window_pos 既存 | 最終位置→WindowPos書き戻しタイミングの設計が必要 |
 | AC5: DragConfig.move_windowフラグ条件 | ⚠️ 要検討 | ECS側で参照中（systems.rs L36）| WndProcレベルではECSコンポーネント直接参照不可 → DragState遷移時にキャッシュ必要 |
 | AC6: ドラッグ中Changed<BoxStyle>不発火 | ✅ Req 1が前提 | Req 1でBoxStyle.inset書き込み除去済みなら自動達成 | **依存: Req 1 が前提条件** |
+| AC7: WindowDraggingマーカーをWindow entityに付与 | ⚠️ 新規実装 | 現在Windowにドラッグ状態コンポーネントなし。DraggingStateはウィジェットentityに付与 | WindowDragging コンポーネント新設 + dispatch_drag_events でのinsert/remove追加。親Window探索ロジック（既存: apply_window_drag_movement内）を流用可能 |
 
 **技術的ポイント**:
 - AC6 は Req 1（BoxStyle.inset書き込み除去）の達成を前提とする。WndProcレベルドラッグ単体では、WM_WINDOWPOSCHANGED echo 時の BoxStyle.inset 書き込みが残る限り Changed<BoxStyle> は発火し続ける。
