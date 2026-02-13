@@ -1,244 +1,313 @@
-# Dola Animation System — ギャップ分析レポート
-
-> **注意（2026-02-14 追記）**: 本レポートは要件 v1.0 時点で作成。その後の要件改訂（v1.6）により以下の変更がある：
-> - 旧 Req 7（プラグインIF）・旧 Req 8（時間管理）はスコープ外に移行（将来の別仕様）
-> - 旧 Req 9（クレート構成）→ 現 Req 7 に番号変更
-> - 旧 Req 6（オーケストレーション制御）→ 現 Req 6（再生制御データモデル）に変更（ランタイムはスコープ外）
-> - 曖昧性分析の多く（A, B, E, F, H, J, N, O, P, Q, R, S, T）は要件改訂で解決済みまたはスコープ外
-> - 残存する設計判断事項: C（値域の扱い）, G（型別トランジション制限）, I（KF解決タイミング）, K（サブSB）, L（ループ区間）, M（バージョン互換性ポリシー）
+# Dola Animation System — ギャップ分析レポート v2.0
 
 | 項目 | 内容 |
 |------|------|
 | **対象仕様** | dola-animation-system |
-| **分析日** | 2026-02-13 |
-| **分析種別** | 新規設計 + 要件明確化 + 依存クレート調査 |
+| **要件バージョン** | v1.6 |
+| **分析日** | 2026-02-14 |
+| **分析種別** | グリーンフィールド新規設計 + 既存コードベース規約調査 + 依存クレート評価 |
 
 ---
 
 ## 1. 分析サマリー
 
-- **新規クレート設計**: Dola は wintf 非依存の独立クレートとして新規設計。既存コードベースとの直接的なギャップは少ないが、wintf 既存の `com/animation.rs` (Windows Animation Manager ラッパー) との責務分離が設計上の焦点となる
-- **要件の曖昧箇所**: 9件の要件のうち、複数箇所で「何を」「どこまで」が未確定。特にプラグインインターフェースの具体像、文字列型/再生位置型の補間戦略、WAM概念の取捨選択が要検討
-- **クレート選定**: `keyframe` が Dola の用途に最も近いが serde 対応がないため、イージング関数のみ借用するか自前実装するかの判断が必要
-- **WAM概念の再解釈**: WAM のスケジューリング・優先度・競合解決という高度な概念をどこまで取り込むかが最大の設計判断点
+- **完全なグリーンフィールド**: `crates/dola/` は未作成。serde・シリアライズクレート・interpolation いずれもワークスペースに未登録。既存コードベースとの直接的な依存・衝突は一切ない
+- **スコープ明確化済み**: v1.6 で要件が 7 件 / 42 受け入れ基準に絞り込まれ、ランタイム（再生エンジン・値補間計算・プラグインIF・時間管理）はすべてスコープ外。純粋なデータモデル+バリデーション+ビルダーの設計に集中可能
+- **WAM COM ラッパーとの責務分離は明確**: `com/animation.rs` は薄い COM trait 拡張のみ（2 種のトランジション）。Dola はプラットフォーム非依存層として完全独立。将来の統合層が橋渡しを担う
+- **技術的リスクは低い**: serde derive ベースのデータモデル定義が中心。主要な設計判断は「イージング列挙型の粒度」と「TOML/JSON/YAML 3 フォーマット互換構造」の 2 点
+- **ワークスペース統合は容易**: `members = ["crates/*"]` グロブにより `crates/dola/` 作成で自動包含
 
 ---
 
-## 2. 要件の曖昧性分析
+## 2. 既存コードベース調査
 
-### 2.1 Requirement 1: アニメーション変数 — 曖昧箇所
+### 2.1 ワークスペース構成
 
-| # | 曖昧な点 | 影響 | 判断カテゴリ |
-|---|----------|------|-------------|
-| A | **文字列型変数の「補間」とは何か？** 文字列は連続値ではないため、トランジションの適用方法が不明。離散切り替え専用か？トランジション内で文字列を段階的に変える（タイプライター効果）もスコープ内か？ | データモデル設計に直結 | **要確認** |
-| B | **再生位置型の精度と表現** f64秒、フレーム番号(u32/u64)、タイムコード(hh:mm:ss:ff)のいずれを主表現とするか？相互変換は必要か？ | 型設計に直結 | **要確認** |
-| C | **値域（上限・下限）の扱い** 変数が値域を超えた場合の挙動が未定義。クランプ？エラー？無視？WAM は下限・上限バウンドを持つがクランプする | デフォルト動作の決定 | **設計判断** |
-| D | **変化通知のタイミングと粒度** 毎フレーム？変化があった時のみ？閾値超過時？パフォーマンスに影響 | API設計に直結 | **設計判断** |
+| 項目 | 現状 | Dola に必要なもの |
+|------|------|-------------------|
+| ワークスペースメンバー | `members = ["crates/*"]` グロブ | `crates/dola/` 作成で自動包含 |
+| Rust Edition | 2024（`workspace.package`） | 同一 edition を継承 |
+| `serde` | ワークスペース依存に未登録 | 必須依存として追加 |
+| `serde_json` | 未登録 | feature `json`（デフォルト有効）で追加 |
+| `toml` (serde_toml) | 未登録 | feature `toml` で追加 |
+| `serde_yaml` | 未登録 | feature `yaml` で追加 |
+| `interpolation` | 未登録・未使用 | コンパイル時依存なし（命名準拠のみ） |
 
-### 2.2 Requirement 2: トランジション — 曖昧箇所
+### 2.2 既存アニメーション関連コード
 
-| # | 曖昧な点 | 影響 | 判断カテゴリ |
-|---|----------|------|-------------|
-| E | **WAM のトランジション種別の取捨選択** WAM は accelerate-decelerate, cubic, smooth-stop, sinusoidal, parabolic, reversal 等を提供。Dola でどこまで組み込みサポートするか？ | 実装範囲と複雑性 | **要確認** |
-| F | **「カスタムイージング関数を登録」の具体像** シリアライズ不可能なクロージャ/trait object か？ベジェ曲線パラメータとしてシリアライズ可能な形式か？両方か？ | シリアライズ設計に直結 | **要確認** |
-| G | **文字列型・再生位置型に対するトランジション適用** 文字列は離散のみ、再生位置は線形のみ？型ごとに適用可能なトランジション種別を制限するか？ | 型システム設計 | **設計判断** |
+#### `com/animation.rs` — WAM COM ラッパー
 
-### 2.3 Requirement 3: キーフレーム — 曖昧箇所
+薄い trait 拡張メソッドのみ。ビジネスロジックや抽象化は一切なし。
 
-| # | 曖昧な点 | 影響 | 判断カテゴリ |
-|---|----------|------|-------------|
-| H | **WAM の「コンテキスト依存デュレーション」を取り込むか** WAM では実行時の変数の値/速度に応じてトランジション持続時間が動的に変わる。Dola は宣言的データモデルなので静的定義のみか？ | アーキテクチャの根幹 | **要確認** |
-| I | **キーフレームの解決タイミング** シリアライズ時（静的）か、再生開始時（動的）か？トランジション後キーフレームは再生開始しないと位置が確定しない | ランタイム設計 | **設計判断** |
+| WAM COM インターフェース | ラップ済み操作 | Dola 対応概念 |
+|---|---|---|
+| `IUIAnimationTimer` | `create_animation_timer()`, `get_time()` | スコープ外（ランタイム） |
+| `IUIAnimationManager2` | `create_animation_variable()`, `update()`, `create_storyboard()` | `AnimationVariableDef` / `Storyboard` のデータモデル |
+| `IUIAnimationTransitionLibrary2` | AccelerateDecelerate, Cubic の 2 種のみ | `TransitionDef` の 30+ イージング |
+| `IUIAnimationStoryboard2` | `schedule()`, `add_transition()`, `add_keyframe_after_transition()`, `add_transition_at_keyframe()` | `StoryboardEntry` / キーフレーム配置 |
+| `IUIAnimationVariable2` | `get_value()`, `get_curve()` (DirectComposition連携) | スコープ外（ランタイム） |
 
-### 2.4 Requirement 4: ストーリーボード — 曖昧箇所
+**所見**: WAM ラッパーにはイージング関数 2 種しかなく、Dola の 30 種 + ベジェとは大きな差がある。ただし Dola はランタイム補間を行わないため、これはギャップではなく設計上の差異。
 
-| # | 曖昧な点 | 影響 | 判断カテゴリ |
-|---|----------|------|-------------|
-| J | **ストーリーボードのスケジューリング・競合解決** WAM の中核機能はストーリーボード間の変数競合解決（Cancel/Trim/Conclude/Compress）。Dola でこれを取り込むか？ | 設計の複雑性に大きく影響 | **要確認** |
-| K | **ストーリーボードの入れ子（サブストーリーボード）** 再利用のためにストーリーボードを入れ子にできるか？WAMにはこの概念がない | データモデル設計 | **設計判断** |
-| L | **ループの区間指定** ストーリーボード全体のループのみか、一部区間のループ（リピートセクション）もサポートするか？ | データモデル設計 | **設計判断** |
+#### ECS レイヤー
 
-### 2.5 Requirement 5: シリアライズ — 曖昧箇所
+アニメーション固有の ECS コンポーネントは**一切存在しない**。`transition` のヒットはすべてドラッグ操作の状態遷移（`DragTransition`）であり無関係。
 
-| # | 曖昧な点 | 影響 | 判断カテゴリ |
-|---|----------|------|-------------|
-| M | **スキーマバージョンの互換性ポリシー** マイナーバージョンは後方互換？完全一致のみ？マイグレーション機能は必要か？ | 長期運用設計 | **設計判断** |
-| N | **カスタムイージング関数のシリアライズ** ベジェ制御点はシリアライズ可能だが、任意の `fn(f64) -> f64` はシリアライズ不可。「登録済み名前」で参照する方式か？ | Req 2-F と連動 | **要確認（Fと同時に）** |
+#### serde 使用実績
 
-### 2.6 Requirement 6: オーケストレーション制御 — 曖昧箇所
+**wintf クレート内で serde の直接使用はゼロ**。Dola がプロジェクト内初の serde 直接利用クレートとなる。
 
-| # | 曖昧な点 | 影響 | 判断カテゴリ |
-|---|----------|------|-------------|
-| O | **早期終了時の変数最終値** 即座に終了値にジャンプするか？現在値で停止するか？WAM は Conclude（最終値まで早送り）と Cancel（現在値で停止）を分けている | API設計 | **要確認** |
-| P | **複数ストーリーボードの同時再生** 同一変数を複数のストーリーボードが同時にアニメーションしようとした場合の挙動が未定義。Req 4-J と連動 | ランタイム設計 | **要確認（Jと同時に）** |
+### 2.3 規約抽出
 
-### 2.7 Requirement 7: プラグインインターフェース — 曖昧箇所
-
-| # | 曖昧な点 | 影響 | 判断カテゴリ |
-|---|----------|------|-------------|
-| Q | **「プラグイン」の技術的実装形態** Rust trait? コールバック関数? チャネル? ECS System? プラグインが wasm モジュールや別プロセスの可能性はあるか？ | アーキテクチャ全体 | **要確認** |
-| R | **プラグインの登録タイミングとライフサイクル** ストーリーボード定義時？再生開始時？動的登録/解除？ | API設計 | **設計判断** |
-
-### 2.8 Requirement 8: 時間管理 — 曖昧箇所
-
-| # | 曖昧な点 | 影響 | 判断カテゴリ |
-|---|----------|------|-------------|
-| S | **シーク時のイベント発火** シーク先の区間で発生するはずだったイベント（状態変化通知等）をスキップするか？遡って発火するか？ | イベント設計 | **設計判断** |
-| T | **逆再生の可否** 時刻を巻き戻すことで逆再生は可能か？WAM は前方向のみ | スコープ判断 | **設計判断** |
-
-### 2.9 Requirement 9: クレート構成 — 曖昧箇所
-
-| # | 曖昧な点 | 影響 | 判断カテゴリ |
-|---|----------|------|-------------|
-| U | **配置場所** ワークスペース内 `crates/dola/` か？別リポジトリか？サブモジュールか？ | プロジェクト構成 | **要確認** |
-| V | **wintf との統合層** Dola 自体は wintf 非依存だが、wintf から Dola を使うための統合層（ブリッジ）はどこに配置するか？ | 依存関係設計 | **設計判断** |
+| 規約カテゴリ | 既存パターン | Dola への適用 |
+|---|---|---|
+| ファイル命名 | `snake_case.rs` | 同一 |
+| 型命名 | `PascalCase` | 同一 |
+| モジュール構造 | `com/` → `ecs/` のレイヤー分離 | Dola は単層（データモデル + バリデーション） |
+| エラー型 | `windows::core::Result` | Dola 独自の `DolaError` enum |
+| テスト配置 | `tests/` ディレクトリ（integration tests） | 同一パターン + 単体テスト |
+| ログ | `tracing` クレート | トレースは必要に応じて（データモデルクレートなので最小限） |
 
 ---
 
-## 3. 候補クレート調査
+## 3. 要件対アセットマップ
 
-### 3.1 イージング計算クレート比較
+### Requirement 1: アニメーション変数
 
-| クレート | バージョン | 最終更新 | DL数 | 特徴 | serde対応 | no_std |
-|----------|-----------|----------|------|------|-----------|--------|
-| **keyframe** | 1.1.1 | 4年前 | 585K | AnimationSequence + EasingFunction trait + ベジェ曲線 + mint統合 + derive マクロ | ❌ | ✅ (optional alloc) |
-| **interpolation** | 0.3.0 | 2年前 | 895K | Lerp/Ease trait + EaseFunction enum + ベジェ補間 | ❌ | ❌ |
-| **simple-easing** | 1.0.1 | 3年前 | 575K | 純粋なイージング関数のみ（`fn(f32) -> f32`）| N/A | ❌ |
-| **ezing** | 0.2.1 | 7年前 | 75K | イージング関数のみ | N/A | ❌ |
+| AC | 技術要素 | 既存アセット | ギャップ |
+|----|----------|-------------|---------|
+| 1.1 f64 連続値 | `AnimationVariableDef` enum variant | **Missing** | enum + serde derive |
+| 1.2 i64 離散値 | `AnimationVariableDef` enum variant | **Missing** | 同上（f64 補間→i64 丸め はランタイム） |
+| 1.3 Object 型 | `AnimationVariableDef` enum variant + `DynamicValue` | **Missing** | DynamicValue 型設計が必要 |
+| 1.4 タイプライター属性 | i64 変数のメタデータ | **Missing** | 属性フィールドの設計 |
+| 1.5 一意な名前 | `HashMap<String, _>` | **Missing** | バリデーションで重複チェック |
+| 1.6 初期値・値域 | 構造体フィールド | **Missing** | f64/i64 の min/max + initial |
+| 1.7 Object 初期値 | `DynamicValue` | **Missing** | DynamicValue 型設計に依存 |
 
-### 3.2 クレート評価
+**複雑性**: S（Small） — 標準的な enum + serde derive パターン。
 
-#### keyframe（推奨候補A）
+### Requirement 2: トランジション
 
-**利点:**
-- `EasingFunction` trait によるカスタムイージング定義が容易
-- `AnimationSequence` が Dola のストーリーボード変数トラック概念に近い
-- `CanTween` trait + derive マクロでカスタム型のトゥイーン対応
-- `ease(function, from, to, time)` の API が Dola の値補間に直結
-- CSS cubic-bezier 対応のベジェ曲線
-- no_std 対応（組み込み向けだが依存の軽さの指標）
+| AC | 技術要素 | 既存アセット | ギャップ |
+|----|----------|-------------|---------|
+| 2.1 パラメータ定義 | `TransitionDef` struct | **Missing** | from/to/relative_to/easing/delay/duration |
+| 2.2 Linear イージング | `EasingFunction` enum | **Missing** | Linear variant |
+| 2.3 組み込み30種 | `EasingFunction` enum | **Missing** | interpolation 命名準拠の自前 enum |
+| 2.4 二次ベジェ | `EasingFunction::QuadraticBezier` | **Missing** | 3 制御点パラメトリック variant |
+| 2.5 三次ベジェ | `EasingFunction::CubicBezier` | **Missing** | 4 制御点パラメトリック variant |
+| 2.6 Object 型制限 | バリデーション | **Missing** | to のみ許可、他フィールド禁止の検証 |
+| 2.7 serde 実装 | `#[derive(Serialize, Deserialize)]` | **Missing** | 自前 enum で直接 serde 対応 |
+| 2.8 名前付きテンプレート | `HashMap<String, TransitionDef>` | **Missing** | ドキュメントレベルの名前参照 |
+| 2.9 ハイブリッド参照 | `TransitionRef` (String | Object) | **Missing** | `#[serde(untagged)]` パターン（**Research Finding 2**） |
+| 2.10 総時間計算 | delay + duration | **Missing** | バリデーション/ビルダー |
 
-**懸念:**
-- 4年間メンテナンスなし（ただし安定版で機能十分）
-- serde 未対応 → `EasingFunction` のシリアライズは自前実装が必要
-- `AnimationSequence` は「単一変数の値列」であり、Dola の「複数変数のストーリーボード」とは抽象度が異なる → シーケンス機能は借用せず `ease()` 関数とイージング関数定義のみ利用が現実的
+**複雑性**: M（Medium） — イージング列挙型の定義量が多い。`#[serde(untagged)]` によるハイブリッド参照の設計が要注意。
 
-#### interpolation（推奨候補B）
+### Requirement 3: キーフレーム
 
-**利点:**
-- `EaseFunction` enum（30種類のイージング関数を列挙型で定義）→ serde の `Serialize`/`Deserialize` を **enum に追加すれば** シリアライズ可能
-- `Lerp` trait が汎用的
-- Piston エコシステム由来で実績あり
+| AC | 技術要素 | 既存アセット | ギャップ |
+|----|----------|-------------|---------|
+| 3.1 予約 "start" | 定数/バリデーション | **Missing** | 予約名チェック |
+| 3.2 名前付き KF | `keyframe` フィールド | **Missing** | StoryboardEntry のフィールド |
+| 3.3 SBローカルスコープ | バリデーション | **Missing** | SB 単位の名前解決 |
+| 3.4 "start" 予約チェック | バリデーション | **Missing** | ユーザー定義禁止の検証 |
+| 3.5 重複禁止 | バリデーション | **Missing** | SB 内名前重複チェック |
+| 3.6 暗黙的 KF 生成 | 内部キーフレーム名生成 | **Missing** | v1.5 追加。未命名エントリへの内部名付与ロジック |
 
-**懸念:**
-- `EaseFunction` は外部クレートの enum なので、serde derive を付けるには newtype ラッパーか `#[serde(remote)]` が必要
-- イージング関数のカスタマイズ性が keyframe より低い（enum 固定）
-- 2年間メンテナンスなし
+**複雑性**: S-M — バリデーションロジックが中心。暗黙的 KF 生成は設計の要点。
 
-#### simple-easing
+### Requirement 4: ストーリーボード
 
-**利点:**
-- 最もシンプル（純粋関数のみ、依存ゼロ）
-- `fn(f32) -> f32` シグネチャで完全に自由に組み込み可能
+| AC | 技術要素 | 既存アセット | ギャップ |
+|----|----------|-------------|---------|
+| 4.1 複数 SB 定義 | `HashMap<String, Storyboard>` | **Missing** | ドキュメントレベル |
+| 4.2 一意な名前 | バリデーション | **Missing** | HashMap キーで暗黙保証 |
+| 4.3 エントリ配列 | `Vec<StoryboardEntry>` | **Missing** | 配列構造 |
+| 4.4 エントリフィールド | `StoryboardEntry` struct | **Missing** | v1.6: at がキーフレーム名配列に変更 |
+| 4.5 3種配置 | 配置方式の判別 | **Missing** | v1.5/v1.6: 前エントリ連結(暗黙KF)、at(配列+全KF完了待機)、between |
+| 4.6 純粋 KF エントリ | `StoryboardEntry` (variable/transition省略) | **Missing** | Option フィールド |
+| 4.7 メタ情報 | `Storyboard` のメタフィールド | **Missing** | loop/timescale 等 |
+| 4.8 同一タイムライン | データモデル制約 | **Missing** | 構造的に保証 |
 
-**懸念:**
-- f32 固定（Dola は f64）→ キャスト必要
-- 関数のみでフレームワーク機能なし
-- カスタムイージングの仕組みなし
+**複雑性**: M-L — 3 種配置方式の表現と暗黙的 KF 連結がデータモデル設計の核心。`at` の配列化 (v1.6) で `KeyframeRef` の設計にも影響。
 
-### 3.3 推奨アプローチ（設計フェーズへの提案）
+### Requirement 5: シリアライズフォーマット
 
-**Option A: keyframe をイージング計算に採用**
-- `keyframe::ease()` と `keyframe::functions::*` をイージング計算に使用
-- `AnimationSequence` は使用せず、Dola 独自のストーリーボード構造を構築
-- カスタムイージングは `EasingFunction` trait を実装
-- シリアライズは Dola 側で `EasingKind` enum を定義し、名前ベースでマッピング
+| AC | 技術要素 | 既存アセット | ギャップ |
+|----|----------|-------------|---------|
+| 5.1 JSON | `serde_json` | **Missing** | feature `json` + デシリアライズ関数 |
+| 5.2 TOML | `toml` クレート | **Missing** | feature `toml` + TOML 構造制約への対応 |
+| 5.3 YAML | `serde_yaml` | **Missing** | feature `yaml` |
+| 5.4 スキーマバージョン | `DolaDocument::schema_version` | **Missing** | バージョン文字列フィールド |
+| 5.5 バージョン不一致エラー | バリデーション | **Missing** | デシリアライズ後チェック |
+| 5.6 serde 使用 | `#[derive(Serialize, Deserialize)]` | **Missing** | 全型に適用 |
+| 5.7 全データモデル対応 | 全型にシリアライズ対応 | **Missing** | derive で網羅 |
 
-**Option B: 自前イージング実装 + simple-easing 参考**
-- イージング関数を自前で実装（simple-easing のアルゴリズムを f64 で再実装）
-- 外部依存ゼロで完全な制御
-- serde 対応もネイティブ
-- 工数は keyframe 利用と大差なし（イージング関数自体は小さい）
+**複雑性**: S — serde derive で大部分対応。TOML のネスト構造制約 (Research Finding 3) への対応が唯一の注意点。
 
-**Option C: interpolation の EaseFunction enum を採用**
-- 列挙型ベースでシリアライズとの親和性が最も高い
-- キュービックベジェ等のカスタムイージングには追加実装が必要
+### Requirement 6: 再生制御データモデル
 
----
+| AC | 技術要素 | 既存アセット | ギャップ |
+|----|----------|-------------|---------|
+| 6.1 再生状態 enum | `PlaybackState` | **Missing** | 5 状態の列挙型 |
+| 6.2 タイムスケール | f64 フィールド | **Missing** | デフォルト 1.0 |
+| 6.3 時間表現 f64秒 | 型設計 | **Missing** | 全時間値を f64 で統一 |
+| 6.4 シリアライズ対応 | serde derive | **Missing** | derive で対応 |
+| 6.5 スケジュール指示 | `ScheduleRequest` | **Missing** | SB 名 + 開始時刻 |
 
-## 4. wintf-P0-animation-system との責務境界
+**複雑性**: S — 単純な enum + struct 定義。
 
-### 現在の既存コード
+### Requirement 7: クレート構成
 
-[crates/wintf/src/com/animation.rs](crates/wintf/src/com/animation.rs) に Windows Animation Manager の COM ラッパーが存在：
-- `IUIAnimationTimer` — 時間取得
-- `IUIAnimationManager2` — 変数作成・更新・ストーリーボード作成
-- `IUIAnimationTransitionLibrary2` — トランジション種別
-- `IUIAnimationStoryboard2` — ストーリーボードスケジューリング
-- `IUIAnimationVariable2` — 変数値取得・DirectComposition曲線出力
+| AC | 技術要素 | 既存アセット | ギャップ |
+|----|----------|-------------|---------|
+| 7.1 独立クレート | `crates/dola/` | **Missing** | ディレクトリ + Cargo.toml 作成 |
+| 7.2 serde 必須 | Cargo.toml 依存 | **Missing** | `serde = { version = "1", features = ["derive"] }` |
+| 7.3 feature フラグ | Cargo.toml features | **Missing** | json/toml/yaml の feature gate |
+| 7.4 interpolation 命名準拠 | EasingFunction enum 名 | **Missing** | 自前 enum で命名合わせ（コンパイル依存なし） |
+| 7.5 no_std 不要 | N/A | N/A | 制約なし |
 
-### 責務境界の整理
-
-```
-┌─────────────────────────────────────────────┐
-│  Dola（本仕様）                              │
-│  宣言的データモデル + オーケストレーション     │
-│  - ストーリーボード定義（シリアライズ可能）     │
-│  - 値補間計算（純Rust、イージング関数）        │
-│  - プラグインインターフェース                  │
-│  - 時間管理                                   │
-│  ※ プラットフォーム非依存                      │
-└─────────────────────┬───────────────────────┘
-                      │ 値変化通知
-┌─────────────────────▼───────────────────────┐
-│  wintf 統合層（将来の統合仕様）               │
-│  - Dola → wintf ブリッジ                      │
-│  - Dola の値変化を ECS コンポーネントに反映    │
-│  - DirectComposition プロパティへの適用         │
-└─────────────────────┬───────────────────────┘
-                      │ COM API
-┌─────────────────────▼───────────────────────┐
-│  wintf-P0-animation-system                   │
-│  - Windows Animation Manager COM ラッパー     │
-│  - IDCompositionAnimation 出力                │
-│  - GPU アクセラレーション                     │
-└─────────────────────────────────────────────┘
-```
-
-**注意**: Dola が純Rust値補間を行い、wintf-P0-animation-system が GPU アクセラレーションを提供するという二重構造が存在する。設計フェーズでは「Dola の値補間結果を wintf に渡す」「WAMCOM API をDolaのバックエンドとして使う」のどちらが適切かを判断する必要がある。
+**複雑性**: S — Cargo.toml + lib.rs のスキャフォールド。
 
 ---
 
-## 5. 実装複雑性・リスク評価
+## 4. 実装アプローチ評価
+
+### 4.1 プロジェクト種別
+
+Dola は**完全なグリーンフィールド**プロジェクト。既存コードベースの拡張ではなく、新規クレートの作成。したがって Option A（既存拡張）は該当しない。
+
+### Option B: 新規クレート作成（推奨）
+
+**根拠**: Dola は wintf に依存しない独立クレート（Req 7.1）。既存コードとの結合点がゼロ。
+
+**構成案**:
+`
+crates/dola/
+├── Cargo.toml
+├── src/
+│   ├── lib.rs          # 公開 API + re-exports
+│   ├── model/          # データモデル定義
+│   │   ├── mod.rs
+│   │   ├── variable.rs   # AnimationVariableDef
+│   │   ├── transition.rs # TransitionDef, TransitionRef, EasingFunction
+│   │   ├── storyboard.rs # Storyboard, StoryboardEntry, KeyframeRef
+│   │   ├── playback.rs   # PlaybackState, ScheduleRequest
+│   │   └── document.rs   # DolaDocument (top-level)
+│   ├── validation.rs   # 分離バリデーション
+│   ├── builder.rs      # オプショナルビルダー
+│   └── error.rs        # DolaError
+└── tests/
+    ├── serde_roundtrip_test.rs
+    ├── validation_test.rs
+    └── builder_test.rs
+`
+
+**統合ポイント**:
+- ワークスペース: `members = ["crates/*"]` で自動包含
+- 将来の wintf 統合: `crates/wintf/Cargo.toml` に `dola = { path = "../dola" }` を追加（将来の別仕様）
+- feature gate: `json`（default）, `toml`, `yaml`
+
+**トレードオフ**:
+- ✅ 完全な責務分離、独立テスト可能
+- ✅ 将来の crates.io 公開に対応（名前 "dola" は利用可能確認済み）
+- ✅ wintf 以外のプロジェクトからも利用可能
+- ❌ wintf との統合層は将来の別仕様で別途設計が必要
+
+### Option C: ハイブリッドアプローチ（不採用）
+
+Dola のスコープは純粋なデータモデル+バリデーションであり、既存コードとの結合が不要なため、ハイブリッドアプローチは不要。
+
+---
+
+## 5. 残存する設計判断事項
+
+以下は要件 v1.6 でもカバーしきれていない設計判断事項。設計フェーズで解決する。
+
+| # | 設計判断事項 | 関連要件 | 影響 |
+|---|---|---|---|
+| D1 | **値域（上限・下限）超過時の挙動** — クランプ？エラー？無視？WAM はクランプ | Req 1.6 | バリデーション設計 |
+| D2 | **TransitionValue と Object 型 `to` の表現** — TransitionValue は Scalar(f64) のみ。Object 型トランジションの `to`（DynamicValue）をどう型安全に表現するか | Req 2.1, 2.6 | 型設計の核心。design.md 再生成時に解決 |
+| D3 | **サブストーリーボード（入れ子）** — 再利用のために SB を入れ子にできるか？WAM にはこの概念なし | Req 4 | データモデル拡張性 |
+| D4 | **ループ区間指定** — SB 全体ループのみか、部分区間ループもサポートか | Req 4.7 | メタ情報の粒度 |
+| D5 | **スキーマバージョン互換性ポリシー** — マイナー後方互換？完全一致のみ？ | Req 5.4, 5.5 | 長期運用設計 |
+| D6 | **`at` 配列 + `offset` の型表現** — 単純文字列配列か、構造体か、`#[serde(untagged)]` か | Req 4.4 | KeyframeRef の serde 設計 |
+
+---
+
+## 6. 候補クレート評価（更新版）
+
+### 6.1 serde エコシステム
+
+| クレート | 用途 | バージョン | 備考 |
+|---|---|---|---|
+| `serde` | 必須基盤 | 1.x | `features = ["derive"]` |
+| `serde_json` | JSON フォーマット | 1.x | feature `json`（default） |
+| `toml` | TOML フォーマット | 0.8.x | feature `toml` |
+| `serde_yaml` | YAML フォーマット | 0.9.x | feature `yaml` |
+
+### 6.2 イージング計算クレート
+
+**設計判断済み（Research Decision 1）**: `interpolation` クレートの `EaseFunction` 命名に準拠した自前列挙型を定義。コンパイル時依存なし。
+
+理由:
+- `interpolation` の `EaseFunction` は serde 未対応。newtype ラッパーか `#[serde(remote)]` が必要で煩雑
+- 自前定義なら serde derive を直接付与可能
+- Dola はデータモデルのみ（値補間計算はランタイムの責務）なので、補間ロジック自体は不要
+- 将来のランタイムが `interpolation` / `keyframe` / 自前実装のいずれかを選択可能
+
+---
+
+## 7. 実装複雑性・リスク評価
 
 | 要件 | 工数 | リスク | 根拠 |
 |------|------|--------|------|
-| Req 1: アニメーション変数 | S | Low | データモデル定義のみ。enum + serde |
-| Req 2: トランジション | M | Medium | イージング関数の選定と種別の取捨選択に依存 |
-| Req 3: キーフレーム | M | Medium | WAM概念の再解釈度合いで複雑性が変動 |
-| Req 4: ストーリーボード | L | High | 複数変数同期、ループ、スケジューリング |
-| Req 5: シリアライズ | S | Low | serde derive で大部分対応。カスタムイージングのシリアライズのみ要検討 |
-| Req 6: オーケストレーション | M | Medium | 状態管理とイベント通知の設計 |
-| Req 7: プラグインIF | M | High | 「プラグイン」の技術的実装形態が未確定 |
-| Req 8: 時間管理 | S | Low | 外部時刻供給とtick駆動は単純 |
-| Req 9: クレート構成 | S | Low | Cargo workspace 追加のみ |
+| Req 1: アニメーション変数 | S | Low | enum + serde derive。DynamicValue 型設計のみ要注意 |
+| Req 2: トランジション | M | Low | 30+ イージング enum 定義量は多いが機械的。untagged 参照の設計が要注意 |
+| Req 3: キーフレーム | S | Low | バリデーション中心。暗黙的 KF 生成は自然な拡張 |
+| Req 4: ストーリーボード | M | Medium | 3 種配置方式 + at 配列化 + 暗黙 KF 連結がデータモデル設計の核心 |
+| Req 5: シリアライズ | S | Low | serde derive で大部分対応。TOML ネスト制約のみ注意 |
+| Req 6: 再生制御モデル | S | Low | 単純な enum + struct |
+| Req 7: クレート構成 | S | Low | Cargo.toml + lib.rs スキャフォールド |
 
-**総合工数**: L（1-2週間）  
-**総合リスク**: Medium-High（プラグインIFと WAM概念取捨選択が不確定）
+**総合工数**: M（3-7 日）
+**総合リスク**: Low-Medium
+
+> v1.0 分析時の総合工数 L / リスク Medium-High からの下方修正。理由:
+> - ランタイム（再生エンジン・値補間・プラグインIF・時間管理）がスコープ外に移行
+> - 要件が 9→7 件、受け入れ基準が明確化
+> - データモデル + バリデーション + ビルダーの純粋なライブラリ設計に集中可能
 
 ---
 
-## 6. 設計フェーズへの推奨事項
+## 8. 設計フェーズへの推奨事項
 
 ### 優先的に解決すべき設計判断
 
-1. **WAM 概念の取捨選択** (H, J, O, P): コンテキスト依存デュレーション・ストーリーボード競合解決を取り込むかどうか。取り込まない場合は大幅にシンプルになる
-2. **プラグインインターフェースの技術的形態** (Q): trait / callback / channel の選択
-3. **カスタムイージングのシリアライズ戦略** (F, N): 名前ベース参照 vs ベジェ制御点 vs 両方
-4. **イージング計算クレートの選定** (Req 2-8, Req 9-4): keyframe vs 自前実装 vs interpolation
+1. **D2: TransitionValue と Object 型 `to` の表現** — 型設計の核心。design.md 再生成時に A/B/C 案から決定
+2. **D6: `at` 配列 + `offset` の KeyframeRef 設計** — v1.6 変更の反映
+3. **D1: 値域超過挙動** — バリデーション戦略の基盤
 
-### Research Needed（設計フェーズで調査）
+### 設計フェーズで確定不要（将来仕様に委譲）
 
-- `keyframe` クレートの `EasingFunction` trait が serde と共存可能か（trait object のシリアライズ戦略）
-- `interpolation` クレートの `EaseFunction` enum に `#[serde(remote)]` を適用する際の制約
-- Dola と wintf-P0-animation-system の値補間二重構造の解消方針
+- D3（サブ SB）: v1 では未サポートが妥当。拡張可能な設計にしておくのみ
+- D4（ループ区間）: v1 では SB 全体ループのみが現実的
+- D5（バージョン互換性）: 初期リリースでは完全一致で十分
+
+### Research Items（設計フェーズへの引き継ぎ）
+
+- `#[serde(untagged)]` による TransitionRef / KeyframeRef のハイブリッド参照パターンの TOML/JSON/YAML 3 フォーマット互換性検証
+- DynamicValue の JSON/TOML/YAML 各フォーマットでの表現力差異の調査
+- Storyboard の TOML ネスト構造 `[storyboard.X]` + `[[storyboard.X.entry]]` と JSON/YAML フラット構造の互換性確認
+
+---
+
+## 9. 次のステップ
+
+ギャップ分析が完了。設計フェーズに進むには：
+
+`
+/kiro-spec-design dola-animation-system -y
+`
+
+> **注意**: 既存の design.md は v1.4 要件ベース。v1.5（暗黙的 KF）・v1.6（at 配列化）の変更および本ギャップ分析の結果を反映した再生成が必要。
