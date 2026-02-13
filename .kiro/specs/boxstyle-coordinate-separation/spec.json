@@ -1,13 +1,12 @@
 {
-    "feature_name": "drag-wndproc-direct-move",
-    "created_at": "2026-02-13T07:15:00Z",
-    "updated_at": "2026-02-13T07:15:00Z",
+    "feature_name": "boxstyle-coordinate-separation",
+    "created_at": "2026-02-13T00:00:00Z",
+    "updated_at": "2026-02-13T00:00:00Z",
     "language": "ja",
-    "phase": "initialized",
-    "parent_spec": "event-drag-system",
+    "phase": "requirements-generated",
     "approvals": {
         "requirements": {
-            "generated": false,
+            "generated": true,
             "approved": false
         },
         "design": {
