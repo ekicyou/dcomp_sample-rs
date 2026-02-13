@@ -11,6 +11,8 @@
 - **Key Finding 2**: serde `#[serde(untagged)]` によるハイブリッド参照（文字列 | オブジェクト）は TransitionRef・EasingFunction・KeyframeRef の3箇所で適用可能
 - **Key Finding 3**: TOML の `[table]` と `[[array_of_tables]]` の共存制約により、ストーリーボードはネスト構造（`[storyboard.X]` + `[[storyboard.X.entry]]`）を採用
 - **Key Finding 4**: Object 型変数のためのフォーマット非依存値型 `DynamicValue` を自前定義する必要がある
+- **Key Finding 5**: v1.6/v1.7 の `at` フィールド変更により、`KeyframeRef` は 3 バリアント（Single/Multiple/WithOffset）+ `KeyframeNames` ヘルパー enum の多層 `#[serde(untagged)]` 設計が必要
+- **Key Finding 6**: Object 型トランジションの `to` を自然に表現するため、`TransitionValue` に `Dynamic(DynamicValue)` バリアントを追加。`#[serde(untagged)]` で Scalar → Dynamic の順に試行
 
 ---
 
@@ -86,6 +88,20 @@
   - `from` / `relative_to` フィールドにカスタムデシリアライザを実装するか、ラッパー型 `Number(i64|f64)` を使用
   - 設計上は f64 を論理型とし、実装フェーズで TOML 互換デシリアライザを対応
 
+### v1.5/v1.6/v1.7 要件変更の設計影響評価
+
+- **Context**: 要件 v1.5（暗黙的KF生成 Req 3.6）、v1.6（at 配列化 Req 4.4/4.5）、v1.7（at 文字列短縮形 Req 4.4/4.5）の追加による既存設計への影響評価
+- **Sources**: requirements.md v1.7, gap-analysis.md v2.0
+- **Findings**:
+  - Req 3.6（暗黙的KF）: データモデル変更不要。`keyframe: Option<String>` のまま。暗黙的KF名は処理段階（バリデーション/ランタイム）で生成。V6 を更新し暗黙的KFを考慮した参照検証が必要
+  - Req 4.4/4.5（at 配列化 + 文字列短縮形）: `KeyframeRef` enum の完全再設計。3バリアント（Single/Multiple/WithOffset）+ `KeyframeNames` ヘルパー enum。`#[serde(untagged)]` の2段階適用
+  - gap-analysis D2（TransitionValue + Object）: `TransitionValue::Dynamic(DynamicValue)` バリアント追加で解決
+  - gap-analysis D1（値域超過）: バリデーションエラーとして処理。ランタイムクランプはスコープ外
+  - gap-analysis D3-D5: 将来仕様に委譲（v1 では未サポート/最小実装で十分）
+- **Implications**:
+  - KeyframeRef の再設計が design.md v2.0 の最大の変更点
+  - バリデーションルール追加: V12（値域チェック）, V13（型整合性チェック）, V6更新（暗黙的KF対応）
+
 ---
 
 ## Architecture Pattern Evaluation
@@ -160,6 +176,52 @@
   - serde(untagged) の列挙型よりエラーメッセージが明確
   - バリデーションで有効な組み合わせを検証
 
+### Decision 6: KeyframeRef の多形 serde 設計（v1.6/v1.7 対応）
+
+- **Context**: Req 4.4/4.5 — v1.6 で `at` が配列に変更、v1.7 で文字列短縮形も許可。既存の `KeyframeRef`（Simple/WithOffset）では配列表現不可
+- **Alternatives**:
+  1. `at` を常に `Vec<String>` とし、`offset` は別フィールドに分離
+  2. `KeyframeRef` を 3 バリアント（Single/Multiple/WithOffset）に再設計 + `KeyframeNames` ヘルパー
+  3. `at` を生値として受け取りカスタムデシリアライザで処理
+- **Selected**: Option 2 — 3 バリアント + KeyframeNames
+- **Rationale**:
+  - `#[serde(untagged)]` で String → Vec<String> → Object の順に自然に試行
+  - JSON/TOML/YAML すべてで直感的な表現が可能
+  - WithOffset 内の `keyframes` も `KeyframeNames`（String | Vec<String>）で多形化
+- **Trade-offs**: 2 段階の untagged enum でエラーメッセージが不明瞭になる可能性
+- **Follow-up**: バリデーションで空配列・重複KF名チェックを追加
+
+### Decision 7: TransitionValue に Dynamic バリアント追加（Object 型対応）
+
+- **Context**: gap-analysis D2 — TransitionValue は Scalar(f64) のみだが、Object 型変数の `to` に DynamicValue を許容する必要がある
+- **Alternatives**:
+  1. `to` フィールドの型を `DynamicValue` に変更（すべての値を動的型で扱う）
+  2. `TransitionValue` に `Dynamic(DynamicValue)` バリアントを追加
+  3. `to` と `to_object` の 2 フィールドに分離
+- **Selected**: Option 2 — Dynamic バリアント追加
+- **Rationale**:
+  - `#[serde(untagged)]` で Scalar(f64) → Dynamic(DynamicValue) の順に試行
+  - 数値は Scalar、オブジェクト構造は Dynamic に自然にマッピング
+  - 既存の Scalar パスに影響なし
+  - TOML: `to = 1.0` → Scalar, `to = { path = "smile.png" }` → Dynamic
+- **Trade-offs**: TOML 整数 `to = 5` は Scalar デシリアライズ失敗後 Dynamic(Integer) にフォールバックする可能性 → カスタムデシリアライザで吸収
+- **Follow-up**: バリデーション V10/V13 で変数型と TransitionValue バリアントの整合性を検証
+
+### Decision 8: 値域超過はバリデーションエラーとする
+
+- **Context**: gap-analysis D1 — f64/i64 変数の初期値やトランジション to/from が値域（min/max）を超過した場合の挙動
+- **Alternatives**:
+  1. クランプ（WAM スタイル: 超過値を min/max に丸める）
+  2. バリデーションエラー（静的チェックとして報告）
+  3. 無視（ランタイムに委譲）
+- **Selected**: Option 2 — バリデーションエラー
+- **Rationale**:
+  - Dola はデータモデル＋バリデーションのクレート。ランタイム挙動はスコープ外
+  - 明示的エラー報告で定義ファイル作成者が早期に問題発見可能
+  - ランタイムのクランプ実装は別仕様の判断
+- **Trade-offs**: イージング曲線によるオーバーシュート等の中間値は静的チェック不可能（ランタイムの関心事）
+- **Follow-up**: DolaError に ValueOutOfRange バリアント追加
+
 ---
 
 ## Risks & Mitigations
@@ -171,6 +233,8 @@
 | `interpolation` 命名変更への追従遅れ | 互換性 | 低 | バージョンピン + CI 命名一致テスト |
 | `DynamicValue` の f64 NaN 等価比較 | 正確性 | 低 | `total_cmp` ベースの比較実装 |
 | TOML インライン表の1行制限 | UX | 中 | 名前付きトランジションテンプレートの使用を推奨 |
+| KeyframeRef 2段階 `untagged` のエラーメッセージ劣化 | UX | 中 | バリデーション層でキーフレーム参照形式の具体的エラーを提供 |
+| TransitionValue Scalar/Dynamic の TOML 整数フォールバック | 互換性 | 中 | Scalar 用カスタムデシリアライザ（i64→f64 変換）で吸収 |
 
 ---
 

@@ -3,9 +3,10 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | Dola アニメーション宣言フォーマット 設計書 |
-| **Version** | 1.0 |
-| **Date** | 2026-02-13 |
+| **Version** | 2.0 |
+| **Date** | 2026-02-14 |
 | **Status** | Draft |
+| **Requirements Base** | v1.7 |
 
 ---
 
@@ -44,6 +45,7 @@ graph TB
         Document[DolaDocument]
         Variable[AnimationVariableDef]
         Transition[TransitionDef / TransitionRef]
+        TransValue[TransitionValue]
         Easing[EasingFunction]
         Storyboard[Storyboard / StoryboardEntry]
         Playback[PlaybackState / ScheduleRequest]
@@ -58,7 +60,8 @@ graph TB
     Document --> Storyboard
     Storyboard --> Transition
     Transition --> Easing
-    Transition --> Value
+    Transition --> TransValue
+    TransValue --> Value
     Variable --> Value
     Validate --> Document
     Validate --> Error
@@ -104,14 +107,14 @@ graph TB
 | 1.3 | Object 型変数 | AnimationVariableDef, DynamicValue | — | — |
 | 1.4 | タイプライター文字列属性 | AnimationVariableDef | — | — |
 | 1.5 | 変数名の一意性 | DolaDocument | Validation | Validate |
-| 1.6 | f64/i64 初期値・値域 | AnimationVariableDef | — | — |
+| 1.6 | f64/i64 初期値・値域 | AnimationVariableDef | Validation | Validate |
 | 1.7 | Object 初期値 | AnimationVariableDef, DynamicValue | — | — |
-| 2.1 | トランジションパラメータ | TransitionDef | — | — |
+| 2.1 | トランジションパラメータ | TransitionDef, TransitionValue | — | — |
 | 2.2 | Linear イージング | EasingName | — | — |
 | 2.3 | 30種組み込みイージング | EasingName | — | — |
 | 2.4 | 二次ベジェ補間 | ParametricEasing | — | — |
 | 2.5 | 三次ベジェ補間 | ParametricEasing | — | — |
-| 2.6 | Object 型は to のみ | TransitionDef | Validation | Validate |
+| 2.6 | Object 型は to のみ | TransitionDef, TransitionValue | Validation | Validate |
 | 2.7 | serde 対応イージング列挙型 | EasingFunction, EasingName, ParametricEasing | — | — |
 | 2.8 | 名前付きテンプレート | DolaDocument | — | — |
 | 2.9 | ハイブリッド参照 | TransitionRef | — | — |
@@ -121,10 +124,11 @@ graph TB
 | 3.3 | KF スコープ = SB ローカル | Storyboard | Validation | Validate |
 | 3.4 | "start" ユーザー定義禁止 | — | Validation | Validate |
 | 3.5 | KF 名重複禁止 | — | Validation | Validate |
+| 3.6 | 暗黙的 KF 生成 | StoryboardEntry | Validation | Validate |
 | 4.1 | 複数名前付き SB | DolaDocument | — | — |
 | 4.2 | SB 名の一意性 | DolaDocument | — | — |
 | 4.3 | エントリ配列構成 | Storyboard, StoryboardEntry | — | — |
-| 4.4 | エントリフィールド定義 | StoryboardEntry, TransitionRef, KeyframeRef, BetweenKeyframes | — | — |
+| 4.4 | エントリフィールド定義 | StoryboardEntry, TransitionRef, KeyframeRef, KeyframeNames, BetweenKeyframes | — | — |
 | 4.5 | 3種の配置方法 | StoryboardEntry | Validation | Validate |
 | 4.6 | 純粋 KF エントリ | StoryboardEntry | Validation | Validate |
 | 4.7 | メタ情報 | Storyboard | — | — |
@@ -157,16 +161,18 @@ graph TB
 |-----------|--------|--------|--------------|------------------|-----------|
 | DolaDocument | document | ルートコンテナ、スキーマ管理 | 1.5, 2.8, 4.1, 4.2, 5.1-5.7 | Variable, Transition, Storyboard | State |
 | AnimationVariableDef | variable | 変数型定義 | 1.1-1.7 | DynamicValue | — |
-| TransitionValue | transition | トランジション値型（型拡張対応） | 2.1, 2.6 | — | — |
+| TransitionValue | transition | トランジション値型（Scalar/Dynamic） | 2.1, 2.6 | DynamicValue | — |
 | TransitionDef | transition | トランジションパラメータ | 2.1-2.10 | EasingFunction, TransitionValue | — |
 | TransitionRef | transition | ハイブリッド参照 | 2.8, 2.9 | TransitionDef | — |
 | EasingFunction | easing | イージング列挙型 | 2.2-2.5, 2.7, 7.4 | — | — |
 | Storyboard | storyboard | SB 構造 + メタ情報 | 3.1, 3.3, 4.1-4.8, 6.2 | StoryboardEntry | State |
-| StoryboardEntry | storyboard | エントリ（配置 + KF） | 3.2, 4.3-4.6 | TransitionRef, KeyframeRef | — |
+| StoryboardEntry | storyboard | エントリ（配置 + KF） | 3.2, 3.6, 4.3-4.6 | TransitionRef, KeyframeRef | — |
+| KeyframeRef | storyboard | キーフレーム起点指定（多形） | 4.4, 4.5 | KeyframeNames | — |
+| KeyframeNames | storyboard | KF名指定（単一/複数） | 4.4 | — | — |
 | PlaybackState | playback | 再生状態列挙型 | 6.1-6.5 | — | — |
 | ScheduleRequest | playback | スケジューリング指示 | 6.5 | — | — |
 | DynamicValue | value | フォーマット非依存動的値 | 1.3, 1.7, 2.6 | — | — |
-| Validation | validate | 構造バリデーション | 3.4, 3.5, 5.5, cross-cutting | DolaDocument, DolaError | Service |
+| Validation | validate | 構造バリデーション | 1.6, 3.4, 3.5, 3.6, 5.5, cross | DolaDocument, DolaError | Service |
 | DolaError | error | エラー型 | 5.5 | — | — |
 | Builder API | builder | 構築ヘルパー | cross-cutting | DolaDocument | Service |
 
@@ -174,7 +180,7 @@ graph TB
 
 以下のコンポーネントはデータ定義（struct/enum 定義 + serde derive）であり、ロジックを持たない。型定義は「Data Models」セクションに集約する。
 
-対象: AnimationVariableDef, TransitionValue, TransitionDef, TransitionRef, EasingFunction, EasingName, ParametricEasing, Storyboard, StoryboardEntry, KeyframeRef, BetweenKeyframes, PlaybackState, ScheduleRequest, DynamicValue, DolaError
+対象: AnimationVariableDef, TransitionValue, TransitionDef, TransitionRef, EasingFunction, EasingName, ParametricEasing, Storyboard, StoryboardEntry, KeyframeRef, KeyframeNames, BetweenKeyframes, PlaybackState, ScheduleRequest, DynamicValue, DolaError
 
 ### Boundary Components（詳細）
 
@@ -216,7 +222,7 @@ struct DolaDocument {
 
 **Implementation Notes**
 - `BTreeMap` を使用し、シリアライズ時のキー順序を決定的にする（diff-friendly）
-- `schema_version` は semantic versioning 文字列
+- `schema_version` は semantic versioning 文字列。v1 では完全一致検証のみ（互換性ポリシーは将来仕様で拡張）
 - `variable` と `transition` はグローバルスコープ、`keyframe` は SB ローカルスコープ
 
 ---
@@ -226,14 +232,15 @@ struct DolaDocument {
 | Field | Detail |
 |-------|--------|
 | Intent | デシリアライズ後の DolaDocument に対する構造整合性検証 |
-| Requirements | 1.5, 2.6, 3.4, 3.5, 4.5, 5.5, cross-cutting |
+| Requirements | 1.5, 1.6, 2.6, 3.4, 3.5, 3.6, 4.5, 5.5, cross-cutting |
 
 **Responsibilities & Constraints**
 - スキーマバージョン互換性チェック
 - エントリの配置パターン妥当性検証
-- キーフレーム制約検証（"start" 予約、重複禁止、参照先存在確認）
+- キーフレーム制約検証（"start" 予約、重複禁止、参照先存在確認、暗黙的KF追跡）
 - 変数・トランジション参照の存在確認
-- Object 型トランジションの制限事項検証（to のみ）
+- Object 型トランジションの制限事項検証（to のみ、Dynamic のみ）
+- 値域チェック（初期値・トランジション値の min/max 範囲検証）
 
 **Dependencies**
 - Inbound: DolaDocument — 検証対象 (P0)
@@ -260,7 +267,8 @@ impl Validate for DolaDocument {
 - **Invariants**: バリデーションは副作用なし（read-only）
 
 **Implementation Notes**
-- キーフレーム参照検証（V6）は2パスで実施：第1パスで各SBの全`keyframe`フィールドを収集、第2パスで`at`/`between`の参照先存在を検証
+- キーフレーム参照検証（V6）は2パスで実施：第1パスで各SBの全`keyframe`フィールドを収集（明示的 + 暗黙的）、第2パスで`at`/`between`の参照先存在を検証
+- 暗黙的キーフレーム（Req 3.6）: `keyframe` 省略時は内部で `__implicit_{index}` 形式のユニーク名を生成し、前エントリ連結の基準点とする。この名前はバリデーション/ランタイム内部でのみ使用
 - 前方参照を許可することで、エントリの宣言順序に制約を設けず論理的な構成を優先
 
 **バリデーションルール一覧**:
@@ -272,12 +280,14 @@ impl Validate for DolaDocument {
 | V3 | ユーザー定義キーフレーム名に "start" を使用不可 | 3.4 |
 | V4 | エントリの variable 参照が document.variable に存在する | cross |
 | V5 | エントリの transition 名前参照が document.transition に存在する | 2.8 |
-| V6 | エントリの at/between キーフレーム参照が同一 SB 内に存在する（**前方参照許可**: 第1パスで全keyframe名収集、第2パスで参照検証） | cross |
+| V6 | エントリの at/between キーフレーム参照が同一 SB 内に存在する（**前方参照許可**: 第1パスで全keyframe名＋暗黙的KF名を収集、第2パスで参照検証） | cross, 3.6 |
 | V7 | transition あり → variable 必須 | 4.5 |
 | V8 | at と between は排他 | 4.5 |
 | V9 | 純粋 KF エントリは keyframe 必須 | 4.6 |
-| V10 | Object 型変数のトランジションは to のみ（from/relative_to/easing 不可） | 2.6 |
+| V10 | Object 型変数のトランジションは to のみ（from/relative_to/easing 不可）、to は TransitionValue::Dynamic のみ | 2.6 |
 | V11 | to と relative_to は排他 | 2.1 |
+| V12 | f64/i64 変数の初期値が値域（min/max）内であること | 1.6 |
+| V13 | f64/i64 変数のトランジション from/to は TransitionValue::Scalar のみ（Dynamic 不可） | 2.1, 2.6 |
 
 ---
 
@@ -343,11 +353,12 @@ erDiagram
     Storyboard ||--o{ StoryboardEntry : entry
     StoryboardEntry }o--o| TransitionRef : transition
     TransitionRef }|--|| TransitionDef : "resolves to"
-    TransitionDef ||--|| EasingFunction : easing
+    TransitionDef }o--o| TransitionValue : "from / to"
+    TransitionDef }o--o| EasingFunction : easing
+    TransitionValue }o--|| DynamicValue : "Dynamic variant"
     StoryboardEntry }o--o| KeyframeRef : at
     StoryboardEntry }o--o| BetweenKeyframes : between
     AnimationVariableDef }o--|| DynamicValue : "initial (Object)"
-    TransitionDef }o--|| DynamicValue : "to (Object)"
 ```
 
 **Aggregate Root**: `DolaDocument` — 1ファイル = 1ドキュメント
@@ -356,6 +367,7 @@ erDiagram
 - `variable` / `transition`: グローバルスコープ（ドキュメント内で一意な名前）
 - `keyframe`: ストーリーボードローカルスコープ
 - `"start"`: 各 SB に暗黙提供される予約キーフレーム
+- 暗黙的キーフレーム: `keyframe` フィールド省略時に内部生成（Req 3.6）
 
 ### 型定義
 
@@ -392,16 +404,22 @@ enum AnimationVariableDef {
 #### TransitionValue
 
 ```rust
-/// トランジションの開始値・終了値を表す型（将来の型拡張に対応）
+/// トランジションの開始値・終了値を表す型
 #[serde(untagged)]
 enum TransitionValue {
     /// スカラー値（f64/i64 変数向け）
     Scalar(f64),
-    // 将来の拡張: Vector4([f64; 4]), Color { r, g, b, a }, Transform { ... } など
+    /// オブジェクト値（Object 型変数向け、補間なし）
+    Dynamic(DynamicValue),
 }
 ```
 
-**設計意図**: 現在は f64 のみだが、将来的に四次元ベクトル・色・変換行列等の複雑な型へのイージングをサポートする際、既存の API 互換性を保ちつつ拡張可能
+**serde 動作**: `#[serde(untagged)]` により Scalar(f64) を先に試行。数値は Scalar、オブジェクト構造は Dynamic にマッピング。
+
+**設計意図** (`research.md` Decision 7):
+- Object 型変数の `to` を自然に表現（例: `to = { path = "smile.png" }` → Dynamic）
+- f64/i64 変数では Scalar のみ有効（バリデーション V13 で検証）
+- TOML 整数 `to = 5` は Scalar デシリアライズ失敗後 Dynamic(Integer) にフォールバックする可能性あり → カスタムデシリアライザで吸収（実装フェーズ）
 
 #### TransitionDef
 
@@ -412,7 +430,7 @@ struct TransitionDef {
     from: Option<TransitionValue>,
     /// 終了値（relative_to と排他）
     to: Option<TransitionValue>,
-    /// 相対終了値（開始値からのオフセット。スカラー値のみ。to と排他）
+    /// 相対終了値（開始値からのオフセット。f64 のみ。to と排他）
     relative_to: Option<f64>,
     /// イージング種別（f64/i64 のみ。Object には適用不可）
     easing: Option<EasingFunction>,
@@ -425,9 +443,9 @@ struct TransitionDef {
 ```
 
 **不変条件**:
-- `to` と `relative_to` は排他（同時指定不可）
-- スカラー値（f64/i64）のイージング時: `from`/`to` は TransitionValue::Scalar、`relative_to` 使用可
-- Object 型変数への適用時: `to` のみ（`from`/`relative_to`/`easing` は不可）。将来的に TransitionValue::Object バリアント追加の可能性あり
+- `to` と `relative_to` は排他（同時指定不可。V11）
+- f64/i64 型変数: `from`/`to` は TransitionValue::Scalar のみ（V13）。`relative_to` 使用可
+- Object 型変数: `to`（TransitionValue::Dynamic）のみ。`from`/`relative_to`/`easing` は不可（V10）
 - 総時間 = `delay` + `duration`（`duration` 省略時は即時 = delay 後即座に切り替え）
 
 #### TransitionRef
@@ -502,40 +520,74 @@ struct StoryboardEntry {
     variable: Option<String>,
     /// トランジション参照（名前 or インライン）
     transition: Option<TransitionRef>,
-    /// 開始キーフレーム指定（文字列 or {keyframe, offset}）
+    /// 開始キーフレーム指定（文字列/配列/オフセット付きオブジェクト）
     at: Option<KeyframeRef>,
     /// キーフレーム間配置
     between: Option<BetweenKeyframes>,
-    /// このエントリ終了時点のキーフレーム名
+    /// このエントリ終了時点のキーフレーム名（省略時は暗黙的KFが生成される: Req 3.6）
     keyframe: Option<String>,
 }
 ```
 
 **配置パターン**:
 
-| パターン | 必須フィールド | WAM 相当 |
-|----------|---------------|----------|
-| 末尾連結 | variable + transition（at/between なし） | AddTransition |
-| KF 起点 | variable + transition + at | AddTransitionAtKeyframe |
-| KF 間 | variable + transition + between | AddTransitionBetweenKeyframes |
-| 純粋 KF | keyframe のみ | — |
+| パターン | 必須フィールド | 動作 | WAM 相当 |
+|----------|---------------|------|----------|
+| 前エントリ連結 | variable + transition（at/between なし） | 1つ前のエントリの暗黙的/明示的KFから開始。SB先頭は "start" から | AddTransition |
+| KF 起点 | variable + transition + at | 指定KF完了時点から開始。配列指定時は全KF完了待機（最遅） | AddTransitionAtKeyframe |
+| KF 間 | variable + transition + between | 2つのKF間に配置。duration はKF間時間差で上書き | AddTransitionBetweenKeyframes |
+| 純粋 KF | keyframe のみ | トランジションなしのキーフレーム定義 | — |
 
-#### KeyframeRef / BetweenKeyframes
+**暗黙的キーフレーム生成（Req 3.6）**: `keyframe` フィールド省略時、各エントリ終了時点に内部でユニークな暗黙的キーフレーム名（`__implicit_{index}` 形式）が自動付与される。これにより「前エントリ連結」パターンで次エントリのデフォルト配置基準が確保される。
+
+#### KeyframeRef / KeyframeNames
 
 ```rust
-/// キーフレーム参照（文字列 or オフセット付き）
+/// キーフレーム起点指定（`at` フィールド用）
+/// 4つの表現形式をサポート:
+///   at = "visible"                                           → Single
+///   at = ["visible", "audio_done"]                           → Multiple
+///   at = { keyframes = "visible", offset = 0.5 }            → WithOffset (single)
+///   at = { keyframes = ["visible", "done"], offset = 0.5 }  → WithOffset (multiple)
 #[serde(untagged)]
 enum KeyframeRef {
-    /// キーフレーム名のみ
-    Simple(String),
-    /// キーフレーム名 + 時間オフセット
+    /// 単一キーフレーム名（文字列短縮形）
+    Single(String),
+    /// 複数キーフレーム名（配列形式、全KF完了待機）
+    Multiple(Vec<String>),
+    /// オフセット付き指定（オブジェクト形式）
     WithOffset {
-        keyframe: String,
-        /// キーフレーム時刻からのオフセット（f64秒）
+        /// キーフレーム名指定（文字列または配列）
+        keyframes: KeyframeNames,
+        /// キーフレーム時刻からの時間オフセット（f64秒、デフォルト 0.0）
+        #[serde(default)]
         offset: f64,
     },
 }
 
+/// キーフレーム名指定（単一または複数）
+#[serde(untagged)]
+enum KeyframeNames {
+    /// 単一キーフレーム名
+    Single(String),
+    /// 複数キーフレーム名（全KF完了待機）
+    Multiple(Vec<String>),
+}
+```
+
+**serde 動作** (`research.md` Decision 6):
+- `#[serde(untagged)]` で String → Vec<String> → Object の順に試行
+- WithOffset 内の `keyframes` も `KeyframeNames`（String | Vec<String>）で多形化
+- `offset` は `#[serde(default)]` でデフォルト 0.0
+
+**設計意図**:
+- 最頻ユースケース（単一KF指定）は `at = "visible"` の最短形式
+- 複数KF同期（全KF完了待機）は配列 `at = ["a", "b"]` で直感的に表現
+- オフセットが必要な場合のみオブジェクト形式を使用
+
+#### BetweenKeyframes
+
+```rust
 /// キーフレーム間配置指定
 struct BetweenKeyframes {
     /// 開始キーフレーム名
@@ -594,24 +646,28 @@ enum DynamicValue {
 ```rust
 /// Dola バリデーションエラー
 enum DolaError {
-    /// スキーマバージョン不一致
+    /// スキーマバージョン不一致 (V1)
     SchemaVersionMismatch { expected: String, found: String },
-    /// キーフレーム名重複
+    /// キーフレーム名重複 (V2)
     DuplicateKeyframe { storyboard: String, name: String },
-    /// 予約キーフレーム名使用
+    /// 予約キーフレーム名使用 (V3)
     ReservedKeyframeName { name: String },
-    /// 未定義変数参照
+    /// 未定義変数参照 (V4)
     UndefinedVariable { storyboard: String, entry_index: usize, name: String },
-    /// 未定義トランジション参照
+    /// 未定義トランジション参照 (V5)
     UndefinedTransition { storyboard: String, entry_index: usize, name: String },
-    /// 未定義キーフレーム参照
+    /// 未定義キーフレーム参照 (V6)
     UndefinedKeyframe { storyboard: String, name: String },
-    /// 無効なエントリ構成
+    /// 無効なエントリ構成 (V7, V8, V9)
     InvalidEntry { storyboard: String, entry_index: usize, reason: String },
-    /// Object 型トランジション制限違反
+    /// Object 型トランジション制限違反 (V10)
     ObjectTransitionViolation { storyboard: String, entry_index: usize, field: String },
-    /// to/relative_to 排他違反
+    /// to/relative_to 排他違反 (V11)
     MutuallyExclusive { storyboard: String, entry_index: usize },
+    /// 値域超過 (V12)
+    ValueOutOfRange { variable: String, field: String, value: f64, min: f64, max: f64 },
+    /// 変数型とトランジション値型の不整合 (V13)
+    TypeMismatch { storyboard: String, entry_index: usize, reason: String },
 }
 ```
 
@@ -619,6 +675,8 @@ enum DolaError {
 
 ```toml
 schema_version = "1.0"
+
+# === アニメーション変数定義 ===
 
 [variable.opacity]
 type = "f64"
@@ -636,6 +694,8 @@ typewriter = "こんにちは世界"
 type = "object"
 initial = { path = "default.png" }
 
+# === トランジションテンプレート ===
+
 [transition.fade_in]
 to = 1.0
 easing = "QuadraticInOut"
@@ -646,24 +706,39 @@ to = 7.0
 easing = "Linear"
 duration = 3.0
 
+# === ストーリーボード ===
+
 [storyboard.greeting]
 time_scale = 1.0
 
+# Entry 1: 前エントリ連結（SB先頭 → "start" から開始）
 [[storyboard.greeting.entry]]
 variable = "opacity"
 transition = "fade_in"
 keyframe = "visible"
 
+# Entry 2: KF起点 — "visible" 完了後に開始（文字列短縮形）
 [[storyboard.greeting.entry]]
 variable = "char_count"
 transition = "typewrite"
 at = "visible"
 keyframe = "text_done"
 
+# Entry 3: KF起点 — Object型トランジション（インライン、Dynamic値）
 [[storyboard.greeting.entry]]
 variable = "bg_image"
 transition = { to = { path = "smile.png" } }
 at = "text_done"
+
+# --- 以下はコメントによる補足例 ---
+# 複数KF待機（配列形式）:
+#   at = ["visible", "text_done"]
+# オフセット付き:
+#   at = { keyframes = "visible", offset = 0.5 }
+# 複数KF + オフセット:
+#   at = { keyframes = ["visible", "text_done"], offset = 0.5 }
+# ベジェイージング:
+#   easing = { type = "CubicBezier", x0 = 0.0, x1 = 0.42, x2 = 0.58, x3 = 1.0 }
 ```
 
 ### クレート構成
@@ -710,9 +785,9 @@ crates/dola/
     ├── lib.rs           # Public re-exports
     ├── document.rs      # DolaDocument
     ├── variable.rs      # AnimationVariableDef
-    ├── transition.rs    # TransitionDef, TransitionRef
+    ├── transition.rs    # TransitionDef, TransitionRef, TransitionValue
     ├── easing.rs        # EasingFunction, EasingName, ParametricEasing
-    ├── storyboard.rs    # Storyboard, StoryboardEntry, KeyframeRef, BetweenKeyframes
+    ├── storyboard.rs    # Storyboard, StoryboardEntry, KeyframeRef, KeyframeNames, BetweenKeyframes
     ├── playback.rs      # PlaybackState, ScheduleRequest
     ├── value.rs         # DynamicValue
     ├── validate.rs      # Validation logic
@@ -740,7 +815,9 @@ Dola は二段階のエラー処理を採用する：
 | スキーマエラー | バージョン不一致 | `DolaError::SchemaVersionMismatch` |
 | 参照エラー | 未定義変数/KF/トランジション | `DolaError::Undefined*` |
 | 構造エラー | 排他フィールド同時指定、不正エントリ | `DolaError::InvalidEntry`, `MutuallyExclusive` |
-| 制約エラー | KF 名重複、予約名使用 | `DolaError::DuplicateKeyframe`, `ReservedKeyframeName` |
+| 制約エラー | KF名重複、予約名使用 | `DolaError::DuplicateKeyframe`, `ReservedKeyframeName` |
+| 値域エラー | 初期値・トランジション値が min/max 範囲外 | `DolaError::ValueOutOfRange` |
+| 型整合エラー | f64変数にDynamic値、Object変数にScalar値 | `DolaError::TypeMismatch` |
 
 ---
 
@@ -751,7 +828,9 @@ Dola は二段階のエラー処理を採用する：
 - 各 `AnimationVariableDef` バリアント（Float/Integer/Object）の構築と serde round-trip
 - `EasingFunction` 全31名前付きバリアント + 2パラメトリックバリアントの serde round-trip
 - `TransitionRef` のハイブリッドデシリアライゼーション（文字列 → Named、オブジェクト → Inline）
-- `KeyframeRef` の単純参照 / オフセット付き参照の serde round-trip
+- `TransitionValue` の Scalar / Dynamic の serde round-trip（数値→Scalar、オブジェクト→Dynamic）
+- `KeyframeRef` の4形式（Single/Multiple/WithOffset-single/WithOffset-multiple）の serde round-trip
+- `KeyframeNames` の単一文字列/配列の serde round-trip
 - `DynamicValue` 全バリアントの serde round-trip
 - `StoryboardEntry` の4配置パターンそれぞれの構築
 
@@ -760,8 +839,9 @@ Dola は二段階のエラー処理を採用する：
 - `DolaDocument` 全体の JSON round-trip（serialize → deserialize → 一致検証）
 - `DolaDocument` 全体の TOML round-trip（feature `toml` 有効時）
 - `DolaDocument` 全体の YAML round-trip（feature `yaml` 有効時）
-- バリデーションルール V1-V11 の正常系・異常系
+- バリデーションルール V1-V13 の正常系・異常系
 - Builder API による DolaDocument 構築 → validate → serialize の E2E フロー
+- 暗黙的キーフレーム生成（Req 3.6）の前エントリ連結パターン検証
 
 ### Edge Case Tests
 
@@ -771,9 +851,15 @@ Dola は二段階のエラー処理を採用する：
 - ベジェイージング付きインライントランジション
 - `delay` のみ（`duration` 省略 = 即時遷移）
 - `at = "start"` による SB 開始時点からのトランジション配置
+- `at = ["a", "b"]` による複数 KF 完了待機
+- `at = { keyframes = "visible", offset = 0.5 }` のオフセット付き KF 指定
+- Object 型トランジション `to = { path = "image.png" }` の Dynamic 値
+- 値域超過（initial > max, to < min）のバリデーション
+- f64 変数に Dynamic 値を指定した場合の TypeMismatch 検出
 
 ### Compatibility Tests
 
 - TOML 整数/浮動小数点の相互変換（`from = 5` vs `from = 5.0`）
 - DynamicValue のフォーマット間互換性（JSON → TOML → JSON）
 - serde(untagged) のバリアント試行順序の正確性検証
+- KeyframeRef の JSON/TOML/YAML 3フォーマットでの4形式互換性検証
