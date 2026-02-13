@@ -940,20 +940,23 @@ fn handle_button_message(
                     crate::ecs::pointer::record_button_down(target_entity, button);
 
                     // ドラッグ準備開始（DragConfigがあり、有効な場合）
+                    // target_entity自身または祖先からDragConfigを探索
                     if button == crate::ecs::pointer::PointerButton::Left {
-                        if let Some(drag_config) = world_borrow
-                            .world()
-                            .get::<crate::ecs::drag::DragConfig>(target_entity)
-                        {
+                        let drag_entity = {
+                            let w = world_borrow.world();
+                            find_ancestor_with_drag_config(w, target_entity)
+                        };
+                        if let Some((entity_with_config, drag_config)) = drag_entity {
                             if drag_config.enabled && drag_config.left_button {
                                 tracing::info!(
-                                    entity = ?target_entity,
+                                    hit_entity = ?target_entity,
+                                    drag_entity = ?entity_with_config,
                                     x = screen_x,
                                     y = screen_y,
-                                    "[handle_button_message] Calling start_preparing"
+                                    "[handle_button_message] Calling start_preparing (ancestor search)"
                                 );
                                 crate::ecs::drag::start_preparing(
-                                    target_entity,
+                                    entity_with_config,
                                     PhysicalPoint::new(screen_x, screen_y),
                                 );
                                 // TODO: SetCapture for proper mouse capture (not available in current windows crate version)
@@ -1488,4 +1491,80 @@ pub(super) fn WM_CANCELMODE(
     tracing::debug!("[WM_CANCELMODE] System cancel, drag cancelled");
 
     None // DefWindowProcWに委譲（ReleaseCapture自動実行）
+}
+
+/// WM_ACTIVATE: ウィンドウ非アクティブ化時のドラッグキャンセル
+///
+/// Alt+Tabなどでウィンドウが非アクティブになった場合、ドラッグ中であればキャンセルする。
+/// WM_CANCELMODEはモーダルダイアログやメニュー表示時にのみ送られ、
+/// Alt+Tabでは送られないため、WM_ACTIVATEで補完する必要がある。
+pub(super) fn WM_ACTIVATE(
+    _hwnd: HWND,
+    _message: u32,
+    wparam: WPARAM,
+    _lparam: LPARAM,
+) -> HandlerResult {
+    let activation_state = (wparam.0 & 0xFFFF) as u32;
+
+    // 非アクティブ化時のみ処理 (WA_INACTIVE = 0)
+    if activation_state != 0 {
+        return None;
+    }
+
+    // ドラッグ中なら状態を確認してキャンセル
+    let state_snapshot = crate::ecs::drag::read_drag_state(|state| state.clone());
+    match state_snapshot {
+        crate::ecs::drag::DragState::Dragging {
+            entity, start_pos, ..
+        } => {
+            tracing::info!(
+                entity = ?entity,
+                "[WM_ACTIVATE] Window deactivated during drag, cancelling"
+            );
+
+            // DragAccumulatorResourceにEnded(cancelled)遷移を記録
+            if let Some(world) = super::try_get_ecs_world() {
+                if let Ok(world_borrow) = world.try_borrow() {
+                    if let Some(accumulator) = world_borrow
+                        .world()
+                        .get_resource::<crate::ecs::drag::DragAccumulatorResource>(
+                    ) {
+                        accumulator.set_transition(crate::ecs::drag::DragTransition::Ended {
+                            entity,
+                            end_pos: start_pos,
+                            cancelled: true,
+                        });
+                    }
+                }
+            }
+
+            crate::ecs::drag::cancel_dragging();
+        }
+        crate::ecs::drag::DragState::Preparing { .. } => {
+            tracing::debug!("[WM_ACTIVATE] Window deactivated during drag prepare, resetting");
+            crate::ecs::drag::reset_to_idle();
+        }
+        _ => {}
+    }
+
+    None // DefWindowProcWに委譲
+}
+
+/// target_entity自身または祖先（ChildOf辿り）からDragConfigを持つエンティティを探す。
+/// 見つかった場合は (entity, DragConfig clone) を返す。
+fn find_ancestor_with_drag_config(
+    world: &bevy_ecs::world::World,
+    start: bevy_ecs::entity::Entity,
+) -> Option<(bevy_ecs::entity::Entity, crate::ecs::drag::DragConfig)> {
+    let mut current = start;
+    loop {
+        if let Some(config) = world.get::<crate::ecs::drag::DragConfig>(current) {
+            return Some((current, config.clone()));
+        }
+        if let Some(child_of) = world.get::<bevy_ecs::prelude::ChildOf>(current) {
+            current = child_of.parent();
+        } else {
+            return None;
+        }
+    }
 }

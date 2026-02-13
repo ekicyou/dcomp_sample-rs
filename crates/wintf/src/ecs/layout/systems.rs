@@ -252,7 +252,7 @@ pub fn compute_taffy_layout_system(
                                 let new_layout = TaffyComputedLayout(*layout);
                                 // 値比較で変更検知を抑制
                                 if *computed != new_layout {
-                                    tracing::info!(
+                                    tracing::debug!(
                                         entity = ?entity,
                                         old_width = computed.0.size.width,
                                         old_height = computed.0.size.height,

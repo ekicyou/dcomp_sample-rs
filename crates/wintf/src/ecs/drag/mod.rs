@@ -11,13 +11,13 @@ mod systems;
 
 pub use accumulator::{DragAccumulator, DragAccumulatorResource, DragTransition, FlushResult};
 pub use dispatch::{
-    dispatch_drag_events, DragEndEvent, DragEvent, DragStartEvent, OnDrag, OnDragEnd, OnDragStart,
+    DragEndEvent, DragEvent, DragStartEvent, OnDrag, OnDragEnd, OnDragStart, dispatch_drag_events,
 };
 pub use state::{
-    cancel_dragging, check_threshold, end_dragging, read_drag_state, reset_to_idle, start_dragging,
-    start_preparing, update_drag_state, update_dragging, DragState,
+    DragState, cancel_dragging, check_threshold, end_dragging, read_drag_state, reset_to_idle,
+    start_dragging, start_preparing, update_drag_state, update_dragging,
 };
-pub use systems::cleanup_drag_state;
+pub use systems::{apply_window_drag_movement, cleanup_drag_state};
 
 use crate::ecs::pointer::PhysicalPoint;
 use bevy_ecs::prelude::*;
@@ -32,6 +32,12 @@ pub struct DragConfig {
     pub threshold: i32,
     /// ドラッグ有効フラグ
     pub enabled: bool,
+    /// ドラッグ時にウィンドウを自動移動するか
+    ///
+    /// `true`の場合、`apply_window_drag_movement`システムがドラッグイベントに応じて
+    /// 親階層のWindowエンティティのBoxStyle.insetを自動更新する。
+    /// `false`の場合、アプリケーション側のOnDragハンドラで移動処理を実装する必要がある。
+    pub move_window: bool,
     /// 有効なボタン（左ボタンのみデフォルト）
     pub left_button: bool,
     pub right_button: bool,
@@ -43,6 +49,7 @@ impl Default for DragConfig {
         Self {
             threshold: 5,
             enabled: true,
+            move_window: true,
             left_button: true,
             right_button: false,
             middle_button: false,
