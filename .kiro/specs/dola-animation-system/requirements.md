@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | Dola アニメーション宣言フォーマット 要件定義書 |
-| **Version** | 1.3 |
+| **Version** | 1.4 |
 | **Date** | 2026-02-13 |
 | **Status** | Draft |
 
@@ -76,31 +76,36 @@ Windows Animation Manager が COM インターフェースを通じて提供す�
 
 #### Acceptance Criteria
 
-1. **The** Dola **shall** 各トランジションに遷移種別・終了値・持続時間を指定できる（対象アニメーション変数はトランジション配置時に指定する）
-2. **The** Dola **shall** 線形（linear）トランジションをサポートする（f64/i64 型に適用可能）
+1. **The** Dola **shall** トランジションに以下のパラメータを定義できる：
+   - `from`（開始値、f64/i64、省略可。省略時は配置時点の変数の現在値）
+   - `to`（終了値、f64/i64/Object、`relative_to` と排他）
+   - `relative_to`（相対終了値、f64/i64 のみ、開始値からの相対オフセット、`to` と排他）
+   - `easing`（イージング種別、線形または30種のイージング関数名、f64/i64 のみ）
+   - `delay`（トランジション前の待機時間、f64秒、デフォルト0。値を保持したまま時間を消費）
+   - `duration`（遷移の持続時間、f64秒、省略可。省略時は即時遷移）
+2. **The** Dola **shall** 線形（`Linear`）イージングをサポートする（f64/i64 型に適用可能）
 3. **The** Dola **shall** `interpolation` クレートの `EaseFunction` 列挙型と同一名称の組み込みイージング関数（全30種: QuadraticIn/Out/InOut, CubicIn/Out/InOut, QuarticIn/Out/InOut, QuinticIn/Out/InOut, SineIn/Out/InOut, CircularIn/Out/InOut, ExponentialIn/Out/InOut, ElasticIn/Out/InOut, BackIn/Out/InOut, BounceIn/Out/InOut）をサポートする（f64/i64 型に適用可能）
-4. **The** Dola **shall** 即時（instantaneous）トランジションをサポートする（全型に適用可能）
-5. **The** Dola **shall** 定数（constant）トランジション（値を維持して時間を消費する）をサポートする（全型に適用可能）
-6. **The** Dola **shall** 二次ベジェ補間（`quad_bez`: 3制御点 x0,x1,x2）をトランジションの値パスとして定義できる（f64/i64 型に適用可能。`interpolation::quad_bez` 準拠）
-7. **The** Dola **shall** 三次ベジェ補間（`cub_bez`: 4制御点 x0,x1,x2,x3）をトランジションの値パスとして定義できる（f64/i64 型に適用可能。`interpolation::cub_bez` 準拠）
-8. **The** Dola **shall** Object 型にはキーフレーム時点での値切り替え（即時または定数）のみ適用できる
-9. **The** Dola **shall** イージング関数・ベジェ補間の列挙型を `interpolation` クレートの命名規則に準拠して自前定義し、`serde` によるシリアライズ・デシリアライズを実装する
-10. **The** Dola **shall** トランジションに一意な名前を付けて再利用可能なテンプレートとして定義できる（WAM のトランジションは使い捨てだが、宣言フォーマットでは DRY のため名前参照を許可する）
-11. **The** Dola **shall** トランジション参照をハイブリッド形式でサポートする：文字列の場合は名前付きテンプレートへの参照、オブジェクトの場合はインライン定義として解釈する
+4. **The** Dola **shall** 二次ベジェ補間（`QuadraticBezier`: 3制御点 x0,x1,x2）をイージング種別として定義できる（f64/i64 型に適用可能。`interpolation::quad_bez` 準拠）
+5. **The** Dola **shall** 三次ベジェ補間（`CubicBezier`: 4制御点 x0,x1,x2,x3）をイージング種別として定義できる（f64/i64 型に適用可能。`interpolation::cub_bez` 準拠）
+6. **The** Dola **shall** Object 型トランジションには `to` のみ指定可能とし、`from`/`relative_to`/`easing` は適用不可とする（補間不能のため即時切り替えのみ）
+7. **The** Dola **shall** イージング関数・ベジェ補間の列挙型を `interpolation` クレートの命名規則に準拠して自前定義し、`serde` によるシリアライズ・デシリアライズを実装する
+8. **The** Dola **shall** トランジションに一意な名前を付けて再利用可能なテンプレートとして定義できる（WAM のトランジションは使い捨てだが、宣言フォーマットでは DRY のため名前参照を許可する）
+9. **The** Dola **shall** トランジション参照をハイブリッド形式でサポートする：文字列の場合は名前付きテンプレートへの参照、オブジェクトの場合はインライン定義として解釈する
+10. **The** Dola **shall** トランジションの総時間は `delay + duration` とする（delay中は値保持、その後duration秒で遷移）
 
 ---
 
 ### Requirement 3: キーフレーム（Keyframe）
 
-**Objective:** プラグイン開発者として、ストーリーボード内の特定の時刻に目印（キーフレーム）を設定したい。それによりトランジションの開始・終了タイミングを柔軟に制御できる。
+**Objective:** プラグイン開発者として、ストーリーボード内のエントリ配置タイミングを制御するキーフレームを使いたい。それによりトランジションの開始・終了タイミングを柔軟に制御できる。
 
 #### Acceptance Criteria
 
-1. **The** Dola **shall** ストーリーボード開始からのオフセット時間でキーフレームを定義できる
-2. **The** Dola **shall** 他のキーフレームからの相対オフセットでキーフレームを定義できる
-3. **The** Dola **shall** トランジション終了後の時点をキーフレームとして参照できる
-4. **The** Dola **shall** 予約キーフレーム `"start"` を暗黙的に提供する（ストーリーボード開始時刻 t=0 を表す。WAM の `UI_ANIMATION_KEYFRAME_STORYBOARD_START` 相当）
-5. **The** Dola **shall** 各キーフレームに一意な文字列名を付与できる（`"start"` は予約済みのためユーザー定義不可）
+1. **The** Dola **shall** 各ストーリーボードに予約キーフレーム `"start"` を暗黙的に提供する（ストーリーボード開始時刻 t=0 を表す。WAM の `UI_ANIMATION_KEYFRAME_STORYBOARD_START` 相当）
+2. **The** Dola **shall** ストーリーボードエントリに `keyframe` フィールドを付与することで、そのエントリ終了時点を名前付きキーフレームとして登録できる
+3. **The** Dola **shall** キーフレーム名のスコープをストーリーボードローカルとする（異なるストーリーボード間でキーフレーム名の衝突は発生しない）
+4. **The** Dola **shall** キーフレーム名として `"start"` は予約済みのためユーザー定義不可とする
+5. **The** Dola **shall** 同一ストーリーボード内でキーフレーム名の重複を禁止する
 
 ---
 
@@ -110,15 +115,22 @@ Windows Animation Manager が COM インターフェースを通じて提供す�
 
 #### Acceptance Criteria
 
-1. **The** Dola **shall** 1つのストーリーボードに複数のアニメーション変数へのトランジションを含められる
-2. **The** Dola **shall** トランジション配置方法として以下の3種類をサポートする：
-   - **末尾連結（append）**: 対象変数のタイムライン末尾にトランジションを追加する（WAM `AddTransition` 相当）
-   - **キーフレーム起点（from_keyframe）**: 指定キーフレームからトランジションを開始する（WAM `AddTransitionAtKeyframe` 相当）
-   - **キーフレーム間（between_keyframes）**: 2つのキーフレーム間にトランジションを配置する（トランジションの持続時間はキーフレーム間の時間差で上書きされる。WAM `AddTransitionBetweenKeyframes` 相当）
-3. **The** Dola **shall** 各トランジション配置を、対象アニメーション変数名とトランジション参照（名前文字列またはインライン定義オブジェクト）で構成する
-4. **The** Dola **shall** ストーリーボード内のすべてのトランジションを同一タイムライン上に配置し、同期再生可能な形式で定義する
-5. **The** Dola **shall** ストーリーボードにループ設定（無限/指定回数）を定義できる
-6. **The** Dola **shall** ストーリーボードに一意な名前を付与できる
+1. **The** Dola **shall** 1つのファイルに複数の名前付きストーリーボードを定義できる
+2. **The** Dola **shall** 各ストーリーボードに一意な名前を付与できる
+3. **The** Dola **shall** ストーリーボードをエントリ（entry）の配列として構成する（1エントリ = トランジション配置 or キーフレーム定義）
+4. **The** Dola **shall** エントリに以下のフィールドを定義できる：
+   - `variable`（対象変数名、文字列）
+   - `transition`（トランジション参照、名前文字列またはインライン定義オブジェクト）
+   - `at`（開始キーフレーム、文字列または `{keyframe, offset}` オブジェクト）
+   - `between`（キーフレーム間配置、`{from, to}` オブジェクト。duration はキーフレーム間時間差で上書き）
+   - `keyframe`（このエントリ終了時点のキーフレーム名、文字列、任意）
+5. **The** Dola **shall** エントリの配置方法として以下の3種類をサポートする：
+   - **末尾連結**: `variable` と `transition` のみ指定（`at`/`between` なし）。対象変数のタイムライン末尾に追加（WAM `AddTransition` 相当）
+   - **キーフレーム起点**: `at` で開始キーフレームを指定（WAM `AddTransitionAtKeyframe` 相当）
+   - **キーフレーム間**: `between` で2つのキーフレームを指定（WAM `AddTransitionBetweenKeyframes` 相当）
+6. **The** Dola **shall** `variable` と `transition` を持たないエントリ（純粋なキーフレーム定義エントリ）をサポートする
+7. **The** Dola **shall** 各ストーリーボードにメタ情報（ループ設定・タイムスケール等）を定義できる（具体的な配置形式は設計フェーズで決定）
+8. **The** Dola **shall** ストーリーボード内のすべてのエントリを同一タイムライン上に配置し、同期再生可能な形式で定義する
 
 ---
 
@@ -146,8 +158,9 @@ Windows Animation Manager が COM インターフェースを通じて提供す�
 
 1. **The** Dola **shall** ストーリーボードの再生状態（待機・再生中・一時停止・完了・キャンセル）を表すシリアライズ可能な列挙型を定義する
 2. **The** Dola **shall** ストーリーボードにデフォルトのタイムスケール（再生速度倍率、f64、デフォルト 1.0）を設定できる
-3. **The** Dola **shall** 時刻を f64 秒で表現する（OS 起動パフォーマンスタイマー基準。f64 は365日連続稼働でも約 7ns の精度を保ち、アニメーション用途に十分）
+3. **The** Dola **shall** フォーマット内のすべての時間値を f64 秒で表現する（相対時間のみ。絶対時刻はランタイムの関心事）
 4. **The** Dola **shall** 再生制御データ型をシリアライズ可能にする
+5. **The** Dola **shall** ストーリーボード名と開始時刻（f64秒）でスケジューリング指示を表現するデータ型を定義する
 
 > **将来の別仕様で定義する項目:**
 > - オーケストレーションランタイム（再生エンジン・状態遷移ロジック・イベント通知）
