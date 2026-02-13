@@ -3,8 +3,8 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | Dola アニメーション宣言フォーマット 要件定義書 |
-| **Version** | 1.4 |
-| **Date** | 2026-02-13 |
+| **Version** | 1.5 |
+| **Date** | 2026-02-14 |
 | **Status** | Draft |
 
 ---
@@ -106,6 +106,7 @@ Windows Animation Manager が COM インターフェースを通じて提供す�
 3. **The** Dola **shall** キーフレーム名のスコープをストーリーボードローカルとする（異なるストーリーボード間でキーフレーム名の衝突は発生しない）
 4. **The** Dola **shall** キーフレーム名として `"start"` は予約済みのためユーザー定義不可とする
 5. **The** Dola **shall** 同一ストーリーボード内でキーフレーム名の重複を禁止する
+6. **The** Dola **shall** すべてのストーリーボードエントリ終了時点に暗黙的キーフレームを生成する（`keyframe` フィールド省略時は、内部でユニークな暗黙的キーフレーム名を付与する。これにより次エントリのデフォルト配置基準となる）
 
 ---
 
@@ -125,7 +126,7 @@ Windows Animation Manager が COM インターフェースを通じて提供す�
    - `between`（キーフレーム間配置、`{from, to}` オブジェクト。duration はキーフレーム間時間差で上書き）
    - `keyframe`（このエントリ終了時点のキーフレーム名、文字列、任意）
 5. **The** Dola **shall** エントリの配置方法として以下の3種類をサポートする：
-   - **末尾連結**: `variable` と `transition` のみ指定（`at`/`between` なし）。対象変数のタイムライン末尾に追加（WAM `AddTransition` 相当）
+   - **前エントリ連結**: `variable` と `transition` のみ指定（`at`/`between` なし）。**1つ前のエントリの終了位置（暗黙的キーフレーム）から開始**（ストーリーボードの1番目のエントリは `"start"` から開始）。これにより配列順で自然な時系列配置を実現
    - **キーフレーム起点**: `at` で開始キーフレームを指定（WAM `AddTransitionAtKeyframe` 相当）
    - **キーフレーム間**: `between` で2つのキーフレームを指定（WAM `AddTransitionBetweenKeyframes` 相当）
 6. **The** Dola **shall** `variable` と `transition` を持たないエントリ（純粋なキーフレーム定義エントリ）をサポートする
