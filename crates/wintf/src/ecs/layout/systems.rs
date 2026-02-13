@@ -288,6 +288,7 @@ pub fn update_arrangements_system(
             Option<&mut Arrangement>,
             Option<&Name>,
             Option<Ref<DPI>>,
+            Option<&crate::ecs::window::Window>,
         ),
         (
             Or<(Changed<TaffyComputedLayout>, Changed<DPI>)>,
@@ -295,7 +296,7 @@ pub fn update_arrangements_system(
         ),
     >,
 ) {
-    for (entity, computed_layout, arrangement, name, dpi) in query.iter_mut() {
+    for (entity, computed_layout, arrangement, name, dpi, window) in query.iter_mut() {
         let layout = &computed_layout.0;
 
         // DPIが存在する場合はスケールファクターを使用、なければデフォルト(1.0, 1.0)
@@ -313,11 +314,26 @@ pub fn update_arrangements_system(
             }
         }
 
-        let new_arrangement = Arrangement {
-            offset: Offset {
+        // Window エンティティの場合、offset は sync_window_arrangement_from_window_pos
+        // で管理されるため、taffy の layout.location で上書きしない。
+        // サイズとスケールのみ更新する。
+        let is_window = window.is_some();
+
+        let new_offset = if is_window {
+            // 既存の offset を維持、まだ存在しない場合は (0,0)
+            arrangement.as_ref().map_or(
+                Offset { x: 0.0, y: 0.0 },
+                |arr| arr.offset,
+            )
+        } else {
+            Offset {
                 x: layout.location.x,
                 y: layout.location.y,
-            },
+            }
+        };
+
+        let new_arrangement = Arrangement {
+            offset: new_offset,
             scale,
             size: Size {
                 width: layout.size.width,

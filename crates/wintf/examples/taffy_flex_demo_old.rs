@@ -15,7 +15,7 @@ use wintf::ecs::layout::{
 use wintf::ecs::widget::bitmap_source::BitmapSource;
 use wintf::ecs::widget::brushes::Brushes;
 use wintf::ecs::widget::shapes::Rectangle;
-use wintf::ecs::Window;
+use wintf::ecs::{Window, WindowPos};
 use wintf::*;
 
 /// バックグラウンドスレッドから送信するコマンド
@@ -64,23 +64,21 @@ fn main() -> Result<()> {
         println!("[Timer Thread] 0s: Creating Flexbox demo window");
         let _ = tx.send(Box::new(|world: &mut World| {
             // Window Entity (ルート)
-            // BoxPosition::Absolute + BoxInset でクライアント領域の位置を指定
+            // WindowPos.position でクライアント領域の位置を指定
             let window_entity = world
                 .spawn((
                     Name::new("FlexDemo-Window"), // R1.1: Windowエンティティに名前を付与
                     FlexDemoWindow,
                     BoxStyle {
                         position: Some(BoxPosition::Absolute),
-                        inset: Some(BoxInset(wintf::ecs::layout::Rect {
-                            left: LengthPercentageAuto::Px(100.0),
-                            top: LengthPercentageAuto::Px(100.0),
-                            right: LengthPercentageAuto::Auto,
-                            bottom: LengthPercentageAuto::Auto,
-                        })),
                         size: Some(BoxSize {
                             width: Some(Dimension::Px(800.0)),
                             height: Some(Dimension::Px(600.0)),
                         }),
+                        ..Default::default()
+                    },
+                    WindowPos {
+                        position: Some(windows::Win32::Foundation::POINT { x: 100, y: 100 }),
                         ..Default::default()
                     },
                     Window {
@@ -244,16 +242,18 @@ fn main() -> Result<()> {
                     width: Some(Dimension::Px(600.0)),
                     height: Some(Dimension::Px(400.0)),
                 });
-                style.inset = Some(BoxInset(wintf::ecs::layout::Rect {
-                    left: LengthPercentageAuto::Px(-500.0), // 左モニター領域へ移動（DIP座標）
-                    top: LengthPercentageAuto::Px(400.0),   // Y座標も左モニター範囲内に
-                    right: LengthPercentageAuto::Auto,
-                    bottom: LengthPercentageAuto::Auto,
-                }));
                 println!(
-                    "[Test] Window BoxStyle changed: position=(-500,400), size=(600,400) in DIP"
+                    "[Test] Window BoxStyle changed: size=(600,400) in DIP"
                 );
                 println!("[Test] Moving to left monitor (DPI=192) to trigger WM_DPICHANGED");
+            }
+
+            // WindowPos.position を変更してウィンドウを移動
+            let mut wp_query =
+                world.query_filtered::<&mut WindowPos, With<FlexDemoWindow>>();
+            if let Some(mut wp) = wp_query.iter_mut(world).next() {
+                wp.position = Some(windows::Win32::Foundation::POINT { x: -500, y: 400 });
+                println!("[Test] Window position changed to (-500, 400) via WindowPos");
             }
 
             // FlexContainerを縦並びに変更

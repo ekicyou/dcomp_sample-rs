@@ -215,6 +215,9 @@ impl EcsWorld {
         // ドラッグ累積器の登録
         world.insert_resource(crate::ecs::drag::DragAccumulatorResource::new());
 
+        // ドラッグコンテキスト（ECS→wndprocスレッド間転送用）の登録
+        world.insert_resource(crate::ecs::drag::WindowDragContextResource::new());
+
         // イベントの登録
         world.init_resource::<Messages<crate::ecs::drag::DragStartEvent>>();
         world.init_resource::<Messages<crate::ecs::drag::DragEvent>>();
@@ -276,18 +279,10 @@ impl EcsWorld {
                     .after(crate::ecs::pointer::dispatch_pointer_events),
             );
 
-            // Inputスケジュール: ドラッグによるウィンドウ移動（dispatch_drag_eventsの後）
+            // Inputスケジュール: ドラッグ状態クリーンアップ（dispatch_drag_eventsの後）
             schedules.add_systems(
                 Input,
-                crate::ecs::drag::apply_window_drag_movement
-                    .after(crate::ecs::drag::dispatch_drag_events),
-            );
-
-            // Inputスケジュール: ドラッグ状態クリーンアップ（apply_window_drag_movementの後）
-            schedules.add_systems(
-                Input,
-                crate::ecs::drag::cleanup_drag_state
-                    .after(crate::ecs::drag::apply_window_drag_movement),
+                crate::ecs::drag::cleanup_drag_state.after(crate::ecs::drag::dispatch_drag_events),
             );
 
             // Inputスケジュール: ポインターデバッグ監視（デバッグビルドのみ）

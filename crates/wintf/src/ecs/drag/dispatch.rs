@@ -2,7 +2,7 @@
 //!
 //! DragStateからイベントを生成し、Phase<T>でTunnel/Bubble配信する。
 
-use crate::ecs::pointer::{build_bubble_path, EventHandler, PhysicalPoint};
+use crate::ecs::pointer::{EventHandler, PhysicalPoint, build_bubble_path};
 use bevy_ecs::message::Message;
 use bevy_ecs::prelude::*;
 use std::time::Instant;
@@ -86,25 +86,44 @@ pub fn dispatch_drag_events(world: &mut World) {
                 start_pos,
                 timestamp,
             } => {
-                // Windowエンティティを探索してBoxStyle.insetを取得
+                // 親階層からWindowエンティティを探索し、HWND・位置・DragConfig情報を取得
                 let mut current = entity;
-                let mut initial_inset = (0.0, 0.0);
+                let mut window_entity: Option<bevy_ecs::entity::Entity> = None;
+                let mut initial_window_pos = windows::Win32::Foundation::POINT { x: 0, y: 0 };
+                let mut move_window = false;
+                let mut constraint: Option<crate::ecs::drag::DragConstraint> = None;
+                let mut hwnd: Option<windows::Win32::Foundation::HWND> = None;
+
                 loop {
                     if world.get::<crate::ecs::window::Window>(current).is_some() {
-                        // Windowが見つかった、BoxStyle.insetを取得
-                        if let Some(box_style) = world.get::<crate::ecs::layout::BoxStyle>(current)
-                        {
-                            if let Some(inset) = &box_style.inset {
-                                initial_inset.0 = match inset.0.left {
-                                    crate::ecs::layout::LengthPercentageAuto::Px(val) => val,
-                                    _ => 0.0,
-                                };
-                                initial_inset.1 = match inset.0.top {
-                                    crate::ecs::layout::LengthPercentageAuto::Px(val) => val,
-                                    _ => 0.0,
-                                };
+                        window_entity = Some(current);
+
+                        // WindowHandle.hwnd を取得
+                        if let Some(wh) = world.get::<crate::ecs::window::WindowHandle>(current) {
+                            hwnd = Some(wh.hwnd);
+
+                            // WindowPos.position（クライアント領域座標）をウィンドウ座標に変換
+                            // SetWindowPos はウィンドウ枠を含むウィンドウ座標を期待するため
+                            if let Some(wp) = world.get::<crate::ecs::window::WindowPos>(current) {
+                                if let Some(pos) = wp.position {
+                                    let size = wp.size.unwrap_or_default();
+                                    if let Ok((wx, wy, _, _)) =
+                                        wh.client_to_window_coords(pos, size)
+                                    {
+                                        initial_window_pos =
+                                            windows::Win32::Foundation::POINT { x: wx, y: wy };
+                                    }
+                                }
+                            }
+                        } else {
+                            // WindowHandle がない場合はフォールバック
+                            if let Some(wp) = world.get::<crate::ecs::window::WindowPos>(current) {
+                                if let Some(pos) = wp.position {
+                                    initial_window_pos = pos;
+                                }
                             }
                         }
+
                         break;
                     }
                     if let Some(child_of) = world.get::<bevy_ecs::hierarchy::ChildOf>(current) {
@@ -114,20 +133,52 @@ pub fn dispatch_drag_events(world: &mut World) {
                     }
                 }
 
-                // DraggingStateコンポーネント挿入
+                // DragConfig.move_window と DragConstraint を取得（ドラッグ対象エンティティから）
+                if let Some(dc) = world.get::<crate::ecs::drag::DragConfig>(entity) {
+                    move_window = dc.move_window;
+                }
+                if let Some(dc) = world.get::<crate::ecs::drag::DragConstraint>(entity) {
+                    constraint = Some(*dc);
+                }
+
+                // WindowDragContextResource に書き込み（wndprocスレッドでの読み取り用）
+                if let Some(ctx_res) =
+                    world.get_resource::<crate::ecs::drag::WindowDragContextResource>()
+                {
+                    ctx_res.set(crate::ecs::drag::WindowDragContext {
+                        hwnd,
+                        initial_window_pos: Some(initial_window_pos),
+                        move_window,
+                        constraint,
+                    });
+                }
+
+                // DraggingStateコンポーネント挿入（initial_insetはinitial_window_posに置き換え）
                 if let Ok(mut entity_mut) = world.get_entity_mut(entity) {
                     entity_mut.insert(crate::ecs::drag::DraggingState {
                         drag_start_pos: start_pos,
-                        initial_inset,
+                        initial_inset: (initial_window_pos.x as f32, initial_window_pos.y as f32),
                         prev_frame_pos: start_pos,
                     });
 
                     tracing::debug!(
                         entity = ?entity,
-                        initial_inset_left = initial_inset.0,
-                        initial_inset_top = initial_inset.1,
+                        initial_window_x = initial_window_pos.x,
+                        initial_window_y = initial_window_pos.y,
+                        move_window = move_window,
                         "[dispatch_drag_events] DraggingState inserted"
                     );
+                }
+
+                // WindowDragging マーカーを Window entity に insert
+                if let Some(we) = window_entity {
+                    if let Ok(mut window_mut) = world.get_entity_mut(we) {
+                        window_mut.insert(crate::ecs::drag::WindowDragging);
+                        tracing::debug!(
+                            window_entity = ?we,
+                            "[dispatch_drag_events] WindowDragging marker inserted"
+                        );
+                    }
                 }
 
                 // DragStartEvent送信
@@ -159,7 +210,8 @@ pub fn dispatch_drag_events(world: &mut World) {
                 );
 
                 // JustStarted→Dragging遷移（次のWM_MOUSEMOVEでDragEventが発火できるように）
-                super::state::update_dragging(start_pos);
+                let ctx_res = world.get_resource::<crate::ecs::drag::WindowDragContextResource>();
+                super::state::update_dragging(start_pos, ctx_res);
             }
 
             crate::ecs::drag::DragTransition::Ended {
@@ -205,6 +257,60 @@ pub fn dispatch_drag_events(world: &mut World) {
                         entity = ?entity,
                         "[dispatch_drag_events] DraggingState removed"
                     );
+                }
+
+                // Window entity を探索して WindowDragging を remove + WindowPos を最終位置で更新
+                {
+                    let mut current = entity;
+                    loop {
+                        if world.get::<crate::ecs::window::Window>(current).is_some() {
+                            // WindowDragging マーカーを remove
+                            if let Ok(mut window_mut) = world.get_entity_mut(current) {
+                                window_mut.remove::<crate::ecs::drag::WindowDragging>();
+                                tracing::debug!(
+                                    window_entity = ?current,
+                                    "[dispatch_drag_events] WindowDragging marker removed"
+                                );
+                            }
+
+                            // WindowPos.position を DerefMut で更新（Changed<WindowPos> 発火）
+                            // これにより PostLayout の sync_window_arrangement_from_window_pos が
+                            // Arrangement.offset を正しく更新する
+                            if let Ok(mut window_mut) = world.get_entity_mut(current) {
+                                if let Some(wp) = window_mut.get::<crate::ecs::window::WindowPos>()
+                                {
+                                    let current_pos = wp.position;
+                                    tracing::debug!(
+                                        window_entity = ?current,
+                                        current_pos = ?current_pos,
+                                        "[dispatch_drag_events] Syncing final WindowPos"
+                                    );
+                                }
+                                // DerefMut アクセスで Changed<WindowPos> を明示的に発火
+                                if let Some(mut wp) =
+                                    window_mut.get_mut::<crate::ecs::window::WindowPos>()
+                                {
+                                    // 現在のWindowPosは WM_WINDOWPOSCHANGED で既に更新されているため
+                                    // 値自体は変更しないが、DerefMut を通じて Changed を発火させる
+                                    wp.set_changed();
+                                }
+                            }
+
+                            break;
+                        }
+                        if let Some(child_of) = world.get::<bevy_ecs::hierarchy::ChildOf>(current) {
+                            current = child_of.parent();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                // WindowDragContextResource をクリア
+                if let Some(ctx_res) =
+                    world.get_resource::<crate::ecs::drag::WindowDragContextResource>()
+                {
+                    ctx_res.clear();
                 }
             }
         }

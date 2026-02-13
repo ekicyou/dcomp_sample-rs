@@ -24,7 +24,8 @@ use wintf::ecs::widget::text::{
     TextDirection, Typewriter, TypewriterEvent, TypewriterEventKind, TypewriterLayoutCache,
     TypewriterTalk, TypewriterToken,
 };
-use wintf::ecs::{FrameTime, Window};
+use wintf::ecs::{FrameTime, Window, WindowPos};
+use windows::Win32::Foundation::POINT;
 use wintf::*;
 
 #[derive(Debug, Clone, Copy, Component, PartialEq, Hash)]
@@ -135,16 +136,14 @@ fn create_typewriter_demo_window(world: &mut World) {
             TypewriterDemoWindow,
             BoxStyle {
                 position: Some(BoxPosition::Absolute),
-                inset: Some(BoxInset(wintf::ecs::layout::Rect {
-                    left: LengthPercentageAuto::Px(100.0),
-                    top: LengthPercentageAuto::Px(100.0),
-                    right: LengthPercentageAuto::Auto,
-                    bottom: LengthPercentageAuto::Auto,
-                })),
                 size: Some(BoxSize {
                     width: Some(Dimension::Px(500.0)),
                     height: Some(Dimension::Px(500.0)),
                 }),
+                ..Default::default()
+            },
+            WindowPos {
+                position: Some(POINT { x: 100, y: 100 }),
                 ..Default::default()
             },
             Window {

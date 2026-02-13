@@ -5,11 +5,13 @@
 //! ドラッグ中の継続的な位置追跡、ドラッグ終了を検知する。
 
 mod accumulator;
+mod context;
 mod dispatch;
 mod state;
 mod systems;
 
 pub use accumulator::{DragAccumulator, DragAccumulatorResource, DragTransition, FlushResult};
+pub use context::{WindowDragContext, WindowDragContextResource};
 pub use dispatch::{
     DragEndEvent, DragEvent, DragStartEvent, OnDrag, OnDragEnd, OnDragStart, dispatch_drag_events,
 };
@@ -17,7 +19,7 @@ pub use state::{
     DragState, cancel_dragging, check_threshold, end_dragging, read_drag_state, reset_to_idle,
     start_dragging, start_preparing, update_drag_state, update_dragging,
 };
-pub use systems::{apply_window_drag_movement, cleanup_drag_state};
+pub use systems::cleanup_drag_state;
 
 use crate::ecs::pointer::PhysicalPoint;
 use bevy_ecs::prelude::*;
@@ -34,8 +36,8 @@ pub struct DragConfig {
     pub enabled: bool,
     /// ドラッグ時にウィンドウを自動移動するか
     ///
-    /// `true`の場合、`apply_window_drag_movement`システムがドラッグイベントに応じて
-    /// 親階層のWindowエンティティのBoxStyle.insetを自動更新する。
+    /// `true`の場合、wndprocレベルで直接`SetWindowPos`を呼び出し、
+    /// ネイティブ同等のドラッグ性能を実現する。
     /// `false`の場合、アプリケーション側のOnDragハンドラで移動処理を実装する必要がある。
     pub move_window: bool,
     /// 有効なボタン（左ボタンのみデフォルト）
@@ -99,3 +101,11 @@ impl DragConstraint {
         (x, y)
     }
 }
+
+/// Windowエンティティがドラッグ中であることを示すマーカーコンポーネント。
+///
+/// `Added<WindowDragging>` でドラッグ開始、`RemovedComponents<WindowDragging>` でドラッグ終了を検知。
+/// `dispatch_drag_events` の Started/Ended で insert/remove される。
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct WindowDragging;

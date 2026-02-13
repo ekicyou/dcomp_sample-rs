@@ -70,15 +70,15 @@ use bevy_ecs::prelude::*;
 use std::time::Duration;
 use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;
-use windows::core::Result;
 use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
+use windows::core::Result;
 use wintf::ecs::drag::{
     DragConfig, DragEndEvent, DragEvent, DragStartEvent, OnDrag, OnDragEnd, OnDragStart,
 };
-use wintf::ecs::layout::{hit_test, GlobalArrangement, PhysicalPoint};
 use wintf::ecs::layout::{
     BoxInset, BoxMargin, BoxPosition, BoxSize, BoxStyle, Dimension, LengthPercentageAuto, Opacity,
 };
+use wintf::ecs::layout::{GlobalArrangement, PhysicalPoint, hit_test};
 use wintf::ecs::pointer::{OnPointerMoved, OnPointerPressed, Phase, PointerState};
 use wintf::ecs::widget::bitmap_source::{BitmapSource, CommandSender};
 use wintf::ecs::widget::brushes::Brushes;
@@ -170,23 +170,21 @@ async fn run_demo(tx: CommandSender) {
 /// Flexboxデモウィンドウを作成
 fn create_flexbox_window(world: &mut World) {
     // Window Entity (ルート)
-    // BoxPosition::Absolute + BoxInset でクライアント領域の位置を指定
+    // WindowPos.position でクライアント領域の位置を指定
     let window_entity = world
         .spawn((
             Name::new("FlexDemo-Window"),
             FlexDemoWindow,
             BoxStyle {
                 position: Some(BoxPosition::Absolute),
-                inset: Some(BoxInset(wintf::ecs::layout::Rect {
-                    left: LengthPercentageAuto::Px(100.0),
-                    top: LengthPercentageAuto::Px(100.0),
-                    right: LengthPercentageAuto::Auto,
-                    bottom: LengthPercentageAuto::Auto,
-                })),
                 size: Some(BoxSize {
                     width: Some(Dimension::Px(800.0)),
                     height: Some(Dimension::Px(600.0)),
                 }),
+                ..Default::default()
+            },
+            WindowPos {
+                position: Some(windows::Win32::Foundation::POINT { x: 0, y: 0 }),
                 ..Default::default()
             },
             Window {
@@ -376,12 +374,16 @@ fn create_flexbox_window(world: &mut World) {
 
     println!("[Test] Flexbox demo window created:");
     println!("  Window (root)");
-    println!("  └─ FlexContainer (Row, SpaceEvenly, Center) - 灰色背景、10pxマージン、右クリック/Ctrl+左クリックでTunnelデモ");
+    println!(
+        "  └─ FlexContainer (Row, SpaceEvenly, Center) - 灰色背景、10pxマージン、右クリック/Ctrl+左クリックでTunnelデモ"
+    );
     println!("     ├─ Rectangle (red, 200x100 fixed) - 左クリックで色トグル");
     println!(
         "     │   └─ BitmapSource (seikatu_0_0.webp) - αマスクヒットテスト有効、透明部分は親に透過"
     );
-    println!("     ├─ Rectangle (green, 100x100, grow=1, Column) - マウス移動でログ、左クリックでTunnelキャプチャ");
+    println!(
+        "     ├─ Rectangle (green, 100x100, grow=1, Column) - マウス移動でログ、左クリックでTunnelキャプチャ"
+    );
     println!("     │   └─ Rectangle (yellow, 50x50) - Tunnelキャプチャ検証用子エンティティ");
     println!("     └─ Rectangle (blue, 100x100, grow=2) - 左クリックでサイズトグル");
     println!("\n[PointerEvent Demo]");
@@ -412,13 +414,14 @@ fn change_layout_parameters(world: &mut World) {
             width: Some(Dimension::Px(600.0)),
             height: Some(Dimension::Px(400.0)),
         });
-        style.inset = Some(BoxInset(wintf::ecs::layout::Rect {
-            left: LengthPercentageAuto::Px(-500.0),
-            top: LengthPercentageAuto::Px(400.0),
-            right: LengthPercentageAuto::Auto,
-            bottom: LengthPercentageAuto::Auto,
-        }));
-        println!("[Test] Window BoxStyle changed: position=(-500,400), size=(600,400) in DIP");
+        println!("[Test] Window BoxStyle changed: size=(600,400) in DIP");
+    }
+
+    // WindowPos.position を変更してウィンドウを移動
+    let mut wp_query = world.query_filtered::<&mut WindowPos, With<FlexDemoWindow>>();
+    if let Some(mut wp) = wp_query.iter_mut(world).next() {
+        wp.position = Some(windows::Win32::Foundation::POINT { x: -500, y: 400 });
+        println!("[Test] Window position changed to (-500, 400) via WindowPos");
     }
 
     // FlexContainerを縦並びに変更
@@ -720,8 +723,13 @@ fn dump_entity_bounds(world: &World, name: &str, entity: Entity) {
         let b = &global.bounds;
         println!(
             "[HitTest] {} bounds: left={:.1}, top={:.1}, right={:.1}, bottom={:.1} (size: {:.1}x{:.1})",
-            name, b.left, b.top, b.right, b.bottom,
-            b.right - b.left, b.bottom - b.top
+            name,
+            b.left,
+            b.top,
+            b.right,
+            b.bottom,
+            b.right - b.left,
+            b.bottom - b.top
         );
     } else {
         println!("[HitTest] {} has no GlobalArrangement", name);
@@ -775,9 +783,12 @@ fn on_container_pressed(
             if state.ctrl_down && state.left_down {
                 info!(
                     "[Tunnel] FlexContainer: Event stopped at Container (Ctrl+Left), sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
-                    sender, entity,
-                    state.client_point.x, state.client_point.y,
-                    state.local_point.x, state.local_point.y,
+                    sender,
+                    entity,
+                    state.client_point.x,
+                    state.client_point.y,
+                    state.local_point.x,
+                    state.local_point.y,
                 );
 
                 // コンテナの色をピンクに変更
@@ -804,9 +815,12 @@ fn on_container_pressed(
             if state.right_down {
                 info!(
                     "[Bubble] FlexContainer: Right-click detected! sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
-                    sender, entity,
-                    state.client_point.x, state.client_point.y,
-                    state.local_point.x, state.local_point.y,
+                    sender,
+                    entity,
+                    state.client_point.x,
+                    state.client_point.y,
+                    state.local_point.x,
+                    state.local_point.y,
                 );
 
                 // コンテナの色をピンクに変更
@@ -853,7 +867,7 @@ fn on_container_drag_start(
                 sender_name, entity_name, event.position.x, event.position.y
             );
 
-            // ウィンドウエンティティを探索してBoxStyle.insetを記録
+            // ウィンドウエンティティを探索してドラッグ開始位置を記録
             // これはDraggingStateとして保存される（DraggingStateには既にdrag_start_posがある）
 
             false
@@ -864,7 +878,7 @@ fn on_container_drag_start(
 /// FlexContainer の OnDrag ハンドラ
 ///
 /// ドラッグ中のログ出力を行う。
-/// ウィンドウ位置の更新はフレームワークの `apply_window_drag_movement` システムが
+/// ウィンドウ位置の更新はフレームワークのWndProcレベル直接SetWindowPosが
 /// 自動的に処理する（DragConfig.move_window = true）。
 fn on_container_drag(
     world: &mut World,
@@ -952,10 +966,15 @@ fn on_red_box_pressed(
     if state.left_down {
         info!(
             "[Bubble] RedBox: Left-click, sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1}), L={}, R={}, Ctrl={}",
-            sender, entity,
-            state.client_point.x, state.client_point.y,
-            state.local_point.x, state.local_point.y,
-            state.left_down, state.right_down, state.ctrl_down,
+            sender,
+            entity,
+            state.client_point.x,
+            state.client_point.y,
+            state.local_point.x,
+            state.local_point.y,
+            state.left_down,
+            state.right_down,
+            state.ctrl_down,
         );
 
         // 色をトグル（赤 ⇔ 黄）
@@ -1094,9 +1113,12 @@ fn on_green_box_pressed(
                 // 通常の左クリック：色をトグル（緑 ⇔ 黄緑）
                 info!(
                     "[Tunnel] GreenBox: Captured event, stopping propagation (Left), sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
-                    sender, entity,
-                    state.client_point.x, state.client_point.y,
-                    state.local_point.x, state.local_point.y,
+                    sender,
+                    entity,
+                    state.client_point.x,
+                    state.client_point.y,
+                    state.local_point.x,
+                    state.local_point.y,
                 );
 
                 if let Some(mut brushes) = world.get_mut::<Brushes>(entity) {
@@ -1141,9 +1163,12 @@ fn on_green_box_pressed(
             if state.right_down {
                 info!(
                     "[Bubble] GreenBox: Right-click, sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
-                    sender, entity,
-                    state.client_point.x, state.client_point.y,
-                    state.local_point.x, state.local_point.y,
+                    sender,
+                    entity,
+                    state.client_point.x,
+                    state.client_point.y,
+                    state.local_point.x,
+                    state.local_point.y,
                 );
 
                 // 色を変更
@@ -1184,10 +1209,15 @@ fn on_green_child_pressed(
         Phase::Tunnel(_) => {
             info!(
                 "[Tunnel] GreenBoxChild: This should NOT be called if parent captured (Left), sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1}), L={}, R={}, Ctrl={}",
-                sender, entity,
-                state.client_point.x, state.client_point.y,
-                state.local_point.x, state.local_point.y,
-                state.left_down, state.right_down, state.ctrl_down,
+                sender,
+                entity,
+                state.client_point.x,
+                state.client_point.y,
+                state.local_point.x,
+                state.local_point.y,
+                state.left_down,
+                state.right_down,
+                state.ctrl_down,
             );
             false
         }
@@ -1196,9 +1226,12 @@ fn on_green_child_pressed(
             if state.right_down {
                 info!(
                     "[Bubble] GreenBoxChild: Right-click detected, changing to orange, sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1})",
-                    sender, entity,
-                    state.client_point.x, state.client_point.y,
-                    state.local_point.x, state.local_point.y,
+                    sender,
+                    entity,
+                    state.client_point.x,
+                    state.client_point.y,
+                    state.local_point.x,
+                    state.local_point.y,
                 );
 
                 // 色をオレンジに変更
@@ -1275,10 +1308,15 @@ fn on_blue_box_pressed(
     if state.left_down {
         info!(
             "[Bubble] BlueBox: Left-click detected! Toggling size, sender={:?}, entity={:?}, screen=({:.1},{:.1}), local=({:.1},{:.1}), L={}, R={}, Ctrl={}",
-            sender, entity,
-            state.client_point.x, state.client_point.y,
-            state.local_point.x, state.local_point.y,
-            state.left_down, state.right_down, state.ctrl_down,
+            sender,
+            entity,
+            state.client_point.x,
+            state.client_point.y,
+            state.local_point.x,
+            state.local_point.y,
+            state.left_down,
+            state.right_down,
+            state.ctrl_down,
         );
 
         // サイズをトグル

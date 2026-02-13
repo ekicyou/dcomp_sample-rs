@@ -24,7 +24,8 @@ pub use bevy_ecs::hierarchy::{ChildOf, Children};
 pub use common::tree_system::*;
 pub use drag::{
     DragConfig, DragConstraint, DragEndEvent, DragEvent, DragStartEvent, DraggingState, OnDrag,
-    OnDragEnd, OnDragStart, cleanup_drag_state, dispatch_drag_events,
+    OnDragEnd, OnDragStart, WindowDragContext, WindowDragContextResource, WindowDragging,
+    cleanup_drag_state, dispatch_drag_events,
 };
 pub use graphics::FrameTime;
 pub use graphics::calculate_surface_size_from_global_arrangement;

@@ -228,19 +228,12 @@ pub(super) fn WM_WINDOWPOSCHANGED(
                                 }
                             }
 
-                            // BoxStyleがあれば更新（なければスキップ）
+                            // BoxStyle.size のサイズ変更判定と条件付き更新
+                            // BoxStyle.inset への書き込みは行わない（Window位置はWindowPosが唯一のsource of truth）
                             // 注: BoxStyleは論理座標（DIP）を使用するため、物理ピクセルから変換が必要
-                            if let Some(mut box_style) =
-                                entity_ref.get_mut::<crate::ecs::layout::BoxStyle>()
                             {
-                                use crate::ecs::layout::{
-                                    BoxInset, BoxSize, Dimension, LengthPercentageAuto, Rect,
-                                };
+                                use crate::ecs::layout::{BoxSize, Dimension};
 
-                                // Window の offset は物理ピクセル単位（LayoutRoot は scale=1.0）
-                                // Window の size は論理ピクセル単位（Taffy が DIP で計算するため）
-                                let physical_x = client_pos.x as f32;
-                                let physical_y = client_pos.y as f32;
                                 let physical_width = client_size.cx as f32;
                                 let physical_height = client_size.cy as f32;
 
@@ -250,32 +243,43 @@ pub(super) fn WM_WINDOWPOSCHANGED(
                                 let logical_width = physical_width / scale_x;
                                 let logical_height = physical_height / scale_y;
 
-                                // サイズを更新（論理ピクセル単位）
-                                box_style.size = Some(BoxSize {
+                                let new_size = Some(BoxSize {
                                     width: Some(Dimension::Px(logical_width)),
                                     height: Some(Dimension::Px(logical_height)),
                                 });
 
-                                // 位置を更新（絶対配置のinset、物理ピクセル単位）
-                                box_style.inset = Some(BoxInset(Rect {
-                                    left: LengthPercentageAuto::Px(physical_x),
-                                    top: LengthPercentageAuto::Px(physical_y),
-                                    right: LengthPercentageAuto::Auto,
-                                    bottom: LengthPercentageAuto::Auto,
-                                }));
+                                // Step 1: 現在のサイズを読み取り（immutable borrow）
+                                let current_size = entity_ref
+                                    .get::<crate::ecs::layout::BoxStyle>()
+                                    .map(|bs| bs.size);
 
-                                trace!(
-                                    entity = ?entity,
-                                    physical_x = physical_x,
-                                    physical_y = physical_y,
-                                    physical_width = physical_width,
-                                    physical_height = physical_height,
-                                    logical_width = logical_width,
-                                    logical_height = logical_height,
-                                    scale_x = scale_x,
-                                    scale_y = scale_y,
-                                    "BoxStyle updated: position (physical pixels), size (logical pixels)"
-                                );
+                                // Step 2: サイズ変更がある場合のみ get_mut で更新（Changed<BoxStyle> 発火）
+                                let size_changed =
+                                    current_size.map(|cs| cs != new_size).unwrap_or(false);
+
+                                if size_changed {
+                                    if let Some(mut box_style) =
+                                        entity_ref.get_mut::<crate::ecs::layout::BoxStyle>()
+                                    {
+                                        box_style.size = new_size;
+                                    }
+
+                                    trace!(
+                                        entity = ?entity,
+                                        physical_width = physical_width,
+                                        physical_height = physical_height,
+                                        logical_width = logical_width,
+                                        logical_height = logical_height,
+                                        scale_x = scale_x,
+                                        scale_y = scale_y,
+                                        "[WM_WINDOWPOSCHANGED] BoxStyle.size updated (size changed)"
+                                    );
+                                } else {
+                                    trace!(
+                                        entity = ?entity,
+                                        "[WM_WINDOWPOSCHANGED] BoxStyle.size unchanged, skipping update"
+                                    );
+                                }
                             }
                         }
                     }
@@ -487,6 +491,9 @@ pub(super) fn WM_MOUSEMOVE(
     let ctrl = (wparam_val & 0x08) != 0; // MK_CONTROL
 
     // World借用してhit_testとPointerState管理
+    // ドラッグ中のSetWindowPosはWorld借用外で実行する（WM_WINDOWPOSCHANGED同期発火対策）
+    let mut deferred_set_window_pos: Option<(HWND, i32, i32)> = None;
+
     if let Some(world) = super::try_get_ecs_world() {
         if let Ok(mut world_borrow) = world.try_borrow_mut() {
             // TrackMouseEvent 設定（ウィンドウに対して）
@@ -591,7 +598,15 @@ pub(super) fn WM_MOUSEMOVE(
                         }
                     }
                 }
-                crate::ecs::drag::DragState::Dragging { prev_pos, .. } => {
+                crate::ecs::drag::DragState::Dragging {
+                    prev_pos,
+                    start_pos,
+                    hwnd: drag_hwnd,
+                    initial_window_pos,
+                    move_window,
+                    constraint,
+                    ..
+                } => {
                     let current_pos = crate::ecs::pointer::PhysicalPoint::new(screen_x, screen_y);
 
                     // ドラッグ中：デルタを累積
@@ -618,7 +633,27 @@ pub(super) fn WM_MOUSEMOVE(
                     }
 
                     // thread_local DragStateのprev_posを更新
-                    crate::ecs::drag::update_dragging(current_pos);
+                    let ctx_res = world_borrow
+                        .world()
+                        .get_resource::<crate::ecs::drag::WindowDragContextResource>();
+                    crate::ecs::drag::update_dragging(current_pos, ctx_res);
+
+                    // WndProcレベル直接SetWindowPos（ECSパイプラインバイパス）
+                    // NOTE: SetWindowPosはWM_WINDOWPOSCHANGEDを同期発火し、そこで
+                    // World borrowが必要になるため、借用スコープ外に遅延実行する
+                    if move_window {
+                        let mut new_x = initial_window_pos.x + (current_pos.x - start_pos.x);
+                        let mut new_y = initial_window_pos.y + (current_pos.y - start_pos.y);
+
+                        // DragConstraint 適用
+                        if let Some(ref c) = constraint {
+                            let (cx, cy) = c.apply(new_x, new_y);
+                            new_x = cx;
+                            new_y = cy;
+                        }
+
+                        deferred_set_window_pos = Some((drag_hwnd, new_x, new_y));
+                    }
                 }
                 _ => {}
             }
@@ -749,6 +784,23 @@ pub(super) fn WM_MOUSEMOVE(
                 set_modifier_state(target_entity, shift, ctrl);
             }
         }
+    }
+
+    // World借用解放後にSetWindowPosを実行
+    // これにより同期発火するWM_WINDOWPOSCHANGEDがWorldを借用でき、
+    // WindowPos.positionが正しく更新される
+    if let Some((drag_hwnd, new_x, new_y)) = deferred_set_window_pos {
+        let _ = unsafe {
+            crate::ecs::window::guarded_set_window_pos(
+                drag_hwnd,
+                None,
+                new_x,
+                new_y,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+        };
     }
 
     Some(LRESULT(0))

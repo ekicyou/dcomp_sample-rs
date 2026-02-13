@@ -2,10 +2,12 @@
 //!
 //! thread_local! + RefCellパターンでwndproc層のドラッグ状態を管理する。
 
+use crate::ecs::drag::DragConstraint;
 use crate::ecs::pointer::PhysicalPoint;
 use bevy_ecs::entity::Entity;
 use std::cell::RefCell;
 use std::time::Instant;
+use windows::Win32::Foundation::{HWND, POINT};
 
 /// ドラッグ状態（thread_local!で管理）
 #[derive(Debug, Clone)]
@@ -47,6 +49,15 @@ pub enum DragState {
         prev_pos: PhysicalPoint,
         /// 開始時刻
         start_time: Instant,
+        // --- WndProc レベルドラッグ用の新規フィールド ---
+        /// Window の Win32 ハンドル
+        hwnd: HWND,
+        /// ドラッグ開始時のウィンドウ位置（クライアント領域スクリーン座標）
+        initial_window_pos: POINT,
+        /// DragConfig.move_window のキャッシュ
+        move_window: bool,
+        /// DragConstraint のキャッシュ
+        constraint: Option<DragConstraint>,
     },
 
     /// ドラッグ終了直後（1フレームのみ）
@@ -148,8 +159,14 @@ pub fn start_dragging(current_pos: PhysicalPoint) {
 }
 
 /// ドラッグ移動（WM_MOUSEMOVE時）
+///
+/// JustStarted → Dragging 遷移時に WindowDragContextResource から
+/// HWND・初期位置・制約情報を読み取り、DragState::Dragging にセットする。
 #[inline]
-pub fn update_dragging(current_pos: PhysicalPoint) {
+pub fn update_dragging(
+    current_pos: PhysicalPoint,
+    drag_context: Option<&crate::ecs::drag::WindowDragContextResource>,
+) {
     update_drag_state(|state| match state {
         DragState::JustStarted {
             entity,
@@ -157,12 +174,42 @@ pub fn update_dragging(current_pos: PhysicalPoint) {
             start_time,
             ..
         } => {
+            // WindowDragContextResource から Window 情報を読み取り
+            let (hwnd, initial_window_pos, move_window, constraint) =
+                if let Some(ctx_res) = drag_context {
+                    if let Some(ctx) = ctx_res.get() {
+                        (
+                            ctx.hwnd.unwrap_or(HWND::default()),
+                            ctx.initial_window_pos.unwrap_or(POINT { x: 0, y: 0 }),
+                            ctx.move_window,
+                            ctx.constraint,
+                        )
+                    } else {
+                        (HWND::default(), POINT { x: 0, y: 0 }, false, None)
+                    }
+                } else {
+                    (HWND::default(), POINT { x: 0, y: 0 }, false, None)
+                };
+
+            tracing::debug!(
+                entity = ?*entity,
+                hwnd = format!("0x{:X}", hwnd.0 as usize),
+                initial_x = initial_window_pos.x,
+                initial_y = initial_window_pos.y,
+                move_window = move_window,
+                "[update_dragging] JustStarted -> Dragging with WindowDragContext"
+            );
+
             *state = DragState::Dragging {
                 entity: *entity,
                 start_pos: *start_pos,
                 current_pos,
                 prev_pos: current_pos,
                 start_time: *start_time,
+                hwnd,
+                initial_window_pos,
+                move_window,
+                constraint,
             };
         }
         DragState::Dragging {
@@ -174,8 +221,12 @@ pub fn update_dragging(current_pos: PhysicalPoint) {
                 entity,
                 start_pos,
                 start_time,
+                hwnd,
+                initial_window_pos,
+                move_window,
+                constraint,
                 ..
-            } = *state
+            } = state.clone()
             {
                 *state = DragState::Dragging {
                     entity,
@@ -183,6 +234,10 @@ pub fn update_dragging(current_pos: PhysicalPoint) {
                     current_pos,
                     prev_pos,
                     start_time,
+                    hwnd,
+                    initial_window_pos,
+                    move_window,
+                    constraint,
                 };
             }
         }
