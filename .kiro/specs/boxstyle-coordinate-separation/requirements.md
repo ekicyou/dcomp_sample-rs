@@ -18,6 +18,7 @@
 
 - **WindowPos コンポーネント**: `position: Option<POINT>` と `size: Option<SIZE>` を持ち、物理ピクセルのクライアント領域座標を保持する。ウィンドウエンティティは `WindowPos` を通じて生のXY座標およびサイズを常に参照可能。
 - **Arrangement.offset**: PostLayout の `sync_window_arrangement_from_window_pos` で `WindowPos.position` → `Arrangement.offset` に反映済み。XY座標の描画パイプラインへの伝搬経路は BoxStyle を経由しなくても確保されている。
+- **位置の source of truth**: Window entity のスクリーン座標の唯一の source of truth は `WindowPos.position` とする。`BoxStyle.inset` は Window entity の位置決定に関与しない。
 
 ## Requirements
 
@@ -31,6 +32,7 @@
 2. When `WM_WINDOWPOSCHANGED` メッセージを受信した際、the wintf system shall `BoxStyle.size`（width, height）は現行通り論理ピクセル単位で更新すること
 3. When ウィンドウがスクリーン上で移動（位置のみ変更、サイズ不変）された際、the wintf system shall `Changed<BoxStyle>` を発火させないこと
 4. When ウィンドウサイズが変更された際、the wintf system shall `Changed<BoxStyle>` を発火させ、レイアウト再計算をトリガーすること
+5. The wintf system shall Window entity の `BoxStyle.inset`（left, top）を常に `Auto`（または `Px(0.0)`）に保ち、スクリーン座標を格納しないこと
 
 ### Requirement 2: ドラッグによるウィンドウ移動のWndProcレベル化
 
@@ -60,6 +62,7 @@
 2. The wintf system shall `WindowPos.size` を通じてウィンドウの物理ピクセルサイズを常に参照可能であること
 3. When 外部からウィンドウが移動された際、the PostLayout system shall `sync_window_arrangement_from_window_pos` 経由で `Arrangement.offset` にXY座標を反映すること
 4. The wintf system shall `WindowPos` → `Arrangement.offset` → `GlobalArrangement` の伝搬経路によりウィンドウ位置がビジュアルツリーに反映されること
+5. The layout system shall `update_arrangements_system` において Window entity の `Arrangement.offset` を taffy 計算結果で上書きしないこと（`WindowPos` が Window 位置の唯一の source of truth）
 
 ### Requirement 4: BoxStyle.inset のウィンドウ以外の用途保全
 

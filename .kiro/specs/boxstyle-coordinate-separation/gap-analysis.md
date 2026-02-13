@@ -75,6 +75,7 @@ PostLayout スケジュール:
 | AC2: BoxStyle.size は現行通り更新 | ✅ 容易 | handlers.rs L247-250 を維持 | サイズのみ変更時の `Changed<BoxStyle>` 制御が必要 |
 | AC3: 位置のみ変更で Changed<BoxStyle> 不発火 | ⚠️ 検討要 | 現在は size と inset を同一 `get_mut` で更新 | サイズ不変時に `get_mut` を呼ばない分岐が必要 |
 | AC4: サイズ変更時に Changed<BoxStyle> 発火 | ✅ 容易 | 現行動作をサイズ変更時のみに限定 | なし |
+| AC5: WindowのBoxStyle.insetは常にAuto/Px(0) | ✅ 容易 | spawn時のinset設定を削除、WM_WINDOWPOSCHANGEDでの書き込み停止 | examples 3ファイルの初期位置指定をWindowPos経由に変更 |
 
 **技術的ポイント**: `get_mut::<BoxStyle>()` を呼ぶと `DerefMut` で `Changed` が発火する。サイズ不変のウィンドウ移動で `Changed<BoxStyle>` を抑制するには、サイズ変更有無を事前判定し、不変なら `get_mut` を呼ばないようにする必要がある。
 
@@ -103,13 +104,18 @@ PostLayout スケジュール:
 | AC3: sync_window_arrangement_from_window_pos 経由反映 | ✅ 既存 | PostLayout で動作済み | なし |
 | AC4: WindowPos→Arrangement→GlobalArrangement 伝搬 | ✅ 既存 | 全パイプライン実装済み | なし |
 
-**結論**: 代替伝搬経路は完全に実装済み。追加実装不要。
+| AC5: update_arrangementsがWindowのoffsetを上書きしない | ⚠️ 要実装 | update_arrangements_systemは現在全エンティティのoffsetを上書き | Window判定が必要。`With<Window>` で offset 書き込みをスキップする分岐追加 |
+
+**結論**: AC1-AC4 は既存実装で充足。AC5（update_arrangements で Window の offset スキップ）は新規実装が必要。
+
+**スナップバック防止の根拠**: BoxStyle.inset が 0/None に固定されていても、`Changed<BoxStyle>` 発火時に taffy が `location=(0,0)` を計算し `update_arrangements` が `Arrangement.offset=(0,0)` を書くと、Window が原点にスナップバックする。AC5（Window の offset スキップ）により、`WindowPos` が位置の唯一の source of truth となり、この問題を構造的に排除する。
 
 ### 要件間の依存関係
 
 | 依存元 | 依存先 | 関係 |
 |--------|--------|------|
 | Req 2 AC6 | Req 1 | Req 1（BoxStyle.inset書き込み除去）が達成されていることが前提。WndProcレベルドラッグ単体ではWM_WINDOWPOSCHANGED echo経由のBoxStyle.inset書き込みが残り、Changed<BoxStyle>は抑制されない |
+| Req 3 AC5 | Req 1 AC5 | Window の BoxStyle.inset が 0/None であることが前提。stale な inset 値がなければ taffy 経由のスナップバックリスクが解消されるが、AC5 は追加の構造的安全性保証として必要 |
 
 ### Requirement 4: BoxStyle.inset のウィンドウ以外の用途保全
 
