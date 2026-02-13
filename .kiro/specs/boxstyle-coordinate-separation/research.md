@@ -70,9 +70,13 @@
 - **Trade-offs**: 毎回 `get_mut` を呼ぶオーバーヘッド（軽微）。コードの意図が明示的
 
 ### Decision: DragState への HWND キャッシュタイミング
-- **Context**: WndProcレベルでSetWindowPos を呼ぶにはHWNDが必要
-- **Selected Approach**: `dispatch_drag_events` の `DragTransition::Started` 処理で、親Window 探索時に `WindowHandle.hwnd` を取得し `DragState::Dragging` にセット
-- **Rationale**: 既存の親Window探索ロジックを流用可能。ECS→thread_local の転送は1回のみ（ドラッグ開始時）
+- **Context**: WndProcレベルでSetWindowPos を呼ぶにはHWNDが必要。wndproc スレッドから ECS コンポーネント（WindowHandle）に直接アクセスできない
+- **Selected Approach**: 
+  1. 新しい `WindowDragContextResource` (Arc\<Mutex\<WindowDragContext\>>) を ECS リソースとして追加
+  2. `dispatch_drag_events` の `DragTransition::Started` 処理で、親Window探索時に `WindowHandle.hwnd`, `WindowPos.position`, `DragConfig.move_window`, `DragConstraint` を取得
+  3. `WindowDragContextResource` に書き込み
+  4. wndproc の `update_dragging()` で `JustStarted` → `Dragging` 遷移時に `WindowDragContextResource` から読み取り、`DragState::Dragging` にセット
+- **Rationale**: 既存の親Window探索ロジックを流用可能。ECS→wndproc の転送は Arc\<Mutex\> パターンで一貫性を保つ（既存の DragAccumulatorResource と同様）
 
 ### Decision: update_arrangements_system での Window offset スキップ方式
 - **Context**: taffy が Window の location=(0,0) を計算して Arrangement.offset を上書きするリスク
@@ -83,6 +87,16 @@
 - **Context**: WndProcレベルドラッグ終了後にECSの WindowPos/Arrangement 整合性を回復する必要がある
 - **Selected Approach**: `dispatch_drag_events` の `DragTransition::Ended` 処理内で、DragState の最終位置を `WindowPos.position` に DerefMut で書き込み → `Changed<WindowPos>` 発火 → PostLayout で `sync_window_arrangement_from_window_pos` が Arrangement を更新
 - **Rationale**: 既存パイプラインを最大限活用。追加システム不要
+
+### Decision: apply_window_drag_movement システムの削除
+- **Context**: WndProc レベル移行後、`apply_window_drag_movement` の主機能（BoxStyle.inset 更新）が不要になる。DragEvent 発行の継続可否を判断する必要がある
+- **調査結果**: `apply_window_drag_movement` は `DragEvent` を購読し BoxStyle.inset を更新。`DragEvent` 自体は `dispatch_drag_events` で発行済み
+- **Selected Approach**: `apply_window_drag_movement` システムを完全削除。DragEvent は `dispatch_drag_events` で発行継続（ユーザーコールバック用）
+- **Rationale**: 
+  1. BoxStyle.inset 更新が不要になり、システムの存在意義が消失
+  2. DragEvent 発行は dispatch_drag_events で既に行われているため重複
+  3. 将来の非ウィンドウドラッグ（スライダー等）は別の専用システムとして設計すべき
+- **Input スケジュール変更**: `dispatch_drag_events`, ~~`apply_window_drag_movement`~~ → `dispatch_drag_events` のみ
 
 ## Risks & Mitigations
 - **Risk**: ドラッグ中の WM_WINDOWPOSCHANGED echo で BoxStyle.size が変更される可能性（DPI変更中のドラッグ等）→ サイズ変更時のみ `Changed<BoxStyle>` を発火する設計で対処

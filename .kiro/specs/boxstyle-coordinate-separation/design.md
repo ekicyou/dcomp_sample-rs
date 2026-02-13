@@ -241,12 +241,12 @@ sequenceDiagram
 | Component | Domain/Layer | Intent | Req Coverage | Key Dependencies | Contracts |
 |-----------|-------------|--------|--------------|------------------|-----------|
 | WM_WINDOWPOSCHANGED Handler | WndProc | サイズ変更時のみ BoxStyle 更新 | 1.1-1.5 | EntityWorldMut (P0) | — |
-| WM_MOUSEMOVE Handler | WndProc | ドラッグ中直接 SetWindowPos | 2.1, 2.2 | DragState (P0), guarded_set_window_pos (P0) | — |
-| DragState (拡張) | WndProc/Drag | HWND・初期位置・constraint キャッシュ | 2.3, 2.5 | — | State |
-| dispatch_drag_events (変更) | ECS/Input | DragState キャッシュ設定 + 終了同期 | 2.3-2.5, 2.7 | DragAccumulatorResource (P0), WindowHandle (P0) | — |
+| WM_MOUSEMOVE Handler | WndProc | ドラッグ中直接 SetWindowPos | 2.1, 2.2 | DragState (P0), WindowDragContextResource (P0), guarded_set_window_pos (P0) | — |
+| DragState (拡張) | WndProc/Drag | HWND・初期位置・constraint キャッシュ | 2.3, 2.5 | WindowDragContextResource (P0) | State |
+| WindowDragContextResource | ECS/Resource | ECS→wndproc スレッド間ドラッグ情報転送 | 2.3, 2.5 | — | Arc\<Mutex\> |
+| dispatch_drag_events (変更) | ECS/Input | WindowDragContext 設定 + 終了同期 + DragEvent 発行 | 2.2-2.5, 2.7 | WindowHandle (P0), WindowPos (P0), DragConfig (P0) | — |
 | WindowDragging | ECS/Component | Window ドラッグ状態マーカー | 2.7 | — | — |
 | update_arrangements_system (変更) | ECS/Layout | Window offset スキップ | 3.5 | Window component (P0) | — |
-| apply_window_drag_movement (変更) | ECS/Input | BoxStyle.inset 書き込み廃止 | 2.2 | — | — |
 | Examples (変更) | Application | 初期位置を WindowPos 経由に変更 | 1.5 | WindowPos (P0) | — |
 
 ### WndProc Layer
@@ -307,6 +307,10 @@ if current_size.as_ref().map(|s| s != &new_logical_size).unwrap_or(true) {
 - `guarded_set_window_pos()` 経由で呼び出し（エコーバック防止）
 - `DragAccumulatorResource` への delta 蓄積は維持（DragEvent ECS 発行用）
 
+**Dependencies**
+- Inbound: WindowDragContextResource (P0) — ECS から HWND 等の情報を取得
+- Outbound: guarded_set_window_pos (P0) — SetWindowPos 呼び出し
+
 **Implementation Notes**
 
 ```rust
@@ -315,11 +319,9 @@ DRAG_STATE.with(|cell| {
     let state = cell.borrow();
     if let DragState::Dragging {
         hwnd, initial_window_pos, move_window, constraint,
-        current_pos, prev_pos, ..
+        current_pos, prev_pos, start_pos, ..
     } = &*state {
         if *move_window {
-            let delta_x = current_pos.x - prev_pos.x;
-            let delta_y = current_pos.y - prev_pos.y;
             let mut new_pos = POINT {
                 x: initial_window_pos.x + (current_pos.x - start_pos.x),
                 y: initial_window_pos.y + (current_pos.y - start_pos.y),
@@ -375,39 +377,74 @@ Dragging {
     constraint: Option<DragConstraint>,     // DragConstraint のキャッシュ
 }
 ```
+1. **ECS 側（dispatch_drag_events）**: `DragTransition::Started` 処理内で親 Window 探索時に以下を取得し、`WindowDragContextResource` に書き込む:
+   - `WindowHandle.hwnd` → `hwnd`
+   - `WindowPos.position` (現在のウィンドウ位置) → `initial_window_pos`
+   - `DragConfig.move_window` → `move_window`
+   - `DragConstraint` (存在すれば) → `constraint`
 
-**キャッシュタイミング**: `dispatch_drag_events` の `DragTransition::Started` 処理内で、親 Window 探索時に以下を取得:
-1. `WindowHandle.hwnd` → `hwnd`
-2. `WindowPos.position` (現在のウィンドウ位置) → `initial_window_pos`
-3. `DragConfig.move_window` → `move_window`
-4. `DragConstraint` (存在すれば) → `constraint`
+2. **wndproc 側（update_dragging）**: `JustStarted` → `Dragging` 遷移時に `WindowDragContextResource` から上記を読み取り、`DragState::Dragging` にセット。
+WindowDragContextResource (新規)
 
-これらを `DragAccumulatorResource` の `start_dragging()` 呼び出し時に渡し、`DragState::Dragging` にセット。
+| Field | Detail |
+|-------|--------|
+| Intent | ECS スレッド → wndproc スレッド間でドラッグ開始時のウィンドウ情報を転送 |
+| Requirements | 2.3, 2.5 |
+
+##### Arc\<Mutex\> Contract
+
+```rust
+/// wndproc スレッドでのドラッグに必要な Window 情報
+pub struct WindowDragContext {
+    pub hwnd: Option<HWND>,
+    pub initial_window_pos: Option<POINT>,
+    pub move_window: bool,
+    pub constraint: Option<DragConstraint>,
+}
+
+#[derive(Resource, Clone)]
+pub struct WindowDragContextResource {
+    inner: Arc<Mutex<WindowDragContext>>,
+}
+```
+
+**ライフサイクル**:
+- dispatch_drag_events (ECS スレッド) が Started 処理時に更新
+- update_dragging (wndproc スレッド) が JustStarted → Dragging 遷移時に読み取り
 
 #### dispatch_drag_events 変更
 
 | Field | Detail |
 |-------|--------|
-| Intent | ドラッグ開始時のキャッシュ設定、終了時の ECS 同期、WindowDragging マーカー管理 |
-| Requirements | 2.3, 2.4, 2.5, 2.7 |
+| Intent | ドラッグ開始時の WindowDragContext 設定、終了時の ECS 同期、WindowDragging マーカー管理、DragEvent 発行 |
+| Requirements | 2.2, 2.3, 2.4, 2.5, 2.7 |
 
 **Responsibilities & Constraints**
 - `DragTransition::Started`:
-  1. 既存の親 Window 探索ロジックで `WindowHandle.hwnd` を取得
-  2. `WindowPos.position` から初期ウィンドウ位置を取得
-  3. `DragConfig.move_window` と `DragConstraint` をキャッシュ
-  4. 上記を `DragAccumulatorResource` の `start_dragging()` に渡す
-  5. Window entity に `WindowDragging` マーカーを insert
-  6. ウィジェット entity に `DraggingState` を insert（現行維持）
+  1. 既存の親 Window 探索ロジックで Window entity を取得
+  2. `WindowHandle.hwnd`, `WindowPos.position`, `DragConfig.move_window`, `DragConstraint` を取得
+  3. `WindowDragContextResource` に書き込み（wndproc 側で読み取り可能にする）
+  4. Window entity に `WindowDragging` マーカーを insert
+  5. ウィジェット entity に `DraggingState` を insert（現行維持）
+  6. `DragStartEvent` を発行（現行維持）
 
 - `DragTransition::Ended`:
   1. `DragAccumulatorResource` から最終位置を取得
-  2. Window entity の `WindowPos.position` を `DerefMut` で更新 → `Changed<WindowPos>` 発火
-  3. Window entity から `WindowDragging` を remove
-  4. ウィジェット entity から `DraggingState` を remove（現行維持）
-  5. `DragEndEvent` を発行（現行維持）
+  2. Window entity の `WindowPos.削除
 
-**Implementation Notes**
+| Field | Detail |
+|-------|--------|
+| Intent | （削除） |
+| Requirements | 2.2 |
+
+**削除理由**: 
+- `apply_window_drag_movement` の主機能は `BoxStyle.inset` への書き込みであったが、WndProc レベル移行により不要になる
+- `DragEvent` の発行は `dispatch_drag_events` で既に行われているため、重複
+- 将来の非ウィンドウドラッグ（スライダー等）は別のシステムとして設計すべき
+
+**Input スケジュール変更**:
+- 削除前: `dispatch_drag_events`, `apply_window_drag_movement`
+- 削除後: `dispatch_drag_events` のみ
 - `WindowPos` の更新は `DerefMut`（`bypass_change_detection` ではない）で行い、`Changed<WindowPos>` を意図的に発火させる。これにより PostLayout の `sync_window_arrangement_from_window_pos` が `Arrangement.offset` を正しく更新する
 - `DragAccumulatorResource` の `flush()` は引き続きデルタとトランジションを返す。ドラッグ中のデルタは `DragEvent` としてECSに発行され、ユーザーコールバック（`DragEvent` 購読）に利用される
 - `DraggingState.initial_inset` は `initial_window_pos`（POINT 型）に置き換え。型は `(f32, f32)` → `POINT` に変更
@@ -547,6 +584,14 @@ classDiagram
         +constraint: Option~DragConstraint~
     }
 
+    class WindowDragContext {
+        <<Resource, Arc~Mutex~>>
+        hwnd: Option~HWND~
+        initial_window_pos: Option~POINT~
+        move_window: bool
+        constraint: Option~DragConstraint~
+    }
+
     class WindowDragging {
         <<Component, marker>>
     }
@@ -563,10 +608,13 @@ classDiagram
     }
 
     DragState --> DraggingFields : Dragging variant
-    WindowDragging ..> DragState : lifetime linked
-
-    note for BoxStyle "Window entity: inset は常に Auto/0\n非Window: 変更なし"
+    WindowDragContext -.-> DraggingFields : ECS→wndproc transfer
+    WindowDragging ..> DragState : lifetime linked `WindowDragContext` が None を返し、wndproc レベル移動はスキップされる）
+4. `WindowDragging` コンポーネントのライフタイムは `DragState::Dragging` の期間と一致する
+5. `update_arrangements_system` は Window entity の `Arrangement.offset` を taffy 結果で上書きしない
+6. **スレッド間契約**: `WindowDragContext` は ECS スレッド（dispatch_drag_events）が書き込み、wndproc スレッド（update_dragging）が読み取る。Arc\<Mutex\> による排他制御を行う。
     note for WindowPos "Window位置の唯一のsource of truth"
+    note for WindowDragContext "dispatch_drag_events が更新\nupdate_dragging が読み取り"
 ```
 
 **ビジネスルール & 不変条件**:
