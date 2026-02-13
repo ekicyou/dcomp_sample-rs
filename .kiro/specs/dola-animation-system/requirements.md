@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |------|------|
 | **Document Title** | Dola アニメーション宣言フォーマット 要件定義書 |
-| **Version** | 1.2 |
+| **Version** | 1.3 |
 | **Date** | 2026-02-13 |
 | **Status** | Draft |
 
@@ -76,7 +76,7 @@ Windows Animation Manager が COM インターフェースを通じて提供す�
 
 #### Acceptance Criteria
 
-1. **The** Dola **shall** 各トランジションに対象のアニメーション変数・終了値・持続時間を指定できる
+1. **The** Dola **shall** 各トランジションに遷移種別・終了値・持続時間を指定できる（対象アニメーション変数はトランジション配置時に指定する）
 2. **The** Dola **shall** 線形（linear）トランジションをサポートする（f64/i64 型に適用可能）
 3. **The** Dola **shall** `interpolation` クレートの `EaseFunction` 列挙型と同一名称の組み込みイージング関数（全30種: QuadraticIn/Out/InOut, CubicIn/Out/InOut, QuarticIn/Out/InOut, QuinticIn/Out/InOut, SineIn/Out/InOut, CircularIn/Out/InOut, ExponentialIn/Out/InOut, ElasticIn/Out/InOut, BackIn/Out/InOut, BounceIn/Out/InOut）をサポートする（f64/i64 型に適用可能）
 4. **The** Dola **shall** 即時（instantaneous）トランジションをサポートする（全型に適用可能）
@@ -85,6 +85,8 @@ Windows Animation Manager が COM インターフェースを通じて提供す�
 7. **The** Dola **shall** 三次ベジェ補間（`cub_bez`: 4制御点 x0,x1,x2,x3）をトランジションの値パスとして定義できる（f64/i64 型に適用可能。`interpolation::cub_bez` 準拠）
 8. **The** Dola **shall** Object 型にはキーフレーム時点での値切り替え（即時または定数）のみ適用できる
 9. **The** Dola **shall** イージング関数・ベジェ補間の列挙型を `interpolation` クレートの命名規則に準拠して自前定義し、`serde` によるシリアライズ・デシリアライズを実装する
+10. **The** Dola **shall** トランジションに一意な名前を付けて再利用可能なテンプレートとして定義できる（WAM のトランジションは使い捨てだが、宣言フォーマットでは DRY のため名前参照を許可する）
+11. **The** Dola **shall** トランジション参照をハイブリッド形式でサポートする：文字列の場合は名前付きテンプレートへの参照、オブジェクトの場合はインライン定義として解釈する
 
 ---
 
@@ -97,8 +99,8 @@ Windows Animation Manager が COM インターフェースを通じて提供す�
 1. **The** Dola **shall** ストーリーボード開始からのオフセット時間でキーフレームを定義できる
 2. **The** Dola **shall** 他のキーフレームからの相対オフセットでキーフレームを定義できる
 3. **The** Dola **shall** トランジション終了後の時点をキーフレームとして参照できる
-4. **The** Dola **shall** 2つのキーフレーム間にトランジションを配置できる（トランジションの持続時間はキーフレーム間の差分で決定される）
-5. **The** Dola **shall** 各キーフレームに一意な名前を付与できる
+4. **The** Dola **shall** 予約キーフレーム `"start"` を暗黙的に提供する（ストーリーボード開始時刻 t=0 を表す。WAM の `UI_ANIMATION_KEYFRAME_STORYBOARD_START` 相当）
+5. **The** Dola **shall** 各キーフレームに一意な文字列名を付与できる（`"start"` は予約済みのためユーザー定義不可）
 
 ---
 
@@ -109,8 +111,11 @@ Windows Animation Manager が COM インターフェースを通じて提供す�
 #### Acceptance Criteria
 
 1. **The** Dola **shall** 1つのストーリーボードに複数のアニメーション変数へのトランジションを含められる
-2. **The** Dola **shall** 同一変数に対する複数のトランジションを時系列順に連結できる
-3. **The** Dola **shall** キーフレームを使用してトランジションの開始位置を制御できる
+2. **The** Dola **shall** トランジション配置方法として以下の3種類をサポートする：
+   - **末尾連結（append）**: 対象変数のタイムライン末尾にトランジションを追加する（WAM `AddTransition` 相当）
+   - **キーフレーム起点（from_keyframe）**: 指定キーフレームからトランジションを開始する（WAM `AddTransitionAtKeyframe` 相当）
+   - **キーフレーム間（between_keyframes）**: 2つのキーフレーム間にトランジションを配置する（トランジションの持続時間はキーフレーム間の時間差で上書きされる。WAM `AddTransitionBetweenKeyframes` 相当）
+3. **The** Dola **shall** 各トランジション配置を、対象アニメーション変数名とトランジション参照（名前文字列またはインライン定義オブジェクト）で構成する
 4. **The** Dola **shall** ストーリーボード内のすべてのトランジションを同一タイムライン上に配置し、同期再生可能な形式で定義する
 5. **The** Dola **shall** ストーリーボードにループ設定（無限/指定回数）を定義できる
 6. **The** Dola **shall** ストーリーボードに一意な名前を付与できる
