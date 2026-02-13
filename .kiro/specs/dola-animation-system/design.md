@@ -157,7 +157,8 @@ graph TB
 |-----------|--------|--------|--------------|------------------|-----------|
 | DolaDocument | document | ルートコンテナ、スキーマ管理 | 1.5, 2.8, 4.1, 4.2, 5.1-5.7 | Variable, Transition, Storyboard | State |
 | AnimationVariableDef | variable | 変数型定義 | 1.1-1.7 | DynamicValue | — |
-| TransitionDef | transition | トランジションパラメータ | 2.1-2.10 | EasingFunction, DynamicValue | — |
+| TransitionValue | transition | トランジション値型（型拡張対応） | 2.1, 2.6 | — | — |
+| TransitionDef | transition | トランジションパラメータ | 2.1-2.10 | EasingFunction, TransitionValue | — |
 | TransitionRef | transition | ハイブリッド参照 | 2.8, 2.9 | TransitionDef | — |
 | EasingFunction | easing | イージング列挙型 | 2.2-2.5, 2.7, 7.4 | — | — |
 | Storyboard | storyboard | SB 構造 + メタ情報 | 3.1, 3.3, 4.1-4.8, 6.2 | StoryboardEntry | State |
@@ -173,7 +174,7 @@ graph TB
 
 以下のコンポーネントはデータ定義（struct/enum 定義 + serde derive）であり、ロジックを持たない。型定義は「Data Models」セクションに集約する。
 
-対象: AnimationVariableDef, TransitionDef, TransitionRef, EasingFunction, EasingName, ParametricEasing, Storyboard, StoryboardEntry, KeyframeRef, BetweenKeyframes, PlaybackState, ScheduleRequest, DynamicValue, DolaError
+対象: AnimationVariableDef, TransitionValue, TransitionDef, TransitionRef, EasingFunction, EasingName, ParametricEasing, Storyboard, StoryboardEntry, KeyframeRef, BetweenKeyframes, PlaybackState, ScheduleRequest, DynamicValue, DolaError
 
 ### Boundary Components（詳細）
 
@@ -257,6 +258,10 @@ impl Validate for DolaDocument {
 - **Preconditions**: デシリアライズ済みの DolaDocument
 - **Postconditions**: Ok(()) の場合、すべての構造整合性制約を満たす
 - **Invariants**: バリデーションは副作用なし（read-only）
+
+**Implementation Notes**
+- キーフレーム参照検証（V6）は2パスで実施：第1パスで各SBの全`keyframe`フィールドを収集、第2パスで`at`/`between`の参照先存在を検証
+- 前方参照を許可することで、エントリの宣言順序に制約を設けず論理的な構成を優先
 
 **バリデーションルール一覧**:
 
@@ -384,16 +389,30 @@ enum AnimationVariableDef {
 }
 ```
 
+#### TransitionValue
+
+```rust
+/// トランジションの開始値・終了値を表す型（将来の型拡張に対応）
+#[serde(untagged)]
+enum TransitionValue {
+    /// スカラー値（f64/i64 変数向け）
+    Scalar(f64),
+    // 将来の拡張: Vector4([f64; 4]), Color { r, g, b, a }, Transform { ... } など
+}
+```
+
+**設計意図**: 現在は f64 のみだが、将来的に四次元ベクトル・色・変換行列等の複雑な型へのイージングをサポートする際、既存の API 互換性を保ちつつ拡張可能
+
 #### TransitionDef
 
 ```rust
 /// トランジション定義
 struct TransitionDef {
-    /// 開始値（f64/i64 共通。省略時は配置時点の変数の現在値）
-    from: Option<f64>,
-    /// 終了値（f64/i64 は数値、Object は DynamicValue。relative_to と排他）
-    to: Option<DynamicValue>,
-    /// 相対終了値（開始値からのオフセット。f64/i64 のみ。to と排他）
+    /// 開始値（省略時は配置時点の変数の現在値）
+    from: Option<TransitionValue>,
+    /// 終了値（relative_to と排他）
+    to: Option<TransitionValue>,
+    /// 相対終了値（開始値からのオフセット。スカラー値のみ。to と排他）
     relative_to: Option<f64>,
     /// イージング種別（f64/i64 のみ。Object には適用不可）
     easing: Option<EasingFunction>,
@@ -407,7 +426,8 @@ struct TransitionDef {
 
 **不変条件**:
 - `to` と `relative_to` は排他（同時指定不可）
-- Object 型変数への適用時: `to` のみ（`from`/`relative_to`/`easing` は不可）
+- スカラー値（f64/i64）のイージング時: `from`/`to` は TransitionValue::Scalar、`relative_to` 使用可
+- Object 型変数への適用時: `to` のみ（`from`/`relative_to`/`easing` は不可）。将来的に TransitionValue::Object バリアント追加の可能性あり
 - 総時間 = `delay` + `duration`（`duration` 省略時は即時 = delay 後即座に切り替え）
 
 #### TransitionRef
