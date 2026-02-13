@@ -182,7 +182,7 @@ Dola は**完全なグリーンフィールド**プロジェクト。既存コ�
 **根拠**: Dola は wintf に依存しない独立クレート（Req 7.1）。既存コードとの結合点がゼロ。
 
 **構成案**:
-`
+```
 crates/dola/
 ├── Cargo.toml
 ├── src/
@@ -201,7 +201,7 @@ crates/dola/
     ├── serde_roundtrip_test.rs
     ├── validation_test.rs
     └── builder_test.rs
-`
+```
 
 **統合ポイント**:
 - ワークスペース: `members = ["crates/*"]` で自動包含
@@ -306,8 +306,8 @@ Dola のスコープは純粋なデータモデル+バリデーションであ�
 
 ギャップ分析が完了。設計フェーズに進むには：
 
-`
+```
 /kiro-spec-design dola-animation-system -y
-`
+```
 
 > **注意**: 既存の design.md は v1.4 要件ベース。v1.5（暗黙的 KF）・v1.6（at 配列化）の変更および本ギャップ分析の結果を反映した再生成が必要。
