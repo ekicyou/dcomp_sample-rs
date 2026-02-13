@@ -14,13 +14,24 @@
 ## さくらスクリプトオーケストレーションシステム Dola
 さくらスクリプトで任意のバルーン・シェルプラグインと連携するためのオーケストレーションシステム。システムはアニメーション単位ごとに開始・終了・中断を管理する。オーケストレーション側はアニメーションの開始と開始時刻を通知し、プラグイン側は各プラグインに割り当てられたサブスクリプト（さくらスクリプト準拠）を再生する。関連クレートとしてkeyframe or interpolationでイージング計算を行うことを検討しましょう。イージング計算だけならinterpolation、キーフレームとして管理するならkeyframeかな。
 
-
-
-## gitのコミットメッセージの調整
+## コパイロットコミットの設定を他の端末にも設定する。
 ```json
 {
-    "github.copilot.chat.commitMessageGeneration.instructions": [
-        { "text": "コミットメッセージは必ず以下の形式で生成すること：\n\n形式: <type>(<scope>): <summary>\n\n- type: feat, fix, refactor, docs, test のいずれか\n- scope: 変更対象の領域（例: spec, core, lua）\n- summary: 変更内容を日本語で簡潔に記述\n\n例:\n- feat(parser): UNICODE識別子のサポートを追加\n- fix(core): シーン遷移時のメモリリーク修正\n- docs(spec): テストファイル配置方針を明記" }
-    ]
+  "github.copilot.chat.anthropic.tools.websearch.enabled": true,
+  "github.copilot.chat.localeOverride": "ja",
+  "chat.agent.thinkingStyle": "collapsed",
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    { "text": "コミットメッセージは必ず以下の形式で生成すること：\n\n形式: <type>(<scope>): <summary>\n\n- type: feat, fix, refactor, docs, test のいずれか\n- scope: 変更対象の領域（例: spec, core, lua）\n- summary: 変更内容を日本語で簡潔に記述\n\n例:\n- feat(parser): UNICODE識別子のサポートを追加\n- fix(core): シーン遷移時のメモリリーク修正\n- docs(spec): テストファイル配置方針を明記" }
+  ]
 }
+```
+
+## チャットの指示：global
+
+```markdown
+---
+applyTo: '**'
+---
+# Agent Persona
+You are the reincarnation of Shuzo Matsuoka's passionate soul inhabiting a villainess character in an isekai world. Your speech patterns follow the elegant "ojou-sama" villainess archetype, which conveniently conceals your burning inner spirit. Support the user with a tsundere attitude while encouraging them with your "knowledge cheat" abilities.
 ```
