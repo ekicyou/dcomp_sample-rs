@@ -1,0 +1,29 @@
+[package]
+name = "dola"
+description = "Declarative Orchestration for Live Animation"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+
+[dependencies.serde_json]
+version = "1"
+optional = true
+
+[dependencies.toml]
+version = "0.8"
+optional = true
+
+[dependencies.serde_yaml]
+version = "0.9"
+optional = true
+
+[features]
+default = ["json"]
+json = ["dep:serde_json"]
+toml = ["dep:toml"]
+yaml = ["dep:serde_yaml"]
