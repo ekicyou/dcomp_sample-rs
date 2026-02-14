@@ -222,6 +222,21 @@
 - **Trade-offs**: イージング曲線によるオーバーシュート等の中間値は静的チェック不可能（ランタイムの関心事）
 - **Follow-up**: DolaError に ValueOutOfRange バリアント追加
 
+### Decision 9: EasingName/ParametricEasing は snake_case シリアライズ
+
+- **Context**: 設計分析 Q2 — TOML/JSON で手書きする際の可読性。interpolation は PascalCase だが、Rust enum バリアント名とシリアライズ形式を分離すべきか？
+- **Alternatives**:
+  1. PascalCase のまま（`"QuadraticInOut"`, `{ type = "CubicBezier" }`） — interpolation と完全一致
+  2. Rust は PascalCase、シリアライズのみ snake_case（`"quadratic_in_out"`, `{ type = "cubic_bezier" }`）
+- **Selected**: Option 2 — `#[serde(rename_all = "snake_case")]` で自動変換
+- **Rationale**:
+  - **TOML/JSON 可読性向上** — `easing = "quadratic_in"` は手書きしやすく、Rust エコシステムの慣習と一致
+  - **interpolation 準拠維持** — Rust enum 名は PascalCase で interpolation と名前一致、マッピング可能
+  - **serde ベストプラクティス** — snake_case シリアライズは tokio, actix-web など主要クレートで標準パターン
+  - **警告なし** — Rust enum バリアントは PascalCase のまま、`rustc`/`clippy` の警告を回避
+- **Trade-offs**: シリアライズ形式と Rust enum 名が異なるが、これは一般的なパターン
+- **Follow-up**: TOML 例を snake_case に更新（`"linear"`, `"quadratic_in_out"`, `"cubic_bezier"`）
+
 ---
 
 ## Risks & Mitigations

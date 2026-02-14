@@ -476,6 +476,8 @@ enum EasingFunction {
 }
 
 /// 名前付きイージング（interpolation::EaseFunction 準拠 + Linear）
+/// Rust バリアント名は PascalCase、シリアライズ形式は snake_case
+#[serde(rename_all = "snake_case")]
 enum EasingName {
     Linear,
     QuadraticIn, QuadraticOut, QuadraticInOut,
@@ -491,7 +493,7 @@ enum EasingName {
 }
 
 /// パラメトリックイージング（内部タグ "type" で判別）
-#[serde(tag = "type")]
+#[serde(tag = "type", rename_all = "snake_case")]
 enum ParametricEasing {
     /// 二次ベジェ補間（interpolation::quad_bez 準拠）
     QuadraticBezier { x0: f64, x1: f64, x2: f64 },
@@ -698,12 +700,12 @@ initial = { path = "default.png" }
 
 [transition.fade_in]
 to = 1.0
-easing = "QuadraticInOut"
+easing = "quadratic_in_out"
 duration = 1.5
 
 [transition.typewrite]
 to = 7.0
-easing = "Linear"
+easing = "linear"
 duration = 3.0
 
 # === ストーリーボード ===
@@ -738,7 +740,7 @@ at = "text_done"
 # 複数KF + オフセット:
 #   at = { keyframes = ["visible", "text_done"], offset = 0.5 }
 # ベジェイージング:
-#   easing = { type = "CubicBezier", x0 = 0.0, x1 = 0.42, x2 = 0.58, x3 = 1.0 }
+#   easing = { type = "cubic_bezier", x0 = 0.0, x1 = 0.42, x2 = 0.58, x3 = 1.0 }
 ```
 
 ### クレート構成
