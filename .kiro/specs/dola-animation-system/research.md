@@ -237,6 +237,26 @@
 - **Trade-offs**: シリアライズ形式と Rust enum 名が異なるが、これは一般的なパターン
 - **Follow-up**: TOML 例を snake_case に更新（`"linear"`, `"quadratic_in_out"`, `"cubic_bezier"`）
 
+### Decision 10: InterruptionPolicy をストーリーボード属性として追加
+
+- **Context**: 設計分析 Q3 — マルチプロセス協調アニメーション環境において、ストーリーボード競合時の終了戦略をどこに持たせるべきか？WAM ではマネージャーのグローバル属性だが、実用上は各ストーリーボードが「自分が中断されたらどう振る舞うか」を宣言する方が自然
+- **Alternatives**:
+  1. InterruptionPolicy のみ追加（協調的な自己申告）
+  2. InterruptionPolicy + priority（競争的優先度）も追加
+  3. 見送り（将来仕様に委譲）
+- **Selected**: Option 1 — InterruptionPolicy のみ
+- **Rationale**:
+  - **マルチプロセス協調アニメーション設計**: 各プロセスは「自分の終了方針」を宣言的に自己申告し、オーケストレーション側の指示は絶対とする。priority（競争）ではなく協調的な設計が適切
+  - **Never の意味**: 「このSBが未完了なら新SBの開始を待機」という協調的な制約として機能
+  - **Dola のスコープ**: データモデル＋バリデーションであり、解決ロジックは将来のランタイム仕様に委譲。InterruptionPolicy は「情報提供」として十分
+  - **priority 不採用**: 使いこなせない複雑性を避ける。オーケストレーション側の解決ロジックが単純化される
+- **Trade-offs**: 優先度による細かな制御はできないが、シンプルで理解しやすい設計となる
+- **Follow-up**: 
+  - Req 4.9 追加（interruption_policy 属性）
+  - InterruptionPolicy enum 定義（Cancel/Conclude/Trim/Compress/Never）
+  - Storyboard に `interruption_policy: InterruptionPolicy` フィールド追加（デフォルト: Conclude）
+  - snake_case シリアライズ（`"cancel"`, `"conclude"`, `"never"` など）
+
 ---
 
 ## Risks & Mitigations

@@ -502,6 +502,27 @@ enum ParametricEasing {
 }
 ```
 
+#### InterruptionPolicy
+
+```rust
+/// 割り込み終了戦略（ストーリーボード競合時の自己申告方針）
+#[serde(rename_all = "snake_case")]
+enum InterruptionPolicy {
+    /// 即座に破棄。変数値はその瞬間で凍結（WAM: Abandon 相当）
+    Cancel,
+    /// 現在のトランジションを最終値へジャンプさせて完了（デフォルト）
+    Conclude,
+    /// 割り込み開始時点まで再生して切断
+    Trim,
+    /// 残りを圧縮（高速再生）して完了
+    Compress,
+    /// 中断不可。このストーリーボードが未完了なら新ストーリーボードの開始を待機
+    Never,
+}
+```
+
+**設計意図**: マルチプロセス協調アニメーション環境において、各ストーリーボードは「自分が中断されたらどう振る舞うか」を宣言的に自己申告する。オーケストレーション側の解決ロジックはこの情報を参照して適切な終了処理を実行する。priority（競争的優先度）は採用せず、協調的な自己申告のみとする。
+
 #### Storyboard / StoryboardEntry
 
 ```rust
@@ -512,6 +533,9 @@ struct Storyboard {
     time_scale: f64,
     /// ループ回数（None = ループなし、Some(0) = 無限、Some(n) = n回）
     loop_count: Option<u32>,
+    /// 割り込み終了戦略（デフォルト: Conclude）
+    #[serde(default = "default_interruption_policy")]
+    interruption_policy: InterruptionPolicy,
     /// エントリ配列
     entry: Vec<StoryboardEntry>,
 }
@@ -712,6 +736,7 @@ duration = 3.0
 
 [storyboard.greeting]
 time_scale = 1.0
+interruption_policy = "conclude"  # デフォルト（省略可）
 
 # Entry 1: 前エントリ連結（SB先頭 → "start" から開始）
 [[storyboard.greeting.entry]]
